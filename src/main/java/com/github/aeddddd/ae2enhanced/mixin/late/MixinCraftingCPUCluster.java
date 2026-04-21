@@ -31,31 +31,30 @@ public class MixinCraftingCPUCluster {
     private static Method waitingForAddMethod;
     private static boolean reflectionReady = false;
 
-    // ---- 日志频率控制 ----
-    private static boolean batchLogged = false;
-    private static long lastErrorLog = 0;
-    private static final long ERROR_LOG_COOLDOWN_MS = 5000;
+    // ---- 调试日志控制 ----
+    private static int debugLogCount = 0;
+    private static final int MAX_DEBUG_LOGS = 30;
+
+    private static void debugLog(String msg) {
+        if (debugLogCount < MAX_DEBUG_LOGS) {
+            debugLogCount++;
+            System.out.println("[AE2E-DEBUG] " + msg);
+        }
+    }
 
     private static void initReflection() throws Exception {
         if (reflectionReady) return;
-
         tasksField = CraftingCPUCluster.class.getDeclaredField("tasks");
         tasksField.setAccessible(true);
-
         waitingForField = CraftingCPUCluster.class.getDeclaredField("waitingFor");
         waitingForField.setAccessible(true);
-
         remOpsField = CraftingCPUCluster.class.getDeclaredField("remainingOperations");
         remOpsField.setAccessible(true);
-
         postChangeMethod = CraftingCPUCluster.class.getDeclaredMethod("postCraftingStatusChange", IAEItemStack.class);
         postChangeMethod.setAccessible(true);
-
-        // TaskProgress.value 字段
         Class<?> taskProgressClass = Class.forName("appeng.me.cluster.implementations.CraftingCPUCluster$TaskProgress");
         taskProgressValueField = taskProgressClass.getDeclaredField("value");
         taskProgressValueField.setAccessible(true);
-
         reflectionReady = true;
     }
 
@@ -73,34 +72,41 @@ public class MixinCraftingCPUCluster {
             CraftingCPUCluster cpu = (CraftingCPUCluster) (Object) this;
 
             Map<ICraftingPatternDetails, Object> tasks = (Map<ICraftingPatternDetails, Object>) tasksField.get(cpu);
+            debugLog("tasks.size=" + tasks.size());
             if (tasks.isEmpty()) return;
 
             Object waitingFor = waitingForField.get(cpu);
             Method waitingForAdd = getWaitingForAdd(waitingFor);
             int remainingOps = remOpsField.getInt(cpu);
 
-            boolean anyBatch = false;
-
             for (Map.Entry<ICraftingPatternDetails, Object> entry : new ArrayList<>(tasks.entrySet())) {
                 ICraftingPatternDetails details = entry.getKey();
                 Object progress = entry.getValue();
-
                 long remaining = taskProgressValueField.getLong(progress);
+                debugLog("task remaining=" + remaining);
                 if (remaining <= 0) continue;
 
                 List<ICraftingMedium> mediums = cache.getMediums(details);
+                debugLog("mediums.size=" + (mediums == null ? 0 : mediums.size()));
                 if (mediums == null || mediums.isEmpty()) continue;
 
                 for (ICraftingMedium medium : mediums) {
+                    debugLog("medium class=" + medium.getClass().getName());
                     if (!(medium instanceof TileAssemblyMeInterface)) continue;
 
                     TileAssemblyController controller = ((TileAssemblyMeInterface) medium).getController();
-                    if (controller == null || !controller.isVirtualPattern(details)) continue;
+                    debugLog("controller=" + controller + " pos=" + (controller != null ? controller.getPos() : null));
+                    if (controller == null) continue;
+
+                    boolean isVirtual = controller.isVirtualPattern(details);
+                    debugLog("isVirtual=" + isVirtual);
+                    if (!isVirtual) continue;
 
                     appeng.api.networking.security.IActionSource source = cpu.getActionSource();
                     controller.setCurrentActionSource(source);
                     try {
                         boolean success = controller.executeBatch(details, remaining);
+                        debugLog("executeBatch remaining=" + remaining + " success=" + success);
                         if (success) {
                             taskProgressValueField.setLong(progress, 0);
                             remainingOps -= remaining;
@@ -113,7 +119,7 @@ public class MixinCraftingCPUCluster {
                                 postChangeMethod.invoke(cpu, expected.copy());
                             }
 
-                            anyBatch = true;
+                            System.out.println("[AE2E] BATCH success: remaining=" + remaining);
                         }
                     } finally {
                         controller.setCurrentActionSource(null);
@@ -125,18 +131,9 @@ public class MixinCraftingCPUCluster {
             if (remainingOps != remOpsField.getInt(cpu)) {
                 remOpsField.setInt(cpu, remainingOps);
             }
-
-            if (anyBatch && !batchLogged) {
-                batchLogged = true;
-                System.out.println("[AE2E] Batch crafting activated for virtual patterns");
-            }
         } catch (Exception e) {
-            long now = System.currentTimeMillis();
-            if (now - lastErrorLog > ERROR_LOG_COOLDOWN_MS) {
-                lastErrorLog = now;
-                System.err.println("[AE2E] batchProcessVirtualTasks error (suppressing for 5s): " + e);
-                e.printStackTrace();
-            }
+            debugLog("EXCEPTION: " + e.getClass().getName() + " " + e.getMessage());
+            e.printStackTrace();
         }
     }
 }
