@@ -22,49 +22,72 @@ import java.util.Map;
 @Mixin(value = CraftingCPUCluster.class, remap = false, priority = 1000)
 public class MixinCraftingCPUCluster {
 
-    private static boolean debugLogged = false;
+    // ---- 反射缓存 ----
+    private static Field tasksField;
+    private static Field waitingForField;
+    private static Field remOpsField;
+    private static Method postChangeMethod;
+    private static Field taskProgressValueField;
+    private static Method waitingForAddMethod;
+    private static boolean reflectionReady = false;
 
-    /**
-     * 在 executeCrafting 开头直接批量处理所有虚拟合成任务。
-     * 由于 @At(INVOKE) 在运行时无法匹配 pushPattern 调用点，
-     * 改为在方法头遍历 tasks map，直接完成 batch 注入并同步 AE2 内部状态。
-     */
+    // ---- 日志频率控制 ----
+    private static boolean batchLogged = false;
+    private static long lastErrorLog = 0;
+    private static final long ERROR_LOG_COOLDOWN_MS = 5000;
+
+    private static void initReflection() throws Exception {
+        if (reflectionReady) return;
+
+        tasksField = CraftingCPUCluster.class.getDeclaredField("tasks");
+        tasksField.setAccessible(true);
+
+        waitingForField = CraftingCPUCluster.class.getDeclaredField("waitingFor");
+        waitingForField.setAccessible(true);
+
+        remOpsField = CraftingCPUCluster.class.getDeclaredField("remainingOperations");
+        remOpsField.setAccessible(true);
+
+        postChangeMethod = CraftingCPUCluster.class.getDeclaredMethod("postCraftingStatusChange", IAEItemStack.class);
+        postChangeMethod.setAccessible(true);
+
+        // TaskProgress.value 字段
+        Class<?> taskProgressClass = Class.forName("appeng.me.cluster.implementations.CraftingCPUCluster$TaskProgress");
+        taskProgressValueField = taskProgressClass.getDeclaredField("value");
+        taskProgressValueField.setAccessible(true);
+
+        reflectionReady = true;
+    }
+
+    private static Method getWaitingForAdd(Object waitingFor) throws NoSuchMethodException {
+        if (waitingForAddMethod == null) {
+            waitingForAddMethod = waitingFor.getClass().getMethod("addStorage", IAEItemStack.class);
+        }
+        return waitingForAddMethod;
+    }
+
     @Inject(method = "executeCrafting", at = @At("HEAD"))
     private void batchProcessVirtualTasks(IEnergyGrid energy, CraftingGridCache cache, CallbackInfo ci) {
         try {
+            initReflection();
             CraftingCPUCluster cpu = (CraftingCPUCluster) (Object) this;
 
-            // 反射获取 tasks
-            Field tasksField = CraftingCPUCluster.class.getDeclaredField("tasks");
-            tasksField.setAccessible(true);
             Map<ICraftingPatternDetails, Object> tasks = (Map<ICraftingPatternDetails, Object>) tasksField.get(cpu);
+            if (tasks.isEmpty()) return;
 
-            // 反射获取 waitingFor
-            Field waitingForField = CraftingCPUCluster.class.getDeclaredField("waitingFor");
-            waitingForField.setAccessible(true);
             Object waitingFor = waitingForField.get(cpu);
-            Method waitingForAdd = waitingFor.getClass().getMethod("addStorage", IAEItemStack.class);
-
-            // 反射获取 remainingOperations
-            Field remOpsField = CraftingCPUCluster.class.getDeclaredField("remainingOperations");
-            remOpsField.setAccessible(true);
+            Method waitingForAdd = getWaitingForAdd(waitingFor);
             int remainingOps = remOpsField.getInt(cpu);
 
-            // 反射获取 postCraftingStatusChange
-            Method postChangeMethod = CraftingCPUCluster.class.getDeclaredMethod("postCraftingStatusChange", IAEItemStack.class);
-            postChangeMethod.setAccessible(true);
+            boolean anyBatch = false;
 
-            // 遍历所有任务，批量处理虚拟合成
             for (Map.Entry<ICraftingPatternDetails, Object> entry : new ArrayList<>(tasks.entrySet())) {
                 ICraftingPatternDetails details = entry.getKey();
                 Object progress = entry.getValue();
 
-                Field valueField = progress.getClass().getDeclaredField("value");
-                valueField.setAccessible(true);
-                long remaining = valueField.getLong(progress);
+                long remaining = taskProgressValueField.getLong(progress);
                 if (remaining <= 0) continue;
 
-                // 获取该 pattern 对应的 mediums
                 List<ICraftingMedium> mediums = cache.getMediums(details);
                 if (mediums == null || mediums.isEmpty()) continue;
 
@@ -74,19 +97,14 @@ public class MixinCraftingCPUCluster {
                     TileAssemblyController controller = ((TileAssemblyMeInterface) medium).getController();
                     if (controller == null || !controller.isVirtualPattern(details)) continue;
 
-                    // 使用 CraftingCPU 的 ActionSource 注入，使 AE2 能正确追踪产物
                     appeng.api.networking.security.IActionSource source = cpu.getActionSource();
                     controller.setCurrentActionSource(source);
                     try {
                         boolean success = controller.executeBatch(details, remaining);
                         if (success) {
-                            // 将 TaskProgress.value 设为 0，让 executeCrafting 后续逻辑跳过该任务
-                            valueField.setLong(progress, 0);
-
-                            // 同步 remainingOperations
+                            taskProgressValueField.setLong(progress, 0);
                             remainingOps -= remaining;
 
-                            // 同步 waitingFor：添加所有预期产出
                             for (IAEItemStack outputTemplate : details.getCondensedOutputs()) {
                                 if (outputTemplate == null || outputTemplate.getStackSize() <= 0) continue;
                                 IAEItemStack expected = outputTemplate.copy();
@@ -95,21 +113,30 @@ public class MixinCraftingCPUCluster {
                                 postChangeMethod.invoke(cpu, expected.copy());
                             }
 
-                            if (!debugLogged) {
-                                debugLogged = true;
-                                System.out.println("[AE2E] BATCH success: remaining=" + remaining + " tasks=" + tasks.size());
-                            }
+                            anyBatch = true;
                         }
                     } finally {
                         controller.setCurrentActionSource(null);
                     }
-                    break; // 该 pattern 已处理，不需要尝试其他 medium
+                    break;
                 }
             }
 
-            remOpsField.setInt(cpu, remainingOps);
+            if (remainingOps != remOpsField.getInt(cpu)) {
+                remOpsField.setInt(cpu, remainingOps);
+            }
+
+            if (anyBatch && !batchLogged) {
+                batchLogged = true;
+                System.out.println("[AE2E] Batch crafting activated for virtual patterns");
+            }
         } catch (Exception e) {
-            e.printStackTrace();
+            long now = System.currentTimeMillis();
+            if (now - lastErrorLog > ERROR_LOG_COOLDOWN_MS) {
+                lastErrorLog = now;
+                System.err.println("[AE2E] batchProcessVirtualTasks error (suppressing for 5s): " + e);
+                e.printStackTrace();
+            }
         }
     }
 }
