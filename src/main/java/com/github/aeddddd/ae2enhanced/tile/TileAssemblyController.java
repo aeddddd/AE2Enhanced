@@ -157,7 +157,7 @@ public class TileAssemblyController extends TileEntity implements ICraftingProvi
     public void update() {
         if (world == null || world.isRemote) return;
 
-        // 样板变化时触发 AE 网络重新扫描（连续刷新 5 ticks 确保 AE2 缓存更新）
+        // 样板变化时触发 AE 网络重新扫描
         if (patternsDirty && activeMeInterfacePos != null) {
             patternsDirty = false;
             patternRefreshTicks = 5;
@@ -166,9 +166,14 @@ public class TileAssemblyController extends TileEntity implements ICraftingProvi
             patternRefreshTicks--;
             TileEntity te = world.getTileEntity(activeMeInterfacePos);
             if (te instanceof TileAssemblyMeInterface) {
-                IGridNode node = ((TileAssemblyMeInterface) te).getProxy().getNode();
-                if (node != null) {
-                    node.updateState();
+                TileAssemblyMeInterface me = (TileAssemblyMeInterface) te;
+                appeng.me.helpers.AENetworkProxy proxy = me.getProxy();
+                IGridNode node = proxy.getNode();
+                if (node != null && node.getGrid() != null) {
+                    // 发送 MENetworkCraftingPatternChange 事件，通知 AE2 重新扫描该节点的样板
+                    appeng.api.networking.events.MENetworkCraftingPatternChange event =
+                        new appeng.api.networking.events.MENetworkCraftingPatternChange(me, node);
+                    node.getGrid().postEvent(event);
                 }
             }
         }

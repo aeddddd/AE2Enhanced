@@ -1,7 +1,7 @@
 package com.github.aeddddd.ae2enhanced.mixin.late;
 
+import appeng.api.networking.crafting.ICraftingMedium;
 import appeng.api.networking.crafting.ICraftingPatternDetails;
-import appeng.api.networking.crafting.ICraftingProvider;
 import appeng.api.storage.data.IAEItemStack;
 import appeng.me.cluster.implementations.CraftingCPUCluster;
 import com.github.aeddddd.ae2enhanced.tile.TileAssemblyController;
@@ -27,10 +27,10 @@ public class MixinCraftingCPUCluster {
             method = "executeCrafting",
             at = @At(
                     value = "INVOKE",
-                    target = "Lappeng/api/networking/crafting/ICraftingProvider;pushPattern(Lappeng/api/networking/crafting/ICraftingPatternDetails;Lnet/minecraft/inventory/InventoryCrafting;)Z"
+                    target = "Lappeng/api/networking/crafting/ICraftingMedium;pushPattern(Lappeng/api/networking/crafting/ICraftingPatternDetails;Lnet/minecraft/inventory/InventoryCrafting;)Z"
             )
     )
-    private boolean redirectPushPattern(ICraftingProvider provider, ICraftingPatternDetails details, InventoryCrafting table) {
+    private boolean redirectPushPattern(ICraftingMedium provider, ICraftingPatternDetails details, InventoryCrafting table) {
         if (provider instanceof TileAssemblyMeInterface) {
             TileAssemblyController controller = ((TileAssemblyMeInterface) provider).getController();
             if (controller != null && controller.isVirtualPattern(details)) {
