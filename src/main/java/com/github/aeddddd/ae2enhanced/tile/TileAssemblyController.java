@@ -478,6 +478,16 @@ public class TileAssemblyController extends TileEntity implements ICraftingProvi
     public void provideCrafting(ICraftingProviderHelper craftingTracker) {
         if (world == null || world.isRemote) return;
 
+        // 使用 TileAssemblyMeInterface 作为 medium 注册样板，
+        // 这样 CraftingGridCache.getMediums() 返回的是 TileAssemblyMeInterface 而不是 TileAssemblyController
+        appeng.api.networking.crafting.ICraftingMedium medium = this;
+        if (activeMeInterfacePos != null) {
+            TileEntity te = world.getTileEntity(activeMeInterfacePos);
+            if (te instanceof TileAssemblyMeInterface) {
+                medium = (TileAssemblyMeInterface) te;
+            }
+        }
+
         for (int i = UPGRADE_SLOTS; i < TOTAL_SLOTS; i++) {
             ItemStack stack = itemHandler.getStackInSlot(i);
             if (stack.isEmpty()) continue;
@@ -485,7 +495,7 @@ public class TileAssemblyController extends TileEntity implements ICraftingProvi
             if (stack.getItem() instanceof ICraftingPatternItem) {
                 ICraftingPatternDetails pattern = ((ICraftingPatternItem) stack.getItem()).getPatternForItem(stack, world);
                 if (pattern != null && pattern.isCraftable()) {
-                    craftingTracker.addCraftingOption(this, pattern);
+                    craftingTracker.addCraftingOption(medium, pattern);
                 }
             }
         }
