@@ -24,12 +24,13 @@ public class MixinCraftingCPUCluster {
      * 如果 provider 是 Assembly Hub 且样板已缓存为虚拟合成，
      * 尝试批量执行剩余全部份数。
      */
-    private static boolean debugLogged = false;
+    private static boolean debugInjectLogged = false;
+    private static int debugWrapCount = 0;
 
     @Inject(method = "executeCrafting", at = @At("HEAD"))
     private void onExecuteCrafting(CallbackInfo ci) {
-        if (!debugLogged) {
-            debugLogged = true;
+        if (!debugInjectLogged) {
+            debugInjectLogged = true;
             System.out.println("[AE2E-DEBUG] MixinCraftingCPUCluster.executeCrafting inject WORKING");
         }
     }
@@ -42,6 +43,7 @@ public class MixinCraftingCPUCluster {
             )
     )
     private boolean wrapPushPattern(ICraftingMedium provider, ICraftingPatternDetails details, InventoryCrafting table, Operation<Boolean> original) {
+        debugWrapCount++;
         if (provider instanceof TileAssemblyMeInterface) {
             TileAssemblyController controller = ((TileAssemblyMeInterface) provider).getController();
             if (controller != null) {
@@ -51,12 +53,14 @@ public class MixinCraftingCPUCluster {
                 try {
                     boolean isVirtual = controller.isVirtualPattern(details);
                     long remaining = getRemainingValue(details);
-                    if (!debugLogged) {
-                        System.out.println("[AE2E-DEBUG] wrapPushPattern isVirtual=" + isVirtual + " remaining=" + remaining);
+                    if (debugWrapCount <= 3) {
+                        System.out.println("[AE2E-DEBUG] wrapPushPattern #" + debugWrapCount
+                            + " isVirtual=" + isVirtual + " remaining=" + remaining
+                            + " provider=" + provider.getClass().getName());
                     }
                     if (isVirtual && remaining > 0) {
                         boolean success = controller.executeBatch(details, remaining);
-                        System.out.println("[AE2E-DEBUG] BATCH executed: remaining=" + remaining + " success=" + success);
+                        System.out.println("[AE2E-DEBUG] BATCH #" + debugWrapCount + ": remaining=" + remaining + " success=" + success);
                         if (success) {
                             setRemainingValue(details, 0);
                             return true;
