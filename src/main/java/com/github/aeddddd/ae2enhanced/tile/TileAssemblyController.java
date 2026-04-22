@@ -444,26 +444,46 @@ public class TileAssemblyController extends TileEntity implements ICraftingProvi
         IAEItemStack[] condensedOutputs = details.getCondensedOutputs();
         if (condensedOutputs == null || condensedOutputs.length == 0) return false;
 
-        // 1. SIMULATE 检查原材料是否足够
-        for (IAEItemStack inputTemplate : condensedInputs) {
-            if (inputTemplate == null || inputTemplate.getStackSize() <= 0) continue;
-            long totalNeed = inputTemplate.getStackSize() * batchSize;
-            IAEItemStack aeInput = inputTemplate.copy();
-            aeInput.setStackSize(totalNeed);
-            IAEItemStack extracted = monitor.extractItems(aeInput, Actionable.SIMULATE, getEffectiveSource());
-            if (extracted == null || extracted.getStackSize() < totalNeed) {
-                return false; // 原材料不足
+        // 1. SIMULATE 检查原材料是否足够，若不足则逐步减少 batch size 直到满足
+        long actualBatch = batchSize;
+        while (actualBatch > 0) {
+            boolean enough = true;
+            for (IAEItemStack inputTemplate : condensedInputs) {
+                if (inputTemplate == null || inputTemplate.getStackSize() <= 0) continue;
+                long totalNeed = inputTemplate.getStackSize() * actualBatch;
+                IAEItemStack aeInput = inputTemplate.copy();
+                aeInput.setStackSize(totalNeed);
+                IAEItemStack extracted = monitor.extractItems(aeInput, Actionable.SIMULATE, getEffectiveSource());
+                if (extracted == null || extracted.getStackSize() < totalNeed) {
+                    enough = false;
+                    break;
+                }
             }
+            if (enough) break;
+            actualBatch--;
+        }
+        if (actualBatch <= 0) {
+            return false; // 原材料不足，连 1 份都做不到
+        }
+        if (actualBatch < batchSize) {
+            System.out.println("[AE2E] BATCH fallback: batchSize " + batchSize + " -> " + actualBatch);
         }
 
         // 2. MODULATE 扣除原材料
         for (IAEItemStack inputTemplate : condensedInputs) {
             if (inputTemplate == null || inputTemplate.getStackSize() <= 0) continue;
-            long totalNeed = inputTemplate.getStackSize() * batchSize;
+            long totalNeed = inputTemplate.getStackSize() * actualBatch;
             IAEItemStack aeInput = inputTemplate.copy();
             aeInput.setStackSize(totalNeed);
-            monitor.extractItems(aeInput, Actionable.MODULATE, getEffectiveSource());
+            IAEItemStack extracted = monitor.extractItems(aeInput, Actionable.MODULATE, getEffectiveSource());
+            if (extracted == null || extracted.getStackSize() < totalNeed) {
+                System.out.println("[AE2E] BATCH MODULATE extract FAILED for " + aeInput.createItemStack().getDisplayName() + " need=" + totalNeed + " got=" + (extracted == null ? "null" : extracted.getStackSize()));
+                return false;
+            }
+            System.out.println("[AE2E] BATCH extracted " + extracted.getStackSize() + "x " + extracted.createItemStack().getDisplayName());
         }
+
+        batchSize = actualBatch; // 后续注入产物用实际 batch size
 
         // 3. MODULATE 注入产物
         for (IAEItemStack outputTemplate : condensedOutputs) {
@@ -485,6 +505,9 @@ public class TileAssemblyController extends TileEntity implements ICraftingProvi
                     pendingOutputs.add(stack);
                     remCount -= batch;
                 }
+                System.out.println("[AE2E] BATCH inject partial for " + aeOutput.createItemStack().getDisplayName() + " remainder=" + remainder.getStackSize());
+            } else {
+                System.out.println("[AE2E] BATCH injected " + totalCount + "x " + aeOutput.createItemStack().getDisplayName());
             }
         }
 

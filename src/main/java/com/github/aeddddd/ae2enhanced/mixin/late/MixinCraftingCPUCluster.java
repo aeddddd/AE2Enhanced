@@ -1,5 +1,6 @@
 package com.github.aeddddd.ae2enhanced.mixin.late;
 
+import appeng.api.networking.IGrid;
 import appeng.api.networking.crafting.ICraftingMedium;
 import appeng.api.networking.crafting.ICraftingPatternDetails;
 import appeng.api.storage.data.IAEItemStack;
@@ -24,25 +25,25 @@ public class MixinCraftingCPUCluster {
 
     // ---- 反射缓存 ----
     private static Field tasksField;
-    private static Field waitingForField;
     private static Field remOpsField;
     private static Field remItemCountField;
+    private static Field isCompleteField;
     private static Method postCraftingStatusChange;
     private static Method postChange;
     private static Field taskProgressValueField;
-    private static Method waitingForAddMethod;
+    private static Method completeJobMethod;
     private static boolean reflectionReady = false;
 
     private static void initReflection() throws Exception {
         if (reflectionReady) return;
         tasksField = CraftingCPUCluster.class.getDeclaredField("tasks");
         tasksField.setAccessible(true);
-        waitingForField = CraftingCPUCluster.class.getDeclaredField("waitingFor");
-        waitingForField.setAccessible(true);
         remOpsField = CraftingCPUCluster.class.getDeclaredField("remainingOperations");
         remOpsField.setAccessible(true);
         remItemCountField = CraftingCPUCluster.class.getDeclaredField("remainingItemCount");
         remItemCountField.setAccessible(true);
+        isCompleteField = CraftingCPUCluster.class.getDeclaredField("isComplete");
+        isCompleteField.setAccessible(true);
         postCraftingStatusChange = CraftingCPUCluster.class.getDeclaredMethod("postCraftingStatusChange", IAEItemStack.class);
         postCraftingStatusChange.setAccessible(true);
         postChange = CraftingCPUCluster.class.getDeclaredMethod("postChange", IAEItemStack.class, appeng.api.networking.security.IActionSource.class);
@@ -50,14 +51,33 @@ public class MixinCraftingCPUCluster {
         Class<?> taskProgressClass = Class.forName("appeng.me.cluster.implementations.CraftingCPUCluster$TaskProgress");
         taskProgressValueField = taskProgressClass.getDeclaredField("value");
         taskProgressValueField.setAccessible(true);
+        completeJobMethod = CraftingCPUCluster.class.getDeclaredMethod("completeJob");
+        completeJobMethod.setAccessible(true);
         reflectionReady = true;
     }
 
-    private static Method getWaitingForAdd(Object waitingFor) throws NoSuchMethodException {
-        if (waitingForAddMethod == null) {
-            waitingForAddMethod = waitingFor.getClass().getMethod("add", IAEItemStack.class);
+    /**
+     * 在 updateCraftingLogic 开头检查：如果 tasks 已空但 isComplete 仍为 false，
+     * 说明所有合成（包括被 AE2 正常处理的非虚拟配方）已完成，手动调用 completeJob() 结束任务。
+     */
+    @Inject(method = "updateCraftingLogic", at = @At("HEAD"))
+    private void onUpdateCraftingLogicHead(IGrid grid, IEnergyGrid eg, CraftingGridCache cache, CallbackInfo ci) {
+        try {
+            initReflection();
+            CraftingCPUCluster cpu = (CraftingCPUCluster) (Object) this;
+
+            @SuppressWarnings("unchecked")
+            Map<ICraftingPatternDetails, Object> tasks = (Map<ICraftingPatternDetails, Object>) tasksField.get(cpu);
+            boolean isComplete = isCompleteField.getBoolean(cpu);
+
+            if (!isComplete && tasks.isEmpty()) {
+                completeJobMethod.invoke(cpu);
+                System.out.println("[AE2E] completeJob() invoked via updateCraftingLogic (tasks empty)");
+            }
+        } catch (Exception e) {
+            System.err.println("[AE2E] onUpdateCraftingLogicHead error: " + e);
+            e.printStackTrace();
         }
-        return waitingForAddMethod;
     }
 
     @Inject(method = "executeCrafting", at = @At("HEAD"))
@@ -70,66 +90,65 @@ public class MixinCraftingCPUCluster {
             Map<ICraftingPatternDetails, Object> tasks = (Map<ICraftingPatternDetails, Object>) tasksField.get(cpu);
             if (tasks.isEmpty()) return;
 
-            Object waitingFor = waitingForField.get(cpu);
-            Method waitingForAdd = getWaitingForAdd(waitingFor);
-            int remainingOps = remOpsField.getInt(cpu);
             long remainingItemCount = remItemCountField.getLong(cpu);
-
-            // 收集需要移除的 keys（避免在遍历中修改 map）
             List<ICraftingPatternDetails> toRemove = new ArrayList<>();
 
-            for (Map.Entry<ICraftingPatternDetails, Object> entry : new ArrayList<>(tasks.entrySet())) {
-                ICraftingPatternDetails details = entry.getKey();
-                Object progress = entry.getValue();
+            // 循环遍历直到没有更多 entry 能被 batch，处理套娃合成的链式依赖
+            boolean changed;
+            do {
+                changed = false;
+                for (Map.Entry<ICraftingPatternDetails, Object> entry : new ArrayList<>(tasks.entrySet())) {
+                    if (toRemove.contains(entry.getKey())) continue;
 
-                long remaining = taskProgressValueField.getLong(progress);
-                if (remaining <= 0) continue;
+                    ICraftingPatternDetails details = entry.getKey();
+                    Object progress = entry.getValue();
 
-                List<ICraftingMedium> mediums = cache.getMediums(details);
-                if (mediums == null || mediums.isEmpty()) continue;
+                    long remaining = taskProgressValueField.getLong(progress);
+                    if (remaining <= 0) continue;
 
-                for (ICraftingMedium medium : mediums) {
-                    if (!(medium instanceof TileAssemblyMeInterface)) continue;
+                    List<ICraftingMedium> mediums = cache.getMediums(details);
+                    if (mediums == null || mediums.isEmpty()) continue;
 
-                    TileAssemblyController controller = ((TileAssemblyMeInterface) medium).getController();
-                    if (controller == null || !controller.isVirtualPattern(details)) continue;
+                    for (ICraftingMedium medium : mediums) {
+                        if (!(medium instanceof TileAssemblyMeInterface)) continue;
 
-                    appeng.api.networking.security.IActionSource source = cpu.getActionSource();
-                    controller.setCurrentActionSource(source);
-                    try {
-                        boolean success = controller.executeBatch(details, remaining);
-                        if (success) {
-                            toRemove.add(details);
-                            remainingOps -= remaining;
-                            remainingItemCount -= remaining;
+                        TileAssemblyController controller = ((TileAssemblyMeInterface) medium).getController();
+                        if (controller == null || !controller.isVirtualPattern(details)) continue;
 
-                            for (IAEItemStack outputTemplate : details.getCondensedOutputs()) {
-                                if (outputTemplate == null || outputTemplate.getStackSize() <= 0) continue;
-                                IAEItemStack expected = outputTemplate.copy();
-                                expected.setStackSize(outputTemplate.getStackSize() * remaining);
+                        appeng.api.networking.security.IActionSource source = cpu.getActionSource();
+                        controller.setCurrentActionSource(source);
+                        try {
+                            boolean success = controller.executeBatch(details, remaining);
+                            if (success) {
+                                toRemove.add(details);
+                                remainingItemCount -= remaining;
+                                changed = true;
 
-                                postChange.invoke(cpu, expected.copy(), source);
-                                waitingForAdd.invoke(waitingFor, expected.copy());
-                                postCraftingStatusChange.invoke(cpu, expected.copy());
+                                for (IAEItemStack outputTemplate : details.getCondensedOutputs()) {
+                                    if (outputTemplate == null || outputTemplate.getStackSize() <= 0) continue;
+                                    IAEItemStack expected = outputTemplate.copy();
+                                    expected.setStackSize(outputTemplate.getStackSize() * remaining);
+
+                                    // 通知监听器（终端等）网络物品变化
+                                    postChange.invoke(cpu, expected.copy(), source);
+                                    // 通知 crafting grid 状态变化
+                                    postCraftingStatusChange.invoke(cpu, expected.copy());
+                                }
+
+                                System.out.println("[AE2E] BATCH: removed task remaining=" + remaining);
                             }
-
-                            System.out.println("[AE2E] BATCH: removed task remaining=" + remaining);
+                        } finally {
+                            controller.setCurrentActionSource(null);
                         }
-                    } finally {
-                        controller.setCurrentActionSource(null);
+                        break;
                     }
-                    break;
                 }
-            }
+            } while (changed);
 
-            // 直接移除已 batch 处理的 tasks entry，阻止 executeCrafting 后续遍历到它们
             for (ICraftingPatternDetails key : toRemove) {
                 tasks.remove(key);
             }
 
-            if (remainingOps != remOpsField.getInt(cpu)) {
-                remOpsField.setInt(cpu, remainingOps);
-            }
             if (remainingItemCount != remItemCountField.getLong(cpu)) {
                 remItemCountField.setLong(cpu, remainingItemCount);
             }
