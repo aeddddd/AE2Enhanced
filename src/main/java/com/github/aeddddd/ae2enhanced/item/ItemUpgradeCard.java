@@ -1,10 +1,16 @@
 package com.github.aeddddd.ae2enhanced.item;
 
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
+import net.minecraft.client.resources.I18n;
+import net.minecraft.client.util.ITooltipFlag;
 import net.minecraft.creativetab.CreativeTabs;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.util.NonNullList;
+import net.minecraft.world.World;
+
+import javax.annotation.Nullable;
+import java.util.List;
 
 public class ItemUpgradeCard extends Item {
 
@@ -36,6 +42,31 @@ public class ItemUpgradeCard extends Item {
             case META_RESERVED1:   return "item." + AE2Enhanced.MOD_ID + ".upgrade_card.reserved1";
             case META_RESERVED2:   return "item." + AE2Enhanced.MOD_ID + ".upgrade_card.reserved2";
             default:               return super.getTranslationKey(stack);
+        }
+    }
+
+    @Override
+    public void addInformation(ItemStack stack, @Nullable World worldIn, List<String> tooltip, ITooltipFlag flagIn) {
+        int meta = stack.getMetadata();
+        switch (meta) {
+            case META_PARALLEL:
+                tooltip.add(I18n.format("item.ae2enhanced.upgrade_card.parallel.tooltip"));
+                tooltip.add(I18n.format("item.ae2enhanced.upgrade_card.parallel.tooltip.detail"));
+                break;
+            case META_SPEED:
+                tooltip.add(I18n.format("item.ae2enhanced.upgrade_card.speed.tooltip"));
+                tooltip.add(I18n.format("item.ae2enhanced.upgrade_card.speed.tooltip.detail"));
+                break;
+            case META_EFFICIENCY:
+                tooltip.add(I18n.format("item.ae2enhanced.upgrade_card.efficiency.tooltip"));
+                tooltip.add(I18n.format("item.ae2enhanced.upgrade_card.efficiency.tooltip.detail"));
+                break;
+            case META_CAPACITY:
+                tooltip.add(I18n.format("item.ae2enhanced.upgrade_card.capacity.tooltip"));
+                tooltip.add(I18n.format("item.ae2enhanced.upgrade_card.capacity.tooltip.detail"));
+                break;
+            default:
+                tooltip.add(I18n.format("item.ae2enhanced.upgrade_card.reserved.tooltip"));
         }
     }
 

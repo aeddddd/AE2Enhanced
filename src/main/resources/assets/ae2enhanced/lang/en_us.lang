@@ -29,17 +29,32 @@ gui.ae2enhanced.formed.network.offline=§cNetwork: Offline — Connect ME Interf
 gui.ae2enhanced.formed.upgrades=Upgrades
 gui.ae2enhanced.formed.patterns=Patterns
 gui.ae2enhanced.formed.parallel=Parallel: %d
+gui.ae2enhanced.formed.parallel.infinite=Parallel: ∞
+gui.ae2enhanced.formed.jobs=Active Jobs: %d
+gui.ae2enhanced.formed.open_patterns=Open Pattern Storage
+
+gui.ae2enhanced.pattern.title=§aPattern Storage
+gui.ae2enhanced.pattern.back=← Back
 
 gui.ae2enhanced.tooltip.upgrades=§bUpgrades
-gui.ae2enhanced.tooltip.upgrades.parallel=• Parallel Upgrade: Increases parallel cap
-gui.ae2enhanced.tooltip.upgrades.speed=• Speed Upgrade: Reduces crafting time
+GUI.ae2enhanced.tooltip.upgrades.parallel=• Parallel Upgrade: Increases parallel cap
+GUI.ae2enhanced.tooltip.upgrades.speed=• Speed Upgrade: Reduces crafting time
 
 gui.ae2enhanced.tooltip.patterns=§bPattern Storage
 gui.ae2enhanced.tooltip.patterns.desc=Insert encoded Crafting Patterns
 
 item.ae2enhanced.upgrade_card.parallel.name=Parallel Upgrade Card
+item.ae2enhanced.upgrade_card.parallel.tooltip=§bParallel Upgrade Card
+item.ae2enhanced.upgrade_card.parallel.tooltip.detail=§7Each card increases parallel cap (5 cards = infinite)
 item.ae2enhanced.upgrade_card.speed.name=Speed Upgrade Card
+item.ae2enhanced.upgrade_card.speed.tooltip=§bSpeed Upgrade Card
+item.ae2enhanced.upgrade_card.speed.tooltip.detail=§7Each card reduces crafting time by 50%%
 item.ae2enhanced.upgrade_card.efficiency.name=Efficiency Upgrade Card
+item.ae2enhanced.upgrade_card.efficiency.tooltip=§bEfficiency Upgrade Card
+item.ae2enhanced.upgrade_card.efficiency.tooltip.detail=§7Reserved feature, not yet implemented
 item.ae2enhanced.upgrade_card.capacity.name=Capacity Upgrade Card
+item.ae2enhanced.upgrade_card.capacity.tooltip=§bCapacity Upgrade Card
+item.ae2enhanced.upgrade_card.capacity.tooltip.detail=§7Reserved feature, not yet implemented
 item.ae2enhanced.upgrade_card.reserved1.name=Upgrade Card (Reserved)
 item.ae2enhanced.upgrade_card.reserved2.name=Upgrade Card (Reserved)
+item.ae2enhanced.upgrade_card.reserved.tooltip=§7Reserved feature, not yet implemented

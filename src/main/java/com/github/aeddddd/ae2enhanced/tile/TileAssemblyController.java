@@ -99,12 +99,23 @@ public class TileAssemblyController extends TileEntity implements ICraftingProvi
         return itemHandler;
     }
 
-    public int getParallelCap() {
-        int cap = 64;
+    public long getParallelCap() {
+        int parallelCount = 0;
         for (int i = 0; i < UPGRADE_SLOTS; i++) {
             ItemStack stack = itemHandler.getStackInSlot(i);
-            if (stack.getItem() instanceof ItemUpgradeCard && stack.getMetadata() == ItemUpgradeCard.META_PARALLEL) {
-                cap = Math.min(cap * 32, 67108864);
+            if (!stack.isEmpty() && stack.getItem() instanceof ItemUpgradeCard && stack.getMetadata() == ItemUpgradeCard.META_PARALLEL) {
+                parallelCount++;
+            }
+        }
+        if (parallelCount >= 5) {
+            return Long.MAX_VALUE;
+        }
+        long cap = 64;
+        for (int i = 0; i < parallelCount; i++) {
+            cap = cap * 32;
+            if (cap > 67108864) {
+                cap = 67108864;
+                break;
             }
         }
         return cap;
@@ -414,8 +425,13 @@ public class TileAssemblyController extends TileEntity implements ICraftingProvi
 
     @Override
     public boolean isBusy() {
-        // pendingOutputs 不阻塞新任务，只由并行上限控制
-        return jobTimers.size() >= getParallelCap();
+        long cap = getParallelCap();
+        int intCap = (cap >= Integer.MAX_VALUE) ? Integer.MAX_VALUE : (int) cap;
+        return jobTimers.size() >= intCap;
+    }
+
+    public int getJobCount() {
+        return jobTimers.size();
     }
 
     /**

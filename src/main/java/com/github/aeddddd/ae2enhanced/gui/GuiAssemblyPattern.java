@@ -1,7 +1,7 @@
 package com.github.aeddddd.ae2enhanced.gui;
 
-import com.github.aeddddd.ae2enhanced.container.ContainerAssemblyFormed;
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
+import com.github.aeddddd.ae2enhanced.container.ContainerAssemblyPattern;
 import com.github.aeddddd.ae2enhanced.tile.TileAssemblyController;
 import net.minecraft.client.gui.GuiButton;
 import net.minecraft.client.gui.inventory.GuiContainer;
@@ -14,7 +14,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-public class GuiAssemblyFormed extends GuiContainer {
+public class GuiAssemblyPattern extends GuiContainer {
 
     private static final int PANEL_BG = 0xFF1a1a2e;
     private static final int PANEL_LIGHT = 0xFF16213e;
@@ -24,16 +24,13 @@ public class GuiAssemblyFormed extends GuiContainer {
     private static final int ACCENT = 0xFF00d4ff;
     private static final int ACCENT_SOFT = 0xFF0f4c75;
     private static final int TEXT_MAIN = 0xFFe0e0e0;
-    private static final int TEXT_SUCCESS = 0xFF55ff88;
     private static final int TEXT_DIM = 0xFF88aaaa;
-    private static final int TEXT_WARN = 0xFFffaa55;
-    private static final int TEXT_ERROR = 0xFFff5555;
 
     private final TileAssemblyController tile;
-    private GuiButtonTech patternButton;
+    private GuiButtonTech backButton;
 
-    public GuiAssemblyFormed(InventoryPlayer playerInv, TileAssemblyController tile) {
-        super(new ContainerAssemblyFormed(playerInv, tile));
+    public GuiAssemblyPattern(InventoryPlayer playerInv, TileAssemblyController tile) {
+        super(new ContainerAssemblyPattern(playerInv, tile));
         this.tile = tile;
         this.xSize = 280;
         this.ySize = 270;
@@ -91,11 +88,9 @@ public class GuiAssemblyFormed extends GuiContainer {
             int x = guiLeft + slot.xPos;
             int y = guiTop + slot.yPos;
 
-            // 判定鼠标是否悬停在这个 slot 上
             boolean hovered = this.isPointInRegion(slot.xPos, slot.yPos, 16, 16, mouseX, mouseY);
             int color = hovered ? SLOT_HOVER : SLOT_BORDER;
 
-            // 外边框
             drawRect(x - 1, y - 1, x + 18, y, color);
             drawRect(x - 1, y + 16, x + 18, y + 17, color);
             drawRect(x - 1, y, x, y + 16, color);
@@ -104,75 +99,44 @@ public class GuiAssemblyFormed extends GuiContainer {
     }
 
     @Override
-    public void initGui() {
-        super.initGui();
-        patternButton = new GuiButtonTech(0, guiLeft + 90, guiTop + 28, 120, 20, I18n.format("gui.ae2enhanced.formed.open_patterns"));
-        buttonList.add(patternButton);
-    }
-
-    @Override
-    protected void actionPerformed(GuiButton button) throws IOException {
-        if (button.id == 0) {
-            mc.player.openGui(AE2Enhanced.instance, GuiHandler.GUI_ASSEMBLY_PATTERN,
-                mc.world, tile.getPos().getX(), tile.getPos().getY(), tile.getPos().getZ());
-        }
-    }
-
-    @Override
     protected void drawGuiContainerForegroundLayer(int mouseX, int mouseY) {
         // 标题
-        String title = I18n.format("gui.ae2enhanced.formed.title");
+        String title = I18n.format("gui.ae2enhanced.pattern.title");
         int titleWidth = fontRenderer.getStringWidth(title);
         fontRenderer.drawString(title, (xSize - titleWidth) / 2, 8, ACCENT);
 
-        // 升级槽标签
-        String upgradeLabel = I18n.format("gui.ae2enhanced.formed.upgrades");
-        fontRenderer.drawString(upgradeLabel, 16, 28, TEXT_DIM);
+        // 样板槽标签
+        String patternLabel = I18n.format("gui.ae2enhanced.formed.patterns");
+        fontRenderer.drawString(patternLabel, 16, 28, TEXT_DIM);
 
         // 分隔线
-        drawRect(16, 40, 78, 41, ACCENT_SOFT);
-
-        // 并行状态
-        long parallelCap = tile.getParallelCap();
-        String parallelText;
-        if (parallelCap >= Long.MAX_VALUE / 2) {
-            parallelText = I18n.format("gui.ae2enhanced.formed.parallel.infinite");
-        } else {
-            parallelText = I18n.format("gui.ae2enhanced.formed.parallel", parallelCap);
-        }
-        fontRenderer.drawString(parallelText, 16, 130, TEXT_DIM);
-
-        // 活跃任务数
-        String jobs = I18n.format("gui.ae2enhanced.formed.jobs", tile.getJobCount());
-        fontRenderer.drawString(jobs, 16, 142, TEXT_DIM);
-
-        // 网络状态
-        String netStatus;
-        int netColor;
-        if (tile.isNetworkActive()) {
-            netStatus = I18n.format("gui.ae2enhanced.formed.network.active");
-            netColor = TEXT_SUCCESS;
-        } else if (tile.isNetworkPowered()) {
-            netStatus = I18n.format("gui.ae2enhanced.formed.network.booting");
-            netColor = TEXT_WARN;
-        } else {
-            netStatus = I18n.format("gui.ae2enhanced.formed.network.offline");
-            netColor = TEXT_ERROR;
-        }
-        int nw = fontRenderer.getStringWidth(netStatus);
-        fontRenderer.drawString(netStatus, xSize - 16 - nw, 130, netColor);
+        drawRect(16, 40, xSize - 16, 41, ACCENT_SOFT);
 
         // 背包上方分隔线
         drawRect(16, 176, xSize - 16, 177, ACCENT_SOFT);
     }
 
+    @Override
+    public void initGui() {
+        super.initGui();
+        backButton = new GuiButtonTech(0, guiLeft + xSize - 90, guiTop + 8, 80, 18, I18n.format("gui.ae2enhanced.pattern.back"));
+        buttonList.add(backButton);
+    }
+
+    @Override
+    protected void actionPerformed(GuiButton button) throws IOException {
+        if (button.id == 0) {
+            // 返回一级页面
+            mc.player.openGui(AE2Enhanced.instance, GuiHandler.GUI_ASSEMBLY_CONTROLLER,
+                mc.world, tile.getPos().getX(), tile.getPos().getY(), tile.getPos().getZ());
+        }
+    }
+
     private void drawCustomTooltips(int mouseX, int mouseY) {
-        // 升级槽区域 tooltip
-        if (isPointInRegion(16, 40, 58, 38, mouseX, mouseY)) {
+        if (isPointInRegion(16, 24, 118, 118, mouseX, mouseY)) {
             List<String> lines = new ArrayList<>();
-            lines.add(I18n.format("gui.ae2enhanced.tooltip.upgrades"));
-            lines.add("§7" + I18n.format("gui.ae2enhanced.tooltip.upgrades.parallel") + "§r");
-            lines.add("§7" + I18n.format("gui.ae2enhanced.tooltip.upgrades.speed") + "§r");
+            lines.add(I18n.format("gui.ae2enhanced.tooltip.patterns"));
+            lines.add("§7" + I18n.format("gui.ae2enhanced.tooltip.patterns.desc") + "§r");
             this.drawHoveringText(lines, mouseX, mouseY);
         }
     }

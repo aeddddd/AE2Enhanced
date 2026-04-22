@@ -1,7 +1,5 @@
 package com.github.aeddddd.ae2enhanced.container;
 
-import com.github.aeddddd.ae2enhanced.AE2Enhanced;
-import com.github.aeddddd.ae2enhanced.item.ItemUpgradeCard;
 import com.github.aeddddd.ae2enhanced.tile.TileAssemblyController;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.inventory.Container;
@@ -12,36 +10,26 @@ import net.minecraftforge.items.CapabilityItemHandler;
 import net.minecraftforge.items.IItemHandler;
 import net.minecraftforge.items.SlotItemHandler;
 
-public class ContainerAssemblyFormed extends Container {
+public class ContainerAssemblyPattern extends Container {
 
-    private static final int UPGRADE_X = 16;
-    private static final int UPGRADE_Y = 38;
+    private static final int PATTERN_X = 16;
+    private static final int PATTERN_Y = 24;
     private static final int INV_X = 51;
     private static final int INV_Y = 182;
     private static final int HOTBAR_Y = 240;
 
     private final TileAssemblyController tile;
 
-    public ContainerAssemblyFormed(IInventory playerInv, TileAssemblyController tile) {
+    public ContainerAssemblyPattern(IInventory playerInv, TileAssemblyController tile) {
         this.tile = tile;
         IItemHandler handler = tile.getCapability(CapabilityItemHandler.ITEM_HANDLER_CAPABILITY, null);
 
-        // 升级槽：2行×3列，槽位 0~5
-        for (int row = 0; row < 2; ++row) {
-            for (int col = 0; col < 3; ++col) {
-                int index = row * 3 + col;
+        // 样板槽：6行×6列，槽位 6~41
+        for (int row = 0; row < 6; ++row) {
+            for (int col = 0; col < 6; ++col) {
+                int index = TileAssemblyController.UPGRADE_SLOTS + row * 6 + col;
                 this.addSlotToContainer(new SlotItemHandler(handler, index,
-                    UPGRADE_X + col * 20, UPGRADE_Y + row * 20) {
-                    @Override
-                    public boolean isItemValid(ItemStack stack) {
-                        return stack.getItem() instanceof ItemUpgradeCard;
-                    }
-
-                    @Override
-                    public int getItemStackLimit(ItemStack stack) {
-                        return 1;
-                    }
-                });
+                    PATTERN_X + col * 20, PATTERN_Y + row * 20));
             }
         }
 
@@ -74,23 +62,19 @@ public class ContainerAssemblyFormed extends Container {
             ItemStack itemstack1 = slot.getStack();
             itemstack = itemstack1.copy();
 
-            int upgradeStart = 0;
-            int upgradeEnd = TileAssemblyController.UPGRADE_SLOTS;
-            int playerStart = upgradeEnd;
+            int patternStart = 0;
+            int patternEnd = TileAssemblyController.PATTERN_SLOTS;
+            int playerStart = patternEnd;
             int playerEnd = playerStart + 36;
 
-            if (index < upgradeEnd) {
-                // 从升级槽移到玩家背包
+            if (index < patternEnd) {
+                // 从样板槽移到玩家背包
                 if (!this.mergeItemStack(itemstack1, playerStart, playerEnd, true)) {
                     return ItemStack.EMPTY;
                 }
             } else {
-                // 从玩家背包移到升级槽（仅限升级卡）
-                if (itemstack1.getItem() instanceof ItemUpgradeCard) {
-                    if (!this.mergeItemStack(itemstack1, upgradeStart, upgradeEnd, false)) {
-                        return ItemStack.EMPTY;
-                    }
-                } else {
+                // 从玩家背包移到样板槽
+                if (!this.mergeItemStack(itemstack1, patternStart, patternEnd, false)) {
                     return ItemStack.EMPTY;
                 }
             }
