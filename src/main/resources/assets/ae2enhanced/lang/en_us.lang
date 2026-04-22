@@ -35,6 +35,9 @@ gui.ae2enhanced.formed.open_patterns=Open Pattern Storage
 
 gui.ae2enhanced.pattern.title=§aPattern Storage
 gui.ae2enhanced.pattern.back=← Back
+gui.ae2enhanced.pattern.prev=← Prev
+gui.ae2enhanced.pattern.next=Next →
+gui.ae2enhanced.pattern.page=Page %d/%d
 
 gui.ae2enhanced.tooltip.upgrades=§bUpgrades
 GUI.ae2enhanced.tooltip.upgrades.parallel=• Parallel Upgrade: Increases parallel cap

@@ -19,28 +19,35 @@ public class ContainerAssemblyPattern extends Container {
     private static final int HOTBAR_Y = 210;
 
     private final TileAssemblyController tile;
+    private final int page;
 
-    public ContainerAssemblyPattern(IInventory playerInv, TileAssemblyController tile) {
+    public ContainerAssemblyPattern(IInventory playerInv, TileAssemblyController tile, int page) {
         this.tile = tile;
+        this.page = page;
         IItemHandler handler = tile.getCapability(CapabilityItemHandler.ITEM_HANDLER_CAPABILITY, null);
 
-        // 样板槽：6行×16列，槽位 6~101
-        for (int row = 0; row < 6; ++row) {
-            for (int col = 0; col < 16; ++col) {
-                int index = TileAssemblyController.UPGRADE_SLOTS + row * 16 + col;
-                this.addSlotToContainer(new SlotItemHandler(handler, index,
-                    PATTERN_X + col * 20, PATTERN_Y + row * 20) {
-                    @Override
-                    public int getItemStackLimit(ItemStack stack) {
-                        return 1;
-                    }
+        int startSlot = TileAssemblyController.UPGRADE_SLOTS
+            + page * TileAssemblyController.PATTERN_SLOTS_PER_PAGE;
+        int endSlot = Math.min(startSlot + TileAssemblyController.PATTERN_SLOTS_PER_PAGE,
+            TileAssemblyController.TOTAL_SLOTS);
 
-                    @Override
-                    public int getSlotStackLimit() {
-                        return 1;
-                    }
-                });
-            }
+        // 样板槽：当前页 16×6=96 槽
+        for (int i = startSlot; i < endSlot; i++) {
+            int localIndex = i - startSlot;
+            int row = localIndex / 16;
+            int col = localIndex % 16;
+            this.addSlotToContainer(new SlotItemHandler(handler, i,
+                PATTERN_X + col * 20, PATTERN_Y + row * 20) {
+                @Override
+                public int getItemStackLimit(ItemStack stack) {
+                    return 1;
+                }
+
+                @Override
+                public int getSlotStackLimit() {
+                    return 1;
+                }
+            });
         }
 
         // 玩家背包 3行×9列
@@ -72,8 +79,7 @@ public class ContainerAssemblyPattern extends Container {
             ItemStack itemstack1 = slot.getStack();
             itemstack = itemstack1.copy();
 
-            int patternStart = 0;
-            int patternEnd = TileAssemblyController.PATTERN_SLOTS;
+            int patternEnd = TileAssemblyController.PATTERN_SLOTS_PER_PAGE;
             int playerStart = patternEnd;
             int playerEnd = playerStart + 36;
 
@@ -84,7 +90,7 @@ public class ContainerAssemblyPattern extends Container {
                 }
             } else {
                 // 从玩家背包移到样板槽
-                if (!this.mergeItemStack(itemstack1, patternStart, patternEnd, false)) {
+                if (!this.mergeItemStack(itemstack1, 0, patternEnd, false)) {
                     return ItemStack.EMPTY;
                 }
             }
@@ -100,5 +106,9 @@ public class ContainerAssemblyPattern extends Container {
 
     public TileAssemblyController getTile() {
         return tile;
+    }
+
+    public int getPage() {
+        return page;
     }
 }

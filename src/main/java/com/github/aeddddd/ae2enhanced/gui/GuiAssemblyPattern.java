@@ -2,6 +2,7 @@ package com.github.aeddddd.ae2enhanced.gui;
 
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
 import com.github.aeddddd.ae2enhanced.container.ContainerAssemblyPattern;
+import com.github.aeddddd.ae2enhanced.network.PacketPatternPage;
 import com.github.aeddddd.ae2enhanced.tile.TileAssemblyController;
 import net.minecraft.client.gui.GuiButton;
 import net.minecraft.client.gui.inventory.GuiContainer;
@@ -27,11 +28,15 @@ public class GuiAssemblyPattern extends GuiContainer {
     private static final int TEXT_DIM = 0xFF88aaaa;
 
     private final TileAssemblyController tile;
+    private final int page;
     private GuiButtonTech backButton;
+    private GuiButtonTech prevButton;
+    private GuiButtonTech nextButton;
 
-    public GuiAssemblyPattern(InventoryPlayer playerInv, TileAssemblyController tile) {
-        super(new ContainerAssemblyPattern(playerInv, tile));
+    public GuiAssemblyPattern(InventoryPlayer playerInv, TileAssemblyController tile, int page) {
+        super(new ContainerAssemblyPattern(playerInv, tile, page));
         this.tile = tile;
+        this.page = page;
         this.xSize = 340;
         this.ySize = 250;
     }
@@ -105,6 +110,11 @@ public class GuiAssemblyPattern extends GuiContainer {
         int titleWidth = fontRenderer.getStringWidth(title);
         fontRenderer.drawString(title, (xSize - titleWidth) / 2, 8, ACCENT);
 
+        // 页码显示
+        String pageStr = I18n.format("gui.ae2enhanced.pattern.page", page + 1, TileAssemblyController.PATTERN_PAGES);
+        int pageWidth = fontRenderer.getStringWidth(pageStr);
+        fontRenderer.drawString(pageStr, (xSize - pageWidth) / 2, 148, TEXT_DIM);
+
         // 样板槽标签
         String patternLabel = I18n.format("gui.ae2enhanced.formed.patterns");
         fontRenderer.drawString(patternLabel, 16, 24, TEXT_DIM);
@@ -119,8 +129,21 @@ public class GuiAssemblyPattern extends GuiContainer {
     @Override
     public void initGui() {
         super.initGui();
-        backButton = new GuiButtonTech(0, guiLeft + xSize - 90, guiTop + 8, 80, 18, I18n.format("gui.ae2enhanced.pattern.back"));
+        backButton = new GuiButtonTech(0, guiLeft + xSize - 90, guiTop + 8, 80, 18,
+            I18n.format("gui.ae2enhanced.pattern.back"));
         buttonList.add(backButton);
+
+        // 上一页按钮（第0页禁用）
+        prevButton = new GuiButtonTech(1, guiLeft + 16, guiTop + 8, 50, 18,
+            I18n.format("gui.ae2enhanced.pattern.prev"));
+        prevButton.enabled = page > 0;
+        buttonList.add(prevButton);
+
+        // 下一页按钮（最后一页禁用）
+        nextButton = new GuiButtonTech(2, guiLeft + 72, guiTop + 8, 50, 18,
+            I18n.format("gui.ae2enhanced.pattern.next"));
+        nextButton.enabled = page < TileAssemblyController.PATTERN_PAGES - 1;
+        buttonList.add(nextButton);
     }
 
     @Override
@@ -129,6 +152,18 @@ public class GuiAssemblyPattern extends GuiContainer {
             // 返回一级页面
             mc.player.openGui(AE2Enhanced.instance, GuiHandler.GUI_ASSEMBLY_CONTROLLER,
                 mc.world, tile.getPos().getX(), tile.getPos().getY(), tile.getPos().getZ());
+        } else if (button.id == 1) {
+            // 上一页
+            int targetPage = page - 1;
+            if (targetPage >= 0) {
+                AE2Enhanced.network.sendToServer(new PacketPatternPage(tile.getPos(), targetPage));
+            }
+        } else if (button.id == 2) {
+            // 下一页
+            int targetPage = page + 1;
+            if (targetPage < TileAssemblyController.PATTERN_PAGES) {
+                AE2Enhanced.network.sendToServer(new PacketPatternPage(tile.getPos(), targetPage));
+            }
         }
     }
 

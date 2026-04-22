@@ -40,7 +40,9 @@ import java.util.*;
 public class TileAssemblyController extends TileEntity implements ICraftingProvider, ITickable {
 
     public static final int UPGRADE_SLOTS = 6;
-    public static final int PATTERN_SLOTS = 96;
+    public static final int PATTERN_SLOTS_PER_PAGE = 96; // 16×6
+    public static final int PATTERN_PAGES = 3;
+    public static final int PATTERN_SLOTS = PATTERN_SLOTS_PER_PAGE * PATTERN_PAGES;
     public static final int TOTAL_SLOTS = UPGRADE_SLOTS + PATTERN_SLOTS;
 
     private static final IActionSource MACHINE_SOURCE = new IActionSource() {

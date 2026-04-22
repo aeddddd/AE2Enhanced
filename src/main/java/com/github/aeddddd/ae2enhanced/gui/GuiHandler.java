@@ -15,19 +15,31 @@ public class GuiHandler implements IGuiHandler {
     public static final int GUI_ASSEMBLY_CONTROLLER = 0;
     public static final int GUI_ASSEMBLY_PATTERN = 1;
 
+    /** 编码页码到 GUI ID：低4位为 base ID，高位为页码 */
+    public static int encodePatternId(int page) {
+        return GUI_ASSEMBLY_PATTERN | (page << 4);
+    }
+
+    /** 从 GUI ID 解码页码 */
+    public static int decodePatternPage(int ID) {
+        return (ID >> 4) & 0xF;
+    }
+
     @Override
     public Object getServerGuiElement(int ID, EntityPlayer player, World world, int x, int y, int z) {
         TileEntity te = world.getTileEntity(new BlockPos(x, y, z));
         if (!(te instanceof TileAssemblyController)) return null;
         TileAssemblyController tile = (TileAssemblyController) te;
-        if (ID == GUI_ASSEMBLY_CONTROLLER) {
+        int baseId = ID & 0xF;
+        if (baseId == GUI_ASSEMBLY_CONTROLLER) {
             if (tile.isFormed()) {
                 return new ContainerAssemblyFormed(player.inventory, tile);
             } else {
                 return new ContainerAssemblyUnformed(player.inventory, tile);
             }
-        } else if (ID == GUI_ASSEMBLY_PATTERN) {
-            return new ContainerAssemblyPattern(player.inventory, tile);
+        } else if (baseId == GUI_ASSEMBLY_PATTERN) {
+            int page = decodePatternPage(ID);
+            return new ContainerAssemblyPattern(player.inventory, tile, page);
         }
         return null;
     }
@@ -37,14 +49,16 @@ public class GuiHandler implements IGuiHandler {
         TileEntity te = world.getTileEntity(new BlockPos(x, y, z));
         if (!(te instanceof TileAssemblyController)) return null;
         TileAssemblyController tile = (TileAssemblyController) te;
-        if (ID == GUI_ASSEMBLY_CONTROLLER) {
+        int baseId = ID & 0xF;
+        if (baseId == GUI_ASSEMBLY_CONTROLLER) {
             if (tile.isFormed()) {
                 return new GuiAssemblyFormed(player.inventory, tile);
             } else {
                 return new GuiAssemblyUnformed(player.inventory, tile);
             }
-        } else if (ID == GUI_ASSEMBLY_PATTERN) {
-            return new GuiAssemblyPattern(player.inventory, tile);
+        } else if (baseId == GUI_ASSEMBLY_PATTERN) {
+            int page = decodePatternPage(ID);
+            return new GuiAssemblyPattern(player.inventory, tile, page);
         }
         return null;
     }

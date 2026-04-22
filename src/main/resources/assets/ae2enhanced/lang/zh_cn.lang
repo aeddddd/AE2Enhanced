@@ -35,6 +35,9 @@ gui.ae2enhanced.formed.open_patterns=打开样板存储
 
 gui.ae2enhanced.pattern.title=§a样板存储管理
 gui.ae2enhanced.pattern.back=← 返回
+gui.ae2enhanced.pattern.prev=← 上一页
+gui.ae2enhanced.pattern.next=下一页 →
+gui.ae2enhanced.pattern.page=第 %d/%d 页
 
 gui.ae2enhanced.tooltip.upgrades=§b升级模块
 GUI.ae2enhanced.tooltip.upgrades.parallel=• 并行升级卡：提升并行上限

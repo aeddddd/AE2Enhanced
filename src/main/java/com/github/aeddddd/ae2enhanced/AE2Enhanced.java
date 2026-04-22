@@ -1,6 +1,7 @@
 package com.github.aeddddd.ae2enhanced;
 
 import com.github.aeddddd.ae2enhanced.gui.GuiHandler;
+import com.github.aeddddd.ae2enhanced.network.PacketPatternPage;
 import com.github.aeddddd.ae2enhanced.network.PacketRequestAssembly;
 import com.github.aeddddd.ae2enhanced.proxy.CommonProxy;
 import net.minecraftforge.fml.common.Mod;
@@ -43,6 +44,7 @@ public class AE2Enhanced {
         ModItems.init();
         network = new SimpleNetworkWrapper(MOD_ID);
         network.registerMessage(PacketRequestAssembly.Handler.class, PacketRequestAssembly.class, 0, Side.SERVER);
+        network.registerMessage(PacketPatternPage.Handler.class, PacketPatternPage.class, 1, Side.SERVER);
         proxy.preInit(event);
     }
 
