@@ -30,6 +30,7 @@ public class MixinCraftingCPUCluster {
     private static Field remOpsField;
     private static Field remItemCountField;
     private static Field isCompleteField;
+    private static Field waitingForField;
     private static Method postCraftingStatusChange;
     private static Method postChange;
     private static Field taskProgressValueField;
@@ -47,6 +48,8 @@ public class MixinCraftingCPUCluster {
         remItemCountField.setAccessible(true);
         isCompleteField = CraftingCPUCluster.class.getDeclaredField("isComplete");
         isCompleteField.setAccessible(true);
+        waitingForField = CraftingCPUCluster.class.getDeclaredField("waitingFor");
+        waitingForField.setAccessible(true);
         postCraftingStatusChange = CraftingCPUCluster.class.getDeclaredMethod("postCraftingStatusChange", IAEItemStack.class);
         postCraftingStatusChange.setAccessible(true);
         postChange = CraftingCPUCluster.class.getDeclaredMethod("postChange", IAEItemStack.class, appeng.api.networking.security.IActionSource.class);
@@ -96,6 +99,9 @@ public class MixinCraftingCPUCluster {
             if (tasks.isEmpty()) return;
 
             long remainingItemCount = remItemCountField.getLong(cpu);
+            int remainingOperations = remOpsField.getInt(cpu);
+            @SuppressWarnings("unchecked")
+            IItemList<IAEItemStack> waitingFor = (IItemList<IAEItemStack>) waitingForField.get(cpu);
             List<ICraftingPatternDetails> toRemove = new ArrayList<>();
 
             // 循环遍历直到没有更多 entry 能被 batch，处理套娃合成的链式依赖
@@ -110,6 +116,10 @@ public class MixinCraftingCPUCluster {
 
                     long remaining = taskProgressValueField.getLong(progress);
                     if (remaining <= 0) continue;
+
+                    // 跳过带有替代品的配方：AE2 原生 canCraft 对 canSubstitute 使用逐槽模糊匹配，
+                    // 而我们的 SIMULATE 使用 condensedInputs 总量精确匹配，可能不一致导致误判
+                    if (details.canSubstitute()) continue;
 
                     List<ICraftingMedium> mediums = cache.getMediums(details);
                     if (mediums == null || mediums.isEmpty()) continue;
@@ -163,21 +173,39 @@ public class MixinCraftingCPUCluster {
                                 }
                             }
 
-                            // 3. 将产物加入 inventory 内部列表并通知监听器
+                            // 3. 将产物加入 inventory 内部列表、清理 waitingFor 残留、通知监听器
+                            long totalOutputItems = 0;
                             for (IAEItemStack outputTemplate : details.getCondensedOutputs()) {
                                 if (outputTemplate == null || outputTemplate.getStackSize() <= 0) continue;
                                 long totalCount = outputTemplate.getStackSize() * remaining;
                                 if (totalCount <= 0) continue;
+                                totalOutputItems += totalCount;
+
                                 IAEItemStack product = outputTemplate.copy();
                                 product.setStackSize(totalCount);
                                 itemList.add(product);
                                 postChange.invoke(cpu, product.copy(), source);
                                 postCraftingStatusChange.invoke(cpu, product.copy());
+
+                                // 清理 waitingFor 中可能由之前回退到原生逻辑时添加的残留条目
+                                if (waitingFor != null) {
+                                    IAEItemStack waiting = waitingFor.findPrecise(outputTemplate);
+                                    if (waiting != null) {
+                                        waiting.decStackSize(totalCount);
+                                        if (waiting.getStackSize() <= 0) {
+                                            waiting.setStackSize(0);
+                                        }
+                                    }
+                                }
                             }
 
-                            // 4. 移除 entry
+                            // 4. 移除 entry 并同步计数器
                             toRemove.add(details);
-                            remainingItemCount -= remaining;
+                            remainingItemCount -= totalOutputItems;
+                            int ops = (int) Math.min(remaining, Integer.MAX_VALUE);
+                            if (remainingOperations > 0) {
+                                remainingOperations = Math.max(0, remainingOperations - ops);
+                            }
                             changed = true;
                         } finally {
                             controller.setCurrentActionSource(null);
@@ -193,6 +221,9 @@ public class MixinCraftingCPUCluster {
 
             if (remainingItemCount != remItemCountField.getLong(cpu)) {
                 remItemCountField.setLong(cpu, remainingItemCount);
+            }
+            if (remainingOperations != remOpsField.getInt(cpu)) {
+                remOpsField.setInt(cpu, remainingOperations);
             }
         } catch (Exception e) {
             System.err.println("[AE2E] batchProcessVirtualTasks error: " + e);

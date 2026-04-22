@@ -470,8 +470,44 @@ public class TileAssemblyController extends TileEntity implements ICraftingProvi
                 ICraftingPatternDetails pattern = ((ICraftingPatternItem) stack.getItem()).getPatternForItem(stack, world);
                 if (pattern != null && pattern.isCraftable()) {
                     craftingTracker.addCraftingOption(medium, pattern);
+                    prefillVirtualCache(pattern);
                 }
             }
+        }
+    }
+
+    /**
+     * 预填充 patternVirtualCache，避免 CPU 首次派发任务时因缓存未命中而回退到 AE2 原生 pushPattern 路径。
+     * 回退会导致：1) 性能骤降（逐次处理）；2) waitingFor 残留（原生逻辑添加记录但产物直接进网络，无法被 injectItems 清除）。
+     */
+    private void prefillVirtualCache(ICraftingPatternDetails pattern) {
+        if (world == null || world.isRemote) return;
+        String key = getPatternKey(pattern);
+        if (patternVirtualCache.containsKey(key)) return;
+        if (!pattern.isCraftable()) {
+            patternVirtualCache.put(key, false);
+            return;
+        }
+
+        IAEItemStack[] inputs = pattern.getInputs();
+        InventoryCrafting ic = new InventoryCrafting(new net.minecraft.inventory.Container() {
+            @Override
+            public boolean canInteractWith(net.minecraft.entity.player.EntityPlayer playerIn) {
+                return false;
+            }
+        }, 3, 3);
+
+        for (int i = 0; i < inputs.length && i < 9; i++) {
+            ic.setInventorySlotContents(i, inputs[i] != null ? inputs[i].createItemStack() : ItemStack.EMPTY);
+        }
+
+        IRecipe recipe = CraftingManager.findMatchingRecipe(ic, world);
+        if (recipe != null) {
+            NonNullList<ItemStack> remaining = recipe.getRemainingItems(ic);
+            boolean isVirtual = remaining.stream().allMatch(ItemStack::isEmpty);
+            patternVirtualCache.put(key, isVirtual);
+        } else {
+            patternVirtualCache.put(key, false);
         }
     }
 
