@@ -41,9 +41,12 @@ public class TileAssemblyController extends TileEntity implements ICraftingProvi
 
     public static final int UPGRADE_SLOTS = 6;
     public static final int PATTERN_SLOTS_PER_PAGE = 96; // 16×6
-    public static final int PATTERN_PAGES = 3;
-    public static final int PATTERN_SLOTS = PATTERN_SLOTS_PER_PAGE * PATTERN_PAGES;
-    public static final int TOTAL_SLOTS = UPGRADE_SLOTS + PATTERN_SLOTS;
+    public static final int PATTERN_PAGES_BASE = 5;               // 基础页数
+    public static final int PATTERN_PAGES_PER_CAPACITY = 5;       // 每张扩容升级卡增加的页数
+    public static final int PATTERN_PAGES_MAX = 30;               // 上限页数
+    public static final int PATTERN_SLOTS_MAX = PATTERN_SLOTS_PER_PAGE * PATTERN_PAGES_MAX; // 2880
+    public static final int TOTAL_SLOTS_MAX = UPGRADE_SLOTS + PATTERN_SLOTS_MAX;            // 2886
+    public static final int TOTAL_SLOTS_BASE = UPGRADE_SLOTS + PATTERN_SLOTS_PER_PAGE * PATTERN_PAGES_BASE; // 486
 
     private static final IActionSource MACHINE_SOURCE = new IActionSource() {
         @Override public Optional<EntityPlayer> player() { return Optional.empty(); }
@@ -58,16 +61,25 @@ public class TileAssemblyController extends TileEntity implements ICraftingProvi
     private boolean networkPowered = false;
     private int batchCooldown = 0;
 
-    private final ItemStackHandler itemHandler = new ItemStackHandler(TOTAL_SLOTS) {
+    private final PatternItemHandler itemHandler = new PatternItemHandler(TOTAL_SLOTS_BASE);
+
+    /** 自定义 ItemStackHandler，支持动态容量扩展 + 扩容升级取出限制 */
+    public class PatternItemHandler extends ItemStackHandler {
+        PatternItemHandler(int size) { super(size); }
+
         @Override
         protected void onContentsChanged(int slot) {
-            markDirty();
+            TileAssemblyController.this.markDirty();
             // 强制同步到客户端，修复'取出升级后重新打开 GUI 发现升级还在原位'的同步延迟问题
             if (world != null && !world.isRemote) {
                 world.notifyBlockUpdate(pos, world.getBlockState(pos), world.getBlockState(pos), 2);
             }
             if (slot >= UPGRADE_SLOTS && world != null && !world.isRemote) {
                 patternsDirty = true;
+            }
+            // 扩容升级增加时自动扩展容量
+            if (slot == ItemUpgradeCard.META_CAPACITY && world != null && !world.isRemote) {
+                ensurePatternCapacity();
             }
         }
 
@@ -78,7 +90,30 @@ public class TileAssemblyController extends TileEntity implements ICraftingProvi
             }
             return stack.getItem() instanceof ICraftingPatternItem;
         }
-    };
+
+        /** 扩容升级取出限制：如果扩展页面留有样板，禁止提取 */
+        @Override
+        @Nonnull
+        public ItemStack extractItem(int slot, int amount, boolean simulate) {
+            if (slot == ItemUpgradeCard.META_CAPACITY && !simulate) {
+                ItemStack current = getStackInSlot(slot);
+                int newCount = Math.max(0, current.getCount() - amount);
+                if (!canReduceCapacity(newCount)) {
+                    return ItemStack.EMPTY;
+                }
+            }
+            return super.extractItem(slot, amount, simulate);
+        }
+
+        public void setCapacity(int newSize) {
+            if (newSize == stacks.size()) return;
+            NonNullList<ItemStack> newStacks = NonNullList.withSize(newSize, ItemStack.EMPTY);
+            for (int i = 0; i < Math.min(stacks.size(), newSize); i++) {
+                newStacks.set(i, stacks.get(i));
+            }
+            stacks = newStacks;
+        }
+    }
 
     /** 缓存样板是否为纯虚拟合成（getRemainingItems 全空），String key 避免 hash 碰撞 */
     private final Map<String, Boolean> patternVirtualCache = new HashMap<>();
@@ -123,6 +158,58 @@ public class TileAssemblyController extends TileEntity implements ICraftingProvi
             if (cap > 67108864) return 67108864;
         }
         return cap;
+    }
+
+    /**
+     * 获取当前可用的样板页数。基础 5 页，每张扩容升级卡 +5 页，上限 30 页。
+     */
+    public int getPatternPages() {
+        ItemStack stack = itemHandler.getStackInSlot(ItemUpgradeCard.META_CAPACITY);
+        int count = 0;
+        if (!stack.isEmpty() && stack.getItem() instanceof ItemUpgradeCard
+                && stack.getMetadata() == ItemUpgradeCard.META_CAPACITY) {
+            count = stack.getCount();
+        }
+        int pages = PATTERN_PAGES_BASE + count * PATTERN_PAGES_PER_CAPACITY;
+        return Math.min(pages, PATTERN_PAGES_MAX);
+    }
+
+    /**
+     * 获取当前总样板槽数（可用页数 × 每页槽数）
+     */
+    public int getPatternSlotCount() {
+        return getPatternPages() * PATTERN_SLOTS_PER_PAGE;
+    }
+
+    /**
+     * 检查扩容升级能否减少到 newCapacityCount 张。
+     * 如果被移除的扩展页面中任意槽位留有样板，返回 false。
+     */
+    public boolean canReduceCapacity(int newCapacityCount) {
+        int oldPages = getPatternPages();
+        int newPages = PATTERN_PAGES_BASE + newCapacityCount * PATTERN_PAGES_PER_CAPACITY;
+        newPages = Math.min(newPages, PATTERN_PAGES_MAX);
+        if (newPages >= oldPages) return true;
+
+        int startSlot = UPGRADE_SLOTS + newPages * PATTERN_SLOTS_PER_PAGE;
+        int endSlot = UPGRADE_SLOTS + oldPages * PATTERN_SLOTS_PER_PAGE;
+        for (int i = startSlot; i < endSlot && i < itemHandler.getSlots(); i++) {
+            if (!itemHandler.getStackInSlot(i).isEmpty()) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * 扩容升级增加时扩展 ItemStackHandler 容量。减少时由 extractItem 阻止，此处不收缩。
+     */
+    private void ensurePatternCapacity() {
+        int pages = getPatternPages();
+        int targetSize = UPGRADE_SLOTS + pages * PATTERN_SLOTS_PER_PAGE;
+        if (itemHandler.getSlots() < targetSize) {
+            itemHandler.setCapacity(targetSize);
+        }
     }
 
     public synchronized boolean isMeInterfaceActive(BlockPos mePos) {
@@ -505,7 +592,8 @@ public class TileAssemblyController extends TileEntity implements ICraftingProvi
             }
         }
 
-        for (int i = UPGRADE_SLOTS; i < TOTAL_SLOTS; i++) {
+        int patternSlots = getPatternSlotCount();
+        for (int i = UPGRADE_SLOTS; i < UPGRADE_SLOTS + patternSlots; i++) {
             ItemStack stack = itemHandler.getStackInSlot(i);
             if (stack.isEmpty()) continue;
 
@@ -605,14 +693,16 @@ public class TileAssemblyController extends TileEntity implements ICraftingProvi
         }
         if (compound.hasKey("items")) {
             NBTTagCompound itemsTag = compound.getCompoundTag("items");
-            // 旧存档 Size 可能小于当前 TOTAL_SLOTS（从 42 升级到 102），需扩展避免越界
+            // 旧存档 Size 可能小于当前基础容量（从 42/96/102 升级），先扩展为基础容量避免越界
             if (itemsTag.hasKey("Size", Constants.NBT.TAG_INT)) {
                 int oldSize = itemsTag.getInteger("Size");
-                if (oldSize < TOTAL_SLOTS) {
-                    itemsTag.setInteger("Size", TOTAL_SLOTS);
+                if (oldSize < TOTAL_SLOTS_BASE) {
+                    itemsTag.setInteger("Size", TOTAL_SLOTS_BASE);
                 }
             }
             itemHandler.deserializeNBT(itemsTag);
+            // 加载扩容升级后，根据实际数量扩展容量
+            ensurePatternCapacity();
         }
         if (compound.hasKey("pendingOutputs")) {
             pendingOutputs.clear();
@@ -631,7 +721,8 @@ public class TileAssemblyController extends TileEntity implements ICraftingProvi
         }
         // 存档加载后立即预填充虚拟缓存，避免 AE2 网络扫描前下单时缓存为空
         if (world != null && !world.isRemote) {
-            for (int i = UPGRADE_SLOTS; i < TOTAL_SLOTS; i++) {
+            int patternSlots = getPatternSlotCount();
+        for (int i = UPGRADE_SLOTS; i < UPGRADE_SLOTS + patternSlots; i++) {
                 ItemStack stack = itemHandler.getStackInSlot(i);
                 if (stack.isEmpty()) continue;
                 if (stack.getItem() instanceof ICraftingPatternItem) {

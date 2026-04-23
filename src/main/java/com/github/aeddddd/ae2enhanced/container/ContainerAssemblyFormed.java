@@ -47,6 +47,17 @@ public class ContainerAssemblyFormed extends Container {
                     public int getSlotStackLimit() {
                         return ItemUpgradeCard.getMaxStackForMeta(index);
                     }
+
+                    @Override
+                    public boolean canTakeStack(EntityPlayer playerIn) {
+                        // 扩容升级：如果扩展页面留有样板，禁止取出
+                        if (index == ItemUpgradeCard.META_CAPACITY) {
+                            ItemStack stack = handler.getStackInSlot(index);
+                            int newCount = Math.max(0, stack.getCount() - 1);
+                            return ((TileAssemblyController) tile).canReduceCapacity(newCount);
+                        }
+                        return super.canTakeStack(playerIn);
+                    }
                 });
             }
         }

@@ -2,6 +2,7 @@ package com.github.aeddddd.ae2enhanced.network;
 
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
 import com.github.aeddddd.ae2enhanced.gui.GuiHandler;
+import com.github.aeddddd.ae2enhanced.tile.TileAssemblyController;
 import io.netty.buffer.ByteBuf;
 import net.minecraft.entity.player.EntityPlayerMP;
 import net.minecraft.tileentity.TileEntity;
@@ -47,9 +48,13 @@ public class PacketPatternPage implements IMessage {
                 if (player.getDistanceSq(pos) > 64.0) return;
 
                 TileEntity te = world.getTileEntity(pos);
-                if (te == null) return;
+                if (!(te instanceof TileAssemblyController)) return;
 
+                TileAssemblyController tile = (TileAssemblyController) te;
                 int page = message.targetPage;
+                int maxPage = tile.getPatternPages() - 1;
+                if (page < 0) page = 0;
+                if (page > maxPage) page = maxPage;
                 int guiId = GuiHandler.encodePatternId(page);
                 player.openGui(AE2Enhanced.instance, guiId, world, pos.getX(), pos.getY(), pos.getZ());
             });

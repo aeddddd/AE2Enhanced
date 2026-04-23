@@ -23,13 +23,17 @@ public class ContainerAssemblyPattern extends Container {
 
     public ContainerAssemblyPattern(IInventory playerInv, TileAssemblyController tile, int page) {
         this.tile = tile;
+        // 页码边界保护
+        int maxPage = tile.getPatternPages() - 1;
+        if (page < 0) page = 0;
+        if (page > maxPage) page = maxPage;
         this.page = page;
         IItemHandler handler = tile.getCapability(CapabilityItemHandler.ITEM_HANDLER_CAPABILITY, null);
 
         int startSlot = TileAssemblyController.UPGRADE_SLOTS
             + page * TileAssemblyController.PATTERN_SLOTS_PER_PAGE;
         int endSlot = Math.min(startSlot + TileAssemblyController.PATTERN_SLOTS_PER_PAGE,
-            TileAssemblyController.TOTAL_SLOTS);
+            TileAssemblyController.UPGRADE_SLOTS + tile.getPatternSlotCount());
 
         // 样板槽：当前页 16×6=96 槽
         for (int i = startSlot; i < endSlot; i++) {

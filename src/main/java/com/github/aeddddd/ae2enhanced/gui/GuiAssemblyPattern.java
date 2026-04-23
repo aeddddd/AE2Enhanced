@@ -36,6 +36,10 @@ public class GuiAssemblyPattern extends GuiContainer {
     public GuiAssemblyPattern(InventoryPlayer playerInv, TileAssemblyController tile, int page) {
         super(new ContainerAssemblyPattern(playerInv, tile, page));
         this.tile = tile;
+        // 页码边界保护（与 Container 保持一致）
+        int maxPage = tile.getPatternPages() - 1;
+        if (page < 0) page = 0;
+        if (page > maxPage) page = maxPage;
         this.page = page;
         this.xSize = 340;
         this.ySize = 250;
@@ -111,7 +115,7 @@ public class GuiAssemblyPattern extends GuiContainer {
         fontRenderer.drawString(title, (xSize - titleWidth) / 2, 8, ACCENT);
 
         // 页码显示
-        String pageStr = I18n.format("gui.ae2enhanced.pattern.page", page + 1, TileAssemblyController.PATTERN_PAGES);
+        String pageStr = I18n.format("gui.ae2enhanced.pattern.page", page + 1, tile.getPatternPages());
         int pageWidth = fontRenderer.getStringWidth(pageStr);
         fontRenderer.drawString(pageStr, (xSize - pageWidth) / 2, 148, TEXT_DIM);
 
@@ -142,7 +146,7 @@ public class GuiAssemblyPattern extends GuiContainer {
         // 下一页按钮（最后一页禁用）
         nextButton = new GuiButtonTech(2, guiLeft + 72, guiTop + 8, 50, 18,
             I18n.format("gui.ae2enhanced.pattern.next"));
-        nextButton.enabled = page < TileAssemblyController.PATTERN_PAGES - 1;
+        nextButton.enabled = page < tile.getPatternPages() - 1;
         buttonList.add(nextButton);
     }
 
@@ -161,7 +165,7 @@ public class GuiAssemblyPattern extends GuiContainer {
         } else if (button.id == 2) {
             // 下一页
             int targetPage = page + 1;
-            if (targetPage < TileAssemblyController.PATTERN_PAGES) {
+            if (targetPage < tile.getPatternPages()) {
                 AE2Enhanced.network.sendToServer(new PacketPatternPage(tile.getPos(), targetPage));
             }
         }
