@@ -15,14 +15,14 @@ public class GuiHandler implements IGuiHandler {
     public static final int GUI_ASSEMBLY_CONTROLLER = 0;
     public static final int GUI_ASSEMBLY_PATTERN = 1;
 
-    /** 编码页码到 GUI ID：低4位为 base ID，高位为页码 */
+    /** 编码页码到 GUI ID：低4位为 base ID，高位为页码（8位，支持0~255页） */
     public static int encodePatternId(int page) {
-        return GUI_ASSEMBLY_PATTERN | (page << 4);
+        return GUI_ASSEMBLY_PATTERN | (page << 8);
     }
 
     /** 从 GUI ID 解码页码 */
     public static int decodePatternPage(int ID) {
-        return (ID >> 4) & 0xF;
+        return (ID >> 8) & 0xFF;
     }
 
     @Override

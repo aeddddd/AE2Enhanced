@@ -13,6 +13,7 @@ import appeng.api.storage.IMEMonitor;
 import appeng.api.storage.channels.IItemStorageChannel;
 import appeng.api.storage.data.IAEItemStack;
 import com.github.aeddddd.ae2enhanced.item.ItemUpgradeCard;
+import com.github.aeddddd.ae2enhanced.structure.AssemblyStructure;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.inventory.InventoryCrafting;
 import net.minecraft.item.Item;
@@ -116,7 +117,7 @@ public class TileAssemblyController extends TileEntity implements ICraftingProvi
     }
 
     /** 缓存样板是否为纯虚拟合成（getRemainingItems 全空），String key 避免 hash 碰撞 */
-    private final Map<String, Boolean> patternVirtualCache = new HashMap<>();
+    private final Map<ICraftingPatternDetails, Boolean> patternVirtualCache = new HashMap<>();
     private final List<ItemStack> pendingOutputs = new ArrayList<>();
     private final List<Integer> jobTimers = new ArrayList<>();
     private boolean patternsDirty = false;
@@ -411,8 +412,7 @@ public class TileAssemblyController extends TileEntity implements ICraftingProvi
         if (world == null || world.isRemote || isBusy()) return false;
         if (!patternDetails.isCraftable()) return false;
 
-        String key = getPatternKey(patternDetails);
-        Boolean cached = patternVirtualCache.get(key);
+        Boolean cached = patternVirtualCache.get(patternDetails);
         boolean isVirtual;
         IRecipe recipe = null;
         NonNullList<ItemStack> remaining = null;
@@ -424,7 +424,7 @@ public class TileAssemblyController extends TileEntity implements ICraftingProvi
             if (recipe == null) return false;
             remaining = recipe.getRemainingItems(table);
             isVirtual = remaining.stream().allMatch(ItemStack::isEmpty);
-            patternVirtualCache.put(key, isVirtual);
+            patternVirtualCache.put(patternDetails, isVirtual);
         }
 
         if (isVirtual) {
@@ -552,8 +552,7 @@ public class TileAssemblyController extends TileEntity implements ICraftingProvi
      * 供 Mixin 调用：检查指定样板是否已被缓存为纯虚拟合成（无剩余物品）。
      */
     public boolean isVirtualPattern(ICraftingPatternDetails details) {
-        String key = getPatternKey(details);
-        Boolean cached = patternVirtualCache.get(key);
+        Boolean cached = patternVirtualCache.get(details);
         return cached != null && cached;
     }
 
@@ -581,6 +580,23 @@ public class TileAssemblyController extends TileEntity implements ICraftingProvi
     @Override
     public void provideCrafting(ICraftingProviderHelper craftingTracker) {
         if (world == null || world.isRemote) return;
+
+        // 旧存档可能未保存 activeMeInterfacePos，尝试从结构坐标恢复
+        if (activeMeInterfacePos == null && formed) {
+            BlockPos origin = AssemblyStructure.getOriginFromController(pos);
+            for (BlockPos rel : AssemblyStructure.PART1_SET) {
+                BlockPos mePos = origin.add(rel);
+                TileEntity te = world.getTileEntity(mePos);
+                if (te instanceof TileAssemblyMeInterface) {
+                    TileAssemblyMeInterface me = (TileAssemblyMeInterface) te;
+                    if (me.getControllerPos() != null && me.getControllerPos().equals(pos)) {
+                        activeMeInterfacePos = mePos;
+                        markDirty();
+                        break;
+                    }
+                }
+            }
+        }
 
         // 使用 TileAssemblyMeInterface 作为 medium 注册样板，
         // 这样 CraftingGridCache.getMediums() 返回的是 TileAssemblyMeInterface 而不是 TileAssemblyController
@@ -613,10 +629,9 @@ public class TileAssemblyController extends TileEntity implements ICraftingProvi
      */
     private void prefillVirtualCache(ICraftingPatternDetails pattern) {
         if (world == null || world.isRemote) return;
-        String key = getPatternKey(pattern);
-        if (patternVirtualCache.containsKey(key)) return;
+        if (patternVirtualCache.containsKey(pattern)) return;
         if (!pattern.isCraftable()) {
-            patternVirtualCache.put(key, false);
+            patternVirtualCache.put(pattern, false);
             return;
         }
 
@@ -636,19 +651,10 @@ public class TileAssemblyController extends TileEntity implements ICraftingProvi
         if (recipe != null) {
             NonNullList<ItemStack> remaining = recipe.getRemainingItems(ic);
             boolean isVirtual = remaining.stream().allMatch(ItemStack::isEmpty);
-            patternVirtualCache.put(key, isVirtual);
+            patternVirtualCache.put(pattern, isVirtual);
         } else {
-            patternVirtualCache.put(key, false);
+            patternVirtualCache.put(pattern, false);
         }
-    }
-
-    private String getPatternKey(ICraftingPatternDetails pattern) {
-        ItemStack stack = pattern.getPattern();
-        String key = Objects.toString(stack.getItem().getRegistryName()) + "#" + stack.getMetadata();
-        if (stack.hasTagCompound()) {
-            key += "#" + stack.getTagCompound().toString();
-        }
-        return key;
     }
 
     // ---------- Capability ----------
