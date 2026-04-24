@@ -26,8 +26,10 @@ import net.minecraft.network.NetworkManager;
 import net.minecraft.network.play.server.SPacketUpdateTileEntity;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.EnumFacing;
+import net.minecraft.util.EnumParticleTypes;
 import net.minecraft.util.ITickable;
 import net.minecraft.util.NonNullList;
+import net.minecraft.util.math.AxisAlignedBB;
 import net.minecraft.util.math.BlockPos;
 import net.minecraftforge.common.capabilities.Capability;
 import net.minecraftforge.common.util.Constants;
@@ -210,6 +212,40 @@ public class TileAssemblyController extends TileEntity implements ICraftingProvi
     }
 
     /**
+     * 客户端：在几何中心周围生成紫色 REDSTONE 粒子，模拟黑洞粒子光环。
+     * 粒子沿切向运动并螺旋向内，颜色为偏紫的随机色调。
+     */
+    private void spawnBlackHoleParticles() {
+        BlockPos origin = AssemblyStructure.getOriginFromController(pos);
+        double cx = origin.getX() + 0.5;
+        double cy = origin.getY() + 0.5;
+        double cz = origin.getZ() + 0.5;
+
+        for (int i = 0; i < 8; i++) {
+            double angle = world.rand.nextDouble() * Math.PI * 2;
+            double radius = 2.8 + world.rand.nextDouble() * 1.8;
+            double px = cx + Math.cos(angle) * radius;
+            double pz = cz + Math.sin(angle) * radius;
+            double py = cy + (world.rand.nextDouble() - 0.5) * 0.4;
+
+            double tangentSpeed = 0.05 + world.rand.nextDouble() * 0.03;
+            double inwardSpeed = 0.01 + world.rand.nextDouble() * 0.01;
+
+            // 切向速度（逆时针）+ 径向速度（向内）
+            double vx = -Math.sin(angle) * tangentSpeed - Math.cos(angle) * inwardSpeed;
+            double vz = Math.cos(angle) * tangentSpeed - Math.sin(angle) * inwardSpeed;
+            double vy = (world.rand.nextDouble() - 0.5) * 0.005;
+
+            // REDSTONE 粒子的 velocity 参数解释为颜色 (R, G, B)
+            float red = 0.4f + world.rand.nextFloat() * 0.2f;
+            float green = 0.05f + world.rand.nextFloat() * 0.1f;
+            float blue = 0.7f + world.rand.nextFloat() * 0.2f;
+
+            world.spawnParticle(EnumParticleTypes.REDSTONE, px, py, pz, red, green, blue);
+        }
+    }
+
+    /**
      * 获取当前总样板槽数（可用页数 × 每页槽数）
      */
     public int getPatternSlotCount() {
@@ -302,8 +338,26 @@ public class TileAssemblyController extends TileEntity implements ICraftingProvi
     }
 
     @Override
+    @Nonnull
+    public AxisAlignedBB getRenderBoundingBox() {
+        BlockPos origin = AssemblyStructure.getOriginFromController(pos);
+        return new AxisAlignedBB(
+            origin.getX() - 4, origin.getY() - 4, origin.getZ() - 4,
+            origin.getX() + 5, origin.getY() + 5, origin.getZ() + 5
+        );
+    }
+
+    @Override
     public void update() {
-        if (world == null || world.isRemote) return;
+        if (world == null) return;
+
+        // 客户端：生成黑洞粒子光环
+        if (world.isRemote) {
+            if (formed) {
+                spawnBlackHoleParticles();
+            }
+            return;
+        }
 
         // 样板变化时触发 AE 网络重新扫描，1 tick 延迟合并同一 tick 内的连续变化
         // 如果 activeMeInterfacePos 为 null，先尝试从结构坐标恢复，避免死锁：
