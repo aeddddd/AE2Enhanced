@@ -73,7 +73,7 @@ public class RenderBlackHole extends TileEntitySpecialRenderer<TileAssemblyContr
         GlStateManager.rotate(18.0f, 1, 0, 0.3f);
         drawSphere(innerR, 0x140029, innerAlpha);
         // 内层网格：始终可见，仅有亮度变化
-        drawWireframeSphere(innerR, 0x2D005C, 0.16f * (0.5f + 0.5f * gridEnergy));
+        drawWireframeSphere(innerR, 0x7700DD, 0.28f * (0.5f + 0.5f * gridEnergy));
         GlStateManager.popMatrix();
 
         // 3. 中层光晕（极深紫，反向旋转，与内层错相）
@@ -134,7 +134,7 @@ public class RenderBlackHole extends TileEntitySpecialRenderer<TileAssemblyContr
         float g = ((color >> 8) & 0xFF) / 255.0f;
         float b = (color & 0xFF) / 255.0f;
 
-        GlStateManager.glLineWidth(1.2f);
+        GlStateManager.glLineWidth(2.0f);
 
         // 纬线
         for (int lat = 1; lat < GRID_LAT; lat++) {

@@ -14,6 +14,7 @@ import appeng.api.storage.channels.IItemStorageChannel;
 import appeng.api.storage.data.IAEItemStack;
 import com.github.aeddddd.ae2enhanced.item.ItemUpgradeCard;
 import com.github.aeddddd.ae2enhanced.structure.AssemblyStructure;
+import net.minecraft.entity.EntityLivingBase;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.inventory.InventoryCrafting;
 import net.minecraft.item.Item;
@@ -25,12 +26,15 @@ import net.minecraft.nbt.NBTTagList;
 import net.minecraft.network.NetworkManager;
 import net.minecraft.network.play.server.SPacketUpdateTileEntity;
 import net.minecraft.tileentity.TileEntity;
+import net.minecraft.util.DamageSource;
 import net.minecraft.util.EnumFacing;
 import net.minecraft.util.EnumParticleTypes;
 import net.minecraft.util.ITickable;
 import net.minecraft.util.NonNullList;
 import net.minecraft.util.math.AxisAlignedBB;
 import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.text.ITextComponent;
+import net.minecraft.util.text.TextComponentString;
 import net.minecraftforge.common.capabilities.Capability;
 import net.minecraftforge.common.util.Constants;
 import net.minecraftforge.items.CapabilityItemHandler;
@@ -357,6 +361,25 @@ public class TileAssemblyController extends TileEntity implements ICraftingProvi
                 spawnBlackHoleParticles();
             }
             return;
+        }
+
+        // 黑洞事件视界：秒杀进入中心区域的生物
+        if (formed) {
+            BlockPos origin = AssemblyStructure.getOriginFromController(pos);
+            AxisAlignedBB eventHorizon = new AxisAlignedBB(
+                origin.getX() - 2, origin.getY() - 2, origin.getZ() - 2,
+                origin.getX() + 3, origin.getY() + 3, origin.getZ() + 3
+            );
+            for (EntityLivingBase entity : world.getEntitiesWithinAABB(EntityLivingBase.class, eventHorizon)) {
+                if (!entity.isDead && entity.isEntityAlive()) {
+                    entity.attackEntityFrom(new DamageSource("blackHole") {
+                        @Override
+                        public ITextComponent getDeathMessage(EntityLivingBase entityLivingBaseIn) {
+                            return new TextComponentString(entityLivingBaseIn.getName() + " 永远的迷失在事件视界中");
+                        }
+                    }.setDamageBypassesArmor().setDamageAllowedInCreativeMode(), Float.MAX_VALUE);
+                }
+            }
         }
 
         // 样板变化时触发 AE 网络重新扫描，1 tick 延迟合并同一 tick 内的连续变化
