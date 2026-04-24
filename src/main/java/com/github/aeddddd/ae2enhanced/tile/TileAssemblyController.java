@@ -167,6 +167,11 @@ public class TileAssemblyController extends TileEntity implements ICraftingProvi
         return formed;
     }
 
+    @Override
+    public double getMaxRenderDistanceSquared() {
+        return 65536.0; // 256 格渲染距离，确保远处也能看到黑洞效果
+    }
+
     public ItemStackHandler getItemHandler() {
         return itemHandler;
     }
