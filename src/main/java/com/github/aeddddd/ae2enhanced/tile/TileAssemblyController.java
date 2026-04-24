@@ -61,6 +61,7 @@ public class TileAssemblyController extends TileEntity implements ICraftingProvi
     private boolean networkActive = false;
     private boolean networkPowered = false;
     private int batchCooldown = 0;
+    private boolean batchBusy = false;
 
     private final PatternItemHandler itemHandler = new PatternItemHandler(TOTAL_SLOTS_BASE);
 
@@ -313,6 +314,9 @@ public class TileAssemblyController extends TileEntity implements ICraftingProvi
             }
         }
 
+        // 重置 batchBusy，允许下一 tick 继续 batch
+        this.batchBusy = false;
+
         // 每 20 ticks 刷新网络状态
         tickCounter++;
         if (tickCounter % 20 != 0) return;
@@ -537,11 +541,19 @@ public class TileAssemblyController extends TileEntity implements ICraftingProvi
         this.batchCooldown = getCraftingTicks();
     }
 
+    /**
+     * 供 Mixin 调用：标记当前 tick 已有 batch 任务被执行，
+     * 让原生 executeCrafting 在同一 tick 内跳过该控制器，避免双重扣减。
+     */
+    public void setBatchBusy(boolean busy) {
+        this.batchBusy = busy;
+    }
+
     @Override
     public boolean isBusy() {
         long cap = getParallelCap();
         int intCap = (cap >= Integer.MAX_VALUE) ? Integer.MAX_VALUE : (int) cap;
-        return jobTimers.size() >= intCap;
+        return jobTimers.size() >= intCap || batchBusy;
     }
 
     public int getJobCount() {
