@@ -508,14 +508,20 @@ public class TileAssemblyController extends TileEntity implements ICraftingProvi
      * 用于事件视界 16 次击杀失败后的最终放逐手段。
      */
     private void teleportToRandomDimension(EntityLivingBase entity) {
-        Integer[] dims = DimensionManager.getRegisteredDimensions().keySet().toArray(new Integer[0]);
-        if (dims.length == 0) return;
+        java.util.List<Integer> validDims = new java.util.ArrayList<>();
+        for (int i = -999; i <= 999; i++) {
+            if (DimensionManager.isDimensionRegistered(i)) {
+                validDims.add(i);
+            }
+        }
+        if (validDims.isEmpty()) return;
+
         int targetDim;
-        if (dims.length == 1) {
-            targetDim = dims[0];
+        if (validDims.size() == 1) {
+            targetDim = validDims.get(0);
         } else {
             do {
-                targetDim = dims[world.rand.nextInt(dims.length)];
+                targetDim = validDims.get(world.rand.nextInt(validDims.size()));
             } while (targetDim == entity.dimension);
         }
         entity.changeDimension(targetDim);
