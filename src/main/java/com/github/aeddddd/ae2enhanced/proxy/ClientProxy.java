@@ -4,8 +4,10 @@ import com.github.aeddddd.ae2enhanced.AE2Enhanced;
 import com.github.aeddddd.ae2enhanced.ModBlocks;
 import com.github.aeddddd.ae2enhanced.ModItems;
 import com.github.aeddddd.ae2enhanced.client.render.RenderBlackHole;
+import com.github.aeddddd.ae2enhanced.client.render.RenderMicroSingularity;
 import com.github.aeddddd.ae2enhanced.item.ItemUpgradeCard;
 import com.github.aeddddd.ae2enhanced.tile.TileAssemblyController;
+import com.github.aeddddd.ae2enhanced.tile.TileMicroSingularity;
 import net.minecraft.block.Block;
 import net.minecraft.client.renderer.block.model.ModelResourceLocation;
 import net.minecraft.item.Item;
@@ -32,6 +34,7 @@ public class ClientProxy extends CommonProxy {
     public void init(FMLInitializationEvent event) {
         super.init(event);
         ClientRegistry.bindTileEntitySpecialRenderer(TileAssemblyController.class, new RenderBlackHole());
+        ClientRegistry.bindTileEntitySpecialRenderer(TileMicroSingularity.class, new RenderMicroSingularity());
     }
 
     @Override
@@ -47,6 +50,7 @@ public class ClientProxy extends CommonProxy {
         registerBlockItemModel(ModBlocks.ASSEMBLY_CASING);
         registerBlockItemModel(ModBlocks.ASSEMBLY_INNER_WALL);
         registerBlockItemModel(ModBlocks.ASSEMBLY_STABILIZER);
+        registerBlockItemModel(ModBlocks.MICRO_SINGULARITY);
 
         // 注册升级卡的所有模型 variant
         ModelLoader.registerItemVariants(ModItems.UPGRADE_CARD,

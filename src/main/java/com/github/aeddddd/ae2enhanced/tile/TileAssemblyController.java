@@ -404,7 +404,7 @@ public class TileAssemblyController extends TileEntity implements ICraftingProvi
                     eventHorizonStrikes.remove(uuid);
                 } else if (strikes >= 16) {
                     eventHorizonStrikes.remove(uuid);
-                    teleportToRandomDimension(entity);
+                    banishToOverworld(entity);
                 } else {
                     eventHorizonStrikes.put(uuid, strikes);
                 }
@@ -504,27 +504,22 @@ public class TileAssemblyController extends TileEntity implements ICraftingProvi
     }
 
     /**
-     * 将实体强制传送至一个随机已注册维度。
+     * 将实体放逐至主世界（维度 0）原点 10000 格以内的随机坐标，Y=256 高空。
      * 用于事件视界 16 次击杀失败后的最终放逐手段。
      */
-    private void teleportToRandomDimension(EntityLivingBase entity) {
-        java.util.List<Integer> validDims = new java.util.ArrayList<>();
-        for (int i = -999; i <= 999; i++) {
-            if (DimensionManager.isDimensionRegistered(i)) {
-                validDims.add(i);
-            }
-        }
-        if (validDims.isEmpty()) return;
+    private void banishToOverworld(EntityLivingBase entity) {
+        int targetX = world.rand.nextInt(20001) - 10000; // -10000 ~ +10000
+        int targetZ = world.rand.nextInt(20001) - 10000;
+        int targetY = 256;
 
-        int targetDim;
-        if (validDims.size() == 1) {
-            targetDim = validDims.get(0);
+        if (entity.dimension != 0) {
+            net.minecraft.entity.Entity newEntity = entity.changeDimension(0);
+            if (newEntity != null) {
+                newEntity.setPositionAndUpdate(targetX, targetY, targetZ);
+            }
         } else {
-            do {
-                targetDim = validDims.get(world.rand.nextInt(validDims.size()));
-            } while (targetDim == entity.dimension);
+            entity.setPositionAndUpdate(targetX, targetY, targetZ);
         }
-        entity.changeDimension(targetDim);
     }
 
     // ---------- 产物注入（BatchExporter 风格，合并后批量注入） ----------
