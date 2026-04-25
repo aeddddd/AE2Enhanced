@@ -11,7 +11,9 @@ import stanhebben.zenscript.annotations.ZenClass;
 import stanhebben.zenscript.annotations.ZenMethod;
 
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * CraftTweaker 集成：允许通过 ZenScript 添加/移除黑洞合成配方。
@@ -26,6 +28,9 @@ import java.util.Map;
 @ZenClass("mods.ae2enhanced.BlackHole")
 public class BlackHoleCraftTweaker {
 
+    /** 延迟移除队列：CraftTweaker 可能在 init() 之前执行脚本，此时配方尚未注册 */
+    private static final Set<String> PENDING_REMOVALS = new HashSet<>();
+
     @ZenMethod
     public static void addRecipe(IItemStack output, IItemStack[] inputs) {
         CraftTweakerAPI.apply(new AddRecipeAction(output, inputs));
@@ -34,6 +39,18 @@ public class BlackHoleCraftTweaker {
     @ZenMethod
     public static void removeRecipe(String id) {
         CraftTweakerAPI.apply(new RemoveRecipeAction(id));
+    }
+
+    /**
+     * 由 AE2Enhanced.init() 在配方注册完成后调用，执行延迟移除。
+     */
+    public static void applyPendingRemovals() {
+        if (PENDING_REMOVALS.isEmpty()) return;
+        for (String id : new HashSet<>(PENDING_REMOVALS)) {
+            boolean removed = BlackHoleRecipeRegistry.removeById(id);
+            AE2Enhanced.LOGGER.info("[AE2E CT] applyPendingRemovals('{}'): {}", id, removed ? "removed" : "not found");
+        }
+        PENDING_REMOVALS.clear();
     }
 
     public static class AddRecipeAction implements IAction {
@@ -76,19 +93,15 @@ public class BlackHoleCraftTweaker {
 
         @Override
         public void apply() {
-            boolean removed = BlackHoleRecipeRegistry.removeById(id);
-            if (!removed) {
-                AE2Enhanced.LOGGER.warn("[AE2E CT] removeRecipe('{}'): recipe not found at apply-time. " +
-                    "Available ids: {}", id,
-                    BlackHoleRecipeRegistry.getRecipes().stream().map(BlackHoleRecipe::getId).collect(java.util.stream.Collectors.toList()));
-            } else {
-                AE2Enhanced.LOGGER.info("[AE2E CT] removeRecipe('{}'): removed successfully", id);
-            }
+            // CraftTweaker 可能在 init() 之前执行，此时配方尚未注册。
+            // 加入延迟队列，由 AE2Enhanced.init() 注册完成后统一移除。
+            PENDING_REMOVALS.add(id);
+            AE2Enhanced.LOGGER.info("[AE2E CT] removeRecipe('{}'): queued for delayed removal (recipes may not be registered yet)", id);
         }
 
         @Override
         public String describe() {
-            return "Removing Black Hole recipe " + id;
+            return "Queueing Black Hole recipe removal: " + id;
         }
     }
 }

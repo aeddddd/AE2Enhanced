@@ -65,6 +65,8 @@ public class AE2Enhanced {
         LOGGER.info("[AE2E] init() called, registering singularity/black hole recipes...");
         registerSingularityRecipes();
         LOGGER.info("[AE2E] Registered {} black hole recipes", BlackHoleRecipeRegistry.getRecipes().size());
+        // 执行 CraftTweaker 延迟移除（CT 脚本可能在 init() 之前执行）
+        com.github.aeddddd.ae2enhanced.integration.crafttweaker.BlackHoleCraftTweaker.applyPendingRemovals();
     }
 
     @Mod.EventHandler
