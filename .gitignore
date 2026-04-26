@@ -53,3 +53,5 @@ replay_pid*
 eclipse/
 runClient/
 runServer/
+
+AGENTS.md
