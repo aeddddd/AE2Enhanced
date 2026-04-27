@@ -1,34 +1,12 @@
 package com.github.aeddddd.ae2enhanced;
 
-import com.github.aeddddd.ae2enhanced.item.ItemConformalCharge;
-import com.github.aeddddd.ae2enhanced.item.ItemDifferentialFormStabilizer;
-import com.github.aeddddd.ae2enhanced.item.ItemStableSpacetimeManifold;
-import com.github.aeddddd.ae2enhanced.item.ItemUpgradeCard;
-import net.minecraft.item.Item;
-import net.minecraftforge.event.RegistryEvent;
-import net.minecraftforge.fml.common.Mod;
-import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
+import net.neoforged.bus.api.IEventBus;
+import net.neoforged.neoforge.registries.DeferredRegister;
 
-@Mod.EventBusSubscriber(modid = AE2Enhanced.MOD_ID)
 public class ModItems {
+    public static final DeferredRegister.Items ITEMS = DeferredRegister.createItems(AE2Enhanced.MODID);
 
-    public static ItemUpgradeCard UPGRADE_CARD;
-    public static ItemConformalCharge CONFORMAL_CHARGE;
-    public static ItemDifferentialFormStabilizer DIFFERENTIAL_FORM_STABILIZER;
-    public static ItemStableSpacetimeManifold STABLE_SPACETIME_MANIFOLD;
-
-    public static void init() {
-        UPGRADE_CARD = new ItemUpgradeCard();
-        CONFORMAL_CHARGE = new ItemConformalCharge();
-        DIFFERENTIAL_FORM_STABILIZER = new ItemDifferentialFormStabilizer();
-        STABLE_SPACETIME_MANIFOLD = new ItemStableSpacetimeManifold();
-    }
-
-    @SubscribeEvent
-    public static void registerItems(RegistryEvent.Register<Item> event) {
-        event.getRegistry().register(UPGRADE_CARD);
-        event.getRegistry().register(CONFORMAL_CHARGE);
-        event.getRegistry().register(DIFFERENTIAL_FORM_STABILIZER);
-        event.getRegistry().register(STABLE_SPACETIME_MANIFOLD);
+    public static void register(IEventBus eventBus) {
+        ITEMS.register(eventBus);
     }
 }

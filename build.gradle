@@ -1,79 +1,88 @@
-buildscript {
-    repositories {
-        jcenter()
-        maven { url = "https://files.minecraftforge.net/maven" }
-        maven { url = "https://repo.spongepowered.org/repository/maven-public/" }
-    }
-    dependencies {
-        classpath 'net.minecraftforge.gradle:ForgeGradle:2.3-SNAPSHOT'
-        classpath 'org.spongepowered:mixingradle:0.6-SNAPSHOT'
-    }
+plugins {
+    id 'java-library'
+    id 'idea'
+    id 'maven-publish'
+    id 'net.neoforged.gradle.userdev' version '7.0.145'
 }
-apply plugin: 'net.minecraftforge.gradle.forge'
-apply plugin: 'org.spongepowered.mixin'
 
-version = '1.1.0'
+version = '2.0.0'
 group = 'com.github.aeddddd'
-archivesBaseName = 'AE2Enhanced'
 
-sourceCompatibility = targetCompatibility = '1.8'
-compileJava {
-    sourceCompatibility = targetCompatibility = '1.8'
-    options.encoding = 'UTF-8'
+base {
+    archivesName = 'AE2Enhanced'
 }
 
-minecraft {
-    version = '1.12.2-14.23.5.2768'
-    runDir = 'run'
-    mappings = 'stable_39'
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+    withSourcesJar()
+}
+
+runs {
+    configureEach {
+        systemProperty 'forge.logging.markers', 'REGISTRIES'
+        logLevel = org.slf4j.event.Level.DEBUG
+        modSource project.sourceSets.main
+    }
+    client {
+        client()
+    }
+    server {
+        server()
+    }
+    data {
+        data()
+    }
 }
 
 repositories {
     mavenCentral()
-    maven { url = 'https://maven.cleanroommc.com' }
-    maven { url = 'https://dvs1.progwml6.com/files/maven' }
-    maven { url = 'https://maven.blamejared.com' }
+    maven { url = 'https://www.cursemaven.com' }
 }
 
 dependencies {
-    compile files('libs/ae2-uel-v0.56.7.jar')
-    compile('zone.rong:mixinbooter:8.9') {
-        transitive = false
-    }
-    annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
+    implementation 'net.neoforged:neoforge:21.1.0'
 
-    testImplementation 'org.junit.jupiter:junit-jupiter-api:5.10.0'
-    testImplementation 'org.junit.jupiter:junit-jupiter-params:5.10.0'
-    testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.10.0'
+    // AE2 现代版 —— 需在 CurseMaven 定位具体 fileId 后启用
+    // implementation "curse.maven:applied-energistics-2-223794:FILE_ID"
 
-    deobfProvided 'mezz.jei:jei_1.12.2:4.16.1.302:api'
-    deobfProvided 'CraftTweaker2:CraftTweaker2-MC1120-Main:1.12-4.1.20.574'
+    // JEI API —— 待后续集成时启用
+    // compileOnly "mezz.jei:jei-1.21.1-neoforge-api:19.21.0.247"
+    // runtimeOnly "mezz.jei:jei-1.21.1-neoforge:19.21.0.247"
 }
 
-test {
-    useJUnitPlatform()
-}
+tasks.withType(ProcessResources).configureEach {
+    var replaceProperties = [
+            version: version,
+    ]
+    inputs.properties replaceProperties
 
-// MixinGradle 0.6 + annotationProcessor 会自动处理 refmap，无需手动配置
-
-processResources {
-    inputs.property 'version', project.version
-    inputs.property 'mcversion', project.minecraft.version
-    from(sourceSets.main.resources.srcDirs) {
-        include 'mcmod.info'
-        expand 'version':project.version, 'mcversion':project.minecraft.version
-    }
-    from(sourceSets.main.resources.srcDirs) {
-        exclude 'mcmod.info'
+    filesMatching(['META-INF/neoforge.mods.toml']) {
+        expand replaceProperties
     }
 }
 
-jar {
-    manifest {
-        attributes([
-            'FMLCorePluginContainsFMLMod': true,
-            'ForceLoadAsMod': true,
-            'FMLCorePlugin': 'com.github.aeddddd.ae2enhanced.mixin.AssemblyMixinPlugin'
-        ])
+publishing {
+    publications {
+        register('mavenJava', MavenPublication) {
+            from components.java
+        }
+    }
+    repositories {
+        maven {
+            url "file://${project.projectDir}/mcmodsrepo"
+        }
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+}
+
+idea {
+    module {
+        downloadSources = true
+        downloadJavadoc = true
     }
 }
