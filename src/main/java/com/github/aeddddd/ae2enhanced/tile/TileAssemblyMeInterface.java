@@ -96,10 +96,7 @@ public class TileAssemblyMeInterface extends TileEntity implements IGridProxyabl
         if (controllerPos == null || world == null) return null;
         TileEntity te = world.getTileEntity(controllerPos);
         if (te instanceof TileAssemblyController && ((TileAssemblyController) te).isFormed()) {
-            TileAssemblyController controller = (TileAssemblyController) te;
-            if (controller.isMeInterfaceActive(pos)) {
-                return getProxy().getNode();
-            }
+            return getProxy().getNode();
         }
         return null;
     }
@@ -111,7 +108,7 @@ public class TileAssemblyMeInterface extends TileEntity implements IGridProxyabl
         TileEntity te = world.getTileEntity(controllerPos);
         if (te instanceof TileAssemblyController) {
             TileAssemblyController controller = (TileAssemblyController) te;
-            if (controller.isFormed() && controller.isMeInterfaceActive(pos)) {
+            if (controller.isFormed()) {
                 return AECableType.SMART;
             }
         }

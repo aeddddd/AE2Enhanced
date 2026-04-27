@@ -44,8 +44,9 @@ public class GuiAssemblyFormed extends GuiContainer {
     public void drawScreen(int mouseX, int mouseY, float partialTicks) {
         this.drawDefaultBackground();
         super.drawScreen(mouseX, mouseY, partialTicks);
-        this.renderHoveredToolTip(mouseX, mouseY);
-        this.drawCustomTooltips(mouseX, mouseY);
+        if (!this.drawCustomTooltips(mouseX, mouseY)) {
+            this.renderHoveredToolTip(mouseX, mouseY);
+        }
     }
 
     @Override
@@ -167,7 +168,7 @@ public class GuiAssemblyFormed extends GuiContainer {
         drawRect(16, 176, xSize - 16, 177, ACCENT_SOFT);
     }
 
-    private void drawCustomTooltips(int mouseX, int mouseY) {
+    private boolean drawCustomTooltips(int mouseX, int mouseY) {
         // 升级槽区域 tooltip
         if (isPointInRegion(16, 40, 58, 38, mouseX, mouseY)) {
             List<String> lines = new ArrayList<>();
@@ -178,6 +179,7 @@ public class GuiAssemblyFormed extends GuiContainer {
             lines.add("§7" + I18n.format("gui.ae2enhanced.tooltip.upgrades.capacity") + "§r");
             lines.add("§7" + I18n.format("gui.ae2enhanced.tooltip.upgrades.upload") + "§r");
             this.drawHoveringText(lines, mouseX, mouseY);
+            return true;
         }
         // 样板存储按钮 tooltip
         if (patternButton != null && patternButton.isMouseOver()) {
@@ -185,6 +187,7 @@ public class GuiAssemblyFormed extends GuiContainer {
             lines.add(I18n.format("gui.ae2enhanced.tooltip.patterns"));
             lines.add("§7" + I18n.format("gui.ae2enhanced.tooltip.patterns.desc") + "§r");
             this.drawHoveringText(lines, mouseX, mouseY);
+            return true;
         }
         // 网络状态区域 tooltip
         if (isPointInRegion(140, 125, 120, 20, mouseX, mouseY)) {
@@ -199,6 +202,8 @@ public class GuiAssemblyFormed extends GuiContainer {
                 lines.add("§7" + I18n.format("gui.ae2enhanced.tooltip.network.offline") + "§r");
             }
             this.drawHoveringText(lines, mouseX, mouseY);
+            return true;
         }
+        return false;
     }
 }

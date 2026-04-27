@@ -21,6 +21,7 @@ gui.ae2enhanced.unformed.status.missing=状态: 材料不足
 gui.ae2enhanced.assemble.creative=一键组装
 gui.ae2enhanced.assemble.survival=消耗材料组装
 gui.ae2enhanced.assemble.insufficient=材料不足
+gui.ae2enhanced.unformed.missing.more=§7... 等 %d 项未显示
 gui.ae2enhanced.formed.title=§a超因果装配枢纽
 gui.ae2enhanced.formed.subtitle=已组装 - 运行中
 gui.ae2enhanced.formed.status=§a结构完全形成

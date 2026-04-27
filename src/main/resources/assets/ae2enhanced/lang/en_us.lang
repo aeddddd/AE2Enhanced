@@ -21,6 +21,7 @@ gui.ae2enhanced.unformed.status.missing=Status: Materials Insufficient
 gui.ae2enhanced.assemble.creative=Assemble (Creative)
 gui.ae2enhanced.assemble.survival=Assemble
 gui.ae2enhanced.assemble.insufficient=Insufficient Materials
+gui.ae2enhanced.unformed.missing.more=§7... and %d more
 gui.ae2enhanced.formed.title=§aSupercausal Assembly Hub
 gui.ae2enhanced.formed.subtitle=Assembled — Operational
 gui.ae2enhanced.formed.status=§aStructure Fully Formed

@@ -51,7 +51,7 @@ public class GuiAssemblyUnformed extends GuiContainer {
     public void initGui() {
         super.initGui();
         int centerX = guiLeft + xSize / 2;
-        assembleButton = new GuiButtonTech(0, centerX - 80, guiTop + 108, 160, 24, getAssembleButtonText());
+        assembleButton = new GuiButtonTech(0, centerX - 80, guiTop + 132, 160, 24, getAssembleButtonText());
         buttonList.add(assembleButton);
         refreshMissingMap();
         updateButtonState();
@@ -178,7 +178,13 @@ public class GuiAssemblyUnformed extends GuiContainer {
             drawRect(30, 74, xSize - 30, 75, BORDER_DIM);
 
             int y = 80;
+            int shown = 0;
+            int remaining = 0;
             for (Map.Entry<Block, Integer> entry : missingMap.entrySet()) {
+                if (shown >= 3) {
+                    remaining++;
+                    continue;
+                }
                 Block block = entry.getKey();
                 int count = entry.getValue();
                 ItemStack stack = new ItemStack(block, 1);
@@ -188,6 +194,11 @@ public class GuiAssemblyUnformed extends GuiContainer {
                 String countStr = "x" + count;
                 fontRenderer.drawString(countStr, xSize - 36 - fontRenderer.getStringWidth(countStr), y, TEXT_ERROR);
                 y += 16;
+                shown++;
+            }
+            if (remaining > 0) {
+                String more = I18n.format("gui.ae2enhanced.unformed.missing.more", remaining);
+                fontRenderer.drawString(more, 36, y, 0xFF88aaaa);
             }
         }
 
@@ -195,11 +206,11 @@ public class GuiAssemblyUnformed extends GuiContainer {
         if (missingMap.isEmpty()) {
             String status = I18n.format("gui.ae2enhanced.unformed.status.ready");
             int sw = fontRenderer.getStringWidth(status);
-            fontRenderer.drawString(status, (xSize - sw) / 2, 136, TEXT_SUCCESS);
+            fontRenderer.drawString(status, (xSize - sw) / 2, 126, TEXT_SUCCESS);
         } else {
             String status = I18n.format("gui.ae2enhanced.unformed.status.missing");
             int sw = fontRenderer.getStringWidth(status);
-            fontRenderer.drawString(status, (xSize - sw) / 2, 136, TEXT_ERROR);
+            fontRenderer.drawString(status, (xSize - sw) / 2, 126, TEXT_ERROR);
         }
 
         // 背包上方分隔线
