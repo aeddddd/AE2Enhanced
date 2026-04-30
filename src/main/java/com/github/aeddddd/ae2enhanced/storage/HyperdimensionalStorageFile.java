@@ -7,6 +7,8 @@ import net.minecraft.world.World;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
 import java.math.BigInteger;
 import java.util.Map;
 import java.util.UUID;
@@ -67,9 +69,11 @@ public class HyperdimensionalStorageFile {
             if (root == null) return;
             int version = root.getInteger("version");
             if (version > CURRENT_VERSION) {
-                // 未来版本：尝试兼容读取或报错
-                com.github.aeddddd.ae2enhanced.AE2Enhanced.LOGGER.warn(
-                    "[AE2E] Storage file version {} > current {}. Attempting best-effort load.", version, CURRENT_VERSION);
+                com.github.aeddddd.ae2enhanced.AE2Enhanced.LOGGER.error(
+                    "[AE2E] Storage file version {} > current {}. " +
+                    "This file was created by a newer version of AE2Enhanced. " +
+                    "Refusing to load to prevent data corruption.", version, CURRENT_VERSION);
+                return;
             }
             NBTTagList items = root.getTagList("items", 10);
             for (int i = 0; i < items.tagCount(); i++) {
@@ -113,9 +117,9 @@ public class HyperdimensionalStorageFile {
             if (file.exists() && !file.delete()) {
                 throw new IOException("Failed to delete old storage file");
             }
-            if (!tmpFile.renameTo(file)) {
-                throw new IOException("Failed to rename temp file to storage file");
-            }
+            Files.move(tmpFile.toPath(), file.toPath(),
+                StandardCopyOption.REPLACE_EXISTING,
+                StandardCopyOption.ATOMIC_MOVE);
             return true;
         } catch (IOException e) {
             com.github.aeddddd.ae2enhanced.AE2Enhanced.LOGGER.error(

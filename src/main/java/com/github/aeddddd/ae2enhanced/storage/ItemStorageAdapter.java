@@ -19,6 +19,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * 物品存储适配器，实现 AE2 的 IMEInventory 接口。
@@ -30,6 +31,7 @@ public class ItemStorageAdapter implements IMEMonitor<IAEItemStack> {
     private final IItemStorageChannel channel;
     private final HyperdimensionalStorageFile file;
     private final List<IMEMonitorHandlerReceiver<IAEItemStack>> listeners = new CopyOnWriteArrayList<>();
+    private final AtomicReference<BigInteger> totalCount = new AtomicReference<>(BigInteger.ZERO);
     private Runnable onChangeCallback = null;
 
     public ItemStorageAdapter(HyperdimensionalStorageFile file) {
@@ -51,6 +53,7 @@ public class ItemStorageAdapter implements IMEMonitor<IAEItemStack> {
 
         if (type == Actionable.MODULATE) {
             storage.merge(key, amount, BigInteger::add);
+            totalCount.updateAndGet(t -> t.add(amount));
             file.markDirty();
             notifyPostChange(input.copy(), src);
             return null; // 无限容量，全部接受
@@ -79,6 +82,7 @@ public class ItemStorageAdapter implements IMEMonitor<IAEItemStack> {
             } else {
                 storage.put(key, remaining);
             }
+            totalCount.updateAndGet(t -> t.subtract(toExtract));
             file.markDirty();
             IAEItemStack change = request.copy();
             change.setStackSize(-toExtract.min(BigInteger.valueOf(Long.MAX_VALUE)).longValue());
@@ -101,17 +105,17 @@ public class ItemStorageAdapter implements IMEMonitor<IAEItemStack> {
     public IItemList<IAEItemStack> getAvailableItems(IItemList<IAEItemStack> out) {
         for (Map.Entry<ItemDescriptor, BigInteger> entry : storage.entrySet()) {
             ItemDescriptor desc = entry.getKey();
-            ItemStack stack = desc.toItemStack();
-            IAEItemStack aeStack = channel.createStack(stack);
+            IAEItemStack aeStack = desc.getAETemplate(channel);
             if (aeStack == null) continue;
 
             BigInteger count = entry.getValue();
+            IAEItemStack copy = aeStack.copy();
             if (count.compareTo(BigInteger.valueOf(Long.MAX_VALUE)) > 0) {
-                aeStack.setStackSize(Long.MAX_VALUE);
+                copy.setStackSize(Long.MAX_VALUE);
             } else {
-                aeStack.setStackSize(count.longValue());
+                copy.setStackSize(count.longValue());
             }
-            out.addStorage(aeStack);
+            out.addStorage(copy);
         }
         return out;
     }
@@ -119,6 +123,10 @@ public class ItemStorageAdapter implements IMEMonitor<IAEItemStack> {
     @Override
     public IStorageChannel<IAEItemStack> getChannel() {
         return channel;
+    }
+
+    public BigInteger getTotalCount() {
+        return totalCount.get();
     }
 
     public HyperdimensionalStorageFile getFile() {

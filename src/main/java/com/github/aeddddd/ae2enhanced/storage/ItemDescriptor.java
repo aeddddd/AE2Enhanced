@@ -1,5 +1,7 @@
 package com.github.aeddddd.ae2enhanced.storage;
 
+import appeng.api.storage.channels.IItemStorageChannel;
+import appeng.api.storage.data.IAEItemStack;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
@@ -17,6 +19,8 @@ public class ItemDescriptor {
     private final int meta;
     private final NBTTagCompound nbt;
     private final int hash;
+    // 缓存 AE2 的 IAEItemStack 模板，避免终端刷新时重复创建
+    private transient IAEItemStack aeTemplate;
 
     public ItemDescriptor(ItemStack stack) {
         this.item = stack.getItem();
@@ -71,6 +75,18 @@ public class ItemDescriptor {
             stack.setTagCompound(nbt.copy());
         }
         return stack;
+    }
+
+    /**
+     * 获取缓存的 IAEItemStack 模板（stackSize=1）。
+     * 首次调用时通过 channel 创建，后续直接复用。
+     */
+    public IAEItemStack getAETemplate(IItemStorageChannel channel) {
+        if (aeTemplate == null) {
+            ItemStack stack = toItemStack();
+            aeTemplate = channel.createStack(stack);
+        }
+        return aeTemplate;
     }
 
     public Item getItem() {

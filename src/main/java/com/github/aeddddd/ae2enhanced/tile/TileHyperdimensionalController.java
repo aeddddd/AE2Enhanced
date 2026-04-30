@@ -208,11 +208,27 @@ public class TileHyperdimensionalController extends TileEntity implements IGridP
         }
     }
 
+    // 缓存 AE2 NetworkMonitor.forceUpdate 字段，避免高频 IO 时重复反射查找
+    private static final java.lang.reflect.Field FORCE_UPDATE_FIELD;
+    static {
+        java.lang.reflect.Field f = null;
+        try {
+            Class<?> clazz = Class.forName("appeng.me.cache.NetworkMonitor");
+            f = clazz.getDeclaredField("forceUpdate");
+            f.setAccessible(true);
+        } catch (Exception e) {
+            com.github.aeddddd.ae2enhanced.AE2Enhanced.LOGGER.error(
+                "[AE2E] Failed to cache NetworkMonitor.forceUpdate field. ME terminal refresh will not work.", e);
+        }
+        FORCE_UPDATE_FIELD = f;
+    }
+
     /**
      * 强制刷新 AE2 NetworkMonitor 缓存，使终端立即显示最新存储内容。
      * 由于 AE2-UEL 不监听 IMEMonitor 的 addListener，只能通过反射设置 forceUpdate。
      */
     private void refreshNetworkMonitor() {
+        if (FORCE_UPDATE_FIELD == null) return;
         try {
             appeng.api.networking.IGrid grid = getProxy().getGrid();
             if (grid == null) return;
@@ -222,12 +238,11 @@ public class TileHyperdimensionalController extends TileEntity implements IGridP
                 appeng.api.AEApi.instance().storage().getStorageChannel(appeng.api.storage.channels.IItemStorageChannel.class)
             );
             if (monitor != null) {
-                java.lang.reflect.Field field = monitor.getClass().getDeclaredField("forceUpdate");
-                field.setAccessible(true);
-                field.setBoolean(monitor, true);
+                FORCE_UPDATE_FIELD.setBoolean(monitor, true);
             }
         } catch (Exception e) {
-            // AE2 内部类可能变化，忽略反射错误
+            com.github.aeddddd.ae2enhanced.AE2Enhanced.LOGGER.warn(
+                "[AE2E] Failed to refresh NetworkMonitor cache", e);
         }
     }
 
@@ -270,11 +285,7 @@ public class TileHyperdimensionalController extends TileEntity implements IGridP
             // 更新存储统计并同步到客户端
             if (itemAdapter != null) {
                 int newTypes = itemAdapter.getStorageMap().size();
-                java.math.BigInteger total = java.math.BigInteger.ZERO;
-                for (java.math.BigInteger count : itemAdapter.getStorageMap().values()) {
-                    total = total.add(count);
-                }
-                String newTotal = formatBigNumber(total);
+                String newTotal = formatBigNumber(itemAdapter.getTotalCount());
                 if (newTypes != clientStorageTypes || !newTotal.equals(clientStorageTotal)) {
                     clientStorageTypes = newTypes;
                     clientStorageTotal = newTotal;
