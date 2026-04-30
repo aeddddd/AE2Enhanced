@@ -1,0 +1,20 @@
+{
+    "type": "minecraft:crafting_shaped",
+    "pattern": [
+        "MSM",
+        "SMS",
+        "MSM"
+    ],
+    "key": {
+        "M": {
+            "item": "ae2enhanced:stable_spacetime_manifold"
+        },
+        "S": {
+            "item": "ae2enhanced:conformal_invariant_charge"
+        }
+    },
+    "result": {
+        "item": "ae2enhanced:hyperdimensional_singularity_core",
+        "count": 2
+    }
+}

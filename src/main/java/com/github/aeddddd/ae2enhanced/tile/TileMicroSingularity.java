@@ -1,7 +1,9 @@
 package com.github.aeddddd.ae2enhanced.tile;
 
+import com.github.aeddddd.ae2enhanced.config.AE2EnhancedConfig;
 import com.github.aeddddd.ae2enhanced.crafting.BlackHoleCraftingHelper;
 import net.minecraft.entity.EntityLivingBase;
+import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.init.SoundEvents;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.DamageSource;
@@ -28,7 +30,7 @@ public class TileMicroSingularity extends TileEntity implements ITickable {
         public ITextComponent getDeathMessage(EntityLivingBase entityLivingBaseIn) {
             return new TextComponentTranslation("death.spacetime.blackHole", entityLivingBaseIn.getDisplayName());
         }
-    }.setDamageBypassesArmor().setDamageAllowedInCreativeMode();
+    }.setDamageBypassesArmor();
 
     @Override
     public void update() {
@@ -49,25 +51,34 @@ public class TileMicroSingularity extends TileEntity implements ITickable {
             return;
         }
 
-        // 事件视界：稳定击杀生物（混合方案），物品不受影响
-        BlockPos origin = pos;
-        AxisAlignedBB horizon = new AxisAlignedBB(
-                origin.getX() - 1, origin.getY() - 1, origin.getZ() - 1,
-                origin.getX() + 2, origin.getY() + 2, origin.getZ() + 2
-        );
-        for (EntityLivingBase entity : world.getEntitiesWithinAABB(EntityLivingBase.class, horizon)) {
-            if (!entity.isEntityAlive()) continue;
+        // 事件视界：根据配置决定是否伤害生物
+        if (AE2EnhancedConfig.blackHole.damageMode != AE2EnhancedConfig.DamageMode.NONE) {
+            BlockPos origin = pos;
+            AxisAlignedBB horizon = new AxisAlignedBB(
+                    origin.getX() - 1, origin.getY() - 1, origin.getZ() - 1,
+                    origin.getX() + 2, origin.getY() + 2, origin.getZ() + 2
+            );
+            for (EntityLivingBase entity : world.getEntitiesWithinAABB(EntityLivingBase.class, horizon)) {
+                if (!entity.isEntityAlive()) continue;
 
-            // 混合击杀：先尝试正常伤害，失败则暴力补刀
-            entity.hurtResistantTime = 0;
-            entity.hurtTime = 0;
-            boolean killed = false;
-            if (entity.attackEntityFrom(SPACETIME, Float.MAX_VALUE)) {
-                if (!entity.isEntityAlive()) killed = true;
-            }
-            if (!killed) {
-                entity.setHealth(0);
-                entity.onDeath(SPACETIME);
+                // 非创造模式过滤
+                if (AE2EnhancedConfig.blackHole.damageMode == AE2EnhancedConfig.DamageMode.NON_CREATIVE) {
+                    if (entity instanceof EntityPlayer && ((EntityPlayer) entity).isCreative()) {
+                        continue;
+                    }
+                }
+
+                // 混合击杀：先尝试正常伤害，失败则暴力补刀
+                entity.hurtResistantTime = 0;
+                entity.hurtTime = 0;
+                boolean killed = false;
+                if (entity.attackEntityFrom(SPACETIME, Float.MAX_VALUE)) {
+                    if (!entity.isEntityAlive()) killed = true;
+                }
+                if (!killed) {
+                    entity.setHealth(0);
+                    entity.onDeath(SPACETIME);
+                }
             }
         }
 

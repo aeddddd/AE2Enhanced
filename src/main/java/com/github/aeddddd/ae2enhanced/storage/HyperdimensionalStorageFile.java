@@ -1,5 +1,6 @@
 package com.github.aeddddd.ae2enhanced.storage;
 
+import com.github.aeddddd.ae2enhanced.config.AE2EnhancedConfig;
 import net.minecraft.nbt.CompressedStreamTools;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.nbt.NBTTagList;
@@ -60,7 +61,8 @@ public class HyperdimensionalStorageFile {
             storageDir.mkdirs();
         }
         this.file = new File(storageDir, nexusId.toString() + ".dat");
-        this.flushTask = FLUSH_EXECUTOR.scheduleWithFixedDelay(this::flush, 5, 5, TimeUnit.SECONDS);
+        int flushInterval = AE2EnhancedConfig.storage.flushIntervalSeconds;
+        this.flushTask = FLUSH_EXECUTOR.scheduleWithFixedDelay(this::flush, flushInterval, flushInterval, TimeUnit.SECONDS);
     }
 
     /**

@@ -189,7 +189,7 @@ public class TileAssemblyController extends TileEntity implements ICraftingProvi
     }
     private final Map<ICraftingPatternDetails, PatternBatchInfo> patternBatchInfoCache = new HashMap<>();
     private final List<Integer> jobTimers = new ArrayList<>();
-    private final Map<UUID, Integer> eventHorizonStrikes = new HashMap<>();
+    // eventHorizonStrikes removed: banish-to-overworld fallback no longer exists
     private boolean patternsDirty = false;
     private int patternRefreshTicks = 0;
 
@@ -529,7 +529,7 @@ public class TileAssemblyController extends TileEntity implements ICraftingProvi
             getProxy().onReady();
         }
 
-        // 黑洞事件视界：秒杀进入中心区域的生物；16次未死则放逐至随机维度
+        // 黑洞事件视界：秒杀进入中心区域的生物
         if (formed) {
             if (!(world.getBlockState(pos).getBlock() instanceof BlockAssemblyController)) return;
             EnumFacing controllerFacing = world.getBlockState(pos).getValue(BlockAssemblyController.FACING);
@@ -545,12 +545,8 @@ public class TileAssemblyController extends TileEntity implements ICraftingProvi
                 }
             }.setDamageBypassesArmor().setDamageAllowedInCreativeMode();
             List<EntityLivingBase> inHorizon = world.getEntitiesWithinAABB(EntityLivingBase.class, eventHorizon);
-            Set<UUID> currentUuids = new HashSet<>();
             for (EntityLivingBase entity : inHorizon) {
                 if (!entity.isEntityAlive()) continue;
-                UUID uuid = entity.getUniqueID();
-                currentUuids.add(uuid);
-                int strikes = eventHorizonStrikes.getOrDefault(uuid, 0) + 1;
                 entity.hurtResistantTime = 0;
                 entity.hurtTime = 0;
                 boolean killed = false;
@@ -560,18 +556,8 @@ public class TileAssemblyController extends TileEntity implements ICraftingProvi
                 if (!killed) {
                     entity.setHealth(0);
                     entity.onDeath(spacetime);
-                    if (!entity.isEntityAlive()) killed = true;
-                }
-                if (killed) {
-                    eventHorizonStrikes.remove(uuid);
-                } else if (strikes >= 16) {
-                    eventHorizonStrikes.remove(uuid);
-                    banishToOverworld(entity);
-                } else {
-                    eventHorizonStrikes.put(uuid, strikes);
                 }
             }
-            eventHorizonStrikes.keySet().removeIf(uuid -> !currentUuids.contains(uuid));
 
             // 黑洞合成：自动吸入物品到缓存，立即尝试配方匹配（一次性输出）
             AxisAlignedBB craftArea = new AxisAlignedBB(
@@ -668,25 +654,6 @@ public class TileAssemblyController extends TileEntity implements ICraftingProvi
             networkPowered = newPowered;
             markDirty();
             world.notifyBlockUpdate(pos, world.getBlockState(pos), world.getBlockState(pos), 2);
-        }
-    }
-
-    /**
-     * 将实体放逐至主世界（维度 0）原点 10000 格以内的随机坐标，Y=256 高空。
-     * 用于事件视界 16 次击杀失败后的最终放逐手段。
-     */
-    private void banishToOverworld(EntityLivingBase entity) {
-        int targetX = world.rand.nextInt(20001) - 10000; // -10000 ~ +10000
-        int targetZ = world.rand.nextInt(20001) - 10000;
-        int targetY = 256;
-
-        if (entity.dimension != 0) {
-            net.minecraft.entity.Entity newEntity = entity.changeDimension(0);
-            if (newEntity != null) {
-                newEntity.setPositionAndUpdate(targetX, targetY, targetZ);
-            }
-        } else {
-            entity.setPositionAndUpdate(targetX, targetY, targetZ);
         }
     }
 

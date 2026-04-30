@@ -1,0 +1,22 @@
+{
+    "type": "minecraft:crafting_shaped",
+    "pattern": [
+        "SQS",
+        "QIQ",
+        "SQS"
+    ],
+    "key": {
+        "S": {
+            "item": "ae2enhanced:stable_spacetime_manifold"
+        },
+        "Q": {
+            "item": "appliedenergistics2:quartz_glass"
+        },
+        "I": {
+            "item": "appliedenergistics2:interface"
+        }
+    },
+    "result": {
+        "item": "ae2enhanced:hyperdimensional_me_interface"
+    }
+}

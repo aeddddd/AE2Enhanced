@@ -1,0 +1,95 @@
+package com.github.aeddddd.ae2enhanced.config;
+
+import com.github.aeddddd.ae2enhanced.AE2Enhanced;
+import net.minecraftforge.common.config.Config;
+import net.minecraftforge.common.config.ConfigManager;
+import net.minecraftforge.fml.client.event.ConfigChangedEvent;
+import net.minecraftforge.fml.common.Mod;
+import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
+
+/**
+ * Central configuration for AE2Enhanced.
+ * File location: config/ae2enhanced.cfg
+ * Changes via in-game Mod Options GUI are applied immediately (F3+T not required).
+ */
+@Config(modid = AE2Enhanced.MOD_ID)
+@Config.LangKey("config.ae2enhanced.title")
+public class AE2EnhancedConfig {
+
+    @Config.Name("Storage")
+    @Config.Comment({
+        "Persistent storage settings for the Hyperdimensional Storage Nexus.",
+        "These values affect server-side I/O behavior and data safety."
+    })
+    public static Storage storage = new Storage();
+
+    @Config.Name("Render")
+    @Config.Comment({
+        "Client-side visual settings for the Hyperdimensional Controller TESR.",
+        "Only processed on the client; changing them on a dedicated server has no effect."
+    })
+    public static Render render = new Render();
+
+    @Config.Name("BlackHole")
+    @Config.Comment({
+        "Event-horizon behavior for Micro Singularity black holes.",
+        "Controls whether entities inside the 3x3x3 horizon take damage."
+    })
+    public static BlackHole blackHole = new BlackHole();
+
+    public static class Storage {
+        @Config.Comment({
+            "Auto-flush interval for the external .dat storage file (seconds).",
+            "Lower values reduce data loss risk on crash but increase disk I/O.",
+            "Higher values improve performance but may lose up to this many seconds of changes.",
+            "Range: 1 ~ 300, Default: 5"
+        })
+        @Config.RangeInt(min = 1, max = 300)
+        public int flushIntervalSeconds = 5;
+    }
+
+    public static class Render {
+        @Config.Comment({
+            "Enable the holographic tesseract renderer above the Hyperdimensional Controller.",
+            "If false, the spinning wireframe cube, rings, and core are completely skipped.",
+            "Useful for low-end GPUs or when many controllers are visible.",
+            "Default: true"
+        })
+        public boolean enableHyperdimensionalRenderer = true;
+
+        @Config.Comment({
+            "Maximum camera-to-structure distance (in blocks) at which the hologram is drawn.",
+            "Beyond this distance the TESR returns early, saving FPS.",
+            "Range: 8 ~ 512, Default: 64"
+        })
+        @Config.RangeInt(min = 8, max = 512)
+        public int renderDistance = 64;
+    }
+
+    public enum DamageMode {
+        ALL,
+        NON_CREATIVE,
+        NONE
+    }
+
+    public static class BlackHole {
+        @Config.Comment({
+            "Damage dealt by the Micro Singularity event horizon.",
+            "  ALL          - All living entities are instantly killed, including creative-mode players.",
+            "  NON_CREATIVE - Only non-creative entities are killed; creative players are immune.",
+            "  NONE         - No damage is dealt; the black hole only decays after its lifetime expires.",
+            "Default: ALL"
+        })
+        public DamageMode damageMode = DamageMode.ALL;
+    }
+
+    @Mod.EventBusSubscriber(modid = AE2Enhanced.MOD_ID)
+    public static class SyncHandler {
+        @SubscribeEvent
+        public static void onConfigChanged(ConfigChangedEvent.OnConfigChangedEvent event) {
+            if (AE2Enhanced.MOD_ID.equals(event.getModID())) {
+                ConfigManager.sync(AE2Enhanced.MOD_ID, Config.Type.INSTANCE);
+            }
+        }
+    }
+}

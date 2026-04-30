@@ -1,0 +1,22 @@
+{
+    "type": "minecraft:crafting_shaped",
+    "pattern": [
+        "EQE",
+        "OQO",
+        "EQE"
+    ],
+    "key": {
+        "E": {
+            "item": "ae2enhanced:differential_form_stabilizer"
+        },
+        "Q": {
+            "item": "ae2enhanced:conformal_invariant_charge"
+        },
+        "O": {
+            "item": "appliedenergistics2:quartz_glass"
+        }
+    },
+    "result": {
+        "item": "ae2enhanced:hyperdimensional_controller"
+    }
+}
