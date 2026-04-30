@@ -1,0 +1,85 @@
+tile.ae2enhanced.assembly_controller.name=Контроллер сборщика
+tile.ae2enhanced.assembly_me_interface.name=ME-интерфейс сборщика
+tile.ae2enhanced.assembly_casing.name=Корпус сборщика
+tile.ae2enhanced.assembly_inner_wall.name=Внутренняя стена сборщика
+tile.ae2enhanced.assembly_stabilizer.name=Стабилизатор сборщика
+tile.ae2enhanced.micro_singularity.name=Микро-сингулярность
+tile.ae2enhanced.micro_singularity.tooltip=§8§o"Порождение горизонта событий"§r\n§7Нажмите ПКМ по горизонту событий, чтобы бросить предметы в чёрную дыру для создания.\n§7Создание: §eБросьте на землю 64 сингулярности AE2 и 4 звезды Незера,\n§7затем §eзажмите звезду Незера и нажмите ПКМ по ME-контроллеру §7для призыва Микро-сингулярности.
+
+jei.ae2enhanced.category.blackhole=Создание в чёрной дыре
+jei.ae2enhanced.blackhole.hint=Бросьте в горизонт событий
+
+gui.ae2enhanced.unformed.title=§cНесформирован
+gui.ae2enhanced.unformed.subtitle=Сверхпричинный сборочный узел
+gui.ae2enhanced.unformed.ready=Конструкция завершена — готова к сборке
+gui.ae2enhanced.unformed.hint=Нажмите кнопку ниже для сборки
+gui.ae2enhanced.unformed.missing=Отсутствующие материалы:
+gui.ae2enhanced.unformed.header.material=Материал
+gui.ae2enhanced.unformed.header.quantity=Кол-во
+gui.ae2enhanced.unformed.status.ready=Статус: Готов
+gui.ae2enhanced.unformed.status.missing=Статус: Недостаточно материалов
+gui.ae2enhanced.assemble.creative=Собрать (творческий режим)
+gui.ae2enhanced.assemble.survival=Собрать
+gui.ae2enhanced.assemble.insufficient=Недостаточно материалов
+gui.ae2enhanced.unformed.missing.more=§7... и ещё %d
+gui.ae2enhanced.formed.title=§aСверхпричинный сборочный узел
+gui.ae2enhanced.formed.subtitle=Собран — функционирует
+gui.ae2enhanced.formed.status=§aКонструкция полностью сформирована
+gui.ae2enhanced.formed.info=Слоты для шаблонов и модули улучшений
+gui.ae2enhanced.formed.placeholder=будут доступны в Milestone 4
+gui.ae2enhanced.formed.bottom=Интеграция с сетью AE — активна
+gui.ae2enhanced.formed.network.active=§aСеть: онлайн
+gui.ae2enhanced.formed.network.booting=§eСеть: загрузка
+gui.ae2enhanced.formed.network.offline=§cСеть: офлайн — подключите ME-интерфейс к кабелю AE
+
+gui.ae2enhanced.formed.upgrades=Улучшения
+gui.ae2enhanced.formed.patterns=Шаблоны
+gui.ae2enhanced.formed.parallel=Параллельность: %d
+gui.ae2enhanced.formed.parallel.infinite=Параллельность: ∞
+gui.ae2enhanced.formed.jobs=Активных заданий: %d
+gui.ae2enhanced.formed.open_patterns=Открыть хранилище шаблонов
+
+gui.ae2enhanced.pattern.title=§aХранилище шаблонов
+gui.ae2enhanced.pattern.back=← Назад
+gui.ae2enhanced.pattern.prev=← Пред.
+gui.ae2enhanced.pattern.next=След. →
+gui.ae2enhanced.pattern.page=Страница %d/%d
+
+gui.ae2enhanced.tooltip.upgrades=§bУлучшения
+gui.ae2enhanced.tooltip.upgrades.parallel=• Модуль параллельного расширения: увеличивает лимит параллельной обработки партий
+gui.ae2enhanced.tooltip.upgrades.speed=• Модуль сверхтактной обработки: сокращает задержку между партиями
+gui.ae2enhanced.tooltip.upgrades.efficiency=• Модуль энергооптимизации: снижает энергопотребление сети AE
+gui.ae2enhanced.tooltip.upgrades.capacity=• Модуль пространственного сгиба: расширяет ёмкость хранилища шаблонов
+gui.ae2enhanced.tooltip.upgrades.upload=• Модуль авто-загрузки: автоматически импортирует закодированные шаблоны в контроллер
+
+gui.ae2enhanced.tooltip.patterns=§bХранилище шаблонов
+gui.ae2enhanced.tooltip.patterns.desc=Вставьте закодированные шаблоны создания
+gui.ae2enhanced.tooltip.network.booting=Узел сети инициализируется, пожалуйста, подождите
+gui.ae2enhanced.tooltip.network.offline=Подключите любой ME-интерфейс к кабелю AE для подключения к сети
+
+item.ae2enhanced.upgrade_card.parallel.name=Модуль временного сгиба
+item.ae2enhanced.upgrade_card.parallel.tooltip=§b§lМодуль временного сгиба §r§8[Тип: Параллельность]
+item.ae2enhanced.upgrade_card.parallel.tooltip.detail=§7Сворачивает огромные временные линии создания в один такт, повышая лимит параллельной обработки для пакетного создания.\n§7Пороги: §e64 §8| §e2 048 §8| §e65 536 §8| §e2 097 152 §8| §e67 108 864 §8| §e∞\n§7Лимит стака: §b%d §7карт\n §b§l"Этот самый миг — вся вечность"
+item.ae2enhanced.upgrade_card.speed.name=Модуль расширения пространства-времени
+item.ae2enhanced.upgrade_card.speed.tooltip=§b§lМодуль расширения пространства-времени §r§8[Тип: Скорость]
+item.ae2enhanced.upgrade_card.speed.tooltip.detail=§7Использует релятивистские эффекты заключённой сингулярности для сокращения задержки между пакетными созданиями. Каждый тир уменьшает задержку вдвое.\n§7Макс. задержка: §e1 такт\n§7Лимит стака: §b%d §7карт\n §b§l"Один день вмещает все времена года"
+item.ae2enhanced.upgrade_card.efficiency.name=Модуль энергооптимизации
+item.ae2enhanced.upgrade_card.efficiency.tooltip=§b§lМодуль энергооптимизации §r§8[Тип: Эффективность]
+item.ae2enhanced.upgrade_card.efficiency.tooltip.detail=§7Снижает энергопотребление сети AE сборочным узлом.\n§7Лимит стака: §b%d §7карт
+item.ae2enhanced.upgrade_card.capacity.name=Модуль пространственного сгиба
+item.ae2enhanced.upgrade_card.capacity.tooltip=§b§lМодуль пространственного сгиба §r§8[Тип: Ёмкость]
+item.ae2enhanced.upgrade_card.capacity.tooltip.detail=§7Расширяет пространственную ёмкость хранилища шаблонов. Каждый тир добавляет §e480 §7слотов (5 страниц).\n§7Лимит стака: §b%d §7карт
+item.ae2enhanced.upgrade_card.reserved1.name=Модуль авто-загрузки
+item.ae2enhanced.upgrade_card.upload.tooltip=§b§lМодуль авто-загрузки §r§8[Тип: Загрузка]
+item.ae2enhanced.upgrade_card.upload.tooltip.detail=§7Автоматически загружает §eзакодированные шаблоны создания §7из ME-терминала шаблонов в ближайший сборочный узел.\n§7§8(Шаблоны обработки не будут загружены автоматически)\n§7Требует, чтобы контроллер был собран и установлено это улучшение.\n§7Лимит стака: §b%d §7карт\n §b§l"Знание — сила"
+item.ae2enhanced.upgrade_card.reserved2.name=Модуль расширения (зарезервирован)
+item.ae2enhanced.upgrade_card.reserved2.tooltip=§7Зарезервированный интерфейс. Функциональность ещё не активирована.
+
+item.ae2enhanced.conformal_invariant_charge.name=Конформно-инвариантный заряд
+item.ae2enhanced.conformal_invariant_charge.tooltip=§e§lКонформно-инвариантный заряд §7\nТопологический квантовый заряд, сохраняющийся при конформных преобразованиях,\nинвариантный во всех системах отсчёта.\n§8Порождение чёрной дыры, непостижимая форма материи.\n§b§l"Инвариантность — единственная истинная константа"
+item.ae2enhanced.differential_form_stabilizer.name=Стабилизатор дифференциальной формы
+item.ae2enhanced.differential_form_stabilizer.tooltip=§e§lСтабилизатор дифференциальной формы §7\nСтабилизирует дифференциально-геометрическую структуру пространства-времени,\nпредотвращая катастрофическую дегенерацию многообразия.\n§8Достаточен для стабилизации вариаций метрики, вызываемых чёрной дырой.\n§b§l"Форма без границы, устойчивость без предела"
+item.ae2enhanced.stable_spacetime_manifold.name=Стабильное пространственно-временное многообразие
+item.ae2enhanced.stable_spacetime_manifold.tooltip=§e§lСтабильное пространственно-временное многообразие §7\nСамостабилизирующаяся область пространства-времени, извлечённая из горизонта событий,\nсохраняющая топологическую целостность при экстремальной кривизне.\n§8Фрагмент стабильного пространственно-временного многообразия.\n§b§l"Где время замирает"
+
+death.spacetime.blackHole=%1$s навсегда потерян в горизонте событий
