@@ -1,0 +1,105 @@
+tile.ae2enhanced.assembly_controller.name=組立ハブコントローラー
+tile.ae2enhanced.assembly_me_interface.name=組立MEインターフェース
+tile.ae2enhanced.assembly_casing.name=組立ハブ外装
+tile.ae2enhanced.assembly_inner_wall.name=組立ハブ内壁
+tile.ae2enhanced.assembly_stabilizer.name=組立安定化装置
+tile.ae2enhanced.micro_singularity.name=マイクロシンギュラリティ
+tile.ae2enhanced.micro_singularity.tooltip=§8§o「事象の地平線から生まれた」§r\n§7アイテムを事象の地平線に投げた後、右クリックすることでブラックホールクラフトを行えます\n§7生成方法: §e64個のAE2シンギュラリティと、4個のネザースター§7を地面に投げ、\n§eネザースターを一個持った状態で設置されたMEコントローラーを右クリックすると§7マイクロシンギュラリティが生成されます
+
+jei.ae2enhanced.category.blackhole=ブラックホールクラフト
+jei.ae2enhanced.blackhole.hint=事象の地平線に投げ込む
+
+gui.ae2enhanced.unformed.title=§c未組み立て
+gui.ae2enhanced.unformed.subtitle=超因果組立ハブ
+gui.ae2enhanced.unformed.ready=構造完成 — 組み立て準備完了
+gui.ae2enhanced.unformed.hint=下のボタンをクリックして組み立て
+gui.ae2enhanced.unformed.missing=不足資材:
+gui.ae2enhanced.unformed.header.material=資材
+gui.ae2enhanced.unformed.header.quantity=数量
+gui.ae2enhanced.unformed.status.ready=状態: 準備完了
+gui.ae2enhanced.unformed.status.missing=状態: 資材が不足
+gui.ae2enhanced.assemble.creative=組み立て (クリエイティブ)
+gui.ae2enhanced.assemble.survival=組み立て
+gui.ae2enhanced.assemble.insufficient=資材不足
+gui.ae2enhanced.unformed.missing.more=§7... 他 %d 種類
+gui.ae2enhanced.formed.title=§a超因果組立ハブ
+gui.ae2enhanced.formed.subtitle=組み立て済み — 稼働中
+gui.ae2enhanced.formed.status=§a構造構築完了
+gui.ae2enhanced.formed.info=パターンスロットとアップグレードモジュール
+gui.ae2enhanced.formed.placeholder=マイルストーン4で利用可能
+gui.ae2enhanced.formed.bottom=AEネットワーク統合 — 有効
+gui.ae2enhanced.formed.network.active=§aネットワーク: オンライン
+gui.ae2enhanced.formed.network.booting=§eネットワーク: 起動中
+gui.ae2enhanced.formed.network.offline=§cネットワーク: オフライン
+
+gui.ae2enhanced.formed.upgrades=アップグレード
+gui.ae2enhanced.formed.patterns=パターン
+gui.ae2enhanced.formed.parallel=並列数: %d
+gui.ae2enhanced.formed.parallel.infinite=並列数: ∞
+gui.ae2enhanced.formed.jobs=実行中: %d
+gui.ae2enhanced.formed.open_patterns=パターンストレージ
+
+gui.ae2enhanced.pattern.title=§aパターンストレージ
+gui.ae2enhanced.pattern.back=← 戻る
+gui.ae2enhanced.pattern.prev=← 前へ
+gui.ae2enhanced.pattern.next=次へ →
+gui.ae2enhanced.pattern.page=ページ %d/%d
+
+gui.ae2enhanced.tooltip.upgrades=§bアップグレード
+gui.ae2enhanced.tooltip.upgrades.parallel=並列拡張モジュール
+gui.ae2enhanced.tooltip.upgrades.speed=オーバークロック処理モジュール
+gui.ae2enhanced.tooltip.upgrades.efficiency=エネルギー最適化モジュール
+gui.ae2enhanced.tooltip.upgrades.capacity=次元圧縮モジュール
+gui.ae2enhanced.tooltip.upgrades.upload=自動アップロードモジュール
+gui.ae2enhanced.tooltip.upgrades.reserved2=拡張モジュール（予約）
+gui.ae2enhanced.tooltip.upgrades.installed=%d はインストール済み
+gui.ae2enhanced.tooltip.upgrades.empty=未インストール - 対応するアップグレードをインストールできます
+gui.ae2enhanced.tooltip.upgrades.parallel.status=現在の並列数: %s | 1枚ごとに32倍
+gui.ae2enhanced.tooltip.upgrades.speed.status=現在のクールダウン: %d tick | 1枚ごとに半分
+gui.ae2enhanced.tooltip.upgrades.efficiency.status=インストール済み %d 枚 | 消費AEを削減
+gui.ae2enhanced.tooltip.upgrades.capacity.status=現在の容量: %d ページ (%d スロット) | 1枚ごとに+5ページ
+gui.ae2enhanced.tooltip.upgrades.upload.status=有効 | エンコードしたパターンの自動インポート
+gui.ae2enhanced.tooltip.upgrades.reserved2.status=予約済み | 機能はまだありません
+gui.ae2enhanced.tooltip.upgrades.parallel.empty=未インストール | クラフトの並列数が増加
+gui.ae2enhanced.tooltip.upgrades.speed.empty=未インストール | クラフトのクールダウン短縮
+gui.ae2enhanced.tooltip.upgrades.efficiency.empty=未インストール | 消費AEを削減
+gui.ae2enhanced.tooltip.upgrades.capacity.empty=未インストール | パターンストレージの容量が増加
+gui.ae2enhanced.tooltip.upgrades.upload.empty=未インストール | エンコードしたパターンの自動インポート
+gui.ae2enhanced.tooltip.upgrades.reserved2.empty=未インストール | 予約済みのインターフェース
+
+gui.ae2enhanced.tooltip.patterns=§bパターンストレージ
+gui.ae2enhanced.tooltip.patterns.desc=エンコード済みのパターンを格納できます
+gui.ae2enhanced.tooltip.network.booting=ネットワークを初期化中… しばらくお待ちください
+gui.ae2enhanced.tooltip.network.offline=MEケーブルを組立MEインターフェースに接続し、ネットワークに参加させてください
+
+item.ae2enhanced.upgrade_card.parallel.name=時間圧縮モジュール
+item.ae2enhanced.upgrade_card.parallel.tooltip=§b§l時間圧縮モジュール §r§8[タイプ: 並列]
+item.ae2enhanced.upgrade_card.parallel.tooltip.detail=§7膨大なクラフト時間を一瞬に凝縮し、並列処理の限界を引き上げます\n§7並列数: §e64 §8| §e2,048 §8| §e65,536 §8| §e2,097,152 §8| §e67,108,864 §8| §e∞\n§7スタック上限: §b%d §7枚\n §b§l「今のこの瞬間こそが永遠だ」
+item.ae2enhanced.upgrade_card.speed.name=時空拡張モジュール
+item.ae2enhanced.upgrade_card.speed.tooltip=§b§l時空拡張モジュール §r§8[タイプ: 速度]
+item.ae2enhanced.upgrade_card.speed.tooltip.detail=§7シンギュラリティの相対論効果を利用して、一枚につきクラフトごとのクールダウンを50%%短縮します\n§7最小クールダウン: §e1 tick\n§7スタック上限: §b%d §7枚\n §b§l「一瞬で四季が過ぎ去っていく」
+item.ae2enhanced.upgrade_card.efficiency.name=エネルギー最適化モジュール
+item.ae2enhanced.upgrade_card.efficiency.tooltip=§b§lエネルギー最適化モジュール §r§8[タイプ: 効率]
+item.ae2enhanced.upgrade_card.efficiency.tooltip.detail=§7組立ハブの消費AEを削減します\n§7スタック上限: §b%d §7枚
+item.ae2enhanced.upgrade_card.capacity.name=次元圧縮モジュール
+item.ae2enhanced.upgrade_card.capacity.tooltip=§b§l次元圧縮モジュール §r§8[タイプ: 容量]
+item.ae2enhanced.upgrade_card.capacity.tooltip.detail=§7一枚につきパターンストレージの容量を§e480§7スロット(5ページ)拡張します\n§7スタック上限: §b%d §7枚
+item.ae2enhanced.upgrade_card.reserved1.name=自動アップロードモジュール
+item.ae2enhanced.upgrade_card.upload.tooltip=§b§l自動アップロードモジュール §r§8[タイプ: アップロード]
+item.ae2enhanced.upgrade_card.upload.tooltip.detail=パターンターミナルで§eエンコードしたパターン§7を自動で最寄りの組立ハブにアップロードします\n§7§8(加工パターンは自動アップロードされません)\n§7コントローラーが組み立てられており、かつアップグレードがインストールされている必要があります\n§7スタック上限: §b%d §7枚\n §b§l「知識こそが力だ」
+item.ae2enhanced.upgrade_card.reserved2.name=拡張モジュール（予約）
+item.ae2enhanced.upgrade_card.reserved2.tooltip=§7予約済みインターフェース — 機能は無効
+
+item.ae2enhanced.conformal_invariant_charge.name=共形不変荷
+item.ae2enhanced.conformal_invariant_charge.tooltip=§e§l共形不変荷 §7\n共形変換のもとで不変に保たれるトポロジカル量子荷\nあらゆる基準系において絶対的な不変性を維持する\n§8ブラックホールから生まれた、理解しがたい物質的存在\n§b§l「不変なるものこそ 唯一の恒常」
+item.ae2enhanced.differential_form_stabilizer.name=微分形式安定化装置
+item.ae2enhanced.differential_form_stabilizer.tooltip=§e§l微分形式安定化装置 §7\n時空の微分幾何学的構造を安定させ\n壊滅的な多様体の退化を阻止する\n§8ブラックホールがもたらす計量の変化を安定させるのに足りる\n§b§l「形なき形 無限の安定」
+item.ae2enhanced.stable_spacetime_manifold.name=定常時空多様体
+item.ae2enhanced.stable_spacetime_manifold.tooltip=§e§l定常時空多様体 §7\n事象の地平面から抽出された自己安定的な時空領域\n極端な曲率下においてトポロジー的完全性を保つ\n§8一片の定常な時空多様体\n§b§l「時が静止する場所」
+
+tile.ae2enhanced.hyperdimensional_controller.name=超次元ストレージコントローラー
+tile.ae2enhanced.hyperdimensional_me_interface.name=超次元MEインターフェース
+tile.ae2enhanced.hyperdimensional_casing.name=超次元安定化アンカー
+tile.ae2enhanced.hyperdimensional_singularity_core.name=超次元シンギュラリティコア
+
+death.spacetime.blackHole=%1$s は事象の地平線で永遠となった
