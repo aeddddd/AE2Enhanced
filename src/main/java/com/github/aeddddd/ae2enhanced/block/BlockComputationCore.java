@@ -1,6 +1,8 @@
 package com.github.aeddddd.ae2enhanced.block;
 
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
+import com.github.aeddddd.ae2enhanced.structure.ComputationCoreIndex;
+import com.github.aeddddd.ae2enhanced.structure.SupercausalStructure;
 import com.github.aeddddd.ae2enhanced.tile.TileComputationCore;
 import net.minecraft.block.Block;
 import net.minecraft.block.material.Material;
@@ -64,9 +66,53 @@ public class BlockComputationCore extends Block {
     }
 
     @Override
+    public void onBlockAdded(World world, BlockPos pos, IBlockState state) {
+        super.onBlockAdded(world, pos, state);
+        if (!world.isRemote) {
+            ComputationCoreIndex index = ComputationCoreIndex.get(world);
+            if (index != null) {
+                index.add(pos);
+            }
+        }
+    }
+
+    @Override
+    public void breakBlock(World world, BlockPos pos, IBlockState state) {
+        if (!world.isRemote) {
+            ComputationCoreIndex index = ComputationCoreIndex.get(world);
+            if (index != null) {
+                index.remove(pos);
+            }
+            // 触发结构解体
+            TileEntity te = world.getTileEntity(pos);
+            if (te instanceof TileComputationCore) {
+                TileComputationCore tile = (TileComputationCore) te;
+                if (tile.isFormed()) {
+                    tile.setFormed(false);
+                }
+            }
+        }
+        super.breakBlock(world, pos, state);
+    }
+
+    @Override
     public boolean onBlockActivated(World world, BlockPos pos, IBlockState state, EntityPlayer player, EnumHand hand, EnumFacing facing, float hitX, float hitY, float hitZ) {
         if (player.isSneaking()) return false;
-        // GUI 将在后续里程碑中实现
+        if (!world.isRemote) {
+            TileEntity te = world.getTileEntity(pos);
+            if (te instanceof TileComputationCore) {
+                TileComputationCore tile = (TileComputationCore) te;
+                // 尝试结构验证
+                if (!tile.isFormed()) {
+                    SupercausalStructure.ValidationResult result = SupercausalStructure.validate(world, pos);
+                    if (result.passed) {
+                        tile.setFormed(true);
+                        // TODO: 通知 TileEntity 并行上限 result.parallelLimit
+                    }
+                }
+                // TODO: 打开 GUI（已形成/未形成）
+            }
+        }
         return true;
     }
 }
