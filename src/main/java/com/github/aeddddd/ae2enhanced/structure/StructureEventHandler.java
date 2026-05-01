@@ -3,8 +3,10 @@ package com.github.aeddddd.ae2enhanced.structure;
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
 import com.github.aeddddd.ae2enhanced.ModBlocks;
 import com.github.aeddddd.ae2enhanced.block.BlockAssemblyController;
+import com.github.aeddddd.ae2enhanced.block.BlockComputationCore;
 import com.github.aeddddd.ae2enhanced.block.BlockHyperdimensionalController;
 import com.github.aeddddd.ae2enhanced.tile.TileAssemblyController;
+import com.github.aeddddd.ae2enhanced.tile.TileComputationCore;
 import com.github.aeddddd.ae2enhanced.tile.TileHyperdimensionalController;
 import net.minecraft.block.Block;
 import net.minecraft.block.state.IBlockState;
@@ -48,6 +50,8 @@ public class StructureEventHandler {
             AssemblyStructure.disassemble(world, pos);
         } else if (brokenBlock == ModBlocks.HYPERDIMENSIONAL_CONTROLLER) {
             HyperdimensionalStructure.disassemble(world, pos);
+        } else if (brokenBlock == ModBlocks.COMPUTATION_CORE) {
+            SupercausalStructure.disassemble(world, pos);
         }
         checkSurroundingControllers(world, pos);
     }
@@ -97,30 +101,58 @@ public class StructureEventHandler {
                 scheduleCheck(world.provider.getDimension(), controllerPos);
             }
         }
+
+        ComputationCoreIndex compIndex = ComputationCoreIndex.get(world);
+        if (compIndex != null) {
+            for (BlockPos controllerPos : compIndex.getAll()) {
+                if (world.provider.getDimension() != chunk.getWorld().provider.getDimension()) continue;
+                int cx = controllerPos.getX() >> 4;
+                int cz = controllerPos.getZ() >> 4;
+                if (cx == chunkX && cz == chunkZ) {
+                    scheduleCheck(world.provider.getDimension(), controllerPos);
+                }
+            }
+        }
     }
 
     private static void checkSurroundingControllers(World world, BlockPos changedPos) {
         ControllerIndex index = ControllerIndex.get(world);
-        if (index == null) return;
-
-        Set<BlockPos> controllers = index.getAll();
-        for (BlockPos controllerPos : controllers) {
-            IBlockState state = world.getBlockState(controllerPos);
-            Block block = state.getBlock();
-            EnumFacing facing = EnumFacing.NORTH;
-            if (block instanceof BlockAssemblyController) {
-                facing = state.getValue(BlockAssemblyController.FACING);
-                BlockPos origin = AssemblyStructure.getOriginFromController(controllerPos, facing);
-                BlockPos rel = changedPos.subtract(origin);
-                if (AssemblyStructure.ALL_SET.contains(rel)) {
-                    scheduleCheck(world.provider.getDimension(), controllerPos);
+        if (index != null) {
+            Set<BlockPos> controllers = index.getAll();
+            for (BlockPos controllerPos : controllers) {
+                IBlockState state = world.getBlockState(controllerPos);
+                Block block = state.getBlock();
+                EnumFacing facing = EnumFacing.NORTH;
+                if (block instanceof BlockAssemblyController) {
+                    facing = state.getValue(BlockAssemblyController.FACING);
+                    BlockPos origin = AssemblyStructure.getOriginFromController(controllerPos, facing);
+                    BlockPos rel = changedPos.subtract(origin);
+                    if (AssemblyStructure.ALL_SET.contains(rel)) {
+                        scheduleCheck(world.provider.getDimension(), controllerPos);
+                    }
+                } else if (block instanceof BlockHyperdimensionalController) {
+                    facing = state.getValue(BlockHyperdimensionalController.FACING);
+                    BlockPos rel = changedPos.subtract(controllerPos);
+                    BlockPos rotatedRel = HyperdimensionalStructure.rotate(rel, facing.getOpposite());
+                    if (HyperdimensionalStructure.ALL_SET.contains(rotatedRel)) {
+                        scheduleCheck(world.provider.getDimension(), controllerPos);
+                    }
                 }
-            } else if (block instanceof BlockHyperdimensionalController) {
-                facing = state.getValue(BlockHyperdimensionalController.FACING);
-                BlockPos rel = changedPos.subtract(controllerPos);
-                BlockPos rotatedRel = HyperdimensionalStructure.rotate(rel, facing.getOpposite());
-                if (HyperdimensionalStructure.ALL_SET.contains(rotatedRel)) {
-                    scheduleCheck(world.provider.getDimension(), controllerPos);
+            }
+        }
+
+        ComputationCoreIndex compIndex = ComputationCoreIndex.get(world);
+        if (compIndex != null) {
+            for (BlockPos controllerPos : compIndex.getAll()) {
+                IBlockState state = world.getBlockState(controllerPos);
+                Block block = state.getBlock();
+                if (block instanceof BlockComputationCore) {
+                    EnumFacing facing = state.getValue(BlockComputationCore.FACING);
+                    BlockPos rel = changedPos.subtract(controllerPos);
+                    BlockPos rotatedRel = SupercausalStructure.rotate(rel, facing.getOpposite());
+                    if (SupercausalStructure.ALL_STRUCTURE_SET.contains(rotatedRel)) {
+                        scheduleCheck(world.provider.getDimension(), controllerPos);
+                    }
                 }
             }
         }
@@ -152,6 +184,17 @@ public class StructureEventHandler {
                     HyperdimensionalStructure.assemble(world, controllerPos);
                 } else if (!valid && tile.isFormed()) {
                     HyperdimensionalStructure.disassemble(world, controllerPos);
+                }
+            }
+        } else if (controllerBlock == ModBlocks.COMPUTATION_CORE) {
+            SupercausalStructure.ValidationResult result = SupercausalStructure.validate(world, controllerPos);
+            TileEntity te = world.getTileEntity(controllerPos);
+            if (te instanceof TileComputationCore) {
+                TileComputationCore tile = (TileComputationCore) te;
+                if (result.passed && !tile.isFormed()) {
+                    SupercausalStructure.assemble(world, controllerPos);
+                } else if (!result.passed && tile.isFormed()) {
+                    SupercausalStructure.disassemble(world, controllerPos);
                 }
             }
         }

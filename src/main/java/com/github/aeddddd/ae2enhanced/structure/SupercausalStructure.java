@@ -4,6 +4,7 @@ import com.github.aeddddd.ae2enhanced.AE2Enhanced;
 import com.github.aeddddd.ae2enhanced.ModBlocks;
 import com.github.aeddddd.ae2enhanced.config.AE2EnhancedConfig;
 import net.minecraft.block.Block;
+import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.EnumFacing;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
@@ -981,6 +982,29 @@ public class SupercausalStructure {
         int max = AE2EnhancedConfig.crafting.maxParallel;
         int extra = (causalCount / step) * 1024;
         return Math.min(max, base + extra);
+    }
+
+    public static void assemble(World world, BlockPos controllerPos) {
+        if (world.isRemote) return;
+        TileEntity te = world.getTileEntity(controllerPos);
+        if (te instanceof com.github.aeddddd.ae2enhanced.tile.TileComputationCore) {
+            com.github.aeddddd.ae2enhanced.tile.TileComputationCore tile =
+                (com.github.aeddddd.ae2enhanced.tile.TileComputationCore) te;
+            ValidationResult result = validate(world, controllerPos);
+            if (result.passed) {
+                tile.assemble(result.parallelLimit);
+            }
+        }
+    }
+
+    public static void disassemble(World world, BlockPos controllerPos) {
+        if (world.isRemote) return;
+        TileEntity te = world.getTileEntity(controllerPos);
+        if (te instanceof com.github.aeddddd.ae2enhanced.tile.TileComputationCore) {
+            com.github.aeddddd.ae2enhanced.tile.TileComputationCore tile =
+                (com.github.aeddddd.ae2enhanced.tile.TileComputationCore) te;
+            tile.disassemble();
+        }
     }
 
     public static class ValidationResult {
