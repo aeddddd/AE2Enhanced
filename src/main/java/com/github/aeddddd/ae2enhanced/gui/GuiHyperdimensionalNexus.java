@@ -4,6 +4,7 @@ import com.github.aeddddd.ae2enhanced.tile.TileHyperdimensionalController;
 import net.minecraft.client.gui.GuiScreen;
 import net.minecraft.client.renderer.GlStateManager;
 import net.minecraft.client.resources.I18n;
+import org.lwjgl.input.Keyboard;
 
 import java.io.IOException;
 
@@ -136,17 +137,45 @@ public class GuiHyperdimensionalNexus extends GuiScreen {
         }
 
         // 存储统计（客户端同步字段，含物品+流体）
+        boolean shift = Keyboard.isKeyDown(Keyboard.KEY_LSHIFT) || Keyboard.isKeyDown(Keyboard.KEY_RSHIFT);
         int types = tile.getClientStorageTypes();
         String total = tile.getClientStorageTotal();
+        if (shift) {
+            total = TileHyperdimensionalController.toScientificNotation(
+                    new java.math.BigInteger(tile.getClientStorageTotalRaw()));
+        }
+        int storageYStart = y;
+        int storageYEnd = y;
         if (types > 0) {
             fontRenderer.drawString(I18n.format("gui.ae2enhanced.nexus.label.storage_types", types), x, y, TEXT_MAIN);
             y += lineHeight;
-            fontRenderer.drawString(I18n.format("gui.ae2enhanced.nexus.label.storage_total", total), x, y, TEXT_MAIN);
+            String totalLine = I18n.format("gui.ae2enhanced.nexus.label.storage_total", total);
+            fontRenderer.drawString(totalLine, x, y, TEXT_MAIN);
+            storageYEnd = y + lineHeight;
+            y += lineHeight;
         } else {
             fontRenderer.drawString(I18n.format("gui.ae2enhanced.nexus.storage.empty"), x, y, TEXT_MAIN);
+            storageYEnd = y + lineHeight;
         }
 
         super.drawScreen(mouseX, mouseY, partialTicks);
+
+        // Tooltip: show raw or scientific notation on hover over storage stats
+        if (tile != null && mouseX >= x && mouseX <= guiLeft + xSize - 20
+                && mouseY >= storageYStart && mouseY <= storageYEnd) {
+            String display;
+            if (shift) {
+                display = TileHyperdimensionalController.toScientificNotation(
+                        new java.math.BigInteger(tile.getClientStorageTotalRaw()));
+            } else {
+                display = tile.getClientStorageTotalRaw();
+            }
+            if (display != null) {
+                java.util.List<String> lines = new java.util.ArrayList<>();
+                lines.add("§7" + display);
+                drawHoveringText(lines, mouseX, mouseY);
+            }
+        }
     }
 
     @Override

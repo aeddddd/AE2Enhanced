@@ -57,6 +57,7 @@ public class TileHyperdimensionalController extends TileEntity implements IGridP
     // 客户端同步的存储统计
     private int clientStorageTypes = 0;
     private String clientStorageTotal = "0";
+    private String clientStorageTotalRaw = "0";
 
     public boolean isFormed() {
         return formed;
@@ -509,9 +510,11 @@ public class TileHyperdimensionalController extends TileEntity implements IGridP
                 newTotal = newTotal.add(optionalStorage.getTotalCount());
             }
             String newTotalStr = formatBigNumber(newTotal);
-            if (newTypes != clientStorageTypes || !newTotalStr.equals(clientStorageTotal)) {
+            String newTotalRaw = newTotal.toString();
+            if (newTypes != clientStorageTypes || !newTotalStr.equals(clientStorageTotal) || !newTotalRaw.equals(clientStorageTotalRaw)) {
                 clientStorageTypes = newTypes;
                 clientStorageTotal = newTotalStr;
+                clientStorageTotalRaw = newTotalRaw;
                 needUpdate = true;
             }
 
@@ -543,6 +546,10 @@ public class TileHyperdimensionalController extends TileEntity implements IGridP
         return clientStorageTotal;
     }
 
+    public String getClientStorageTotalRaw() {
+        return clientStorageTotalRaw;
+    }
+
     public boolean isSafeMode() {
         return (itemAdapter != null && itemAdapter.isSafeMode())
             || (fluidAdapter != null && fluidAdapter.isSafeMode())
@@ -553,8 +560,35 @@ public class TileHyperdimensionalController extends TileEntity implements IGridP
         return clientSafeMode;
     }
 
-    private static final String[] NUMBER_UNITS = {"", "K", "M", "G", "T", "P", "E"};
+    private static final String[] NUMBER_UNITS = {"", "K", "M", "G", "T", "P", "E", "Z", "Y"};
+    private static final String[] NUMBER_UNIT_NAMES = {"", "Thousand", "Million", "Billion", "Trillion", "Quadrillion", "Quintillion", "Sextillion", "Septillion"};
+    private static final java.math.BigInteger ONE_E27 = new java.math.BigInteger("1000000000000000000000000000");
+
+    public static String toScientificNotation(java.math.BigInteger num) {
+        String s = num.toString();
+        int len = s.length();
+        if (len <= 1) return s;
+        StringBuilder sb = new StringBuilder();
+        sb.append(s.charAt(0));
+        if (len > 1) {
+            sb.append('.');
+            int end = Math.min(len, 4);
+            sb.append(s.substring(1, end));
+            while (sb.charAt(sb.length() - 1) == '0') {
+                sb.setLength(sb.length() - 1);
+            }
+            if (sb.charAt(sb.length() - 1) == '.') {
+                sb.setLength(sb.length() - 1);
+            }
+        }
+        sb.append(" × 10^").append(len - 1);
+        return sb.toString();
+    }
+
     private static String formatBigNumber(java.math.BigInteger num) {
+        if (num.compareTo(ONE_E27) >= 0) {
+            return toScientificNotation(num);
+        }
         if (num.compareTo(java.math.BigInteger.valueOf(1000)) < 0) {
             return num.toString();
         }
@@ -610,6 +644,7 @@ public class TileHyperdimensionalController extends TileEntity implements IGridP
         tag.setBoolean("networkPowered", networkPowered);
         tag.setInteger("storageTypes", clientStorageTypes);
         tag.setString("storageTotal", clientStorageTotal);
+        tag.setString("storageTotalRaw", clientStorageTotalRaw);
         tag.setBoolean("safeMode", clientSafeMode);
         if (nexusId != null) {
             tag.setUniqueId("nexusId", nexusId);
@@ -625,6 +660,7 @@ public class TileHyperdimensionalController extends TileEntity implements IGridP
         networkPowered = tag.getBoolean("networkPowered");
         clientStorageTypes = tag.getInteger("storageTypes");
         clientStorageTotal = tag.getString("storageTotal");
+        clientStorageTotalRaw = tag.getString("storageTotalRaw");
         clientSafeMode = tag.getBoolean("safeMode");
         if (tag.hasUniqueId("nexusId")) {
             nexusId = tag.getUniqueId("nexusId");
