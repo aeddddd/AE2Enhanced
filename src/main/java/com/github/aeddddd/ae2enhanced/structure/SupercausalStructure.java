@@ -896,10 +896,15 @@ public class SupercausalStructure {
         ALL_STRUCTURE_SET = Collections.unmodifiableSet(all);
     }
 
+    /**
+     * Returns the facing used for structure rotation.
+     * We use the opposite of the controller's block facing so that the structure
+     * expands behind the controller, leaving the controller's front face open to air.
+     */
     public static EnumFacing getControllerFacing(World world, BlockPos controllerPos) {
         net.minecraft.block.state.IBlockState state = world.getBlockState(controllerPos);
         if (state.getBlock() instanceof com.github.aeddddd.ae2enhanced.block.BlockComputationCore) {
-            return state.getValue(com.github.aeddddd.ae2enhanced.block.BlockComputationCore.FACING);
+            return state.getValue(com.github.aeddddd.ae2enhanced.block.BlockComputationCore.FACING).getOpposite();
         }
         return EnumFacing.NORTH;
     }
