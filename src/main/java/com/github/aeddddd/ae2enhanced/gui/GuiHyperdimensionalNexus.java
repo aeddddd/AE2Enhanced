@@ -3,6 +3,7 @@ package com.github.aeddddd.ae2enhanced.gui;
 import com.github.aeddddd.ae2enhanced.tile.TileHyperdimensionalController;
 import net.minecraft.client.gui.GuiScreen;
 import net.minecraft.client.renderer.GlStateManager;
+import net.minecraft.client.resources.I18n;
 
 import java.io.IOException;
 
@@ -74,7 +75,7 @@ public class GuiHyperdimensionalNexus extends GuiScreen {
         drawRect(guiLeft + 10, guiTop + ySize - 11, guiLeft + xSize - 10, guiTop + ySize - 10, BORDER_DIM);
 
         // 标题
-        String title = "§b超维度仓储中枢";
+        String title = I18n.format("gui.ae2enhanced.nexus.title");
         int titleWidth = fontRenderer.getStringWidth(title);
         fontRenderer.drawString(title, guiLeft + (xSize - titleWidth) / 2, guiTop + 8, ACCENT);
 
@@ -85,13 +86,13 @@ public class GuiHyperdimensionalNexus extends GuiScreen {
         if (tile != null && tile.getClientSafeMode()) {
             int bannerY = guiTop + 26;
             drawRect(guiLeft + 10, bannerY, guiLeft + xSize - 10, bannerY + 12, 0x55ff0000);
-            String warn = "§c§l安全模式 — 存储只读";
+            String warn = I18n.format("gui.ae2enhanced.nexus.safe_mode");
             int warnW = fontRenderer.getStringWidth(warn);
             fontRenderer.drawString(warn, guiLeft + (xSize - warnW) / 2, bannerY + 2, 0xFFffaaaa);
         }
 
         if (tile == null) {
-            fontRenderer.drawString("§cTile 不可用", guiLeft + 20, guiTop + 40, TEXT_ERROR);
+            fontRenderer.drawString(I18n.format("gui.ae2enhanced.nexus.tile_unavailable"), guiLeft + 20, guiTop + 40, TEXT_ERROR);
             super.drawScreen(mouseX, mouseY, partialTicks);
             return;
         }
@@ -104,27 +105,33 @@ public class GuiHyperdimensionalNexus extends GuiScreen {
         int lineHeight = 14;
 
         // 结构状态
-        String formedStr = tile.isFormed() ? "§a已组装" : "§c未组装";
-        fontRenderer.drawString("结构状态: " + formedStr, x, y, TEXT_MAIN);
+        String formedStr = tile.isFormed()
+                ? I18n.format("gui.ae2enhanced.nexus.structure.formed")
+                : I18n.format("gui.ae2enhanced.nexus.structure.unformed");
+        fontRenderer.drawString(I18n.format("gui.ae2enhanced.nexus.label.structure", formedStr), x, y, TEXT_MAIN);
         y += lineHeight;
 
         // 网络状态
-        String networkStr = tile.isNetworkActive() ? "§a在线" : "§c离线";
-        fontRenderer.drawString("网络状态: " + networkStr, x, y, TEXT_MAIN);
+        String networkStr = tile.isNetworkActive()
+                ? I18n.format("gui.ae2enhanced.nexus.network.online")
+                : I18n.format("gui.ae2enhanced.nexus.network.offline");
+        fontRenderer.drawString(I18n.format("gui.ae2enhanced.nexus.label.network", networkStr), x, y, TEXT_MAIN);
         y += lineHeight;
 
         // 能源状态
-        String powerStr = tile.isNetworkPowered() ? "§a供能正常" : "§e未供能";
-        fontRenderer.drawString("能源状态: " + powerStr, x, y, TEXT_MAIN);
+        String powerStr = tile.isNetworkPowered()
+                ? I18n.format("gui.ae2enhanced.nexus.power.ok")
+                : I18n.format("gui.ae2enhanced.nexus.power.none");
+        fontRenderer.drawString(I18n.format("gui.ae2enhanced.nexus.label.power", powerStr), x, y, TEXT_MAIN);
         y += lineHeight;
 
         // Nexus ID
         if (tile.getNexusId() != null) {
             String id = tile.getNexusId().toString().substring(0, 8);
-            fontRenderer.drawString("Nexus ID: §7" + id + "...", x, y, TEXT_MAIN);
+            fontRenderer.drawString(I18n.format("gui.ae2enhanced.nexus.label.nexus_id", id + "..."), x, y, TEXT_MAIN);
             y += lineHeight;
         } else {
-            fontRenderer.drawString("Nexus ID: §7未生成", x, y, TEXT_MAIN);
+            fontRenderer.drawString(I18n.format("gui.ae2enhanced.nexus.label.nexus_id", I18n.format("gui.ae2enhanced.nexus.nexus_id.none")), x, y, TEXT_MAIN);
             y += lineHeight;
         }
 
@@ -132,11 +139,11 @@ public class GuiHyperdimensionalNexus extends GuiScreen {
         int types = tile.getClientStorageTypes();
         String total = tile.getClientStorageTotal();
         if (types > 0) {
-            fontRenderer.drawString("存储种类: §e" + types, x, y, TEXT_MAIN);
+            fontRenderer.drawString(I18n.format("gui.ae2enhanced.nexus.label.storage_types", types), x, y, TEXT_MAIN);
             y += lineHeight;
-            fontRenderer.drawString("总存储数: §e" + total, x, y, TEXT_MAIN);
+            fontRenderer.drawString(I18n.format("gui.ae2enhanced.nexus.label.storage_total", total), x, y, TEXT_MAIN);
         } else {
-            fontRenderer.drawString("存储核心: §7空", x, y, TEXT_MAIN);
+            fontRenderer.drawString(I18n.format("gui.ae2enhanced.nexus.storage.empty"), x, y, TEXT_MAIN);
         }
 
         super.drawScreen(mouseX, mouseY, partialTicks);

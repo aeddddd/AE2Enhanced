@@ -103,3 +103,46 @@ tile.ae2enhanced.hyperdimensional_casing.name=Hyperdimensional Metric Anchor
 tile.ae2enhanced.hyperdimensional_singularity_core.name=Hyperdimensional Singularity Core
 
 death.spacetime.blackHole=%1$s was forever lost in the event horizon
+
+# Computation Core blocks
+tile.ae2enhanced.computation_core.name=Supercausal Computation Core
+tile.ae2enhanced.constant_tensor_field_casing.name=Constant Tensor Field Casing
+tile.ae2enhanced.constant_spinor_field_casing.name=Constant Spinor Field Casing
+tile.ae2enhanced.causal_anchor_core.name=Causal Anchor Core
+tile.ae2enhanced.super_crafting_interface.name=Supercausal Crafting Interface
+
+# Computation Core GUI — unformed
+gui.ae2enhanced.computation.unformed.title=§c§lSupercausal Computation Core §r§8[Unformed]
+
+# Computation Core GUI — formed
+gui.ae2enhanced.computation.formed.title=§bSupercausal Computation Core
+gui.ae2enhanced.computation.tile_unavailable=§cTile unavailable
+gui.ae2enhanced.computation.status.online=§aONLINE
+gui.ae2enhanced.computation.status.offline=§cOFFLINE
+gui.ae2enhanced.computation.label.status=Status: %s
+gui.ae2enhanced.computation.label.parallel=Parallel: §e%s
+gui.ae2enhanced.computation.label.active_orders=Active Orders: §e%s
+gui.ae2enhanced.computation.label.queue_capacity=Queue Capacity: §7%s
+gui.ae2enhanced.computation.orders.empty=§7No active crafting orders.
+gui.ae2enhanced.computation.orders.placeholder=§7Order list will be displayed here.
+gui.ae2enhanced.computation.engine.initializing=§8Engine: §7Initializing...
+gui.ae2enhanced.computation.hint.close=§8Press ESC to close
+
+# Hyperdimensional Nexus GUI
+gui.ae2enhanced.nexus.title=§bHyperdimensional Storage Nexus
+gui.ae2enhanced.nexus.safe_mode=§c§lSafe Mode — Storage Read-Only
+gui.ae2enhanced.nexus.tile_unavailable=§cTile unavailable
+gui.ae2enhanced.nexus.label.structure=Structure Status: %s
+gui.ae2enhanced.nexus.structure.formed=§aFormed
+gui.ae2enhanced.nexus.structure.unformed=§cUnformed
+gui.ae2enhanced.nexus.label.network=Network Status: %s
+gui.ae2enhanced.nexus.network.online=§aOnline
+gui.ae2enhanced.nexus.network.offline=§cOffline
+gui.ae2enhanced.nexus.label.power=Power Status: %s
+gui.ae2enhanced.nexus.power.ok=§aPowered
+gui.ae2enhanced.nexus.power.none=§eUnpowered
+gui.ae2enhanced.nexus.label.nexus_id=Nexus ID: §7%s
+gui.ae2enhanced.nexus.nexus_id.none=Not generated
+gui.ae2enhanced.nexus.label.storage_types=Storage Types: §e%s
+gui.ae2enhanced.nexus.label.storage_total=Total Stored: §e%s
+gui.ae2enhanced.nexus.storage.empty=Storage Core: §7Empty

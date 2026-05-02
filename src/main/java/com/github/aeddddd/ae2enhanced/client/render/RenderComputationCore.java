@@ -1,6 +1,9 @@
 package com.github.aeddddd.ae2enhanced.client.render;
 
+import com.github.aeddddd.ae2enhanced.block.BlockComputationCore;
 import com.github.aeddddd.ae2enhanced.tile.TileComputationCore;
+import net.minecraft.block.state.IBlockState;
+import net.minecraft.util.EnumFacing;
 import net.minecraft.client.renderer.BufferBuilder;
 import net.minecraft.client.renderer.GlStateManager;
 import net.minecraft.client.renderer.Tessellator;
@@ -41,10 +44,19 @@ public class RenderComputationCore extends TileEntitySpecialRenderer<TileComputa
         float ringTime = (te.getWorld().getTotalWorldTime() + partialTicks) * RING_SPEED;
         float pulse = 0.5f + 0.5f * (float) Math.sin((te.getWorld().getTotalWorldTime() + partialTicks) * PULSE_SPEED);
 
-        // Structure center relative to controller
-        double cx = x + 0.5;
-        double cy = y + 4.0;
-        double cz = z + 0.5 + 2.0;
+        // Sphere center on the controller's horizontal plane,
+        // shifted forward relative to the controller's facing (into the multiblock)
+        IBlockState state = te.getWorld().getBlockState(te.getPos());
+        EnumFacing controllerFacing = EnumFacing.NORTH;
+        if (state.getBlock() instanceof BlockComputationCore) {
+            controllerFacing = state.getValue(BlockComputationCore.FACING);
+        }
+        EnumFacing structureDir = controllerFacing.getOpposite();
+        double forwardOffset = 6.0;
+
+        double cx = x + 0.5 + structureDir.getXOffset() * forwardOffset;
+        double cy = y + 0.5;
+        double cz = z + 0.5 + structureDir.getZOffset() * forwardOffset;
 
         double distSq = cx * cx + cy * cy + cz * cz;
         if (distSq > 96.0 * 96.0) return;

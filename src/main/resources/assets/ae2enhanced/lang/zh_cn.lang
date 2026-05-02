@@ -111,3 +111,36 @@ tile.ae2enhanced.super_crafting_interface.name=超因果合成接口
 gui.ae2enhanced.computation.unformed.title=§c§l超因果计算核心 §r§8[未成型]
 
 death.spacetime.blackHole=%1$s 永远的迷失在事件视界中
+
+# Computation Core GUI — formed
+gui.ae2enhanced.computation.formed.title=§b超因果计算核心
+gui.ae2enhanced.computation.tile_unavailable=§cTile 不可用
+gui.ae2enhanced.computation.status.online=§a在线
+gui.ae2enhanced.computation.status.offline=§c离线
+gui.ae2enhanced.computation.label.status=状态: %s
+gui.ae2enhanced.computation.label.parallel=并行上限: §e%s
+gui.ae2enhanced.computation.label.active_orders=活跃订单: §e%s
+gui.ae2enhanced.computation.label.queue_capacity=队列容量: §7%s
+gui.ae2enhanced.computation.orders.empty=§7暂无活跃合成订单.
+gui.ae2enhanced.computation.orders.placeholder=§7订单列表将在此显示.
+gui.ae2enhanced.computation.engine.initializing=§8引擎: §7初始化中...
+gui.ae2enhanced.computation.hint.close=§8按 ESC 关闭
+
+# Hyperdimensional Nexus GUI
+gui.ae2enhanced.nexus.title=§b超维度仓储中枢
+gui.ae2enhanced.nexus.safe_mode=§c§l安全模式 — 存储只读
+gui.ae2enhanced.nexus.tile_unavailable=§cTile 不可用
+gui.ae2enhanced.nexus.label.structure=结构状态: %s
+gui.ae2enhanced.nexus.structure.formed=§a已组装
+gui.ae2enhanced.nexus.structure.unformed=§c未组装
+gui.ae2enhanced.nexus.label.network=网络状态: %s
+gui.ae2enhanced.nexus.network.online=§a在线
+gui.ae2enhanced.nexus.network.offline=§c离线
+gui.ae2enhanced.nexus.label.power=能源状态: %s
+gui.ae2enhanced.nexus.power.ok=§a供能正常
+gui.ae2enhanced.nexus.power.none=§e未供能
+gui.ae2enhanced.nexus.label.nexus_id=Nexus ID: §7%s
+gui.ae2enhanced.nexus.nexus_id.none=未生成
+gui.ae2enhanced.nexus.label.storage_types=存储种类: §e%s
+gui.ae2enhanced.nexus.label.storage_total=总存储数: §e%s
+gui.ae2enhanced.nexus.storage.empty=存储核心: §7空

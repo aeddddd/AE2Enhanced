@@ -103,3 +103,46 @@ tile.ae2enhanced.hyperdimensional_casing.name=超次元安定化アンカー
 tile.ae2enhanced.hyperdimensional_singularity_core.name=超次元シンギュラリティコア
 
 death.spacetime.blackHole=%1$s は事象の地平線で永遠となった
+
+# Computation Core blocks
+tile.ae2enhanced.computation_core.name=超因果計算コア
+tile.ae2enhanced.constant_tensor_field_casing.name=一定テンソル場外装
+tile.ae2enhanced.constant_spinor_field_casing.name=一定スピノール場外装
+tile.ae2enhanced.causal_anchor_core.name=因果アンカーコア
+tile.ae2enhanced.super_crafting_interface.name=超因果合成インターフェース
+
+# Computation Core GUI — unformed
+gui.ae2enhanced.computation.unformed.title=§c§l超因果計算コア §r§8[未組み立て]
+
+# Computation Core GUI — formed
+gui.ae2enhanced.computation.formed.title=§b超因果計算コア
+gui.ae2enhanced.computation.tile_unavailable=§cTile 利用不可
+gui.ae2enhanced.computation.status.online=§aオンライン
+gui.ae2enhanced.computation.status.offline=§cオフライン
+gui.ae2enhanced.computation.label.status=状態: %s
+gui.ae2enhanced.computation.label.parallel=並列数: §e%s
+gui.ae2enhanced.computation.label.active_orders=実行中オーダー: §e%s
+gui.ae2enhanced.computation.label.queue_capacity=キュー容量: §7%s
+gui.ae2enhanced.computation.orders.empty=§7実行中のクラフトオーダーはありません.
+gui.ae2enhanced.computation.orders.placeholder=§7オーダー一覧はここに表示されます.
+gui.ae2enhanced.computation.engine.initializing=§8エンジン: §7初期化中...
+gui.ae2enhanced.computation.hint.close=§8ESC で閉じる
+
+# Hyperdimensional Nexus GUI
+gui.ae2enhanced.nexus.title=§b超次元ストレージネクサス
+gui.ae2enhanced.nexus.safe_mode=§c§lセーフモード — ストレージ読み取り専用
+gui.ae2enhanced.nexus.tile_unavailable=§cTile 利用不可
+gui.ae2enhanced.nexus.label.structure=構造状態: %s
+gui.ae2enhanced.nexus.structure.formed=§a組み立て済み
+gui.ae2enhanced.nexus.structure.unformed=§c未組み立て
+gui.ae2enhanced.nexus.label.network=ネットワーク状態: %s
+gui.ae2enhanced.nexus.network.online=§aオンライン
+gui.ae2enhanced.nexus.network.offline=§cオフライン
+gui.ae2enhanced.nexus.label.power=電力状態: %s
+gui.ae2enhanced.nexus.power.ok=§a給電中
+gui.ae2enhanced.nexus.power.none=§e未給電
+gui.ae2enhanced.nexus.label.nexus_id=Nexus ID: §7%s
+gui.ae2enhanced.nexus.nexus_id.none=未生成
+gui.ae2enhanced.nexus.label.storage_types=ストレージ種類: §e%s
+gui.ae2enhanced.nexus.label.storage_total=総ストレージ数: §e%s
+gui.ae2enhanced.nexus.storage.empty=ストレージコア: §7空

@@ -3,6 +3,7 @@ package com.github.aeddddd.ae2enhanced.gui;
 import com.github.aeddddd.ae2enhanced.tile.TileComputationCore;
 import net.minecraft.client.gui.GuiScreen;
 import net.minecraft.client.renderer.GlStateManager;
+import net.minecraft.client.resources.I18n;
 
 import java.io.IOException;
 
@@ -67,14 +68,14 @@ public class GuiComputationFormed extends GuiScreen {
         drawRect(guiLeft + 10, guiTop + 36, guiLeft + xSize - 10, guiTop + 37, BORDER_DIM);
         drawRect(guiLeft + 10, guiTop + ySize - 29, guiLeft + xSize - 10, guiTop + ySize - 28, BORDER_DIM);
 
-        String title = "\u00a7b" + net.minecraft.client.resources.I18n.format("tile.ae2enhanced.computation_core.name");
+        String title = I18n.format("gui.ae2enhanced.computation.formed.title");
         int titleWidth = fontRenderer.getStringWidth(title);
         fontRenderer.drawString(title, guiLeft + (xSize - titleWidth) / 2, guiTop + 8, ACCENT);
 
         drawRect(guiLeft + 16, guiTop + 22, guiLeft + xSize - 16, guiTop + 23, ACCENT_SOFT);
 
         if (tile == null) {
-            fontRenderer.drawString("\u00a7cTile unavailable", guiLeft + 20, guiTop + 40, TEXT_WARN);
+            fontRenderer.drawString(I18n.format("gui.ae2enhanced.computation.tile_unavailable"), guiLeft + 20, guiTop + 40, TEXT_WARN);
             super.drawScreen(mouseX, mouseY, partialTicks);
             return;
         }
@@ -84,25 +85,27 @@ public class GuiComputationFormed extends GuiScreen {
         int lineHeight = 14;
 
         // Status indicator
-        String formedStr = tile.isFormed() ? "\u00a7aONLINE" : "\u00a7cOFFLINE";
-        fontRenderer.drawString("Status: " + formedStr, x, y, TEXT_MAIN);
+        String formedStr = tile.isFormed()
+                ? I18n.format("gui.ae2enhanced.computation.status.online")
+                : I18n.format("gui.ae2enhanced.computation.status.offline");
+        fontRenderer.drawString(I18n.format("gui.ae2enhanced.computation.label.status", formedStr), x, y, TEXT_MAIN);
         y += lineHeight + 4;
 
         // Parallel limit with bar
         int parallel = tile.getParallelLimit();
-        fontRenderer.drawString("Parallel: \u00a7e" + parallel, x, y, TEXT_MAIN);
+        fontRenderer.drawString(I18n.format("gui.ae2enhanced.computation.label.parallel", parallel), x, y, TEXT_MAIN);
         y += 12;
         drawBar(x, y, x + 140, 8, 1.0f, BAR_BG, BAR_FILL);
         y += 14;
 
         // Active orders
         int orders = tile.getActiveOrderCount();
-        fontRenderer.drawString("Active Orders: \u00a7e" + orders, x, y, TEXT_MAIN);
+        fontRenderer.drawString(I18n.format("gui.ae2enhanced.computation.label.active_orders", orders), x, y, TEXT_MAIN);
         y += lineHeight;
 
         // Max orders from config
         int maxOrders = com.github.aeddddd.ae2enhanced.config.AE2EnhancedConfig.crafting.maxActiveOrders;
-        fontRenderer.drawString("Queue Capacity: \u00a77" + maxOrders, x, y, TEXT_MAIN);
+        fontRenderer.drawString(I18n.format("gui.ae2enhanced.computation.label.queue_capacity", maxOrders), x, y, TEXT_MAIN);
         y += lineHeight + 4;
 
         // Divider
@@ -111,17 +114,17 @@ public class GuiComputationFormed extends GuiScreen {
 
         // Placeholder for order list (P1 engine)
         if (orders == 0) {
-            fontRenderer.drawString("\u00a77No active crafting orders.", x, y, 0xFF668899);
+            fontRenderer.drawString(I18n.format("gui.ae2enhanced.computation.orders.empty"), x, y, 0xFF668899);
         } else {
-            fontRenderer.drawString("\u00a77Order list will be displayed here.", x, y, 0xFF668899);
+            fontRenderer.drawString(I18n.format("gui.ae2enhanced.computation.orders.placeholder"), x, y, 0xFF668899);
         }
         y += lineHeight + 4;
 
         // Crafting engine placeholder
-        fontRenderer.drawString("\u00a78Engine: \u00a77Initializing...", x, y, 0xFF556677);
+        fontRenderer.drawString(I18n.format("gui.ae2enhanced.computation.engine.initializing"), x, y, 0xFF556677);
 
         // Bottom hint
-        String hint = "\u00a78Press ESC to close";
+        String hint = I18n.format("gui.ae2enhanced.computation.hint.close");
         int hintW = fontRenderer.getStringWidth(hint);
         fontRenderer.drawString(hint, guiLeft + (xSize - hintW) / 2, guiTop + ySize - 18, 0xFF445566);
 
