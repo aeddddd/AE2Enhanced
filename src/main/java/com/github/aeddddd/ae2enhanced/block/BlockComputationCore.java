@@ -89,7 +89,7 @@ public class BlockComputationCore extends Block {
             if (te instanceof TileComputationCore) {
                 TileComputationCore tile = (TileComputationCore) te;
                 if (tile.isFormed()) {
-                    tile.setFormed(false);
+                    tile.disassemble();
                 }
             }
         }
