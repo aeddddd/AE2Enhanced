@@ -20,10 +20,12 @@ public class GuiComputationFormed extends GuiScreen {
     private static final int TEXT_MAIN = 0xFFe0e0e0;
     private static final int TEXT_SUCCESS = 0xFF55ff88;
     private static final int TEXT_WARN = 0xFFffaa55;
+    private static final int BAR_BG = 0xFF0a1a2a;
+    private static final int BAR_FILL = 0xFF00d4ff;
 
     private final TileComputationCore tile;
     private int xSize = 280;
-    private int ySize = 180;
+    private int ySize = 200;
     private int guiLeft;
     private int guiTop;
 
@@ -61,9 +63,9 @@ public class GuiComputationFormed extends GuiScreen {
         drawRect(guiLeft + xSize - corner, guiTop + ySize - 2, guiLeft + xSize, guiTop + ySize, ACCENT);
         drawRect(guiLeft + xSize - 2, guiTop + ySize - corner, guiLeft + xSize, guiTop + ySize, ACCENT);
 
-        drawRect(guiLeft + 10, guiTop + 36, guiLeft + xSize - 10, guiTop + ySize - 10, PANEL_LIGHT);
+        drawRect(guiLeft + 10, guiTop + 36, guiLeft + xSize - 10, guiTop + ySize - 28, PANEL_LIGHT);
         drawRect(guiLeft + 10, guiTop + 36, guiLeft + xSize - 10, guiTop + 37, BORDER_DIM);
-        drawRect(guiLeft + 10, guiTop + ySize - 11, guiLeft + xSize - 10, guiTop + ySize - 10, BORDER_DIM);
+        drawRect(guiLeft + 10, guiTop + ySize - 29, guiLeft + xSize - 10, guiTop + ySize - 28, BORDER_DIM);
 
         String title = "\u00a7b" + net.minecraft.client.resources.I18n.format("tile.ae2enhanced.computation_core.name");
         int titleWidth = fontRenderer.getStringWidth(title);
@@ -81,19 +83,57 @@ public class GuiComputationFormed extends GuiScreen {
         int y = guiTop + 42;
         int lineHeight = 14;
 
-        String formedStr = tile.isFormed() ? "\u00a7aFormed" : "\u00a7cNot Formed";
-        fontRenderer.drawString("Structure: " + formedStr, x, y, TEXT_MAIN);
+        // Status indicator
+        String formedStr = tile.isFormed() ? "\u00a7aONLINE" : "\u00a7cOFFLINE";
+        fontRenderer.drawString("Status: " + formedStr, x, y, TEXT_MAIN);
+        y += lineHeight + 4;
+
+        // Parallel limit with bar
+        int parallel = tile.getParallelLimit();
+        fontRenderer.drawString("Parallel: \u00a7e" + parallel, x, y, TEXT_MAIN);
+        y += 12;
+        drawBar(x, y, x + 140, 8, 1.0f, BAR_BG, BAR_FILL);
+        y += 14;
+
+        // Active orders
+        int orders = tile.getActiveOrderCount();
+        fontRenderer.drawString("Active Orders: \u00a7e" + orders, x, y, TEXT_MAIN);
         y += lineHeight;
 
-        fontRenderer.drawString("Parallel Limit: \u00a7e" + tile.getParallelLimit(), x, y, TEXT_MAIN);
-        y += lineHeight;
+        // Max orders from config
+        int maxOrders = com.github.aeddddd.ae2enhanced.config.AE2EnhancedConfig.crafting.maxActiveOrders;
+        fontRenderer.drawString("Queue Capacity: \u00a77" + maxOrders, x, y, TEXT_MAIN);
+        y += lineHeight + 4;
 
-        fontRenderer.drawString("Active Orders: \u00a7e" + tile.getActiveOrderCount(), x, y, TEXT_MAIN);
-        y += lineHeight;
+        // Divider
+        drawRect(x, y, guiLeft + xSize - 20, y + 1, BORDER_DIM);
+        y += 6;
 
-        fontRenderer.drawString("Status: \u00a7aOperational", x, y, TEXT_MAIN);
+        // Placeholder for order list (P1 engine)
+        if (orders == 0) {
+            fontRenderer.drawString("\u00a77No active crafting orders.", x, y, 0xFF668899);
+        } else {
+            fontRenderer.drawString("\u00a77Order list will be displayed here.", x, y, 0xFF668899);
+        }
+        y += lineHeight + 4;
+
+        // Crafting engine placeholder
+        fontRenderer.drawString("\u00a78Engine: \u00a77Initializing...", x, y, 0xFF556677);
+
+        // Bottom hint
+        String hint = "\u00a78Press ESC to close";
+        int hintW = fontRenderer.getStringWidth(hint);
+        fontRenderer.drawString(hint, guiLeft + (xSize - hintW) / 2, guiTop + ySize - 18, 0xFF445566);
 
         super.drawScreen(mouseX, mouseY, partialTicks);
+    }
+
+    private void drawBar(int x, int y, int maxX, int height, float ratio, int bgColor, int fillColor) {
+        drawRect(x, y, maxX, y + height, bgColor);
+        int fillWidth = (int) ((maxX - x) * ratio);
+        if (fillWidth > 0) {
+            drawRect(x, y, x + fillWidth, y + height, fillColor);
+        }
     }
 
     @Override
