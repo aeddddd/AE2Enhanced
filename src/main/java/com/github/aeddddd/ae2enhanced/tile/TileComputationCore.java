@@ -1,12 +1,15 @@
 package com.github.aeddddd.ae2enhanced.tile;
 
 import appeng.api.networking.IGridNode;
+import appeng.api.networking.events.MENetworkCraftingCpuChange;
+import appeng.api.networking.security.IActionHost;
 import appeng.api.util.AECableType;
 import appeng.api.util.AEPartLocation;
 import appeng.api.util.DimensionalCoord;
 import appeng.me.helpers.AENetworkProxy;
 import appeng.me.helpers.IGridProxyable;
 import com.github.aeddddd.ae2enhanced.ModBlocks;
+import com.github.aeddddd.ae2enhanced.crafting.ComputationCoreCPU;
 import com.github.aeddddd.ae2enhanced.crafting.CraftingOrder;
 import com.github.aeddddd.ae2enhanced.crafting.OrderScheduler;
 import com.github.aeddddd.ae2enhanced.crafting.ParallelAllocator;
@@ -30,7 +33,7 @@ import javax.annotation.Nonnull;
  * 集成方式：通过 Mixin 向 AE2 CraftingGridCache 注册为可用 CPU 节点。
  * 不实现 ICraftingProvider / ICraftingMedium（样板由网络中其他设备提供）。
  */
-public class TileComputationCore extends TileEntity implements IGridProxyable, ITickable {
+public class TileComputationCore extends TileEntity implements IGridProxyable, IActionHost, ITickable {
 
     public static final int MAX_PARALLEL = ParallelAllocator.MAX_PARALLEL; // 16384
 
@@ -41,6 +44,9 @@ public class TileComputationCore extends TileEntity implements IGridProxyable, I
     // AE2 网络代理
     private AENetworkProxy proxy;
     private boolean needsReady = false;
+
+    // ICraftingCPU 代理
+    private ComputationCoreCPU cpuProxy;
 
     // 核心引擎
     private final OrderScheduler scheduler = new OrderScheduler(MAX_PARALLEL);
@@ -68,12 +74,22 @@ public class TileComputationCore extends TileEntity implements IGridProxyable, I
         return parallelAllocator;
     }
 
+    public ComputationCoreCPU getCpuProxy() {
+        return cpuProxy;
+    }
+
+    @Override
+    public IGridNode getActionableNode() {
+        return getProxy().getNode();
+    }
+
     // ---------- 组装 / 解体 ----------
 
     public void assemble(int parallelLimit) {
         this.formed = true;
         this.parallelLimit = parallelLimit;
         this.activeOrderCount = 0;
+        this.cpuProxy = new ComputationCoreCPU(this);
         markDirty();
         syncToClient();
         if (proxy != null) {
@@ -81,24 +97,31 @@ public class TileComputationCore extends TileEntity implements IGridProxyable, I
         } else {
             needsReady = true;
         }
-        // Mixin 将在代理就绪后自动向 CraftingGridCache 注册本核心
+        IGridNode node = getProxy().getNode();
+        if (node != null && node.getGrid() != null) {
+            node.getGrid().postEvent(new MENetworkCraftingCpuChange(node));
+        }
     }
 
     public void disassemble() {
+        IGridNode node = getProxy().getNode();
         this.formed = false;
         this.parallelLimit = 0;
         this.activeOrderCount = 0;
+        this.cpuProxy = null;
         // 清理活跃订单
         for (CraftingOrder order : scheduler.getActiveOrdersSnapshot()) {
             scheduler.fail(order);
         }
         parallelAllocator.reset();
-        markDirty();
-        syncToClient();
+        if (node != null && node.getGrid() != null) {
+            node.getGrid().postEvent(new MENetworkCraftingCpuChange(node));
+        }
         if (proxy != null) {
             proxy.invalidate();
         }
-        // Mixin 将在代理失效后自动从 CraftingGridCache 注销本核心
+        markDirty();
+        syncToClient();
     }
 
     // ---------- ITickable ----------

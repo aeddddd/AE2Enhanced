@@ -6,7 +6,8 @@
   "compatibilityLevel": "JAVA_8",
   "mixins": [
     "MixinCraftingCPUCluster",
-    "MixinPatternEncoder"
+    "MixinPatternEncoder",
+    "MixinCraftingGridCache"
   ],
   "client": [],
   "server": []
