@@ -103,3 +103,10 @@ tile.ae2enhanced.hyperdimensional_casing.name=Гиперпространстве
 tile.ae2enhanced.hyperdimensional_singularity_core.name=Гиперпространственное ядро сингулярности
 
 death.spacetime.blackHole=%1$s навсегда потерян в горизонте событий
+
+tile.ae2enhanced.computation_core.name=Сверхпричинное вычислительное ядро
+tile.ae2enhanced.constant_tensor_field_casing.name=Корпус постоянного тензорного поля
+tile.ae2enhanced.constant_spinor_field_casing.name=Корпус постоянного спинорного поля
+tile.ae2enhanced.causal_anchor_core.name=Ядро причинного якоря
+tile.ae2enhanced.super_crafting_interface.name=Сверхпричинный интерфейс создания
+gui.ae2enhanced.computation.unformed.title=§c§lСверхпричинное вычислительное ядро §r§8[Несформировано]
