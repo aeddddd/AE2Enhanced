@@ -39,8 +39,13 @@ bin/
 ### VS Code ###
 .vscode/
 
-### Project Docs (private) ###
+### Project Docs (private) — DO NOT COMMIT ###
 Plan.md
+PLAN_*.md
+PROGRESS.md
+TODO.md
+AUDIT_*.md
+FIX_PLAN.md
 
 ### Mac OS ###
 .DS_Store
