@@ -98,13 +98,19 @@ public class OptionalStorageManager {
      */
     @SuppressWarnings("unchecked")
     public List<IMEInventoryHandler> getHandlers(IStorageChannel<?> channel) {
-        String channelName = channel.getClass().getName();
-        if (gasAdapter != null && "com.mekeng.github.common.me.storage.IGasStorageChannel".equals(channelName)) {
-            return Collections.singletonList(gasAdapter);
-        }
-        if (essentiaAdapter != null && "thaumicenergistics.api.storage.IEssentiaStorageChannel".equals(channelName)) {
-            return Collections.singletonList(essentiaAdapter);
-        }
+        try {
+            Class<?> gasChannelClass = Class.forName("com.mekeng.github.common.me.storage.IGasStorageChannel");
+            if (gasAdapter != null && gasChannelClass.isInstance(channel)) {
+                return Collections.singletonList(gasAdapter);
+            }
+        } catch (ClassNotFoundException ignored) {}
+
+        try {
+            Class<?> essentiaChannelClass = Class.forName("thaumicenergistics.api.storage.IEssentiaStorageChannel");
+            if (essentiaAdapter != null && essentiaChannelClass.isInstance(channel)) {
+                return Collections.singletonList(essentiaAdapter);
+            }
+        } catch (ClassNotFoundException ignored) {}
         // 外部扩展适配器（通过反射匹配 channel 类型，方法已缓存）
         for (Object ext : externalAdapters) {
             Method[] methods = getCachedMethods(ext.getClass());
