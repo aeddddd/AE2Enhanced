@@ -1010,9 +1010,9 @@ public class SupercausalStructure {
         if (world.isRemote) return;
         EnumFacing facing = getControllerFacing(world, controllerPos);
 
-        placeBlocks(world, controllerPos, TENSOR_CASING_SET, ModBlocks.CONSTANT_TENSOR_FIELD_CASING, facing);
-        placeBlocks(world, controllerPos, CAUSAL_ANCHOR_SET, ModBlocks.CAUSAL_ANCHOR_CORE, facing);
-        placeBlocks(world, controllerPos, SPINOR_CASING_SET, ModBlocks.CONSTANT_SPINOR_FIELD_CASING, facing);
+        placeBlocks(world, controllerPos, TENSOR_CASING_SET, ModBlocks.CONSTANT_TENSOR_FIELD_CASING, facing, player);
+        placeBlocks(world, controllerPos, CAUSAL_ANCHOR_SET, ModBlocks.CAUSAL_ANCHOR_CORE, facing, player);
+        placeBlocks(world, controllerPos, SPINOR_CASING_SET, ModBlocks.CONSTANT_SPINOR_FIELD_CASING, facing, player);
 
         BlockPos meInterfacePos = controllerPos.add(rotate(ME_INTERFACE_REL, facing));
         if (world.getBlockState(meInterfacePos).getBlock() != ModBlocks.SUPER_CRAFTING_INTERFACE) {
@@ -1022,13 +1022,29 @@ public class SupercausalStructure {
         assemble(world, controllerPos);
     }
 
-    private static void placeBlocks(World world, BlockPos controllerPos, Set<BlockPos> set, Block block, EnumFacing facing) {
+    private static void placeBlocks(World world, BlockPos controllerPos, Set<BlockPos> set, Block block, EnumFacing facing, net.minecraft.entity.player.EntityPlayer player) {
         for (BlockPos rel : set) {
+            if (rel.equals(CONTROLLER_REL)) continue; // skip controller position
             BlockPos pos = controllerPos.add(rotate(rel, facing));
-            if (world.getBlockState(pos).getBlock() != block) {
-                world.setBlockState(pos, block.getDefaultState());
+            if (world.getBlockState(pos).getBlock() == block) continue;
+            // avoid suffocating player
+            if (player != null && pos.equals(player.getPosition())) {
+                movePlayerToSafety(world, controllerPos, player);
+            }
+            world.setBlockState(pos, block.getDefaultState());
+        }
+    }
+
+    private static void movePlayerToSafety(World world, BlockPos controllerPos, net.minecraft.entity.player.EntityPlayer player) {
+        BlockPos safe = controllerPos.up(2);
+        for (int dy = 2; dy < 10; dy++) {
+            BlockPos candidate = controllerPos.up(dy);
+            if (world.isAirBlock(candidate) && world.isAirBlock(candidate.up())) {
+                safe = candidate;
+                break;
             }
         }
+        player.setPositionAndUpdate(safe.getX() + 0.5, safe.getY(), safe.getZ() + 0.5);
     }
 
     /**
