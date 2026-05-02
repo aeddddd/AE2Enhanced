@@ -259,7 +259,7 @@ public class ComputationCoreCPU implements ICraftingCPU {
 | `CraftingGridCache` 内部方法签名在 AE2-UEL 子版本间变化 | Mixin 失效/崩溃 | 严格限定 Mixin 目标方法为 `obfuscated` + `remap = true`；CI 编译锁定 AE2-UEL 版本 |
 | `submitJob` 注入点不稳定 | 无法将订单路由到计算核心 | 准备 `@Overwrite` 兜底方案；或改用 `@Inject` HEAD + 提前 return |
 | `IBaseMonitor` 实现遗漏导致 NPE | 终端打开崩溃 | P1-S2 阶段完整列出接口方法，逐一实现空壳/透传 |
-| 计算核心与原生 CraftingCPU 共存时的竞争 | 订单被原生 CPU 抢走 | `submitJob` 中若 `targetCpu == null`（自动选址），确保计算核心在排序中优先级正确（高并行优先） |
+| 计算核心与原生 CraftingCPU 共存时的竞争 | 订单被原生 CPU 抢走 | `submitJob` 中若 `targetCpu == null`（自动选址），按 `getCoProcessors()` 降序排序，计算核心（16384）必然优先于原生 CPU |
 | `ICraftingJob` 的树结构解析复杂 | P2 工期膨胀 | 先复用 AE2 `CraftingJob` 的现有解析逻辑，通过反射获取树节点；若不可行则退化为扁平批次执行（限制：暂不支持嵌套配方动态重算） |
 
 ---
@@ -267,10 +267,9 @@ public class ComputationCoreCPU implements ICraftingCPU {
 ## 七、待确认事项（请审阅时回答）
 
 1. **P1-S5 订单驱动方式**：计算核心是执行 `ICraftingJob` 的完整树结构（含嵌套配方动态调度），还是扁平化执行（一次性抽取全部材料，虚拟合成全部产物）？前者更接近原生 CPU，后者实现简单但功能受限。
-2. **与原生 CraftingCPU 共存策略**：当网络中同时存在原生 CPU 和计算核心时，
-   - A. 计算核心优先接单（高并行）
-   - B. 原生 CPU 优先接单（保持原生行为）
-   - C. 玩家在终端手动选择（需要 Mixin 终端 UI）
+2. **与原生 CraftingCPU 共存策略**：
+   - **A. 计算核心优先接单（高并行）** ← 已确认
+   - 计算核心本身**不直接执行配方**（无 molecular assembler 功能），而是作为超级 Crafting CPU **提供合成存储 + 高并行调度**。实际配方执行仍由网络中的 `ICraftingMedium`（分子装配室、ME 接口等）完成。
 3. **IBaseMonitor 透传实现**：计算核心的 `injectItems`/`extractItems` 是透传给网络存储，还是仅作为内部合成缓冲？
 
 ---
