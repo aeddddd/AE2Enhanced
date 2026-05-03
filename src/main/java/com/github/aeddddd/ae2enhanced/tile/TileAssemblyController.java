@@ -397,7 +397,6 @@ public class TileAssemblyController extends TileEntity implements ICraftingProvi
                     return false;
                 }
             }
-            activeMeInterfacePos = null;
         }
         activeMeInterfacePos = mePos;
         markDirty();

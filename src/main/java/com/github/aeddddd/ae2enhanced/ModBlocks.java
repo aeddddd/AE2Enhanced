@@ -39,9 +39,6 @@ public class ModBlocks {
     public static BlockCausalAnchorCore CAUSAL_ANCHOR_CORE;
     public static BlockSuperCraftingInterface SUPER_CRAFTING_INTERFACE;
 
-    public static void init() {
-    }
-
     @SubscribeEvent
     public static void registerBlocks(RegistryEvent.Register<Block> event) {
         event.getRegistry().registerAll(

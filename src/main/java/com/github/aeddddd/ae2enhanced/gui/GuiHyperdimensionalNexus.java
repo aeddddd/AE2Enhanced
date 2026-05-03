@@ -145,14 +145,13 @@ public class GuiHyperdimensionalNexus extends GuiScreen {
                     new java.math.BigInteger(tile.getClientStorageTotalRaw()));
         }
         int storageYStart = y;
-        int storageYEnd = y;
+        int storageYEnd;
         if (types > 0) {
             fontRenderer.drawString(I18n.format("gui.ae2enhanced.nexus.label.storage_types", types), x, y, TEXT_MAIN);
             y += lineHeight;
             String totalLine = I18n.format("gui.ae2enhanced.nexus.label.storage_total", total);
             fontRenderer.drawString(totalLine, x, y, TEXT_MAIN);
             storageYEnd = y + lineHeight;
-            y += lineHeight;
         } else {
             fontRenderer.drawString(I18n.format("gui.ae2enhanced.nexus.storage.empty"), x, y, TEXT_MAIN);
             storageYEnd = y + lineHeight;

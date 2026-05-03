@@ -117,9 +117,8 @@ public class MixinCraftingCPUCluster {
             return node != null ? node.getGrid() : null;
         }
         for (TileCraftingTile r : this.tiles) {
-            IGrid g;
             IGridNode gn = r.getActionableNode();
-            if (gn == null || (g = gn.getGrid()) == null) continue;
+            if (gn == null || gn.getGrid() == null) continue;
             return r.getActionableNode().getGrid();
         }
         return null;
@@ -369,7 +368,7 @@ public class MixinCraftingCPUCluster {
     private void batchProcessVirtualTasks(IEnergyGrid energy, CraftingGridCache cache, CallbackInfo ci) {
         if (reflectionFailed) return;
 
-        CraftingCPUCluster cpu = null;
+        CraftingCPUCluster cpu;
         boolean anyOurTask = false;
         int virtualTasksFound = 0;
         int virtualTasksExecuted = 0;

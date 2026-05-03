@@ -122,7 +122,7 @@ public class StructureEventHandler {
             for (BlockPos controllerPos : controllers) {
                 IBlockState state = world.getBlockState(controllerPos);
                 Block block = state.getBlock();
-                EnumFacing facing = EnumFacing.NORTH;
+                EnumFacing facing;
                 if (block instanceof BlockAssemblyController) {
                     facing = state.getValue(BlockAssemblyController.FACING);
                     BlockPos origin = AssemblyStructure.getOriginFromController(controllerPos, facing);

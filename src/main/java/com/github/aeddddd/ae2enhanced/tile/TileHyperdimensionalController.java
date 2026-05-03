@@ -445,7 +445,7 @@ public class TileHyperdimensionalController extends TileEntity implements IGridP
                 if (world.getBlockState(pos).getBlock() instanceof BlockHyperdimensionalController) {
                     facing = world.getBlockState(pos).getValue(BlockHyperdimensionalController.FACING);
                 }
-                double offX = 0, offZ = 2.0;
+                double offX, offZ;
                 switch (facing) {
                     case SOUTH: offX = 0; offZ = -2.0; break;
                     case EAST:  offX = -2.0; offZ = 0; break;

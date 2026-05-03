@@ -58,7 +58,7 @@ public class RenderHyperdimensionalController extends TileEntitySpecialRenderer<
         if (te.getWorld() != null) {
             facing = te.getWorld().getBlockState(te.getPos()).getValue(BlockHyperdimensionalController.FACING);
         }
-        double offX = 0, offZ = 2.0;
+        double offX, offZ;
         switch (facing) {
             case SOUTH: offX = 0; offZ = -2.0; break;
             case EAST:  offX = -2.0; offZ = 0; break;
