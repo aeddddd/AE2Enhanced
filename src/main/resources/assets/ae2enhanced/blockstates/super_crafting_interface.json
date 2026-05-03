@@ -1,6 +1,13 @@
 {
   "variants": {
-    "normal": { "model": "ae2enhanced:super_crafting_interface" },
-    "inventory": { "model": "ae2enhanced:super_crafting_interface" }
+    "formed=false": {
+      "model": "ae2enhanced:super_crafting_interface"
+    },
+    "formed=true": {
+      "model": "ae2enhanced:super_crafting_interface"
+    },
+    "inventory": {
+      "model": "ae2enhanced:super_crafting_interface"
+    }
   }
 }

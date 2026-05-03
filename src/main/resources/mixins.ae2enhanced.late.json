@@ -7,7 +7,8 @@
   "mixins": [
     "MixinCraftingCPUCluster",
     "MixinPatternEncoder",
-    "MixinCraftingGridCache"
+    "MixinCraftingGridCache",
+    "MixinCreativeCellInventory"
   ],
   "client": [],
   "server": []

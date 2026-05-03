@@ -6,6 +6,7 @@ import appeng.api.util.AEPartLocation;
 import appeng.api.util.DimensionalCoord;
 import appeng.me.helpers.AENetworkProxy;
 import appeng.me.helpers.IGridProxyable;
+import com.github.aeddddd.ae2enhanced.AE2Enhanced;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.math.BlockPos;
@@ -61,13 +62,23 @@ public class TileSuperCraftingInterface extends TileEntity implements IGridProxy
 
     @Override
     public IGridNode getGridNode(@Nonnull AEPartLocation dir) {
+        AE2Enhanced.LOGGER.warn("[AE2E] super_crafting_interface at {} getGridNode called: controllerPos={}, world={}",
+            pos, controllerPos, world != null);
+        if (controllerPos != null && world != null) {
+            TileEntity te = world.getTileEntity(controllerPos);
+            AE2Enhanced.LOGGER.warn("[AE2E] super_crafting_interface at {} controllerPos={}, te={}, instanceof={}",
+                pos, controllerPos, te != null ? te.getClass().getSimpleName() : "null",
+                te instanceof TileComputationCore);
+        }
         TileComputationCore controller = getController();
         if (controller != null && controller.isFormed()) {
             AENetworkProxy proxy = controller.getProxy();
-            if (proxy != null) {
-                return proxy.getNode();
-            }
+            IGridNode node = proxy != null ? proxy.getNode() : null;
+            AE2Enhanced.LOGGER.warn("[AE2E] super_crafting_interface at {} getGridNode returning node={}", pos, node);
+            return node;
         }
+        AE2Enhanced.LOGGER.warn("[AE2E] super_crafting_interface at {} getGridNode returning null: controller={}, formed={}",
+            pos, controller != null, controller != null ? controller.isFormed() : "N/A");
         return null;
     }
 

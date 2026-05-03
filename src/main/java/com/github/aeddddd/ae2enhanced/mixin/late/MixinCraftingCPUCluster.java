@@ -26,6 +26,7 @@ import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 import java.lang.reflect.Field;
@@ -325,6 +326,21 @@ public class MixinCraftingCPUCluster {
         }
     }
 
+    @Redirect(
+        method = "updateCraftingLogic",
+        at = @At(
+            value = "INVOKE",
+            target = "Lappeng/tile/crafting/TileCraftingTile;isActive()Z"
+        )
+    )
+    private boolean redirectIsActive(TileCraftingTile instance) {
+        if (ae2enhanced$computationCore != null) {
+            IGridNode node = ae2enhanced$computationCore.getActionableNode();
+            return node != null && node.isActive();
+        }
+        return instance.isActive();
+    }
+
     @Inject(method = "updateCraftingLogic", at = @At("HEAD"))
     private void onUpdateCraftingLogicHead(IGrid grid, IEnergyGrid eg, CraftingGridCache cache, CallbackInfo ci) {
         if (reflectionFailed) return;
@@ -564,19 +580,45 @@ public class MixinCraftingCPUCluster {
                             appeng.api.config.Actionable MODULATE = appeng.api.config.Actionable.MODULATE;
 
                             boolean canExtract = true;
-                            for (IAEItemStack inputTemplate : details.getCondensedInputs()) {
-                                if (inputTemplate == null || inputTemplate.getStackSize() <= 0) continue;
-                                long totalNeed = inputTemplate.getStackSize() * batchSize;
-                                if (totalNeed <= 0) { canExtract = false; break; }
-                                IAEItemStack need = inputTemplate.copy();
-                                need.setStackSize(totalNeed);
-                                IAEItemStack simResult = meInv.extractItems(need, SIMULATE, source);
-                                if (simResult == null || simResult.getStackSize() < totalNeed) {
-                                    canExtract = false;
-                                    break;
+                            for (int retry = 0; retry < 5; retry++) {
+                                canExtract = true;
+                                for (IAEItemStack inputTemplate : details.getCondensedInputs()) {
+                                    if (inputTemplate == null || inputTemplate.getStackSize() <= 0) continue;
+                                    long totalNeed = inputTemplate.getStackSize() * batchSize;
+                                    if (totalNeed <= 0) { canExtract = false; batchSize = 0; break; }
+                                    IAEItemStack need = inputTemplate.copy();
+                                    need.setStackSize(totalNeed);
+                                    IAEItemStack simResult = meInv.extractItems(need, SIMULATE, source);
+                                    if (simResult == null || simResult.getStackSize() < totalNeed) {
+                                        long available = simResult != null ? simResult.getStackSize() : 0;
+                                        long missing = totalNeed - available;
+                                        if (missing > 0) {
+                                            IAEItemStack toFetch = inputTemplate.copy();
+                                            toFetch.setStackSize(missing);
+                                            IAEItemStack fetched = fetchFromNetwork(cpu, toFetch, source);
+                                            if (fetched != null && fetched.getStackSize() > 0) {
+                                                meInv.injectItems(fetched, MODULATE, source);
+                                                simResult = meInv.extractItems(need, SIMULATE, source);
+                                                if (simResult != null && simResult.getStackSize() >= totalNeed) {
+                                                    continue;
+                                                }
+                                                available = simResult != null ? simResult.getStackSize() : 0;
+                                            }
+                                        }
+                                        long maxBatch = available / inputTemplate.getStackSize();
+                                        if (maxBatch > 0) {
+                                            batchSize = Math.min(batchSize, maxBatch);
+                                            canExtract = false; // 需要重试
+                                        } else {
+                                            canExtract = false;
+                                            batchSize = 0;
+                                            break;
+                                        }
+                                    }
                                 }
+                                if (canExtract) break;
                             }
-                            if (!canExtract) {
+                            if (!canExtract || batchSize <= 0) {
                                 continue;
                             }
 
@@ -636,7 +678,7 @@ public class MixinCraftingCPUCluster {
                     }
                 }
                 doWhileIterations++;
-            } while (changed && doWhileIterations < 1000);
+            } while (changed && doWhileIterations < 100000);
         } catch (Exception e) {
             AE2Enhanced.LOGGER.error("[AE2E] batchProcessVirtualTasks unexpected error: {}", e.toString());
         } finally {

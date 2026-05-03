@@ -17,6 +17,8 @@ import appeng.me.cluster.implementations.CraftingCPUCluster;
 import appeng.me.helpers.AENetworkProxy;
 import appeng.me.helpers.IGridProxyable;
 import appeng.me.helpers.MachineSource;
+import appeng.parts.CableBusContainer;
+import appeng.tile.networking.TileCableBus;
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
 import com.github.aeddddd.ae2enhanced.ModBlocks;
 import com.github.aeddddd.ae2enhanced.block.BlockSuperCraftingInterface;
@@ -106,15 +108,13 @@ public class TileComputationCore extends TileEntity implements IGridProxyable, I
         CraftingCPUCluster primary = createCluster();
         this.cpuPool.add(primary);
 
+        getProxy().onReady();
+        AE2Enhanced.LOGGER.info("[AE2E] ComputationCore proxy ready at {}, node={}", pos, getProxy().getNode());
+
         bindMeInterface();
 
         markDirty();
         syncToClient();
-        if (proxy != null) {
-            proxy.onReady();
-        } else {
-            needsReady = true;
-        }
         IGridNode node = getProxy().getNode();
         if (node != null && node.getGrid() != null) {
             node.getGrid().postEvent(new MENetworkCraftingCpuChange(node));
@@ -156,6 +156,11 @@ public class TileComputationCore extends TileEntity implements IGridProxyable, I
         if (needsReady && formed) {
             needsReady = false;
             getProxy().onReady();
+            bindMeInterface();
+        }
+
+        if (formed && world.getTotalWorldTime() % 20 == 0) {
+            bindMeInterface();
         }
 
         if (!formed || cpuPool.isEmpty()) return;
@@ -218,12 +223,20 @@ public class TileComputationCore extends TileEntity implements IGridProxyable, I
         if (interfacePos == null) return;
         TileEntity te = world.getTileEntity(interfacePos);
         if (te instanceof TileSuperCraftingInterface) {
-            ((TileSuperCraftingInterface) te).setControllerPos(pos);
             IBlockState state = world.getBlockState(interfacePos);
             if (state.getBlock() instanceof BlockSuperCraftingInterface && !state.getValue(BlockSuperCraftingInterface.FORMED)) {
                 world.setBlockState(interfacePos, state.withProperty(BlockSuperCraftingInterface.FORMED, true));
+                // setBlockState 可能在某些情况下重新创建 TileEntity，需要重新获取
+                te = world.getTileEntity(interfacePos);
+            }
+            if (te instanceof TileSuperCraftingInterface) {
+                TileSuperCraftingInterface iface = (TileSuperCraftingInterface) te;
+                if (iface.getControllerPos() == null) {
+                    iface.setControllerPos(pos);
+                }
             }
         }
+        updateCableConnections(interfacePos);
     }
 
     private void unbindMeInterface() {
@@ -236,6 +249,21 @@ public class TileComputationCore extends TileEntity implements IGridProxyable, I
             IBlockState state = world.getBlockState(interfacePos);
             if (state.getBlock() instanceof BlockSuperCraftingInterface && state.getValue(BlockSuperCraftingInterface.FORMED)) {
                 world.setBlockState(interfacePos, state.withProperty(BlockSuperCraftingInterface.FORMED, false));
+            }
+        }
+        updateCableConnections(interfacePos);
+    }
+
+    private void updateCableConnections(BlockPos centerPos) {
+        if (world == null || centerPos == null) return;
+        for (EnumFacing facing : EnumFacing.values()) {
+            BlockPos neighborPos = centerPos.offset(facing);
+            TileEntity te = world.getTileEntity(neighborPos);
+            if (te instanceof TileCableBus) {
+                CableBusContainer cbc = ((TileCableBus) te).getCableBus();
+                if (cbc != null) {
+                    cbc.updateConnections();
+                }
             }
         }
     }
@@ -330,7 +358,7 @@ public class TileComputationCore extends TileEntity implements IGridProxyable, I
     @Nonnull
     @Override
     public AECableType getCableConnectionType(@Nonnull AEPartLocation dir) {
-        return AECableType.SMART;
+        return AECableType.NONE;
     }
 
     @Override
@@ -338,6 +366,12 @@ public class TileComputationCore extends TileEntity implements IGridProxyable, I
     }
 
     // ---------- 网络代理生命周期 ----------
+
+    @Override
+    public void validate() {
+        super.validate();
+        this.needsReady = true;
+    }
 
     @Override
     public void invalidate() {
