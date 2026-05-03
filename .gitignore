@@ -59,6 +59,8 @@ eclipse/
 runClient/
 runServer/
 
+zone/
+*.txt
 AGENTS.md
 AGENTS_*.md
 
