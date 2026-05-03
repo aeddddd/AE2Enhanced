@@ -1,5 +1,6 @@
 package com.github.aeddddd.ae2enhanced.gui;
 
+import com.github.aeddddd.ae2enhanced.config.AE2EnhancedConfig;
 import com.github.aeddddd.ae2enhanced.tile.TileComputationCore;
 import net.minecraft.client.gui.GuiScreen;
 import net.minecraft.client.renderer.GlStateManager;
@@ -104,7 +105,7 @@ public class GuiComputationFormed extends GuiScreen {
         y += lineHeight;
 
         // Max orders from config
-        int maxOrders = com.github.aeddddd.ae2enhanced.config.AE2EnhancedConfig.crafting.maxActiveOrders;
+        int maxOrders = AE2EnhancedConfig.crafting.maxActiveOrders;
         fontRenderer.drawString(I18n.format("gui.ae2enhanced.computation.label.queue_capacity", maxOrders), x, y, TEXT_MAIN);
         y += lineHeight + 4;
 
