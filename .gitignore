@@ -59,6 +59,7 @@ eclipse/
 runClient/
 runServer/
 
+xml/
 *.css
 *.js
 *.html

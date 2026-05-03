@@ -45,7 +45,6 @@ public class RenderBlackHole extends TileEntitySpecialRenderer<TileAssemblyContr
         double centerY = y + 0.5;
         double centerZ = z + 0.5;
         switch (facing) {
-            case NORTH: centerZ += 7.0; break;
             case SOUTH: centerZ -= 7.0; break;
             case EAST:  centerX -= 7.0; break;
             case WEST:  centerX += 7.0; break;

@@ -127,14 +127,15 @@ public class GuiHyperdimensionalNexus extends GuiScreen {
         y += lineHeight;
 
         // Nexus ID
+        String nexusLabel;
         if (tile.getNexusId() != null) {
             String id = tile.getNexusId().toString().substring(0, 8);
-            fontRenderer.drawString(I18n.format("gui.ae2enhanced.nexus.label.nexus_id", id + "..."), x, y, TEXT_MAIN);
-            y += lineHeight;
+            nexusLabel = I18n.format("gui.ae2enhanced.nexus.label.nexus_id", id + "...");
         } else {
-            fontRenderer.drawString(I18n.format("gui.ae2enhanced.nexus.label.nexus_id", I18n.format("gui.ae2enhanced.nexus.nexus_id.none")), x, y, TEXT_MAIN);
-            y += lineHeight;
+            nexusLabel = I18n.format("gui.ae2enhanced.nexus.label.nexus_id", I18n.format("gui.ae2enhanced.nexus.nexus_id.none"));
         }
+        fontRenderer.drawString(nexusLabel, x, y, TEXT_MAIN);
+        y += lineHeight;
 
         // 存储统计（客户端同步字段，含物品+流体）
         boolean shift = Keyboard.isKeyDown(Keyboard.KEY_LSHIFT) || Keyboard.isKeyDown(Keyboard.KEY_RSHIFT);

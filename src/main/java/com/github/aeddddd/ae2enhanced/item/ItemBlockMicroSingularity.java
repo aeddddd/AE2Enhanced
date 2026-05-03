@@ -21,10 +21,7 @@ public class ItemBlockMicroSingularity extends ItemBlock {
 
     @Override
     public void addInformation(ItemStack stack, @Nullable World worldIn, List<String> tooltip, ITooltipFlag flagIn) {
-        String[] lines = I18n.format("tile.ae2enhanced.micro_singularity.tooltip")
-            .replace("\\n", "\n").split("\n");
-        for (String line : lines) {
-            tooltip.add(line);
-        }
+        tooltip.addAll(java.util.Arrays.asList(I18n.format("tile.ae2enhanced.micro_singularity.tooltip")
+            .replace("\\n", "\n").split("\n")));
     }
 }

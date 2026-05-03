@@ -207,7 +207,7 @@ public class GuiAssemblyUnformed extends GuiContainer {
     }
 
     @Override
-    protected void actionPerformed(GuiButton button) throws IOException {
+    protected void actionPerformed(GuiButton button) {
         if (button.id == 0) {
             AE2Enhanced.network.sendToServer(new PacketRequestAssembly(tile.getPos()));
         }

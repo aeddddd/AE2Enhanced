@@ -1,5 +1,6 @@
 package com.github.aeddddd.ae2enhanced.storage;
 
+import com.github.aeddddd.ae2enhanced.AE2Enhanced;
 import com.github.aeddddd.ae2enhanced.config.AE2EnhancedConfig;
 import net.minecraft.nbt.CompressedStreamTools;
 import net.minecraft.nbt.NBTTagCompound;
@@ -60,8 +61,8 @@ public class HyperdimensionalStorageFile {
         this.nexusId = nexusId;
         File worldDir = world.getSaveHandler().getWorldDirectory();
         File storageDir = new File(worldDir, "ae2enhanced/storage");
-        if (!storageDir.exists()) {
-            storageDir.mkdirs();
+        if (!storageDir.exists() && !storageDir.mkdirs()) {
+            AE2Enhanced.LOGGER.warn("Failed to create storage directory: {}", storageDir.getAbsolutePath());
         }
         this.file = new File(storageDir, nexusId.toString() + ".dat");
         int flushInterval = AE2EnhancedConfig.storage.flushIntervalSeconds;

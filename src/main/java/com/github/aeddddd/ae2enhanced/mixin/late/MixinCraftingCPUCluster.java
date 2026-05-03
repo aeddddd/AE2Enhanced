@@ -148,7 +148,7 @@ public class MixinCraftingCPUCluster {
         if (this.machineSrc == null) {
             return null;
         }
-        return (TileCraftingTile) this.machineSrc.machine().get();
+        return (TileCraftingTile) this.machineSrc.machine().orElse(null);
     }
 
     /**
@@ -161,15 +161,15 @@ public class MixinCraftingCPUCluster {
             this.myName = net.minecraft.client.resources.I18n.format("tile.ae2enhanced.computation_core.name");
             return;
         }
-        this.myName = "";
+        StringBuilder sb = new StringBuilder();
         for (TileCraftingTile te : this.tiles) {
             if (!te.hasCustomInventoryName()) continue;
-            if (this.myName.length() > 0) {
-                this.myName = this.myName + ' ' + te.getCustomInventoryName();
-                continue;
+            if (sb.length() > 0) {
+                sb.append(' ');
             }
-            this.myName = te.getCustomInventoryName();
+            sb.append(te.getCustomInventoryName());
         }
+        this.myName = sb.toString();
     }
 
     /**

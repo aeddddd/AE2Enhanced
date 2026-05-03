@@ -53,7 +53,7 @@ public class ContainerAssemblyFormed extends Container {
                         if (index == ItemUpgradeCard.META_CAPACITY) {
                             ItemStack stack = handler.getStackInSlot(index);
                             int newCount = Math.max(0, stack.getCount() - 1);
-                            return ((TileAssemblyController) tile).canReduceCapacity(newCount);
+                            return tile.canReduceCapacity(newCount);
                         }
                         return super.canTakeStack(playerIn);
                     }

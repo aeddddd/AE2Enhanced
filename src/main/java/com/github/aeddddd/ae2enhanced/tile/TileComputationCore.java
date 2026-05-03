@@ -431,12 +431,7 @@ public class TileComputationCore extends TileEntity implements IGridProxyable, I
             NBTTagList list = compound.getTagList(NBT_CPU_POOL, 10);
             for (int i = 0; i < list.tagCount(); i++) {
                 NBTTagCompound cpuTag = list.getCompoundTagAt(i);
-                CraftingCPUCluster cpu;
-                if (i == 0) {
-                    cpu = createCluster();
-                } else {
-                    cpu = createCluster();
-                }
+                CraftingCPUCluster cpu = createCluster();
                 try {
                     cpu.readFromNBT(cpuTag);
                 } catch (Exception e) {

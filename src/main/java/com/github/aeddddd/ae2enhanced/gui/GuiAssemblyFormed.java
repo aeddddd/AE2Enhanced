@@ -113,7 +113,7 @@ public class GuiAssemblyFormed extends GuiContainer {
     }
 
     @Override
-    protected void actionPerformed(GuiButton button) throws IOException {
+    protected void actionPerformed(GuiButton button) {
         if (button.id == 0) {
             // 通过 PacketPatternPage 让服务端打开样板 GUI，确保第一次打开与翻页使用完全相同的代码路径
             AE2Enhanced.network.sendToServer(new PacketPatternPage(tile.getPos(), 0));
