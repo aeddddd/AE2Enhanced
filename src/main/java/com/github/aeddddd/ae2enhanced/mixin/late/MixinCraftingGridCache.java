@@ -37,7 +37,7 @@ import java.util.Set;
  *   <li>Provides fallback job submission that dynamically spawns new virtual clusters</li>
  * </ul>
  */
-@Mixin(value = CraftingGridCache.class, remap = false, priority = 1000)
+@Mixin(value = CraftingGridCache.class, remap = false)
 public class MixinCraftingGridCache {
 
     @Shadow
@@ -87,16 +87,19 @@ public class MixinCraftingGridCache {
 
     @Inject(method = "updateCPUClusters()V", at = @At("TAIL"))
     private void ae2enhanced$injectComputationCores(CallbackInfo ci) {
+        int injected = 0;
         for (TileComputationCore core : ae2enhanced$computationCores) {
             if (core.isFormed()) {
                 for (CraftingCPUCluster cpu : core.getCpuPool()) {
                     this.craftingCPUClusters.add(cpu);
+                    injected++;
                     if (cpu.getLastCraftingLink() != null) {
                         this.addLink((CraftingLink) cpu.getLastCraftingLink());
                     }
                 }
             }
         }
+        // virtual CPUs injected silently
     }
 
     // ==================== Job Submission Fallback ====================

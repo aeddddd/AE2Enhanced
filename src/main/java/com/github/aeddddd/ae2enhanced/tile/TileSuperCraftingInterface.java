@@ -62,23 +62,11 @@ public class TileSuperCraftingInterface extends TileEntity implements IGridProxy
 
     @Override
     public IGridNode getGridNode(@Nonnull AEPartLocation dir) {
-        AE2Enhanced.LOGGER.warn("[AE2E] super_crafting_interface at {} getGridNode called: controllerPos={}, world={}",
-            pos, controllerPos, world != null);
-        if (controllerPos != null && world != null) {
-            TileEntity te = world.getTileEntity(controllerPos);
-            AE2Enhanced.LOGGER.warn("[AE2E] super_crafting_interface at {} controllerPos={}, te={}, instanceof={}",
-                pos, controllerPos, te != null ? te.getClass().getSimpleName() : "null",
-                te instanceof TileComputationCore);
-        }
         TileComputationCore controller = getController();
         if (controller != null && controller.isFormed()) {
             AENetworkProxy proxy = controller.getProxy();
-            IGridNode node = proxy != null ? proxy.getNode() : null;
-            AE2Enhanced.LOGGER.warn("[AE2E] super_crafting_interface at {} getGridNode returning node={}", pos, node);
-            return node;
+            return proxy != null ? proxy.getNode() : null;
         }
-        AE2Enhanced.LOGGER.warn("[AE2E] super_crafting_interface at {} getGridNode returning null: controller={}, formed={}",
-            pos, controller != null, controller != null ? controller.isFormed() : "N/A");
         return null;
     }
 

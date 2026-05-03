@@ -8,7 +8,7 @@ AE2Enhanced is a late-game addon for **AE2 Unofficial Extended Life (AE2-UEL)** 
 
 - **Supercausal Assembly Hub** — a 344-block crafting array similar to LazyAE's Large Molecular Assembler, allowing extreme parallelism and speed for crafting patterns.
 - **Hyperdimensional Storage Nexus** — an unlimited-capacity storage structure that bypasses the `long` limit, supporting items, fluids, Mekanism gases, and Thaumcraft essentia, with data persisted to external files to prevent save bloat.
-- More multiblock structures planned for future updates.
+- **Supercausal Computation Core** — a super crafting CPU with `Long.MAX_VALUE` storage and 16384 parallel accelerator capacity, supporting multi-order concurrency via dynamic virtual CPU cluster pools.
 
 ---
 
@@ -38,6 +38,29 @@ Designed to solve the late-game AE2 network storage capacity bottleneck.
 
 ---
 
+## Supercausal Computation Core
+
+A third-stage multiblock structure that acts as a **super crafting CPU** for the AE2 network.
+
+- **Massive crafting storage**: `Long.MAX_VALUE` bytes of crafting storage — effectively unlimited for any practical order.
+- **16384 accelerator capacity**: Configurable via `AE2EnhancedConfig.crafting.maxParallel`.
+- **Multi-order concurrency**: Dynamically spawns virtual `CraftingCPUCluster` instances to handle concurrent crafting jobs. Each order gets its own cluster; idle extra clusters are automatically recycled.
+- **Network-native integration**: The core borrows the controller's AE2 network node directly, appearing as a native CPU to the network. No separate ME cable connection is required for the controller itself.
+- **ME Interface block**: A dedicated `super_crafting_interface` block acts as the cable access point for the structure.
+- **Dyson-sphere TESR**: Full-structure holographic projection with a solid core, tech grid, panels, energy streams, and orbital rings.
+- **Big-number formatting**: Z/Y units with scientific notation and Shift-toggle for precise quantity display.
+
+### Multi-order Support (Mixin Architecture)
+
+The Computation Core manages a pool of virtual `CraftingCPUCluster` instances via Mixin into AE2's `CraftingGridCache`:
+
+- `MixinCraftingGridCache` tracks `TileComputationCore` instances through `addNode`/`removeNode` lifecycle hooks.
+- After each `updateCPUClusters()` rebuild, virtual clusters are re-injected into `craftingCPUClusters`.
+- A fallback reflection-based injection runs every 5 ticks to ensure the terminal always sees the latest CPU pool.
+- `MixinCraftingCPUCluster` redirects `getCore()` and `updateCraftingLogic()` for virtual clusters, enabling batch crafting with network inventory refill.
+
+---
+
 ## Performance
 
 ### Assembly Hub
@@ -47,6 +70,9 @@ Uses a **hybrid virtual + real crafting mechanism**. Even for extremely large or
 
 ### Hyperdimensional Storage Nexus
 Uses an **asynchronous + incremental refresh model** with external file storage, fundamentally solving NBT overflow and tick lag issues while supporting extremely high storage capacity.
+
+### Computation Core
+Virtual CPU clusters minimize overhead by delegating actual crafting to existing network assemblers and ME interfaces. The dynamic pool ensures resources are only allocated when needed.
 
 > Built-in support for Mekanism gases and Thaumcraft essentia is automatically enabled when the corresponding mods are installed. Support for other storage types can be requested in `issues`, and an API is provided for easy extension.
 
@@ -62,6 +88,7 @@ Located at `config/ae2enhanced.cfg`, the following parameters are adjustable:
 | Render | `enableHyperdimensionalRenderer` | Enable effect rendering (default: true) |
 | Render | `renderDistance` | Maximum render distance in blocks (default: 64) |
 | BlackHole | `damageMode` | Black hole damage mode: ALL / NON_CREATIVE / NONE (default: ALL) |
+| Crafting | `maxParallel` | Computation Core accelerator capacity (default: 16384) |
 
 ---
 

@@ -109,8 +109,6 @@ public class TileComputationCore extends TileEntity implements IGridProxyable, I
         this.cpuPool.add(primary);
 
         getProxy().onReady();
-        AE2Enhanced.LOGGER.info("[AE2E] ComputationCore proxy ready at {}, node={}", pos, getProxy().getNode());
-
         bindMeInterface();
 
         markDirty();
@@ -161,6 +159,10 @@ public class TileComputationCore extends TileEntity implements IGridProxyable, I
 
         if (formed && world.getTotalWorldTime() % 20 == 0) {
             bindMeInterface();
+        }
+
+        if (formed && world.getTotalWorldTime() % 5 == 0) {
+            injectCpuPoolIntoCraftingGridCache();
         }
 
         if (!formed || cpuPool.isEmpty()) return;
@@ -463,5 +465,34 @@ public class TileComputationCore extends TileEntity implements IGridProxyable, I
     @Override
     public boolean shouldRefresh(World world, BlockPos pos, net.minecraft.block.state.IBlockState oldState, net.minecraft.block.state.IBlockState newState) {
         return oldState.getBlock() != newState.getBlock();
+    }
+
+    // ---------- 备用方案：直接注入 CraftingGridCache ----------
+
+    private void injectCpuPoolIntoCraftingGridCache() {
+        try {
+            IGridNode node = getProxy().getNode();
+            if (node == null || node.getGrid() == null) return;
+            appeng.me.cache.CraftingGridCache cache;
+            try {
+                cache = node.getGrid().getCache(appeng.me.cache.CraftingGridCache.class);
+            } catch (NullPointerException e) {
+                return; // grid not fully initialized yet
+            }
+            if (cache == null) return;
+            java.lang.reflect.Field field = appeng.me.cache.CraftingGridCache.class.getDeclaredField("craftingCPUClusters");
+            field.setAccessible(true);
+            @SuppressWarnings("unchecked")
+            java.util.Set<appeng.me.cluster.implementations.CraftingCPUCluster> set =
+                (java.util.Set<appeng.me.cluster.implementations.CraftingCPUCluster>) field.get(cache);
+            if (set == null) return;
+            for (appeng.me.cluster.implementations.CraftingCPUCluster cpu : cpuPool) {
+                if (cpu != null) {
+                    set.add(cpu);
+                }
+            }
+        } catch (Exception e) {
+            AE2Enhanced.LOGGER.error("[AE2E] injectCpuPoolIntoCraftingGridCache failed", e);
+        }
     }
 }
