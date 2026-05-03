@@ -13,6 +13,6 @@ public class BlockCausalAnchorCore extends Block {
         setHardness(5.0F);
         setResistance(10.0F);
         setHarvestLevel("pickaxe", 2);
-        setCreativeTab(net.minecraft.creativetab.CreativeTabs.BUILDING_BLOCKS);
+        setCreativeTab(AE2Enhanced.CREATIVE_TAB);
     }
 }

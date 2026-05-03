@@ -11,6 +11,7 @@ import com.github.aeddddd.ae2enhanced.config.AE2EnhancedConfig;
 import com.github.aeddddd.ae2enhanced.proxy.CommonProxy;
 import net.minecraft.init.Blocks;
 import net.minecraft.init.Items;
+import net.minecraft.creativetab.CreativeTabs;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.util.ResourceLocation;
@@ -50,6 +51,13 @@ public class AE2Enhanced {
     public static final Logger LOGGER = LogManager.getLogger(MOD_ID);
     public static SimpleNetworkWrapper network;
 
+    public static final CreativeTabs CREATIVE_TAB = new CreativeTabs(MOD_ID) {
+        @Override
+        public ItemStack createIcon() {
+            return new ItemStack(ModItems.CONFORMAL_CHARGE);
+        }
+    };
+
     @Mod.EventHandler
     public void preInit(FMLPreInitializationEvent event) {
         ConfigManager.sync(MOD_ID, net.minecraftforge.common.config.Config.Type.INSTANCE);
@@ -69,6 +77,9 @@ public class AE2Enhanced {
         LOGGER.info("[AE2E] Registered {} black hole recipes", BlackHoleRecipeRegistry.getRecipes().size());
         // 执行 CraftTweaker 延迟移除（CT 脚本可能在 init() 之前执行）
         BlackHoleRecipeRegistry.applyPendingRemovals();
+        // 注册共形不变荷为物质炮弹药
+        appeng.api.AEApi.instance().registries().matterCannon().registerAmmo(
+                new ItemStack(ModItems.CONFORMAL_CHARGE), 512.0);
     }
 
     @Mod.EventHandler

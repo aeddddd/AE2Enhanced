@@ -25,7 +25,7 @@ public class BlockSuperCraftingInterface extends Block {
         setHardness(4.0F);
         setResistance(8.0F);
         setHarvestLevel("pickaxe", 1);
-        setCreativeTab(net.minecraft.creativetab.CreativeTabs.BUILDING_BLOCKS);
+        setCreativeTab(AE2Enhanced.CREATIVE_TAB);
         setDefaultState(blockState.getBaseState().withProperty(FORMED, false));
     }
 

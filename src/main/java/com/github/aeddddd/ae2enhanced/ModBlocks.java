@@ -75,21 +75,21 @@ public class ModBlocks {
     @SubscribeEvent
     public static void registerItems(RegistryEvent.Register<Item> event) {
         event.getRegistry().registerAll(
-            new ItemBlock(ASSEMBLY_CONTROLLER).setRegistryName(ASSEMBLY_CONTROLLER.getRegistryName()).setCreativeTab(CreativeTabs.BUILDING_BLOCKS),
-            new ItemBlock(ASSEMBLY_ME_INTERFACE).setRegistryName(ASSEMBLY_ME_INTERFACE.getRegistryName()).setCreativeTab(CreativeTabs.BUILDING_BLOCKS),
-            new ItemBlock(ASSEMBLY_CASING).setRegistryName(ASSEMBLY_CASING.getRegistryName()).setCreativeTab(CreativeTabs.BUILDING_BLOCKS),
-            new ItemBlock(ASSEMBLY_INNER_WALL).setRegistryName(ASSEMBLY_INNER_WALL.getRegistryName()).setCreativeTab(CreativeTabs.BUILDING_BLOCKS),
-            new ItemBlock(ASSEMBLY_STABILIZER).setRegistryName(ASSEMBLY_STABILIZER.getRegistryName()).setCreativeTab(CreativeTabs.BUILDING_BLOCKS),
-            new ItemBlockMicroSingularity(MICRO_SINGULARITY).setRegistryName(MICRO_SINGULARITY.getRegistryName()).setCreativeTab(CreativeTabs.BUILDING_BLOCKS),
-            new ItemBlock(HYPERDIMENSIONAL_CONTROLLER).setRegistryName(HYPERDIMENSIONAL_CONTROLLER.getRegistryName()).setCreativeTab(CreativeTabs.BUILDING_BLOCKS),
-            new ItemBlock(HYPERDIMENSIONAL_ME_INTERFACE).setRegistryName(HYPERDIMENSIONAL_ME_INTERFACE.getRegistryName()).setCreativeTab(CreativeTabs.BUILDING_BLOCKS),
-            new ItemBlock(HYPERDIMENSIONAL_CASING).setRegistryName(HYPERDIMENSIONAL_CASING.getRegistryName()).setCreativeTab(CreativeTabs.BUILDING_BLOCKS),
-            new ItemBlock(HYPERDIMENSIONAL_SINGULARITY_CORE).setRegistryName(HYPERDIMENSIONAL_SINGULARITY_CORE.getRegistryName()).setCreativeTab(CreativeTabs.BUILDING_BLOCKS),
-            new ItemBlock(COMPUTATION_CORE).setRegistryName(COMPUTATION_CORE.getRegistryName()).setCreativeTab(CreativeTabs.BUILDING_BLOCKS),
-            new ItemBlock(CONSTANT_TENSOR_FIELD_CASING).setRegistryName(CONSTANT_TENSOR_FIELD_CASING.getRegistryName()).setCreativeTab(CreativeTabs.BUILDING_BLOCKS),
-            new ItemBlock(CONSTANT_SPINOR_FIELD_CASING).setRegistryName(CONSTANT_SPINOR_FIELD_CASING.getRegistryName()).setCreativeTab(CreativeTabs.BUILDING_BLOCKS),
-            new ItemBlock(CAUSAL_ANCHOR_CORE).setRegistryName(CAUSAL_ANCHOR_CORE.getRegistryName()).setCreativeTab(CreativeTabs.BUILDING_BLOCKS),
-            new ItemBlock(SUPER_CRAFTING_INTERFACE).setRegistryName(SUPER_CRAFTING_INTERFACE.getRegistryName()).setCreativeTab(CreativeTabs.BUILDING_BLOCKS)
+            new ItemBlock(ASSEMBLY_CONTROLLER).setRegistryName(ASSEMBLY_CONTROLLER.getRegistryName()).setCreativeTab(AE2Enhanced.CREATIVE_TAB),
+            new ItemBlock(ASSEMBLY_ME_INTERFACE).setRegistryName(ASSEMBLY_ME_INTERFACE.getRegistryName()).setCreativeTab(AE2Enhanced.CREATIVE_TAB),
+            new ItemBlock(ASSEMBLY_CASING).setRegistryName(ASSEMBLY_CASING.getRegistryName()).setCreativeTab(AE2Enhanced.CREATIVE_TAB),
+            new ItemBlock(ASSEMBLY_INNER_WALL).setRegistryName(ASSEMBLY_INNER_WALL.getRegistryName()).setCreativeTab(AE2Enhanced.CREATIVE_TAB),
+            new ItemBlock(ASSEMBLY_STABILIZER).setRegistryName(ASSEMBLY_STABILIZER.getRegistryName()).setCreativeTab(AE2Enhanced.CREATIVE_TAB),
+            new ItemBlockMicroSingularity(MICRO_SINGULARITY).setRegistryName(MICRO_SINGULARITY.getRegistryName()).setCreativeTab(AE2Enhanced.CREATIVE_TAB),
+            new ItemBlock(HYPERDIMENSIONAL_CONTROLLER).setRegistryName(HYPERDIMENSIONAL_CONTROLLER.getRegistryName()).setCreativeTab(AE2Enhanced.CREATIVE_TAB),
+            new ItemBlock(HYPERDIMENSIONAL_ME_INTERFACE).setRegistryName(HYPERDIMENSIONAL_ME_INTERFACE.getRegistryName()).setCreativeTab(AE2Enhanced.CREATIVE_TAB),
+            new ItemBlock(HYPERDIMENSIONAL_CASING).setRegistryName(HYPERDIMENSIONAL_CASING.getRegistryName()).setCreativeTab(AE2Enhanced.CREATIVE_TAB),
+            new ItemBlock(HYPERDIMENSIONAL_SINGULARITY_CORE).setRegistryName(HYPERDIMENSIONAL_SINGULARITY_CORE.getRegistryName()).setCreativeTab(AE2Enhanced.CREATIVE_TAB),
+            new ItemBlock(COMPUTATION_CORE).setRegistryName(COMPUTATION_CORE.getRegistryName()).setCreativeTab(AE2Enhanced.CREATIVE_TAB),
+            new ItemBlock(CONSTANT_TENSOR_FIELD_CASING).setRegistryName(CONSTANT_TENSOR_FIELD_CASING.getRegistryName()).setCreativeTab(AE2Enhanced.CREATIVE_TAB),
+            new ItemBlock(CONSTANT_SPINOR_FIELD_CASING).setRegistryName(CONSTANT_SPINOR_FIELD_CASING.getRegistryName()).setCreativeTab(AE2Enhanced.CREATIVE_TAB),
+            new ItemBlock(CAUSAL_ANCHOR_CORE).setRegistryName(CAUSAL_ANCHOR_CORE.getRegistryName()).setCreativeTab(AE2Enhanced.CREATIVE_TAB),
+            new ItemBlock(SUPER_CRAFTING_INTERFACE).setRegistryName(SUPER_CRAFTING_INTERFACE.getRegistryName()).setCreativeTab(AE2Enhanced.CREATIVE_TAB)
         );
     }
 }
