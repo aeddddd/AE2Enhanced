@@ -1,19 +1,27 @@
 package com.github.aeddddd.ae2enhanced.tile;
 
+import appeng.api.networking.IGrid;
 import appeng.api.networking.IGridNode;
+import appeng.api.networking.crafting.ICraftingJob;
+import appeng.api.networking.crafting.ICraftingLink;
+import appeng.api.networking.crafting.ICraftingRequester;
 import appeng.api.networking.events.MENetworkCraftingCpuChange;
 import appeng.api.networking.security.IActionHost;
+import appeng.api.storage.channels.IItemStorageChannel;
+import appeng.api.storage.data.IAEItemStack;
 import appeng.api.util.AECableType;
 import appeng.api.util.AEPartLocation;
 import appeng.api.util.DimensionalCoord;
+import appeng.api.util.WorldCoord;
+import appeng.me.cluster.implementations.CraftingCPUCluster;
 import appeng.me.helpers.AENetworkProxy;
 import appeng.me.helpers.IGridProxyable;
+import appeng.me.helpers.MachineSource;
+import com.github.aeddddd.ae2enhanced.AE2Enhanced;
 import com.github.aeddddd.ae2enhanced.ModBlocks;
-import com.github.aeddddd.ae2enhanced.crafting.ComputationCoreCPU;
-import com.github.aeddddd.ae2enhanced.crafting.CraftingOrder;
-import com.github.aeddddd.ae2enhanced.crafting.OrderScheduler;
-import com.github.aeddddd.ae2enhanced.crafting.ParallelAllocator;
+import com.github.aeddddd.ae2enhanced.config.AE2EnhancedConfig;
 import net.minecraft.nbt.NBTTagCompound;
+import net.minecraft.nbt.NBTTagList;
 import net.minecraft.network.NetworkManager;
 import net.minecraft.network.play.server.SPacketUpdateTileEntity;
 import net.minecraft.tileentity.TileEntity;
@@ -22,35 +30,36 @@ import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
 
 import javax.annotation.Nonnull;
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
 
 /**
  * 超因果计算核心 TileEntity。
  *
- * 设计定位：网络中的超级 Crafting CPU，不存储任何样板。
- * 玩家通过 AE 终端下单，订单由 AE2 CraftingGrid 路由至本核心执行。
- * 内部引擎（OrderScheduler + ParallelAllocator）管理订单队列与 16384 并行分配。
+ * <p>设计定位：网络中的超级 Crafting CPU。不再实现自定义合成引擎，而是直接创建并管理
+ * 原生的 {@link CraftingCPUCluster} 实例，通过 Mixin 将其行为重定向到本 TileEntity。</p>
  *
- * 集成方式：通过 Mixin 向 AE2 CraftingGridCache 注册为可用 CPU 节点。
- * 不实现 ICraftingProvider / ICraftingMedium（样板由网络中其他设备提供）。
+ * <p>每个计算核心维护一个 {@code cpuPool}，其中索引 0 为常驻集群，其余为动态生成的额外集群。
+ * 当多个订单并发时，终端会自动看到多个 CPU；订单完成后空闲的额外集群会被自动回收。</p>
  */
 public class TileComputationCore extends TileEntity implements IGridProxyable, IActionHost, ITickable {
 
-    public static final int MAX_PARALLEL = ParallelAllocator.MAX_PARALLEL; // 16384
+    public static final int MAX_PARALLEL = 16384;
+    private static final String NBT_CPU_POOL = "cpuPool";
+    private static final String DEFAULT_NAME = "Supercausal Computation Core";
 
     private boolean formed = false;
     private int parallelLimit = 0;
-    private int activeOrderCount = 0;
 
     // AE2 网络代理
     private AENetworkProxy proxy;
     private boolean needsReady = false;
 
-    // ICraftingCPU 代理
-    private ComputationCoreCPU cpuProxy;
-
-    // 核心引擎
-    private final OrderScheduler scheduler = new OrderScheduler(MAX_PARALLEL);
-    private final ParallelAllocator parallelAllocator = new ParallelAllocator();
+    // CPU 集群池：索引 0 为常驻集群，>0 为动态集群
+    private final List<CraftingCPUCluster> cpuPool = new ArrayList<>();
 
     // ---------- 状态访问 ----------
 
@@ -62,20 +71,21 @@ public class TileComputationCore extends TileEntity implements IGridProxyable, I
         return parallelLimit;
     }
 
+    public List<CraftingCPUCluster> getCpuPool() {
+        return cpuPool;
+    }
+
+    /**
+     * 返回当前活跃的合成订单数量（即处于忙碌状态的 CPU 集群数）。
+     */
     public int getActiveOrderCount() {
-        return activeOrderCount;
-    }
-
-    public OrderScheduler getScheduler() {
-        return scheduler;
-    }
-
-    public ParallelAllocator getParallelAllocator() {
-        return parallelAllocator;
-    }
-
-    public ComputationCoreCPU getCpuProxy() {
-        return cpuProxy;
+        int count = 0;
+        for (CraftingCPUCluster cpu : cpuPool) {
+            if (cpu.isBusy()) {
+                count++;
+            }
+        }
+        return count;
     }
 
     @Override
@@ -88,8 +98,10 @@ public class TileComputationCore extends TileEntity implements IGridProxyable, I
     public void assemble(int parallelLimit) {
         this.formed = true;
         this.parallelLimit = parallelLimit;
-        this.activeOrderCount = 0;
-        this.cpuProxy = new ComputationCoreCPU(this);
+
+        CraftingCPUCluster primary = createCluster();
+        this.cpuPool.add(primary);
+
         markDirty();
         syncToClient();
         if (proxy != null) {
@@ -107,13 +119,16 @@ public class TileComputationCore extends TileEntity implements IGridProxyable, I
         IGridNode node = getProxy().getNode();
         this.formed = false;
         this.parallelLimit = 0;
-        this.activeOrderCount = 0;
-        this.cpuProxy = null;
-        // 清理活跃订单
-        for (CraftingOrder order : scheduler.getActiveOrdersSnapshot()) {
-            scheduler.fail(order);
+
+        for (CraftingCPUCluster cpu : new ArrayList<>(cpuPool)) {
+            try {
+                cpu.cancel();
+            } catch (Exception e) {
+                AE2Enhanced.LOGGER.error("[AE2E] Error cancelling CraftingCPUCluster on disassemble: {}", e.toString());
+            }
         }
-        parallelAllocator.reset();
+        cpuPool.clear();
+
         if (node != null && node.getGrid() != null) {
             node.getGrid().postEvent(new MENetworkCraftingCpuChange(node));
         }
@@ -130,22 +145,111 @@ public class TileComputationCore extends TileEntity implements IGridProxyable, I
     public void update() {
         if (world == null || world.isRemote) return;
 
-        // 延迟就绪代理（避免 tile 初始化时 world 尚未绑定）
         if (needsReady && formed) {
             needsReady = false;
             getProxy().onReady();
         }
 
-        // P1：驱动内部订单调度器
-        if (formed) {
-            tickScheduler();
+        if (!formed || cpuPool.isEmpty()) return;
+
+        // 清理空闲的额外集群
+        Iterator<CraftingCPUCluster> it = cpuPool.iterator();
+        boolean changed = false;
+        while (it.hasNext()) {
+            CraftingCPUCluster cpu = it.next();
+            if (cpu != cpuPool.get(0) && !cpu.isBusy() && isInventoryEmpty(cpu)) {
+                it.remove();
+                changed = true;
+            }
+        }
+        if (changed) {
+            IGridNode node = getProxy().getNode();
+            if (node != null && node.getGrid() != null) {
+                node.getGrid().postEvent(new MENetworkCraftingCpuChange(node));
+            }
         }
     }
 
-    private void tickScheduler() {
-        // P1 骨架：仅同步活跃订单数到客户端
-        this.activeOrderCount = scheduler.getActiveCount();
-        // TODO: P1 完整实现 —— 从 scheduler 取订单、执行子批次、注入产物
+    // ---------- Job Submission ----------
+
+    /**
+     * 尝试提交合成任务。先检查现有空闲集群，若全部忙碌则动态创建新集群。
+     */
+    public ICraftingLink trySpawnAndSubmitJob(IGrid grid, ICraftingJob job,
+                                               appeng.api.networking.security.IActionSource src,
+                                               ICraftingRequester req) {
+        if (!formed || cpuPool.isEmpty()) {
+            return null;
+        }
+
+        // 1. 尝试现有空闲集群
+        for (CraftingCPUCluster cpu : cpuPool) {
+            if (!cpu.isBusy()) {
+                return cpu.submitJob(grid, job, src, req);
+            }
+        }
+
+        // 2. 动态创建新集群
+        CraftingCPUCluster newCpu = createCluster();
+        cpuPool.add(newCpu);
+
+        // 触发 CraftingGridCache 重建以注册新集群
+        IGridNode node = getProxy().getNode();
+        if (node != null && node.getGrid() != null) {
+            node.getGrid().postEvent(new MENetworkCraftingCpuChange(node));
+        }
+
+        return newCpu.submitJob(grid, job, src, req);
+    }
+
+    // ---------- 辅助方法 ----------
+
+    private boolean isInventoryEmpty(CraftingCPUCluster cpu) {
+        appeng.api.storage.data.IItemList<IAEItemStack> list =
+            appeng.api.AEApi.instance().storage().getStorageChannel(IItemStorageChannel.class).createList();
+        cpu.getInventory().getAvailableItems(list);
+        return list.isEmpty();
+    }
+
+    // ---------- 集群创建 ----------
+
+    private CraftingCPUCluster createCluster() {
+        CraftingCPUCluster cluster = new CraftingCPUCluster(
+            new WorldCoord(pos.getX(), pos.getY(), pos.getZ()),
+            new WorldCoord(pos.getX(), pos.getY(), pos.getZ())
+        );
+
+        try {
+            // 设置 machineSrc 指向本 TileEntity（IActionHost）
+            Field machineSrcField = CraftingCPUCluster.class.getDeclaredField("machineSrc");
+            machineSrcField.setAccessible(true);
+            machineSrcField.set(cluster, new MachineSource(this));
+
+            // 设置无限存储
+            Field availableStorageField = CraftingCPUCluster.class.getDeclaredField("availableStorage");
+            availableStorageField.setAccessible(true);
+            availableStorageField.setLong(cluster, Long.MAX_VALUE);
+
+            // 设置 16384 协处理器
+            Field acceleratorField = CraftingCPUCluster.class.getDeclaredField("accelerator");
+            acceleratorField.setAccessible(true);
+            acceleratorField.setInt(cluster, MAX_PARALLEL);
+
+            // 设置固定名称
+            Field myNameField = CraftingCPUCluster.class.getDeclaredField("myName");
+            myNameField.setAccessible(true);
+            myNameField.set(cluster, DEFAULT_NAME);
+
+            // 设置 Mixin 字段，标记该集群属于本计算核心
+            Field mixinCoreField = CraftingCPUCluster.class.getDeclaredField("ae2enhanced$computationCore");
+            mixinCoreField.setAccessible(true);
+            mixinCoreField.set(cluster, this);
+
+        } catch (Exception e) {
+            AE2Enhanced.LOGGER.error("[AE2E] Failed to setup CraftingCPUCluster for Computation Core", e);
+        }
+
+        return cluster;
     }
 
     // ---------- IGridProxyable ----------
@@ -220,9 +324,28 @@ public class TileComputationCore extends TileEntity implements IGridProxyable, I
         super.readFromNBT(compound);
         this.formed = compound.getBoolean("formed");
         this.parallelLimit = compound.getInteger("parallelLimit");
-        this.activeOrderCount = compound.getInteger("activeOrderCount");
         if (compound.hasKey("proxy")) {
             getProxy().readFromNBT(compound.getCompoundTag("proxy"));
+        }
+
+        if (formed && compound.hasKey(NBT_CPU_POOL)) {
+            NBTTagList list = compound.getTagList(NBT_CPU_POOL, 10);
+            for (int i = 0; i < list.tagCount(); i++) {
+                NBTTagCompound cpuTag = list.getCompoundTagAt(i);
+                CraftingCPUCluster cpu;
+                if (i == 0) {
+                    cpu = createCluster();
+                } else {
+                    cpu = createCluster();
+                }
+                try {
+                    cpu.readFromNBT(cpuTag);
+                } catch (Exception e) {
+                    AE2Enhanced.LOGGER.error("[AE2E] Failed to read CraftingCPUCluster NBT, dropping cluster: {}", e.toString());
+                    continue;
+                }
+                cpuPool.add(cpu);
+            }
         }
     }
 
@@ -231,8 +354,16 @@ public class TileComputationCore extends TileEntity implements IGridProxyable, I
         super.writeToNBT(compound);
         compound.setBoolean("formed", formed);
         compound.setInteger("parallelLimit", parallelLimit);
-        compound.setInteger("activeOrderCount", activeOrderCount);
         getProxy().writeToNBT(compound);
+
+        NBTTagList list = new NBTTagList();
+        for (CraftingCPUCluster cpu : cpuPool) {
+            NBTTagCompound cpuTag = new NBTTagCompound();
+            cpu.writeToNBT(cpuTag);
+            list.appendTag(cpuTag);
+        }
+        compound.setTag(NBT_CPU_POOL, list);
+
         return compound;
     }
 

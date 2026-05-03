@@ -1,0 +1,17 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "DSD",
+    "SIS",
+    "DSD"
+  ],
+  "key": {
+    "D": { "item": "ae2enhanced:differential_form_stabilizer" },
+    "S": { "item": "minecraft:stonebrick" },
+    "I": { "item": "minecraft:iron_ingot" }
+  },
+  "result": {
+    "item": "ae2enhanced:constant_spinor_field_casing",
+    "count": 8
+  }
+}

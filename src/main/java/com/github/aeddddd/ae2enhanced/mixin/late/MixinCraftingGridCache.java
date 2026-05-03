@@ -9,11 +9,11 @@ import appeng.api.networking.crafting.ICraftingLink;
 import appeng.api.networking.crafting.ICraftingRequester;
 import appeng.api.networking.events.MENetworkCraftingCpuChange;
 import appeng.api.networking.security.IActionSource;
+import appeng.api.storage.data.IAEItemStack;
 import appeng.me.cache.CraftingGridCache;
 import appeng.me.cluster.implementations.CraftingCPUCluster;
-import com.github.aeddddd.ae2enhanced.crafting.ComputationCoreCPU;
+import appeng.crafting.CraftingLink;
 import com.github.aeddddd.ae2enhanced.tile.TileComputationCore;
-import com.google.common.collect.ImmutableSet;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
@@ -23,17 +23,19 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
-import java.util.ArrayList;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Set;
 
 /**
- * Mixin into {@link CraftingGridCache} to recognise {@link TileComputationCore} as a valid Crafting CPU.
+ * Mixin into {@link CraftingGridCache} to recognise {@link TileComputationCore} virtual CraftingCPUClusters.
  *
- * <p>AE2-UEL hard-codes {@code instanceof TileCraftingTile} inside {@code addNode} and stores CPUs in a
- * {@code Set<CraftingCPUCluster>}. This mixin injects a parallel {@code Set<ComputationCoreCPU>} and extends
- * all relevant accessors so the Computation Core appears in terminal CPU lists and can receive jobs.</p>
+ * <p>AE2-UEL stores CPUs in {@code Set<CraftingCPUCluster>} and rebuilds it from physical
+ * {@link appeng.tile.crafting.TileCraftingStorageTile} machines. This mixin:</p>
+ * <ul>
+ *   <li>Tracks {@link TileComputationCore} instances via addNode/removeNode</li>
+ *   <li>Re-injects virtual clusters into {@code craftingCPUClusters} after each rebuild</li>
+ *   <li>Provides fallback job submission that dynamically spawns new virtual clusters</li>
+ * </ul>
  */
 @Mixin(value = CraftingGridCache.class, remap = false, priority = 1000)
 public class MixinCraftingGridCache {
@@ -46,8 +48,18 @@ public class MixinCraftingGridCache {
     @Final
     private IGrid grid;
 
+    @Shadow
+    public void updateCPUClusters(MENetworkCraftingCpuChange event) {
+        // shadow
+    }
+
+    @Shadow
+    public void addLink(CraftingLink link) {
+        // shadow
+    }
+
     @Unique
-    private final Set<ComputationCoreCPU> ae2enhanced$computationCores = new HashSet<>();
+    private final Set<TileComputationCore> ae2enhanced$computationCores = new HashSet<>();
 
     // ==================== Node Lifecycle ====================
 
@@ -55,12 +67,9 @@ public class MixinCraftingGridCache {
     private void ae2enhanced$onAddNode(IGridNode node, IGridHost host, CallbackInfo ci) {
         if (host instanceof TileComputationCore) {
             TileComputationCore core = (TileComputationCore) host;
+            ae2enhanced$computationCores.add(core);
             if (core.isFormed()) {
-                ComputationCoreCPU cpu = core.getCpuProxy();
-                if (cpu != null) {
-                    ae2enhanced$computationCores.add(cpu);
-                    updateCPUClusters(new MENetworkCraftingCpuChange(node));
-                }
+                updateCPUClusters(new MENetworkCraftingCpuChange(node));
             }
         }
     }
@@ -69,50 +78,63 @@ public class MixinCraftingGridCache {
     private void ae2enhanced$onRemoveNode(IGridNode node, IGridHost host, CallbackInfo ci) {
         if (host instanceof TileComputationCore) {
             TileComputationCore core = (TileComputationCore) host;
-            ComputationCoreCPU cpu = core.getCpuProxy();
-            if (cpu != null) {
-                ae2enhanced$computationCores.remove(cpu);
-                updateCPUClusters(new MENetworkCraftingCpuChange(node));
+            ae2enhanced$computationCores.remove(core);
+            updateCPUClusters(new MENetworkCraftingCpuChange(node));
+        }
+    }
+
+    // ==================== CPU Cluster Rebuild ====================
+
+    @Inject(method = "updateCPUClusters()V", at = @At("TAIL"))
+    private void ae2enhanced$injectComputationCores(CallbackInfo ci) {
+        for (TileComputationCore core : ae2enhanced$computationCores) {
+            if (core.isFormed()) {
+                for (CraftingCPUCluster cpu : core.getCpuPool()) {
+                    this.craftingCPUClusters.add(cpu);
+                    if (cpu.getLastCraftingLink() != null) {
+                        this.addLink((CraftingLink) cpu.getLastCraftingLink());
+                    }
+                }
             }
         }
     }
 
-    @Shadow
-    public void updateCPUClusters(MENetworkCraftingCpuChange event) {
-        // shadow
-    }
+    // ==================== Job Submission Fallback ====================
 
-    // ==================== CPU Enumeration ====================
-
-    /**
-     * @author AE2Enhanced
-     * @reason Include ComputationCoreCPUs alongside native CraftingCPUClusters in CPU enumeration.
-     */
-    @SuppressWarnings("OverwriteModifiers")
-    @org.spongepowered.asm.mixin.Overwrite
-    public ImmutableSet<ICraftingCPU> getCpus() {
-        List<ICraftingCPU> all = new ArrayList<>(craftingCPUClusters.size() + ae2enhanced$computationCores.size());
-        all.addAll(craftingCPUClusters);
-        all.addAll(ae2enhanced$computationCores);
-        return ImmutableSet.copyOf(all);
-    }
-
-    @Inject(method = "hasCpu", at = @At("HEAD"), cancellable = true)
-    private void ae2enhanced$hasCpu(ICraftingCPU cpu, CallbackInfoReturnable<Boolean> cir) {
-        if (cpu instanceof ComputationCoreCPU && ae2enhanced$computationCores.contains(cpu)) {
-            cir.setReturnValue(true);
+    @Inject(method = "submitJob", at = @At("RETURN"), cancellable = true)
+    private void ae2enhanced$submitJobFallback(ICraftingJob job, ICraftingRequester requestingMachine,
+                                                ICraftingCPU target, boolean prioritizePower, IActionSource src,
+                                                CallbackInfoReturnable<ICraftingLink> cir) {
+        if (cir.getReturnValue() != null) {
+            return; // original already succeeded
+        }
+        if (job == null || job.isSimulation()) {
+            return;
+        }
+        if (target != null) {
+            return; // explicit target was busy or invalid; do not spawn behind user's back
+        }
+        for (TileComputationCore core : ae2enhanced$computationCores) {
+            if (!core.isFormed()) continue;
+            ICraftingLink link = core.trySpawnAndSubmitJob(grid, job, src, requestingMachine);
+            if (link != null) {
+                cir.setReturnValue(link);
+                return;
+            }
         }
     }
 
-    // ==================== Job Submission ====================
+    // ==================== hasCpu ====================
 
-    @Inject(method = "submitJob", at = @At("HEAD"), cancellable = true)
-    private void ae2enhanced$submitJob(ICraftingJob job, ICraftingRequester req, ICraftingCPU targetCpu,
-                                        boolean prioritizePower, IActionSource src,
-                                        CallbackInfoReturnable<ICraftingLink> cir) {
-        if (targetCpu instanceof ComputationCoreCPU) {
-            ICraftingLink link = ((ComputationCoreCPU) targetCpu).submitJob(grid, job, src, req);
-            cir.setReturnValue(link);
+    @Inject(method = "hasCpu", at = @At("HEAD"), cancellable = true)
+    private void ae2enhanced$hasCpu(ICraftingCPU cpu, CallbackInfoReturnable<Boolean> cir) {
+        if (cpu instanceof CraftingCPUCluster) {
+            for (TileComputationCore core : ae2enhanced$computationCores) {
+                if (core.getCpuPool().contains(cpu)) {
+                    cir.setReturnValue(true);
+                    return;
+                }
+            }
         }
     }
 }

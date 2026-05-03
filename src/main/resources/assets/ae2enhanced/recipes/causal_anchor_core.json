@@ -1,0 +1,17 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "C C",
+    "DID",
+    "C C"
+  ],
+  "key": {
+    "C": { "item": "ae2enhanced:conformal_invariant_charge" },
+    "D": { "item": "minecraft:diamond" },
+    "I": { "item": "minecraft:iron_ingot" }
+  },
+  "result": {
+    "item": "ae2enhanced:causal_anchor_core",
+    "count": 4
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "MSM",
+    "SIS",
+    "MSM"
+  ],
+  "key": {
+    "M": { "item": "ae2enhanced:stable_spacetime_manifold" },
+    "S": { "item": "minecraft:stonebrick" },
+    "I": { "item": "minecraft:iron_ingot" }
+  },
+  "result": {
+    "item": "ae2enhanced:constant_tensor_field_casing",
+    "count": 8
+  }
+}

@@ -12,8 +12,8 @@ import net.minecraft.world.World;
 import java.util.*;
 
 /**
- * �����������Ķ෽��ṹ��������֤��
- * ����ԭ��Ϊ������λ�� (0,0,0)����Ӧ JSON �е� (0,0,6)��
+ * 超因果计算核心的多方块结构验证系统
+ * 坐标原点为控制器位置 (0,0,0)，对应 JSON 中的 (0,0,6)。
  */
 public class SupercausalStructure {
 
@@ -923,25 +923,25 @@ public class SupercausalStructure {
     }
 
     /**
-     * ��֤�ṹ�����ԡ�
-     * @return ��֤����������Ƿ�ͨ����ȱʧ����ͳ�ơ����ê������������������Ĳ�������
+     * 验证结构完整性。
+     * @return 验证结果，包含是否通过、缺失方块统计、因果锚定核心数量和计算出的并行上限。
      */
     public static ValidationResult validate(World world, BlockPos controllerPos) {
         EnumFacing facing = getControllerFacing(world, controllerPos);
         Map<Block, Integer> missing = new LinkedHashMap<>();
         int causalCount = 0;
 
-        // ��֤�㶨���������
+        // 验证恒定张量场外壳
         for (BlockPos rel : TENSOR_CASING_SET) {
             BlockPos actual = controllerPos.add(rotate(rel, facing));
             if (!world.isBlockLoaded(actual)) continue;
             if (world.getBlockState(actual).getBlock() != ModBlocks.CONSTANT_TENSOR_FIELD_CASING) {
-                if (actual.equals(controllerPos)) continue; // ������λ������ block1 ռ��
+                if (actual.equals(controllerPos)) continue; // 控制器位置由核心方块占用，跳过
                 missing.put(ModBlocks.CONSTANT_TENSOR_FIELD_CASING, missing.getOrDefault(ModBlocks.CONSTANT_TENSOR_FIELD_CASING, 0) + 1);
             }
         }
 
-        // ��֤���ê������
+        // 验证因果锚定核心
         for (BlockPos rel : CAUSAL_ANCHOR_SET) {
             BlockPos actual = controllerPos.add(rotate(rel, facing));
             if (!world.isBlockLoaded(actual)) continue;
@@ -952,7 +952,7 @@ public class SupercausalStructure {
             }
         }
 
-        // ��֤�㶨���������
+        // 验证恒定旋量场外壳
         for (BlockPos rel : SPINOR_CASING_SET) {
             BlockPos actual = controllerPos.add(rotate(rel, facing));
             if (!world.isBlockLoaded(actual)) continue;
@@ -961,7 +961,7 @@ public class SupercausalStructure {
             }
         }
 
-        // ��֤ ME �ӿ�
+        // 验证 ME 接口
         BlockPos meInterfacePos = controllerPos.add(rotate(ME_INTERFACE_REL, facing));
         boolean meInterfaceValid = false;
         if (world.isBlockLoaded(meInterfacePos)) {
@@ -978,8 +978,8 @@ public class SupercausalStructure {
     }
 
     /**
-     * �������ê�������������㲢�����ޡ�
-     * ��ʽ��1024 + floor(causalCount / 21) * 1024������ 16384
+     * 根据因果锚定核心数量计算并行上限。
+     * 当前直接返回配置值 maxParallel（默认 16384）。
      */
     public static int computeParallel(int causalCount) {
         return AE2EnhancedConfig.crafting.maxParallel;

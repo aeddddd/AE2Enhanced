@@ -1,20 +1,29 @@
 package com.github.aeddddd.ae2enhanced.mixin.late;
 
 import appeng.api.networking.IGrid;
+import appeng.api.networking.IGridNode;
 import appeng.api.networking.crafting.ICraftingMedium;
 import appeng.api.networking.crafting.ICraftingPatternDetails;
+import appeng.api.networking.energy.IEnergyGrid;
 import appeng.api.storage.data.IAEItemStack;
 import appeng.api.storage.data.IItemList;
 import appeng.me.cluster.implementations.CraftingCPUCluster;
 import appeng.me.cache.CraftingGridCache;
-import appeng.api.networking.energy.IEnergyGrid;
+import appeng.me.helpers.MachineSource;
+import appeng.tile.crafting.TileCraftingMonitorTile;
+import appeng.tile.crafting.TileCraftingTile;
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
 import com.github.aeddddd.ae2enhanced.tile.TileAssemblyController;
 import com.github.aeddddd.ae2enhanced.tile.TileAssemblyMeInterface;
+import com.github.aeddddd.ae2enhanced.tile.TileComputationCore;
 import net.minecraft.inventory.InventoryCrafting;
 import net.minecraft.item.ItemStack;
 import net.minecraft.util.NonNullList;
+import net.minecraft.world.World;
 import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Overwrite;
+import org.spongepowered.asm.mixin.Shadow;
+import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
@@ -28,7 +37,216 @@ import java.util.Map;
 @Mixin(value = CraftingCPUCluster.class, remap = false, priority = 1000)
 public class MixinCraftingCPUCluster {
 
-    // ---- 反射缓存 ----
+    // ==================== Computation Core Support ====================
+
+    @Unique
+    private TileComputationCore ae2enhanced$computationCore;
+
+    public void ae2enhanced$setComputationCore(TileComputationCore core) {
+        this.ae2enhanced$computationCore = core;
+    }
+
+    public TileComputationCore ae2enhanced$getComputationCore() {
+        return this.ae2enhanced$computationCore;
+    }
+
+    @Shadow
+    private MachineSource machineSrc;
+
+    @Shadow
+    private String myName;
+
+    @Shadow
+    private boolean isDestroyed;
+
+    @Shadow
+    private List<TileCraftingTile> tiles;
+
+    @Shadow
+    private List<TileCraftingMonitorTile> status;
+
+    @Shadow
+    private void updateCPU() {
+    }
+
+    // ==================== Overwrites for Virtual Clusters ====================
+
+    /**
+     * @author AE2Enhanced
+     * @reason Redirect isActive to TileComputationCore proxy node when this cluster belongs to a Computation Core.
+     */
+    @Overwrite
+    public boolean isActive() {
+        if (ae2enhanced$computationCore != null) {
+            IGridNode node = ae2enhanced$computationCore.getActionableNode();
+            return node != null && node.isActive();
+        }
+        TileCraftingTile core = this.getCore();
+        if (core == null) {
+            return false;
+        }
+        IGridNode node = core.getActionableNode();
+        if (node == null) {
+            return false;
+        }
+        return node.isActive();
+    }
+
+    /**
+     * @author AE2Enhanced
+     * @reason Redirect markDirty to TileComputationCore instead of TileCraftingTile for virtual clusters.
+     */
+    @Overwrite
+    private void markDirty() {
+        if (ae2enhanced$computationCore != null) {
+            ae2enhanced$computationCore.markDirty();
+            return;
+        }
+        this.getCore().saveChanges();
+    }
+
+    /**
+     * @author AE2Enhanced
+     * @reason Redirect getGrid to TileComputationCore proxy for virtual clusters.
+     */
+    @Overwrite
+    private IGrid getGrid() {
+        if (ae2enhanced$computationCore != null) {
+            IGridNode node = ae2enhanced$computationCore.getActionableNode();
+            return node != null ? node.getGrid() : null;
+        }
+        for (TileCraftingTile r : this.tiles) {
+            IGrid g;
+            IGridNode gn = r.getActionableNode();
+            if (gn == null || (g = gn.getGrid()) == null) continue;
+            return r.getActionableNode().getGrid();
+        }
+        return null;
+    }
+
+    /**
+     * @author AE2Enhanced
+     * @reason Redirect getWorld to TileComputationCore for virtual clusters.
+     */
+    @Overwrite
+    private World getWorld() {
+        if (ae2enhanced$computationCore != null) {
+            return ae2enhanced$computationCore.getWorld();
+        }
+        return this.getCore().getWorld();
+    }
+
+    /**
+     * @author AE2Enhanced
+     * @reason Prevent ClassCastException when machineSrc points to TileComputationCore instead of TileCraftingTile.
+     */
+    @Overwrite
+    private TileCraftingTile getCore() {
+        if (ae2enhanced$computationCore != null) {
+            return null;
+        }
+        if (this.machineSrc == null) {
+            return null;
+        }
+        return (TileCraftingTile) this.machineSrc.machine().get();
+    }
+
+    /**
+     * @author AE2Enhanced
+     * @reason Set fixed localized name for virtual clusters instead of reading from physical tiles.
+     */
+    @Overwrite
+    public void updateName() {
+        if (ae2enhanced$computationCore != null) {
+            this.myName = net.minecraft.client.resources.I18n.format("tile.ae2enhanced.computation_core.name");
+            return;
+        }
+        this.myName = "";
+        for (TileCraftingTile te : this.tiles) {
+            if (!te.hasCustomInventoryName()) continue;
+            if (this.myName.length() > 0) {
+                this.myName = this.myName + ' ' + te.getCustomInventoryName();
+                continue;
+            }
+            this.myName = te.getCustomInventoryName();
+        }
+    }
+
+    /**
+     * @author AE2Enhanced
+     * @reason No-op for virtual clusters — there is no physical cluster to break.
+     */
+    @Overwrite
+    public void breakCluster() {
+        if (ae2enhanced$computationCore != null) {
+            return;
+        }
+        TileCraftingTile t = this.getCore();
+        if (t != null) {
+            t.breakCluster();
+        }
+    }
+
+    /**
+     * @author AE2Enhanced
+     * @reason No-op for virtual clusters — there is no physical core tile to restore state on.
+     */
+    @Overwrite
+    void done() {
+        if (ae2enhanced$computationCore != null) {
+            return;
+        }
+        TileCraftingTile core = this.getCore();
+        core.setCoreBlock(true);
+        if (core.getPreviousState() != null) {
+            ((CraftingCPUCluster) (Object) this).readFromNBT(core.getPreviousState());
+            core.setPreviousState(null);
+        }
+        this.updateCPU();
+        this.updateName();
+    }
+
+    /**
+     * @author AE2Enhanced
+     * @reason No-op for virtual clusters — avoid marking them as destroyed so they remain visible in terminals.
+     */
+    @Overwrite
+    public void destroy() {
+        if (ae2enhanced$computationCore != null) {
+            return;
+        }
+        if (this.isDestroyed) {
+            return;
+        }
+        this.isDestroyed = true;
+        boolean posted = false;
+        for (TileCraftingTile r : this.tiles) {
+            IGrid g;
+            IGridNode n = r.getActionableNode();
+            if (n != null && !posted && (g = n.getGrid()) != null) {
+                g.postEvent(new appeng.api.networking.events.MENetworkCraftingCpuChange(n));
+                posted = true;
+            }
+            r.updateStatus(null);
+        }
+    }
+
+    /**
+     * @author AE2Enhanced
+     * @reason No-op for virtual clusters — there are no physical tiles to update metadata on.
+     */
+    @Overwrite
+    public void updateStatus(boolean updateGrid) {
+        if (ae2enhanced$computationCore != null) {
+            return;
+        }
+        for (TileCraftingTile r : this.tiles) {
+            r.updateMeta(true);
+        }
+    }
+
+    // ==================== Batch Crafting (Assembly Hub) — retained ====================
+
     private static Field tasksField;
     private static Field remOpsField;
     private static Field remItemCountField;
@@ -41,14 +259,10 @@ public class MixinCraftingCPUCluster {
     private static boolean reflectionReady = false;
     private static boolean reflectionFailed = false;
 
-    // ---- 诊断计数器 ----
     private static int batchCallCount = 0;
     private static int batchSuccessCount = 0;
     private static int batchFailCount = 0;
 
-    /**
-     * 从 CraftingCPUCluster 关联的网络存储中提取指定物品，用于 batch 运行时补充 inventory 中不足的原料。
-     */
     private static appeng.api.storage.data.IAEItemStack fetchFromNetwork(
             CraftingCPUCluster cpu,
             appeng.api.storage.data.IAEItemStack request,
@@ -111,14 +325,6 @@ public class MixinCraftingCPUCluster {
         }
     }
 
-    /**
-     * 在 updateCraftingLogic 开头检查：如果 tasks 已空但 isComplete 仍为 false，
-     * 且没有等待返回的产物（waitingFor 为空），才手动调用 completeJob() 结束任务。
-     *
-     * 注意：普通 ME 接口的处理样板（Processing Pattern）在发配后 tasks 会变空，
-     * 但预期产物会登记在 waitingFor 中，必须等产物实际返回后才能标记完成。
-     * 因此必须同时检查 waitingFor 为空，避免破坏原版处理样板逻辑。
-     */
     @Inject(method = "updateCraftingLogic", at = @At("HEAD"))
     private void onUpdateCraftingLogicHead(IGrid grid, IEnergyGrid eg, CraftingGridCache cache, CallbackInfo ci) {
         if (reflectionFailed) return;
@@ -134,7 +340,6 @@ public class MixinCraftingCPUCluster {
             if (!isComplete && tasks.isEmpty()) {
                 @SuppressWarnings("unchecked")
                 IItemList<IAEItemStack> waitingFor = (IItemList<IAEItemStack>) waitingForField.get(cpu);
-                // 只有当没有等待返回的产物时才强制完成，避免影响处理样板
                 if (waitingFor == null || waitingFor.isEmpty()) {
                     completeJobMethod.invoke(cpu);
                 }
@@ -165,7 +370,6 @@ public class MixinCraftingCPUCluster {
             @SuppressWarnings("unchecked")
             IItemList<IAEItemStack> waitingFor = (IItemList<IAEItemStack>) waitingForField.get(cpu);
 
-            // 循环遍历直到没有更多 entry 能被 batch，处理套娃合成的链式依赖
             boolean changed;
             int doWhileIterations = 0;
             do {
@@ -177,7 +381,6 @@ public class MixinCraftingCPUCluster {
                     long remaining = taskProgressValueField.getLong(progress);
                     if (remaining <= 0) continue;
 
-                    // 带有替代品的配方走原生路径，避免 SIMULATE 与模糊匹配不一致
                     if (details.canSubstitute()) continue;
 
                     List<ICraftingMedium> mediums = cache.getMediums(details);
@@ -190,7 +393,6 @@ public class MixinCraftingCPUCluster {
                         TileAssemblyController controller = ((TileAssemblyMeInterface) medium).getController();
                         if (controller == null) continue;
 
-                        // ---------- 真实合成 batch 分支 ----------
                         if (!controller.isVirtualPattern(details)) {
                             if (details.canSubstitute()) break;
                             if (!controller.canBatch()) break;
@@ -209,7 +411,6 @@ public class MixinCraftingCPUCluster {
                                 TileAssemblyController.PatternBatchInfo info = controller.getPatternBatchInfo(details, meInv, source);
                                 if (info == null || info.recipe == null) break;
 
-                                // 消耗性转换（耐久扣减、能量变化等）必须逐件处理，不能 batch
                                 if (info.transformSlots != null && info.transformSlots.cardinality() > 0) {
                                     actualBatchSize = 1;
                                 }
@@ -236,13 +437,11 @@ public class MixinCraftingCPUCluster {
                                     IAEItemStack simResult = meInv.extractItems(need, SIMULATE, source);
                                     if (simResult == null || simResult.getStackSize() < needCount) {
                                         if (info.catalystSlots.get(i) || info.transformSlots.get(i)) {
-                                            // 催化剂/转换物品不足：尝试从网络补充 1 份到 inventory
                                             IAEItemStack toFetch = info.slotTemplates[i].copy();
                                             toFetch.setStackSize(1);
                                             IAEItemStack fetched = fetchFromNetwork(cpu, toFetch, source);
                                             if (fetched != null && fetched.getStackSize() > 0) {
                                                 meInv.injectItems(fetched, MODULATE, source);
-                                                // 重新检查
                                                 simResult = meInv.extractItems(need, SIMULATE, source);
                                                 if (simResult == null || simResult.getStackSize() < needCount) {
                                                     canExtract = false;
@@ -251,7 +450,6 @@ public class MixinCraftingCPUCluster {
                                                 canExtract = false;
                                             }
                                         } else {
-                                            // 普通原料不足：尝试从网络补充差额到 inventory
                                             long missing = needCount - (simResult != null ? simResult.getStackSize() : 0);
                                             IAEItemStack toFetch = info.slotTemplates[i].copy();
                                             toFetch.setStackSize(missing);
@@ -315,7 +513,6 @@ public class MixinCraftingCPUCluster {
                                     ItemStack rem = recipeRemaining.get(i);
                                     if (rem.isEmpty()) continue;
                                     if (info.catalystSlots.get(i)) {
-                                        // 催化剂不消耗，直接返还到 CPU inventory，确保下一批 batch 仍有催化剂可用
                                         IAEItemStack catalystReturn = info.slotTemplates[i].copy();
                                         catalystReturn.setStackSize(1);
                                         meInv.injectItems(catalystReturn, MODULATE, source);
@@ -329,7 +526,6 @@ public class MixinCraftingCPUCluster {
                                 long newRemaining = remaining - actualBatchSize;
                                 taskProgressValueField.setLong(progress, newRemaining);
 
-                                // 同步 remainingOperations 和 remainingItemCount，确保 AE2 预提取逻辑继续补充原料
                                 long oldRemOps = remOpsField.getLong(cpu);
                                 remOpsField.setLong(cpu, oldRemOps - actualBatchSize);
                                 long oldRemItemCount = remItemCountField.getLong(cpu);
@@ -353,26 +549,20 @@ public class MixinCraftingCPUCluster {
                             break;
                         }
 
-                        // ---------- 虚拟合成 batch 分支（原有逻辑）----------
-
-                        // 速度升级冷却检查：冷却未结束则跳过，留给下次 tick
                         if (!controller.canBatch()) continue;
                         virtualTasksFound++;
 
-                        // 并行度限制：无限制时一次性处理全部，有限制时每批最多 cap 个
                         long cap = controller.getParallelCap();
                         long batchSize = (cap >= Long.MAX_VALUE / 2) ? remaining : Math.min(remaining, cap);
 
                         appeng.api.networking.security.IActionSource source = cpu.getActionSource();
                         controller.setCurrentActionSource(source);
                         try {
-                            // 直接操作 CPU inventory 的内部列表，保证嵌套配方时产物能被上层 canCraft() 识别
                             appeng.crafting.MECraftingInventory meInv = (appeng.crafting.MECraftingInventory) cpu.getInventory();
                             IItemList<IAEItemStack> itemList = meInv.getItemList();
                             appeng.api.config.Actionable SIMULATE = appeng.api.config.Actionable.SIMULATE;
                             appeng.api.config.Actionable MODULATE = appeng.api.config.Actionable.MODULATE;
 
-                            // 1. SIMULATE 检查原料是否足够
                             boolean canExtract = true;
                             for (IAEItemStack inputTemplate : details.getCondensedInputs()) {
                                 if (inputTemplate == null || inputTemplate.getStackSize() <= 0) continue;
@@ -387,10 +577,9 @@ public class MixinCraftingCPUCluster {
                                 }
                             }
                             if (!canExtract) {
-                                continue; // 原料不足，留给 AE2 正常流程或下次循环
+                                continue;
                             }
 
-                            // 2. MODULATE 扣除原料并通知监听器
                             for (IAEItemStack inputTemplate : details.getCondensedInputs()) {
                                 if (inputTemplate == null || inputTemplate.getStackSize() <= 0) continue;
                                 long totalNeed = inputTemplate.getStackSize() * batchSize;
@@ -405,7 +594,6 @@ public class MixinCraftingCPUCluster {
                                 }
                             }
 
-                            // 3. 将产物加入 inventory 内部列表、清理 waitingFor 残留、通知监听器
                             long totalOutputItems = 0;
                             for (IAEItemStack outputTemplate : details.getCondensedOutputs()) {
                                 if (outputTemplate == null || outputTemplate.getStackSize() <= 0) continue;
@@ -419,7 +607,6 @@ public class MixinCraftingCPUCluster {
                                 postChange.invoke(cpu, product.copy(), source);
                                 postCraftingStatusChange.invoke(cpu, product.copy());
 
-                                // 清理 waitingFor 中可能由之前回退到原生逻辑时添加的残留条目
                                 if (waitingFor != null) {
                                     IAEItemStack waiting = waitingFor.findPrecise(outputTemplate);
                                     if (waiting != null) {
@@ -431,16 +618,13 @@ public class MixinCraftingCPUCluster {
                                 }
                             }
 
-                            // 4. 更新 taskProgress：直接改写 value，让原生 executeCrafting 在下一轮自动移除（value<=0）或继续处理
                             long newRemaining = remaining - batchSize;
                             taskProgressValueField.setLong(progress, newRemaining);
 
-                            // 标记控制器为 busy，防止原生 executeCrafting 在同一 tick 内再次处理该 entry
                             controller.setBatchBusy(true);
 
                             changed = true;
                             virtualTasksExecuted++;
-                            // batch 成功执行后重置冷却（由速度升级决定冷却时长）
                             controller.resetBatchCooldown();
 
                             AE2Enhanced.LOGGER.debug("[AE2E Batch] Processed {}x {} -> remaining={}",

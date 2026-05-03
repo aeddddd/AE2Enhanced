@@ -107,8 +107,10 @@ public class BlockComputationCore extends Block {
                     SupercausalStructure.ValidationResult result = SupercausalStructure.validate(world, pos);
                     if (result.passed) {
                         SupercausalStructure.assemble(world, pos);
+                        player.openGui(AE2Enhanced.instance, GuiHandler.GUI_COMPUTATION_FORMED, world, pos.getX(), pos.getY(), pos.getZ());
+                    } else {
+                        player.openGui(AE2Enhanced.instance, GuiHandler.GUI_COMPUTATION_UNFORMED, world, pos.getX(), pos.getY(), pos.getZ());
                     }
-                    player.openGui(AE2Enhanced.instance, GuiHandler.GUI_COMPUTATION_UNFORMED, world, pos.getX(), pos.getY(), pos.getZ());
                 } else {
                     player.openGui(AE2Enhanced.instance, GuiHandler.GUI_COMPUTATION_FORMED, world, pos.getX(), pos.getY(), pos.getZ());
                 }
