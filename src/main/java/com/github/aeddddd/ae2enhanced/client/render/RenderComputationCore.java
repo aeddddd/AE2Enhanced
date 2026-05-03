@@ -417,48 +417,5 @@ public class RenderComputationCore extends TileEntitySpecialRenderer<TileComputa
         GlStateManager.popMatrix();
     }
 
-    // -----------------------------------------------------------------
-    // Polar jets
-    // -----------------------------------------------------------------
-    private void drawPolarJets(float coreR, int color, float alpha, float time) {
-        float r = ((color >> 16) & 0xFF) / 255.0f;
-        float g = ((color >> 8) & 0xFF) / 255.0f;
-        float b = (color & 0xFF) / 255.0f;
 
-        Tessellator tess = Tessellator.getInstance();
-        BufferBuilder buf = tess.getBuffer();
-
-        int jetLines = 8;
-        float jetLen = JET_LENGTH;
-
-        for (int side = 0; side < 2; side++) {
-            float sign = (side == 0) ? 1f : -1f;
-            GL11.glLineWidth(2.5f);
-
-            for (int line = 0; line < jetLines; line++) {
-                float seed = line * 2.37f + side * 10f;
-                float spreadAngle = (line - jetLines / 2f) * 0.06f;
-                float baseAngle = fracSin(seed + time * 0.05f) * (float) Math.PI * 2f;
-
-                buf.begin(GL11.GL_LINE_STRIP, DefaultVertexFormats.POSITION_COLOR);
-                for (int seg = 0; seg <= 12; seg++) {
-                    float t = seg / 12f;
-                    float curLen = coreR + t * jetLen;
-                    float spread = t * spreadAngle * 2f;
-                    float wobble = (float) Math.sin(t * 4f + time + seed) * 0.12f * t;
-
-                    float px = (float) Math.cos(baseAngle + spread) * (coreR * 0.25f + wobble);
-                    float py = sign * curLen;
-                    float pz = (float) Math.sin(baseAngle + spread) * (coreR * 0.25f + wobble);
-                    float a = alpha * (1f - t * 0.55f);
-                    buf.pos(px, py, pz).color(r, g, b, a).endVertex();
-                }
-                tess.draw();
-            }
-        }
-    }
-
-    private static float fracSin(float v) {
-        return (float) (Math.sin(v * 17.13f) * 0.5f + 0.5f);
-    }
 }
