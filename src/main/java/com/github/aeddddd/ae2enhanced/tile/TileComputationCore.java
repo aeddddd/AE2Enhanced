@@ -19,12 +19,16 @@ import appeng.me.helpers.IGridProxyable;
 import appeng.me.helpers.MachineSource;
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
 import com.github.aeddddd.ae2enhanced.ModBlocks;
+import com.github.aeddddd.ae2enhanced.block.BlockSuperCraftingInterface;
 import com.github.aeddddd.ae2enhanced.config.AE2EnhancedConfig;
+import com.github.aeddddd.ae2enhanced.structure.SupercausalStructure;
+import net.minecraft.block.state.IBlockState;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.nbt.NBTTagList;
 import net.minecraft.network.NetworkManager;
 import net.minecraft.network.play.server.SPacketUpdateTileEntity;
 import net.minecraft.tileentity.TileEntity;
+import net.minecraft.util.EnumFacing;
 import net.minecraft.util.ITickable;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
@@ -102,6 +106,8 @@ public class TileComputationCore extends TileEntity implements IGridProxyable, I
         CraftingCPUCluster primary = createCluster();
         this.cpuPool.add(primary);
 
+        bindMeInterface();
+
         markDirty();
         syncToClient();
         if (proxy != null) {
@@ -128,6 +134,8 @@ public class TileComputationCore extends TileEntity implements IGridProxyable, I
             }
         }
         cpuPool.clear();
+
+        unbindMeInterface();
 
         if (node != null && node.getGrid() != null) {
             node.getGrid().postEvent(new MENetworkCraftingCpuChange(node));
@@ -200,6 +208,42 @@ public class TileComputationCore extends TileEntity implements IGridProxyable, I
         }
 
         return newCpu.submitJob(grid, job, src, req);
+    }
+
+    // ---------- ME 接口绑定 ----------
+
+    private void bindMeInterface() {
+        if (world == null) return;
+        BlockPos interfacePos = getMeInterfacePos();
+        if (interfacePos == null) return;
+        TileEntity te = world.getTileEntity(interfacePos);
+        if (te instanceof TileSuperCraftingInterface) {
+            ((TileSuperCraftingInterface) te).setControllerPos(pos);
+            IBlockState state = world.getBlockState(interfacePos);
+            if (state.getBlock() instanceof BlockSuperCraftingInterface && !state.getValue(BlockSuperCraftingInterface.FORMED)) {
+                world.setBlockState(interfacePos, state.withProperty(BlockSuperCraftingInterface.FORMED, true));
+            }
+        }
+    }
+
+    private void unbindMeInterface() {
+        if (world == null) return;
+        BlockPos interfacePos = getMeInterfacePos();
+        if (interfacePos == null) return;
+        TileEntity te = world.getTileEntity(interfacePos);
+        if (te instanceof TileSuperCraftingInterface) {
+            ((TileSuperCraftingInterface) te).setControllerPos(null);
+            IBlockState state = world.getBlockState(interfacePos);
+            if (state.getBlock() instanceof BlockSuperCraftingInterface && state.getValue(BlockSuperCraftingInterface.FORMED)) {
+                world.setBlockState(interfacePos, state.withProperty(BlockSuperCraftingInterface.FORMED, false));
+            }
+        }
+    }
+
+    private BlockPos getMeInterfacePos() {
+        if (world == null) return null;
+        EnumFacing facing = SupercausalStructure.getControllerFacing(world, pos);
+        return pos.add(SupercausalStructure.rotate(SupercausalStructure.ME_INTERFACE_REL, facing));
     }
 
     // ---------- 辅助方法 ----------

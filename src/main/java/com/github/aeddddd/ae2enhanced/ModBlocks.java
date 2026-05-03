@@ -8,6 +8,7 @@ import com.github.aeddddd.ae2enhanced.tile.TileHyperdimensionalController;
 import com.github.aeddddd.ae2enhanced.tile.TileHyperdimensionalMeInterface;
 import com.github.aeddddd.ae2enhanced.tile.TileMicroSingularity;
 import com.github.aeddddd.ae2enhanced.tile.TileComputationCore;
+import com.github.aeddddd.ae2enhanced.tile.TileSuperCraftingInterface;
 import net.minecraft.block.Block;
 import net.minecraft.item.Item;
 import net.minecraft.creativetab.CreativeTabs;
@@ -68,6 +69,7 @@ public class ModBlocks {
         GameRegistry.registerTileEntity(TileHyperdimensionalController.class, AE2Enhanced.MOD_ID + ":hyperdimensional_controller");
         GameRegistry.registerTileEntity(TileHyperdimensionalMeInterface.class, AE2Enhanced.MOD_ID + ":hyperdimensional_me_interface");
         GameRegistry.registerTileEntity(TileComputationCore.class, AE2Enhanced.MOD_ID + ":computation_core");
+        GameRegistry.registerTileEntity(TileSuperCraftingInterface.class, AE2Enhanced.MOD_ID + ":super_crafting_interface");
     }
 
     @SubscribeEvent
