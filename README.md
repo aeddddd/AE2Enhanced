@@ -44,7 +44,7 @@ A third-stage multiblock structure that acts as a **super crafting CPU** for the
 
 - **Massive crafting storage**: `Long.MAX_VALUE` bytes of crafting storage — effectively unlimited for any practical order.
 - **16384 accelerator capacity**: Configurable via `AE2EnhancedConfig.crafting.maxParallel`.
-- **Multi-order concurrency**: Dynamically spawns virtual `CraftingCPUCluster` instances to handle concurrent crafting jobs. Each order gets its own cluster; idle extra clusters are automatically recycled.
+- **Multi-order concurrency**: Dynamically spawns virtual `CraftingCPUCluster` instances to handle concurrent crafting jobs. **Always maintains at least 1 idle CPU** to ensure new orders can be placed at any time; idle extra clusters are automatically recycled after orders complete.
 - **Network-native integration**: The core borrows the controller's AE2 network node directly, appearing as a native CPU to the network. No separate ME cable connection is required for the controller itself.
 - **ME Interface block**: A dedicated `super_crafting_interface` block acts as the cable access point for the structure.
 - **Dyson-sphere TESR**: Full-structure holographic projection with a solid core, tech grid, panels, energy streams, and orbital rings.
@@ -56,8 +56,8 @@ The Computation Core manages a pool of virtual `CraftingCPUCluster` instances vi
 
 - `MixinCraftingGridCache` tracks `TileComputationCore` instances through `addNode`/`removeNode` lifecycle hooks.
 - After each `updateCPUClusters()` rebuild, virtual clusters are re-injected into `craftingCPUClusters`.
-- A fallback reflection-based injection runs every 5 ticks to ensure the terminal always sees the latest CPU pool.
-- `MixinCraftingCPUCluster` redirects `getCore()` and `updateCraftingLogic()` for virtual clusters, enabling batch crafting with network inventory refill.
+- A fallback reflection-based injection runs every tick to ensure the terminal always sees the latest CPU pool.
+- `MixinCraftingCPUCluster` redirects `getCore()` / `isActive()` / `updateCraftingLogic()` for virtual clusters, enabling batch crafting with network inventory refill.
 
 ---
 
@@ -72,7 +72,7 @@ Uses a **hybrid virtual + real crafting mechanism**. Even for extremely large or
 Uses an **asynchronous + incremental refresh model** with external file storage, fundamentally solving NBT overflow and tick lag issues while supporting extremely high storage capacity.
 
 ### Computation Core
-Virtual CPU clusters minimize overhead by delegating actual crafting to existing network assemblers and ME interfaces. The dynamic pool ensures resources are only allocated when needed.
+Virtual CPU clusters minimize overhead by delegating actual crafting to existing network assemblers and ME interfaces. The dynamic pool ensures resources are only allocated when needed, and always keeps 1 idle CPU available for terminal ordering.
 
 > Built-in support for Mekanism gases and Thaumcraft essentia is automatically enabled when the corresponding mods are installed. Support for other storage types can be requested in `issues`, and an API is provided for easy extension.
 
