@@ -9,7 +9,6 @@ import appeng.api.networking.crafting.ICraftingLink;
 import appeng.api.networking.crafting.ICraftingRequester;
 import appeng.api.networking.events.MENetworkCraftingCpuChange;
 import appeng.api.networking.security.IActionSource;
-import appeng.api.storage.data.IAEItemStack;
 import appeng.me.cache.CraftingGridCache;
 import appeng.me.cluster.implementations.CraftingCPUCluster;
 import appeng.crafting.CraftingLink;

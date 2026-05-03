@@ -1,6 +1,5 @@
 package com.github.aeddddd.ae2enhanced.container;
 
-import com.github.aeddddd.ae2enhanced.AE2Enhanced;
 import com.github.aeddddd.ae2enhanced.item.ItemUpgradeCard;
 import com.github.aeddddd.ae2enhanced.tile.TileAssemblyController;
 import net.minecraft.entity.player.EntityPlayer;

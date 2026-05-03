@@ -1,6 +1,5 @@
 package com.github.aeddddd.ae2enhanced.structure;
 
-import com.github.aeddddd.ae2enhanced.AE2Enhanced;
 import com.github.aeddddd.ae2enhanced.ModBlocks;
 import com.github.aeddddd.ae2enhanced.config.AE2EnhancedConfig;
 import net.minecraft.block.Block;

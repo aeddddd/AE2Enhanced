@@ -20,7 +20,6 @@ import appeng.me.helpers.IGridProxyable;
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
 import com.github.aeddddd.ae2enhanced.ModBlocks;
 import com.github.aeddddd.ae2enhanced.block.BlockAssemblyController;
-import com.github.aeddddd.ae2enhanced.crafting.BlackHoleCraftingHelper;
 import com.github.aeddddd.ae2enhanced.crafting.BlackHoleRecipe;
 import com.github.aeddddd.ae2enhanced.crafting.BlackHoleRecipeRegistry;
 import com.github.aeddddd.ae2enhanced.item.ItemUpgradeCard;
@@ -53,7 +52,6 @@ import net.minecraft.util.text.ITextComponent;
 import net.minecraft.util.text.TextComponentTranslation;
 
 
-import net.minecraftforge.common.DimensionManager;
 import net.minecraftforge.common.capabilities.Capability;
 import net.minecraftforge.common.util.Constants;
 import net.minecraftforge.items.CapabilityItemHandler;

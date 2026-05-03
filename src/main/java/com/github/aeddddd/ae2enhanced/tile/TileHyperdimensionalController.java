@@ -1,10 +1,8 @@
 package com.github.aeddddd.ae2enhanced.tile;
 
 import appeng.api.networking.IGridNode;
-import appeng.api.networking.security.IActionHost;
 import appeng.api.storage.ICellContainer;
 import appeng.api.storage.ICellInventory;
-import appeng.api.storage.ISaveProvider;
 import appeng.api.util.AECableType;
 import appeng.api.util.AEPartLocation;
 import appeng.api.util.DimensionalCoord;
@@ -19,18 +17,15 @@ import com.github.aeddddd.ae2enhanced.storage.OptionalStorageManager;
 import com.github.aeddddd.ae2enhanced.storage.SimpleMEMonitor;
 import appeng.api.AEApi;
 import appeng.api.storage.IMEInventoryHandler;
-import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.EnumFacing;
 import net.minecraft.util.ITickable;
-import net.minecraft.util.math.BlockPos;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Collections;
 import java.util.List;
-import java.util.Optional;
 import java.util.UUID;
 
 /**
