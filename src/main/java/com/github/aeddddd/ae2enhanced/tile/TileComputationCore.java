@@ -161,7 +161,7 @@ public class TileComputationCore extends TileEntity implements IGridProxyable, I
             bindMeInterface();
         }
 
-        if (formed && world.getTotalWorldTime() % 5 == 0) {
+        if (formed) {
             injectCpuPoolIntoCraftingGridCache();
         }
 
@@ -207,6 +207,9 @@ public class TileComputationCore extends TileEntity implements IGridProxyable, I
         // 2. 动态创建新集群
         CraftingCPUCluster newCpu = createCluster();
         cpuPool.add(newCpu);
+
+        // 立即注入到 CraftingGridCache，确保终端立即可见
+        injectCpuPoolIntoCraftingGridCache();
 
         // 触发 CraftingGridCache 重建以注册新集群
         IGridNode node = getProxy().getNode();
