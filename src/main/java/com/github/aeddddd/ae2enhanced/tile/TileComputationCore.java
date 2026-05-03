@@ -167,16 +167,34 @@ public class TileComputationCore extends TileEntity implements IGridProxyable, I
 
         if (!formed || cpuPool.isEmpty()) return;
 
-        // 清理空闲的额外集群
+        // 统计空闲数量
+        int idleCount = 0;
+        for (CraftingCPUCluster cpu : cpuPool) {
+            if (!cpu.isBusy()) idleCount++;
+        }
+
+        // 清理空闲的额外集群，但始终保留至少 1 个空闲 CPU
         Iterator<CraftingCPUCluster> it = cpuPool.iterator();
         boolean changed = false;
         while (it.hasNext()) {
             CraftingCPUCluster cpu = it.next();
             if (cpu != cpuPool.get(0) && !cpu.isBusy() && isInventoryEmpty(cpu)) {
-                it.remove();
-                changed = true;
+                if (idleCount > 1) {
+                    it.remove();
+                    idleCount--;
+                    changed = true;
+                }
             }
         }
+
+        // 如果所有集群都忙碌，立即创建一个备用空闲集群
+        if (idleCount == 0) {
+            CraftingCPUCluster standby = createCluster();
+            cpuPool.add(standby);
+            injectCpuPoolIntoCraftingGridCache();
+            changed = true;
+        }
+
         if (changed) {
             IGridNode node = getProxy().getNode();
             if (node != null && node.getGrid() != null) {
