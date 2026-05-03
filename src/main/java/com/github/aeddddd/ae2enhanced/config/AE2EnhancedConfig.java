@@ -96,20 +96,7 @@ public class AE2EnhancedConfig {
         @Config.RangeInt(min = 1, max = 64)
         public int maxActiveOrders = 8;
 
-        @Config.Comment({
-            "Base parallel units allocated to every Computation Core regardless of Causal Anchor count.",
-            "Range: 256 ~ 4096, Default: 1024"
-        })
-        @Config.RangeInt(min = 256, max = 4096)
-        public int baseParallel = 1024;
 
-        @Config.Comment({
-            "Number of Causal Anchor Cores required per +1024 parallel increment.",
-            "Lower values make each anchor more impactful; higher values dampen scaling.",
-            "Range: 10 ~ 50, Default: 21"
-        })
-        @Config.RangeInt(min = 10, max = 50)
-        public int parallelPerAnchorCount = 21;
     }
 
     public static class BlackHole {
