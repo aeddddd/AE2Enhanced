@@ -7,7 +7,6 @@ import com.github.aeddddd.ae2enhanced.crafting.SingularityRecipeRegistry;
 import com.github.aeddddd.ae2enhanced.gui.GuiHandler;
 import com.github.aeddddd.ae2enhanced.network.PacketPatternPage;
 import com.github.aeddddd.ae2enhanced.network.PacketRequestAssembly;
-import com.github.aeddddd.ae2enhanced.config.AE2EnhancedConfig;
 import com.github.aeddddd.ae2enhanced.proxy.CommonProxy;
 import net.minecraft.init.Blocks;
 import net.minecraft.init.Items;

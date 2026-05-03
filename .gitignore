@@ -59,6 +59,9 @@ eclipse/
 runClient/
 runServer/
 
+*.css
+*.js
+*.html
 zone/
 *.txt
 AGENTS.md
@@ -69,6 +72,9 @@ AssemblyTexture/
 Texture/
 Supercausal Assembly Hub.json
 Hyperdimensional Storage Nexus.json
+
+### Inspection Reports ###
+inspection_reports/
 
 ### Decompiled / Temp ###
 ae2_decompiled/
