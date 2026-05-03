@@ -1,3 +1,5 @@
+itemGroup.ae2enhanced=AE2 Enhanced
+
 tile.ae2enhanced.assembly_controller.name=組立ハブコントローラー
 tile.ae2enhanced.assembly_me_interface.name=組立MEインターフェース
 tile.ae2enhanced.assembly_casing.name=組立ハブ外装

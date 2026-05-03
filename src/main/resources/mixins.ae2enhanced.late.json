@@ -8,7 +8,8 @@
     "MixinCraftingCPUCluster",
     "MixinPatternEncoder",
     "MixinCraftingGridCache",
-    "MixinCreativeCellInventory"
+    "MixinCreativeCellInventory",
+    "MixinToolMatterCannon"
   ],
   "client": [],
   "server": []

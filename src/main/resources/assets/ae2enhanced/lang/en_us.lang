@@ -1,3 +1,5 @@
+itemGroup.ae2enhanced=AE2 Enhanced
+
 tile.ae2enhanced.assembly_controller.name=Assembly Controller
 tile.ae2enhanced.assembly_me_interface.name=Assembly ME Interface
 tile.ae2enhanced.assembly_casing.name=Assembly Casing

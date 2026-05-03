@@ -15,7 +15,13 @@ import net.minecraft.creativetab.CreativeTabs;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.util.ResourceLocation;
+import net.minecraft.entity.EntityLivingBase;
+import net.minecraft.util.DamageSource;
+import net.minecraft.util.EnumParticleTypes;
+import net.minecraft.world.World;
+import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.common.config.ConfigManager;
+import net.minecraftforge.event.entity.living.LivingHurtEvent;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.common.SidedProxy;
 import net.minecraftforge.fml.common.event.FMLInitializationEvent;
@@ -24,6 +30,7 @@ import net.minecraftforge.fml.common.event.FMLPreInitializationEvent;
 import net.minecraftforge.fml.common.network.NetworkRegistry;
 import net.minecraftforge.fml.common.network.simpleimpl.SimpleNetworkWrapper;
 import net.minecraftforge.fml.relauncher.Side;
+import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -77,14 +84,93 @@ public class AE2Enhanced {
         LOGGER.info("[AE2E] Registered {} black hole recipes", BlackHoleRecipeRegistry.getRecipes().size());
         // 执行 CraftTweaker 延迟移除（CT 脚本可能在 init() 之前执行）
         BlackHoleRecipeRegistry.applyPendingRemovals();
-        // 注册共形不变荷为物质炮弹药
+        // 注册共形不变荷为物质炮弹药（weight 1E8 → 伤害 5,000,000）
         appeng.api.AEApi.instance().registries().matterCannon().registerAmmo(
-                new ItemStack(ModItems.CONFORMAL_CHARGE), 512.0);
+                new ItemStack(ModItems.CONFORMAL_CHARGE), 100_000_000.0);
+        MinecraftForge.EVENT_BUS.register(this);
     }
 
     @Mod.EventHandler
     public void postInit(FMLPostInitializationEvent event) {
         proxy.postInit(event);
+    }
+
+    @SubscribeEvent
+    public void onLivingHurt(LivingHurtEvent event) {
+        if (!"matter_cannon".equals(event.getSource().getDamageType())) return;
+        if (event.getAmount() <= 1_000_000.0f) return;
+
+        EntityLivingBase entity = event.getEntityLiving();
+        World world = entity.world;
+        double x = entity.posX;
+        double y = entity.posY + entity.height / 2.0;
+        double z = entity.posZ;
+
+        // ① 粒子爆发
+        if (!world.isRemote) {
+            for (int i = 0; i < 10; i++) {
+                world.spawnParticle(EnumParticleTypes.EXPLOSION_HUGE,
+                        x + (world.rand.nextDouble() - 0.5) * 2.0,
+                        y + (world.rand.nextDouble() - 0.5) * 2.0,
+                        z + (world.rand.nextDouble() - 0.5) * 2.0,
+                        0.0, 0.0, 0.0);
+            }
+            for (int i = 0; i < 20; i++) {
+                world.spawnParticle(EnumParticleTypes.PORTAL,
+                        x + (world.rand.nextDouble() - 0.5) * 3.0,
+                        y + (world.rand.nextDouble() - 0.5) * 3.0,
+                        z + (world.rand.nextDouble() - 0.5) * 3.0,
+                        world.rand.nextGaussian() * 0.5,
+                        world.rand.nextGaussian() * 0.5,
+                        world.rand.nextGaussian() * 0.5);
+            }
+            for (int i = 0; i < 20; i++) {
+                world.spawnParticle(EnumParticleTypes.END_ROD,
+                        x + (world.rand.nextDouble() - 0.5) * 2.0,
+                        y + (world.rand.nextDouble() - 0.5) * 2.0,
+                        z + (world.rand.nextDouble() - 0.5) * 2.0,
+                        world.rand.nextGaussian() * 0.3,
+                        world.rand.nextGaussian() * 0.3,
+                        world.rand.nextGaussian() * 0.3);
+            }
+        }
+
+        // ② 处决伤害：反射调用 damageEntity 绕过 Forge 事件系统（限伤/无敌帧）
+        try {
+            java.lang.reflect.Method m = EntityLivingBase.class.getDeclaredMethod(
+                    "func_70665_d", DamageSource.class, float.class);
+            m.setAccessible(true);
+            DamageSource exec = new DamageSource("ae2enhanced_conformal");
+            exec.setDamageIsAbsolute();
+            m.invoke(entity, exec, Float.MAX_VALUE);
+        } catch (Exception e) {
+            // fallback：直接清空生命值
+            entity.setHealth(0.0f);
+        }
+
+        // ③ 虚空伤害（同样反射绕过限伤）
+        try {
+            java.lang.reflect.Method m = EntityLivingBase.class.getDeclaredMethod(
+                    "func_70665_d", DamageSource.class, float.class);
+            m.setAccessible(true);
+            m.invoke(entity, DamageSource.OUT_OF_WORLD, Float.MAX_VALUE);
+        } catch (Exception ignored) {}
+
+        // ④ 击退（由伤害源实体施加）
+        if (event.getSource().getTrueSource() instanceof EntityLivingBase) {
+            EntityLivingBase attacker = (EntityLivingBase) event.getSource().getTrueSource();
+            double dx = attacker.posX - entity.posX;
+            double dz = attacker.posZ - entity.posZ;
+            double dist = Math.sqrt(dx * dx + dz * dz);
+            if (dist > 0.001) {
+                dx /= dist;
+                dz /= dist;
+                entity.knockBack(attacker, 4.0f, -dx, -dz);
+            }
+        }
+
+        // ⑤ 燃烧
+        entity.setFire(10);
     }
 
     private void registerSingularityRecipes() {
