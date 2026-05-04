@@ -91,8 +91,7 @@ public class RenderHyperdimensionalController extends TileEntitySpecialRenderer<
         GlStateManager.shadeModel(GL11.GL_SMOOTH);
         boolean cullWasEnabled = GL11.glIsEnabled(GL11.GL_CULL_FACE);
         GlStateManager.enableCull();
-        GL11.glEnable(GL11.GL_LINE_SMOOTH);
-        GL11.glHint(GL11.GL_LINE_SMOOTH_HINT, GL11.GL_NICEST);
+        // GL_LINE_SMOOTH 已移除 — 在部分 Intel/AMD 驱动上会导致颜色通道丢失，整片变黑
 
         try {
             // 外立方体线框
@@ -148,7 +147,6 @@ public class RenderHyperdimensionalController extends TileEntitySpecialRenderer<
             } else {
                 GlStateManager.disableCull();
             }
-            GL11.glDisable(GL11.GL_LINE_SMOOTH);
             GlStateManager.popMatrix();
         }
     }
