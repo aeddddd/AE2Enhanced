@@ -17,6 +17,7 @@ import com.github.aeddddd.ae2enhanced.storage.OptionalStorageManager;
 import com.github.aeddddd.ae2enhanced.storage.SimpleMEMonitor;
 import appeng.api.AEApi;
 import appeng.api.storage.IMEInventoryHandler;
+import net.minecraft.block.state.IBlockState;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.EnumFacing;
@@ -48,6 +49,7 @@ public class TileHyperdimensionalController extends TileEntity implements IGridP
     private boolean networkPowered = false;
     private boolean clientSafeMode = false;
     private int tickCounter = 0;
+    private int cellArrayRetry = 0;
 
     // 客户端同步的存储统计
     private int clientStorageTypes = 0;
@@ -194,6 +196,8 @@ public class TileHyperdimensionalController extends TileEntity implements IGridP
                 world.notifyBlockUpdate(pos, world.getBlockState(pos), world.getBlockState(pos), 2);
             }
             getProxy().onReady();
+            cellArrayRetry = 5;
+            notifyMeInterfacesOfStateChange();
             // 强制触发 GridStorageCache 重新扫描 handlers，确保物品/流体都被正确注册
             try {
                 appeng.api.networking.IGrid grid = getProxy().getGrid();
@@ -421,6 +425,20 @@ public class TileHyperdimensionalController extends TileEntity implements IGridP
         }
     }
 
+    private void notifyMeInterfacesOfStateChange() {
+        if (world == null || world.isRemote) return;
+        IBlockState controllerState = world.getBlockState(pos);
+        if (!(controllerState.getBlock() instanceof BlockHyperdimensionalController)) return;
+        EnumFacing facing = controllerState.getValue(BlockHyperdimensionalController.FACING);
+        for (net.minecraft.util.math.BlockPos rel : com.github.aeddddd.ae2enhanced.structure.HyperdimensionalStructure.ME_INTERFACE_SET) {
+            net.minecraft.util.math.BlockPos actual = pos.add(com.github.aeddddd.ae2enhanced.structure.HyperdimensionalStructure.rotate(rel, facing));
+            IBlockState state = world.getBlockState(actual);
+            world.notifyBlockUpdate(actual, state, state, 2);
+            // 同时触发 neighbor change，让 AE2 线缆重新检查连接
+            world.notifyNeighborsOfStateChange(actual, state.getBlock(), false);
+        }
+    }
+
     private void closeStorage() {
         if (storageFile != null) {
             storageFile.close();
@@ -471,6 +489,22 @@ public class TileHyperdimensionalController extends TileEntity implements IGridP
             needsReady = false;
             initStorage();
             getProxy().onReady();
+            cellArrayRetry = 5; // 5 秒内重试发送 CellArrayUpdate
+            // 通知 ME 接口位置方块更新，触发 AE2 重新检查节点连接
+            notifyMeInterfacesOfStateChange();
+        }
+
+        if (cellArrayRetry > 0) {
+            cellArrayRetry--;
+            try {
+                appeng.api.networking.IGrid grid = getProxy().getGrid();
+                if (grid != null) {
+                    grid.postEvent(new appeng.api.networking.events.MENetworkCellArrayUpdate());
+                    cellArrayRetry = 0;
+                }
+            } catch (appeng.me.GridAccessException e) {
+                // 网格尚未就绪，继续重试
+            }
         }
 
         tickCounter++;
