@@ -82,12 +82,15 @@ public class StructurePlacementPreview {
             IBlockState state = world.getBlockState(pos);
 
             if (te instanceof TileAssemblyController) {
+                if (!(state.getBlock() instanceof BlockAssemblyController)) continue;
                 EnumFacing facing = state.getValue(BlockAssemblyController.FACING);
                 collectAssemblyGhosts(world, pos, facing, ghosts, dispatcher);
             } else if (te instanceof TileHyperdimensionalController) {
+                if (!(state.getBlock() instanceof BlockHyperdimensionalController)) continue;
                 EnumFacing facing = state.getValue(BlockHyperdimensionalController.FACING);
                 collectHyperdimensionalGhosts(world, pos, facing, ghosts, dispatcher);
             } else if (te instanceof TileComputationCore) {
+                if (!(state.getBlock() instanceof BlockComputationCore)) continue;
                 EnumFacing facing = state.getValue(BlockComputationCore.FACING).getOpposite();
                 collectSupercausalGhosts(world, pos, facing, ghosts, dispatcher);
             }

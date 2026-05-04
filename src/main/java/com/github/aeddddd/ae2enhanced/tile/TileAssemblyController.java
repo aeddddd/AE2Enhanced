@@ -19,6 +19,7 @@ import appeng.me.helpers.AENetworkProxy;
 import appeng.me.helpers.IGridProxyable;
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
 import com.github.aeddddd.ae2enhanced.ModBlocks;
+import com.github.aeddddd.ae2enhanced.config.AE2EnhancedConfig;
 import com.github.aeddddd.ae2enhanced.block.BlockAssemblyController;
 import com.github.aeddddd.ae2enhanced.crafting.BlackHoleRecipe;
 import com.github.aeddddd.ae2enhanced.crafting.BlackHoleRecipeRegistry;
@@ -550,24 +551,31 @@ public class TileAssemblyController extends TileEntity implements ICraftingProvi
                 origin.getX() - 2, origin.getY() - 2, origin.getZ() - 2,
                 origin.getX() + 3, origin.getY() + 3, origin.getZ() + 3
             );
-            DamageSource spacetime = new DamageSource("spacetime") {
-                @Override
-                public ITextComponent getDeathMessage(EntityLivingBase entityLivingBaseIn) {
-                    return new TextComponentTranslation("death.spacetime.blackHole", entityLivingBaseIn.getDisplayName());
-                }
-            }.setDamageBypassesArmor().setDamageAllowedInCreativeMode();
-            List<EntityLivingBase> inHorizon = world.getEntitiesWithinAABB(EntityLivingBase.class, eventHorizon);
-            for (EntityLivingBase entity : inHorizon) {
-                if (!entity.isEntityAlive()) continue;
-                entity.hurtResistantTime = 0;
-                entity.hurtTime = 0;
-                boolean killed = false;
-                if (entity.attackEntityFrom(spacetime, Float.MAX_VALUE)) {
-                    if (!entity.isEntityAlive()) killed = true;
-                }
-                if (!killed) {
-                    entity.setHealth(0);
-                    entity.onDeath(spacetime);
+            if (AE2EnhancedConfig.blackHole.getDamageMode() != AE2EnhancedConfig.DamageMode.NONE) {
+                DamageSource spacetime = new DamageSource("spacetime") {
+                    @Override
+                    public ITextComponent getDeathMessage(EntityLivingBase entityLivingBaseIn) {
+                        return new TextComponentTranslation("death.spacetime.blackHole", entityLivingBaseIn.getDisplayName());
+                    }
+                }.setDamageBypassesArmor().setDamageAllowedInCreativeMode();
+                List<EntityLivingBase> inHorizon = world.getEntitiesWithinAABB(EntityLivingBase.class, eventHorizon);
+                for (EntityLivingBase entity : inHorizon) {
+                    if (!entity.isEntityAlive()) continue;
+                    if (AE2EnhancedConfig.blackHole.getDamageMode() == AE2EnhancedConfig.DamageMode.NON_CREATIVE) {
+                        if (entity instanceof EntityPlayer && ((EntityPlayer) entity).isCreative()) {
+                            continue;
+                        }
+                    }
+                    entity.hurtResistantTime = 0;
+                    entity.hurtTime = 0;
+                    boolean killed = false;
+                    if (entity.attackEntityFrom(spacetime, Float.MAX_VALUE)) {
+                        if (!entity.isEntityAlive()) killed = true;
+                    }
+                    if (!killed) {
+                        entity.setHealth(0);
+                        entity.onDeath(spacetime);
+                    }
                 }
             }
 
