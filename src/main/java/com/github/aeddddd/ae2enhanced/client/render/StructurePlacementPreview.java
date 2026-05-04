@@ -2,6 +2,9 @@ package com.github.aeddddd.ae2enhanced.client.render;
 
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
 import com.github.aeddddd.ae2enhanced.ModBlocks;
+import com.github.aeddddd.ae2enhanced.block.BlockAssemblyController;
+import com.github.aeddddd.ae2enhanced.block.BlockComputationCore;
+import com.github.aeddddd.ae2enhanced.block.BlockHyperdimensionalController;
 import com.github.aeddddd.ae2enhanced.structure.AssemblyStructure;
 import com.github.aeddddd.ae2enhanced.structure.HyperdimensionalStructure;
 import com.github.aeddddd.ae2enhanced.structure.SupercausalStructure;
@@ -13,8 +16,6 @@ import net.minecraft.client.renderer.GlStateManager;
 import net.minecraft.client.renderer.Tessellator;
 import net.minecraft.client.renderer.vertex.DefaultVertexFormats;
 import net.minecraft.entity.player.EntityPlayer;
-import net.minecraft.item.Item;
-import net.minecraft.item.ItemStack;
 import net.minecraft.util.EnumFacing;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.RayTraceResult;
@@ -29,7 +30,8 @@ import java.util.Set;
 
 /**
  * 多方块结构放置预览渲染器。
- * 当玩家手持控制器方块并对准可放置位置时，以幽灵方块边框形式显示整个结构的占用空间。
+ * 当玩家准星指向已放置的控制器方块时，以幽灵方块边框形式显示该控制器对应结构的完整占用空间，
+ * 帮助玩家确认建造范围和缺失方块位置。
  *
  * 颜色约定：
  * - 青色：控制器位置
@@ -52,25 +54,31 @@ public class StructurePlacementPreview {
         EntityPlayer player = mc.player;
         if (player == null) return;
 
-        ItemStack held = player.getHeldItemMainhand();
-        if (held.isEmpty()) {
-            held = player.getHeldItemOffhand();
-        }
-        if (held.isEmpty()) return;
-
-        StructureType type = getStructureType(held);
-        if (type == null) return;
-
         RayTraceResult ray = mc.objectMouseOver;
         if (ray == null || ray.typeOfHit != RayTraceResult.Type.BLOCK) return;
 
-        BlockPos placePos = ray.getBlockPos().offset(ray.sideHit);
+        BlockPos controllerPos = ray.getBlockPos();
         World world = player.world;
-        EnumFacing facing = player.getHorizontalFacing().getOpposite();
+        IBlockState state = world.getBlockState(controllerPos);
+        Block block = state.getBlock();
 
-        double dx = placePos.getX() + 0.5 - player.posX;
-        double dy = placePos.getY() + 0.5 - player.posY;
-        double dz = placePos.getZ() + 0.5 - player.posZ;
+        StructureType type = null;
+        EnumFacing facing = EnumFacing.NORTH;
+        if (block == ModBlocks.ASSEMBLY_CONTROLLER) {
+            type = StructureType.ASSEMBLY;
+            facing = state.getValue(BlockAssemblyController.FACING);
+        } else if (block == ModBlocks.HYPERDIMENSIONAL_CONTROLLER) {
+            type = StructureType.HYPERDIMENSIONAL;
+            facing = state.getValue(BlockHyperdimensionalController.FACING);
+        } else if (block == ModBlocks.COMPUTATION_CORE) {
+            type = StructureType.SUPERCAUSAL;
+            facing = state.getValue(BlockComputationCore.FACING).getOpposite();
+        }
+        if (type == null) return;
+
+        double dx = controllerPos.getX() + 0.5 - player.posX;
+        double dy = controllerPos.getY() + 0.5 - player.posY;
+        double dz = controllerPos.getZ() + 0.5 - player.posZ;
         if (dx * dx + dy * dy + dz * dz > MAX_PREVIEW_DISTANCE * MAX_PREVIEW_DISTANCE) return;
 
         double rx = mc.getRenderManager().viewerPosX;
@@ -97,13 +105,13 @@ public class StructurePlacementPreview {
 
             switch (type) {
                 case ASSEMBLY:
-                    renderAssembly(world, placePos, facing, buffer);
+                    renderAssembly(world, controllerPos, facing, buffer);
                     break;
                 case HYPERDIMENSIONAL:
-                    renderHyperdimensional(world, placePos, facing, buffer);
+                    renderHyperdimensional(world, controllerPos, facing, buffer);
                     break;
                 case SUPERCAUSAL:
-                    renderSupercausal(world, placePos, facing, buffer);
+                    renderSupercausal(world, controllerPos, facing, buffer);
                     break;
             }
 
@@ -117,18 +125,6 @@ public class StructurePlacementPreview {
             GlStateManager.disableBlend();
             GlStateManager.popMatrix();
         }
-    }
-
-    private static StructureType getStructureType(ItemStack held) {
-        Item item = held.getItem();
-        if (item == Item.getItemFromBlock(ModBlocks.ASSEMBLY_CONTROLLER)) {
-            return StructureType.ASSEMBLY;
-        } else if (item == Item.getItemFromBlock(ModBlocks.HYPERDIMENSIONAL_CONTROLLER)) {
-            return StructureType.HYPERDIMENSIONAL;
-        } else if (item == Item.getItemFromBlock(ModBlocks.COMPUTATION_CORE)) {
-            return StructureType.SUPERCAUSAL;
-        }
-        return null;
     }
 
     private static void renderAssembly(World world, BlockPos controllerPos, EnumFacing facing, BufferBuilder buffer) {
