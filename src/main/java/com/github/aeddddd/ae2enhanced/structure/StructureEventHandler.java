@@ -19,7 +19,9 @@ import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
 import net.minecraftforge.fml.common.gameevent.TickEvent;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -63,18 +65,24 @@ public class StructureEventHandler {
         World world = event.world;
         int dimId = world.provider.getDimension();
         Map<BlockPos, Integer> dimChecks = pendingChecks.get(dimId);
-        if (dimChecks == null) return;
+        if (dimChecks == null || dimChecks.isEmpty()) return;
 
-        dimChecks.entrySet().removeIf(entry -> {
-            BlockPos controllerPos = entry.getKey();
+        List<BlockPos> toValidate = new ArrayList<>();
+        for (Map.Entry<BlockPos, Integer> entry : dimChecks.entrySet()) {
             int ticks = entry.getValue() - 1;
             if (ticks <= 0) {
-                validateAndUpdate(world, controllerPos);
-                return true;
+                toValidate.add(entry.getKey());
+            } else {
+                entry.setValue(ticks);
             }
-            entry.setValue(ticks);
-            return false;
-        });
+        }
+        for (BlockPos pos : toValidate) {
+            dimChecks.remove(pos);
+            validateAndUpdate(world, pos);
+        }
+        if (dimChecks.isEmpty()) {
+            pendingChecks.remove(dimId);
+        }
     }
 
     /**
