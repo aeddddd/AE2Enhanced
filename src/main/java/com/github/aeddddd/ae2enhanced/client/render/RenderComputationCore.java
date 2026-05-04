@@ -76,6 +76,7 @@ public class RenderComputationCore extends TileEntitySpecialRenderer<TileComputa
         GlStateManager.shadeModel(GL11.GL_SMOOTH);
         boolean cullWasEnabled = GL11.glIsEnabled(GL11.GL_CULL_FACE);
         GlStateManager.enableCull();
+        boolean blendWasEnabled = GL11.glIsEnabled(GL11.GL_BLEND);
         GL11.glEnable(GL11.GL_LINE_SMOOTH);
         GL11.glHint(GL11.GL_LINE_SMOOTH_HINT, GL11.GL_NICEST);
 
@@ -109,6 +110,8 @@ public class RenderComputationCore extends TileEntitySpecialRenderer<TileComputa
 
         } finally {
             GL11.glPointSize(1.0f);
+            GlStateManager.glLineWidth(1.0f);
+            if (!blendWasEnabled) GlStateManager.disableBlend();
             if (!cullWasEnabled) GlStateManager.disableCull();
             GL11.glDisable(GL11.GL_LINE_SMOOTH);
             GlStateManager.shadeModel(GL11.GL_FLAT);

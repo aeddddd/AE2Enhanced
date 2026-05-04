@@ -88,6 +88,8 @@ public class RenderBlackHole extends TileEntitySpecialRenderer<TileAssemblyContr
         GlStateManager.disableLighting();
         GlStateManager.disableTexture2D();
         GlStateManager.shadeModel(GL11.GL_SMOOTH);
+        boolean cullWasEnabled = GL11.glIsEnabled(GL11.GL_CULL_FACE);
+        GlStateManager.disableCull();
 
         try {
             // 1. 事件视界（纯黑，始终存在）
@@ -119,6 +121,11 @@ public class RenderBlackHole extends TileEntitySpecialRenderer<TileAssemblyContr
             GlStateManager.popMatrix();
         } finally {
             // 显式恢复所有修改的状态（Kirino 不兼容 glPushAttrib/glPopAttrib）
+            if (cullWasEnabled) {
+                GlStateManager.enableCull();
+            } else {
+                GlStateManager.disableCull();
+            }
             GlStateManager.shadeModel(GL11.GL_FLAT);
             GlStateManager.enableTexture2D();
             GlStateManager.enableLighting();
