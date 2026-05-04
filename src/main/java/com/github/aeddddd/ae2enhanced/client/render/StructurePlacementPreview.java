@@ -19,9 +19,13 @@ import net.minecraft.client.renderer.BlockModelRenderer;
 import net.minecraft.client.renderer.BlockRendererDispatcher;
 import net.minecraft.client.renderer.GlStateManager;
 import net.minecraft.client.renderer.Tessellator;
+import net.minecraft.client.renderer.block.model.BakedQuad;
+import net.minecraft.client.renderer.block.model.IBakedModel;
+import net.minecraft.client.renderer.block.model.ItemCameraTransforms;
+import net.minecraft.client.renderer.block.model.ItemOverrideList;
+import net.minecraft.client.renderer.texture.TextureAtlasSprite;
 import net.minecraft.client.renderer.texture.TextureMap;
 import net.minecraft.client.renderer.vertex.DefaultVertexFormats;
-import net.minecraft.client.renderer.block.model.IBakedModel;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.init.Biomes;
 import net.minecraft.init.Blocks;
@@ -38,22 +42,25 @@ import net.minecraftforge.fml.relauncher.Side;
 import org.lwjgl.opengl.GL11;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
  * 多方块结构缺失方块幽灵投影渲染器。
  * 当玩家位于已放置的控制器 32 格范围内时，自动渲染该控制器对应结构中
- * 所有缺失方块的半透明模型，帮助玩家补全建造。
+ * 所有缺失方块的半透明缩小模型，帮助玩家补全建造。
  */
 @Mod.EventBusSubscriber(modid = AE2Enhanced.MOD_ID, value = Side.CLIENT)
 public class StructurePlacementPreview {
 
     private static final double MAX_PREVIEW_DISTANCE = 32.0;
-    private static final float GHOST_ALPHA = 0.35f;
+    private static final float GHOST_ALPHA = 0.18f;
+    private static final float GHOST_SCALE = 0.82f;
 
-    /** 用于幽灵方块渲染的伪世界：全亮光照、空气方块（不剔除任何面）。 */
     private static final IBlockAccess GHOST_WORLD = new GhostBlockAccess();
+    private static final Map<Block, IBakedModel> SCALED_MODEL_CACHE = new HashMap<>();
 
     @SubscribeEvent
     public static void onRenderWorldLast(RenderWorldLastEvent event) {
@@ -105,7 +112,7 @@ public class StructurePlacementPreview {
         } finally {
             tessellator.draw();
 
-            GlStateManager.enableDepth();
+            GlStateManager.depthMask(true);
             GlStateManager.color(1f, 1f, 1f, 1f);
             GlStateManager.disableBlend();
             GlStateManager.popMatrix();
@@ -156,7 +163,6 @@ public class StructurePlacementPreview {
     private static void renderSupercausalGhost(net.minecraft.world.World world, BlockPos controllerPos, EnumFacing facing,
                                                BufferBuilder buffer, BlockRendererDispatcher dispatcher,
                                                BlockModelRenderer modelRenderer) {
-        // 控制器位置已由核心方块占据，跳过
         BlockPos meActual = controllerPos.add(rotate(SupercausalStructure.ME_INTERFACE_REL, facing));
         renderGhostBlock(world, meActual, ModBlocks.SUPER_CRAFTING_INTERFACE, buffer, dispatcher, modelRenderer);
 
@@ -191,21 +197,22 @@ public class StructurePlacementPreview {
                                          BufferBuilder buffer, BlockRendererDispatcher dispatcher,
                                          BlockModelRenderer modelRenderer) {
         IBlockState actualState = world.getBlockState(actual);
-        if (actualState.getBlock() == expected) return; // 已有正确方块，无需投影
+        if (actualState.getBlock() == expected) return;
 
         IBlockState state = expected.getDefaultState();
-        IBakedModel model = dispatcher.getModelForState(state);
+        IBakedModel scaledModel = getScaledModel(dispatcher, expected);
 
-        // 使用 BufferBuilder 的 translation 来偏移顶点位置，
-        // 避免 renderModel 内部的 putPosition() 累积影响之前已写入的所有顶点。
         buffer.setTranslation(actual.getX(), actual.getY(), actual.getZ());
-        modelRenderer.renderModel(GHOST_WORLD, model, state, BlockPos.ORIGIN, buffer, false);
+        modelRenderer.renderModel(GHOST_WORLD, scaledModel, state, BlockPos.ORIGIN, buffer, false);
         buffer.setTranslation(0, 0, 0);
     }
 
-    /**
-     * 与三个结构类完全一致的旋转逻辑。
-     */
+    private static IBakedModel getScaledModel(BlockRendererDispatcher dispatcher, Block block) {
+        return SCALED_MODEL_CACHE.computeIfAbsent(block, b ->
+            new ScaledBakedModel(dispatcher.getModelForState(b.getDefaultState()), GHOST_SCALE)
+        );
+    }
+
     private static BlockPos rotate(BlockPos rel, EnumFacing facing) {
         if (facing == EnumFacing.NORTH) return rel;
         int x = rel.getX();
@@ -217,6 +224,52 @@ public class StructurePlacementPreview {
             case WEST:  return new BlockPos(z, y, -x);
             default:    return rel;
         }
+    }
+
+    /**
+     * 缩放 BakedModel：将所有 quad 顶点向方块中心 (0.5, 0.5, 0.5) 收缩。
+     */
+    private static class ScaledBakedModel implements IBakedModel {
+        private final IBakedModel original;
+        private final float scale;
+
+        ScaledBakedModel(IBakedModel original, float scale) {
+            this.original = original;
+            this.scale = scale;
+        }
+
+        @Override
+        public List<BakedQuad> getQuads(IBlockState state, EnumFacing side, long rand) {
+            List<BakedQuad> quads = original.getQuads(state, side, rand);
+            if (quads.isEmpty()) return quads;
+            List<BakedQuad> result = new ArrayList<>(quads.size());
+            for (BakedQuad quad : quads) {
+                result.add(scaleQuad(quad));
+            }
+            return result;
+        }
+
+        private BakedQuad scaleQuad(BakedQuad quad) {
+            int[] data = quad.getVertexData().clone();
+            int stride = 7; // BLOCK format: 3f pos + 4b color + 2f uv + 2s lightmap = 28 bytes = 7 ints
+            for (int i = 0; i < 4; i++) {
+                int idx = i * stride;
+                float x = Float.intBitsToFloat(data[idx]);
+                float y = Float.intBitsToFloat(data[idx + 1]);
+                float z = Float.intBitsToFloat(data[idx + 2]);
+                data[idx]     = Float.floatToRawIntBits(0.5f + (x - 0.5f) * scale);
+                data[idx + 1] = Float.floatToRawIntBits(0.5f + (y - 0.5f) * scale);
+                data[idx + 2] = Float.floatToRawIntBits(0.5f + (z - 0.5f) * scale);
+            }
+            return new BakedQuad(data, quad.getTintIndex(), quad.getFace(), quad.getSprite(), quad.shouldApplyDiffuseLighting(), quad.getFormat());
+        }
+
+        @Override public boolean isAmbientOcclusion() { return original.isAmbientOcclusion(); }
+        @Override public boolean isGui3d() { return original.isGui3d(); }
+        @Override public boolean isBuiltInRenderer() { return original.isBuiltInRenderer(); }
+        @Override public TextureAtlasSprite getParticleTexture() { return original.getParticleTexture(); }
+        @Override public ItemCameraTransforms getItemCameraTransforms() { return original.getItemCameraTransforms(); }
+        @Override public ItemOverrideList getOverrides() { return original.getOverrides(); }
     }
 
     /**
