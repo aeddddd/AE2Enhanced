@@ -158,7 +158,7 @@ public class MixinCraftingCPUCluster {
     @Overwrite
     public void updateName() {
         if (ae2enhanced$computationCore != null) {
-            this.myName = net.minecraft.client.resources.I18n.format("tile.ae2enhanced.computation_core.name");
+            this.myName = net.minecraft.util.text.translation.I18n.translateToLocal("tile.ae2enhanced.computation_core.name");
             return;
         }
         StringBuilder sb = new StringBuilder();
