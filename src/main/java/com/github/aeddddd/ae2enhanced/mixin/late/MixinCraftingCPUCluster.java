@@ -256,6 +256,7 @@ public class MixinCraftingCPUCluster {
     private static Method postChange;
     private static Field taskProgressValueField;
     private static Method completeJobMethod;
+    private static Field finalOutputField;
     private static boolean reflectionReady = false;
     private static boolean reflectionFailed = false;
 
@@ -317,6 +318,8 @@ public class MixinCraftingCPUCluster {
             taskProgressValueField.setAccessible(true);
             completeJobMethod = CraftingCPUCluster.class.getDeclaredMethod("completeJob");
             completeJobMethod.setAccessible(true);
+            finalOutputField = CraftingCPUCluster.class.getDeclaredField("finalOutput");
+            finalOutputField.setAccessible(true);
             reflectionReady = true;
         } catch (Exception e) {
             reflectionFailed = true;
@@ -357,6 +360,12 @@ public class MixinCraftingCPUCluster {
                 IItemList<IAEItemStack> waitingFor = (IItemList<IAEItemStack>) waitingForField.get(cpu);
                 if (waitingFor == null || waitingFor.isEmpty()) {
                     completeJobMethod.invoke(cpu);
+                    // 修复：completeJob() 不重置 finalOutput 也不调用 updateCPU()，
+                    // 导致 Crafting Monitor 在任务完成后不清空（大订单时尤为明显）
+                    if (finalOutputField != null) {
+                        finalOutputField.set(cpu, null);
+                    }
+                    updateCPU();
                 }
             }
         } catch (Exception e) {
