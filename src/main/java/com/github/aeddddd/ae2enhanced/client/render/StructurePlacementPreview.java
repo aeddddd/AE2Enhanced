@@ -74,7 +74,8 @@ public class StructurePlacementPreview {
         GlStateManager.blendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
         GlStateManager.color(1f, 1f, 1f, GHOST_ALPHA);
         GlStateManager.enableTexture2D();
-        GlStateManager.disableDepth();
+        GlStateManager.enableDepth();
+        GlStateManager.depthMask(false);
         mc.getTextureManager().bindTexture(TextureMap.LOCATION_BLOCKS_TEXTURE);
 
         Tessellator tessellator = Tessellator.getInstance();
@@ -194,7 +195,12 @@ public class StructurePlacementPreview {
 
         IBlockState state = expected.getDefaultState();
         IBakedModel model = dispatcher.getModelForState(state);
-        modelRenderer.renderModel(GHOST_WORLD, model, state, actual, buffer, false);
+
+        // 使用 BufferBuilder 的 translation 来偏移顶点位置，
+        // 避免 renderModel 内部的 putPosition() 累积影响之前已写入的所有顶点。
+        buffer.setTranslation(actual.getX(), actual.getY(), actual.getZ());
+        modelRenderer.renderModel(GHOST_WORLD, model, state, BlockPos.ORIGIN, buffer, false);
+        buffer.setTranslation(0, 0, 0);
     }
 
     /**
