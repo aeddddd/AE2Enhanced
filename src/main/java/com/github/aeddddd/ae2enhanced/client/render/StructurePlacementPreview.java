@@ -42,6 +42,7 @@ import net.minecraftforge.fml.relauncher.Side;
 import org.lwjgl.opengl.GL11;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -71,6 +72,40 @@ public class StructurePlacementPreview {
         List<TileEntity> nearby = collectNearbyControllers(player);
         if (nearby.isEmpty()) return;
 
+        // 阶段 1：收集所有缺失方块
+        List<GhostBlock> ghosts = new ArrayList<>();
+        BlockRendererDispatcher dispatcher = mc.getBlockRendererDispatcher();
+
+        for (TileEntity te : nearby) {
+            net.minecraft.world.World world = te.getWorld();
+            BlockPos pos = te.getPos();
+            IBlockState state = world.getBlockState(pos);
+
+            if (te instanceof TileAssemblyController) {
+                EnumFacing facing = state.getValue(BlockAssemblyController.FACING);
+                collectAssemblyGhosts(world, pos, facing, ghosts, dispatcher);
+            } else if (te instanceof TileHyperdimensionalController) {
+                EnumFacing facing = state.getValue(BlockHyperdimensionalController.FACING);
+                collectHyperdimensionalGhosts(world, pos, facing, ghosts, dispatcher);
+            } else if (te instanceof TileComputationCore) {
+                EnumFacing facing = state.getValue(BlockComputationCore.FACING).getOpposite();
+                collectSupercausalGhosts(world, pos, facing, ghosts, dispatcher);
+            }
+        }
+
+        if (ghosts.isEmpty()) return;
+
+        // 阶段 2：按到相机的距离从远到近排序
+        double camX = player.posX;
+        double camY = player.posY + player.getEyeHeight();
+        double camZ = player.posZ;
+        Collections.sort(ghosts, (a, b) -> {
+            double da = distanceSqTo(camX, camY, camZ, a.pos);
+            double db = distanceSqTo(camX, camY, camZ, b.pos);
+            return Double.compare(db, da); // 远的在前
+        });
+
+        // 阶段 3：统一渲染
         double rx = mc.getRenderManager().viewerPosX;
         double ry = mc.getRenderManager().viewerPosY;
         double rz = mc.getRenderManager().viewerPosZ;
@@ -90,26 +125,13 @@ public class StructurePlacementPreview {
         buffer.begin(GL11.GL_QUADS, DefaultVertexFormats.BLOCK);
 
         try {
-            BlockRendererDispatcher dispatcher = mc.getBlockRendererDispatcher();
             BlockModelRenderer modelRenderer = dispatcher.getBlockModelRenderer();
-
-            for (TileEntity te : nearby) {
-                net.minecraft.world.World world = te.getWorld();
-                BlockPos pos = te.getPos();
-                IBlockState state = world.getBlockState(pos);
-
-                if (te instanceof TileAssemblyController) {
-                    EnumFacing facing = state.getValue(BlockAssemblyController.FACING);
-                    renderAssemblyGhost(world, pos, facing, buffer, dispatcher, modelRenderer);
-                } else if (te instanceof TileHyperdimensionalController) {
-                    EnumFacing facing = state.getValue(BlockHyperdimensionalController.FACING);
-                    renderHyperdimensionalGhost(world, pos, facing, buffer, dispatcher, modelRenderer);
-                } else if (te instanceof TileComputationCore) {
-                    EnumFacing facing = state.getValue(BlockComputationCore.FACING).getOpposite();
-                    renderSupercausalGhost(world, pos, facing, buffer, dispatcher, modelRenderer);
-                }
+            for (GhostBlock ghost : ghosts) {
+                buffer.setTranslation(ghost.pos.getX(), ghost.pos.getY(), ghost.pos.getZ());
+                modelRenderer.renderModel(GHOST_WORLD, ghost.model, ghost.state, BlockPos.ORIGIN, buffer, false);
             }
         } finally {
+            buffer.setTranslation(0, 0, 0);
             tessellator.draw();
 
             GlStateManager.depthMask(true);
@@ -117,6 +139,13 @@ public class StructurePlacementPreview {
             GlStateManager.disableBlend();
             GlStateManager.popMatrix();
         }
+    }
+
+    private static double distanceSqTo(double x, double y, double z, BlockPos pos) {
+        double dx = pos.getX() + 0.5 - x;
+        double dy = pos.getY() + 0.5 - y;
+        double dz = pos.getZ() + 0.5 - z;
+        return dx * dx + dy * dy + dz * dz;
     }
 
     private static List<TileEntity> collectNearbyControllers(EntityPlayer player) {
@@ -140,71 +169,63 @@ public class StructurePlacementPreview {
         return result;
     }
 
-    private static void renderAssemblyGhost(net.minecraft.world.World world, BlockPos controllerPos, EnumFacing facing,
-                                            BufferBuilder buffer, BlockRendererDispatcher dispatcher,
-                                            BlockModelRenderer modelRenderer) {
+    private static void collectAssemblyGhosts(net.minecraft.world.World world, BlockPos controllerPos, EnumFacing facing,
+                                               List<GhostBlock> out, BlockRendererDispatcher dispatcher) {
         BlockPos origin = controllerPos.add(rotate(new BlockPos(0, 0, 7), facing));
-        renderGhostSet(world, origin, facing, AssemblyStructure.CORE_SET, ModBlocks.ASSEMBLY_CONTROLLER, buffer, dispatcher, modelRenderer);
-        renderGhostSet(world, origin, facing, AssemblyStructure.PART1_SET, ModBlocks.ASSEMBLY_ME_INTERFACE, buffer, dispatcher, modelRenderer);
-        renderGhostSet(world, origin, facing, AssemblyStructure.PART2_SET, ModBlocks.ASSEMBLY_CASING, buffer, dispatcher, modelRenderer);
-        renderGhostSet(world, origin, facing, AssemblyStructure.PART3_SET, ModBlocks.ASSEMBLY_INNER_WALL, buffer, dispatcher, modelRenderer);
-        renderGhostSet(world, origin, facing, AssemblyStructure.PART4_SET, ModBlocks.ASSEMBLY_STABILIZER, buffer, dispatcher, modelRenderer);
+        collectGhostSet(world, origin, facing, AssemblyStructure.CORE_SET, ModBlocks.ASSEMBLY_CONTROLLER, out, dispatcher);
+        collectGhostSet(world, origin, facing, AssemblyStructure.PART1_SET, ModBlocks.ASSEMBLY_ME_INTERFACE, out, dispatcher);
+        collectGhostSet(world, origin, facing, AssemblyStructure.PART2_SET, ModBlocks.ASSEMBLY_CASING, out, dispatcher);
+        collectGhostSet(world, origin, facing, AssemblyStructure.PART3_SET, ModBlocks.ASSEMBLY_INNER_WALL, out, dispatcher);
+        collectGhostSet(world, origin, facing, AssemblyStructure.PART4_SET, ModBlocks.ASSEMBLY_STABILIZER, out, dispatcher);
     }
 
-    private static void renderHyperdimensionalGhost(net.minecraft.world.World world, BlockPos controllerPos, EnumFacing facing,
-                                                    BufferBuilder buffer, BlockRendererDispatcher dispatcher,
-                                                    BlockModelRenderer modelRenderer) {
-        renderGhostSet(world, controllerPos, facing, HyperdimensionalStructure.CONTROLLER_SET, ModBlocks.HYPERDIMENSIONAL_CONTROLLER, buffer, dispatcher, modelRenderer);
-        renderGhostSet(world, controllerPos, facing, HyperdimensionalStructure.ME_INTERFACE_SET, ModBlocks.HYPERDIMENSIONAL_ME_INTERFACE, buffer, dispatcher, modelRenderer);
-        renderGhostSet(world, controllerPos, facing, HyperdimensionalStructure.CORE_SET, ModBlocks.HYPERDIMENSIONAL_SINGULARITY_CORE, buffer, dispatcher, modelRenderer);
-        renderGhostSet(world, controllerPos, facing, HyperdimensionalStructure.CASING_SET, ModBlocks.HYPERDIMENSIONAL_CASING, buffer, dispatcher, modelRenderer);
+    private static void collectHyperdimensionalGhosts(net.minecraft.world.World world, BlockPos controllerPos, EnumFacing facing,
+                                                       List<GhostBlock> out, BlockRendererDispatcher dispatcher) {
+        collectGhostSet(world, controllerPos, facing, HyperdimensionalStructure.CONTROLLER_SET, ModBlocks.HYPERDIMENSIONAL_CONTROLLER, out, dispatcher);
+        collectGhostSet(world, controllerPos, facing, HyperdimensionalStructure.ME_INTERFACE_SET, ModBlocks.HYPERDIMENSIONAL_ME_INTERFACE, out, dispatcher);
+        collectGhostSet(world, controllerPos, facing, HyperdimensionalStructure.CORE_SET, ModBlocks.HYPERDIMENSIONAL_SINGULARITY_CORE, out, dispatcher);
+        collectGhostSet(world, controllerPos, facing, HyperdimensionalStructure.CASING_SET, ModBlocks.HYPERDIMENSIONAL_CASING, out, dispatcher);
     }
 
-    private static void renderSupercausalGhost(net.minecraft.world.World world, BlockPos controllerPos, EnumFacing facing,
-                                               BufferBuilder buffer, BlockRendererDispatcher dispatcher,
-                                               BlockModelRenderer modelRenderer) {
+    private static void collectSupercausalGhosts(net.minecraft.world.World world, BlockPos controllerPos, EnumFacing facing,
+                                                  List<GhostBlock> out, BlockRendererDispatcher dispatcher) {
         BlockPos meActual = controllerPos.add(rotate(SupercausalStructure.ME_INTERFACE_REL, facing));
-        renderGhostBlock(world, meActual, ModBlocks.SUPER_CRAFTING_INTERFACE, buffer, dispatcher, modelRenderer);
+        collectGhostBlock(world, meActual, ModBlocks.SUPER_CRAFTING_INTERFACE, out, dispatcher);
 
         for (BlockPos rel : SupercausalStructure.TENSOR_CASING_SET) {
             if (rel.equals(SupercausalStructure.CONTROLLER_REL)) continue;
             BlockPos actual = controllerPos.add(rotate(rel, facing));
-            renderGhostBlock(world, actual, ModBlocks.CONSTANT_TENSOR_FIELD_CASING, buffer, dispatcher, modelRenderer);
+            collectGhostBlock(world, actual, ModBlocks.CONSTANT_TENSOR_FIELD_CASING, out, dispatcher);
         }
 
         for (BlockPos rel : SupercausalStructure.CAUSAL_ANCHOR_SET) {
             BlockPos actual = controllerPos.add(rotate(rel, facing));
-            renderGhostBlock(world, actual, ModBlocks.CAUSAL_ANCHOR_CORE, buffer, dispatcher, modelRenderer);
+            collectGhostBlock(world, actual, ModBlocks.CAUSAL_ANCHOR_CORE, out, dispatcher);
         }
 
         for (BlockPos rel : SupercausalStructure.SPINOR_CASING_SET) {
             BlockPos actual = controllerPos.add(rotate(rel, facing));
-            renderGhostBlock(world, actual, ModBlocks.CONSTANT_SPINOR_FIELD_CASING, buffer, dispatcher, modelRenderer);
+            collectGhostBlock(world, actual, ModBlocks.CONSTANT_SPINOR_FIELD_CASING, out, dispatcher);
         }
     }
 
-    private static void renderGhostSet(net.minecraft.world.World world, BlockPos origin, EnumFacing facing,
-                                       Set<BlockPos> relSet, Block expected,
-                                       BufferBuilder buffer, BlockRendererDispatcher dispatcher,
-                                       BlockModelRenderer modelRenderer) {
+    private static void collectGhostSet(net.minecraft.world.World world, BlockPos origin, EnumFacing facing,
+                                        Set<BlockPos> relSet, Block expected,
+                                        List<GhostBlock> out, BlockRendererDispatcher dispatcher) {
         for (BlockPos rel : relSet) {
             BlockPos actual = origin.add(rotate(rel, facing));
-            renderGhostBlock(world, actual, expected, buffer, dispatcher, modelRenderer);
+            collectGhostBlock(world, actual, expected, out, dispatcher);
         }
     }
 
-    private static void renderGhostBlock(net.minecraft.world.World world, BlockPos actual, Block expected,
-                                         BufferBuilder buffer, BlockRendererDispatcher dispatcher,
-                                         BlockModelRenderer modelRenderer) {
+    private static void collectGhostBlock(net.minecraft.world.World world, BlockPos actual, Block expected,
+                                          List<GhostBlock> out, BlockRendererDispatcher dispatcher) {
         IBlockState actualState = world.getBlockState(actual);
         if (actualState.getBlock() == expected) return;
 
         IBlockState state = expected.getDefaultState();
         IBakedModel scaledModel = getScaledModel(dispatcher, expected);
-
-        buffer.setTranslation(actual.getX(), actual.getY(), actual.getZ());
-        modelRenderer.renderModel(GHOST_WORLD, scaledModel, state, BlockPos.ORIGIN, buffer, false);
-        buffer.setTranslation(0, 0, 0);
+        out.add(new GhostBlock(actual, state, scaledModel));
     }
 
     private static IBakedModel getScaledModel(BlockRendererDispatcher dispatcher, Block block) {
@@ -223,6 +244,21 @@ public class StructurePlacementPreview {
             case EAST:  return new BlockPos(-z, y, x);
             case WEST:  return new BlockPos(z, y, -x);
             default:    return rel;
+        }
+    }
+
+    /**
+     * 代表一个待渲染的幽灵方块。
+     */
+    private static class GhostBlock {
+        final BlockPos pos;
+        final IBlockState state;
+        final IBakedModel model;
+
+        GhostBlock(BlockPos pos, IBlockState state, IBakedModel model) {
+            this.pos = pos;
+            this.state = state;
+            this.model = model;
         }
     }
 
