@@ -8,45 +8,52 @@ import com.github.aeddddd.ae2enhanced.block.BlockHyperdimensionalController;
 import com.github.aeddddd.ae2enhanced.structure.AssemblyStructure;
 import com.github.aeddddd.ae2enhanced.structure.HyperdimensionalStructure;
 import com.github.aeddddd.ae2enhanced.structure.SupercausalStructure;
+import com.github.aeddddd.ae2enhanced.tile.TileAssemblyController;
+import com.github.aeddddd.ae2enhanced.tile.TileComputationCore;
+import com.github.aeddddd.ae2enhanced.tile.TileHyperdimensionalController;
 import net.minecraft.block.Block;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.BufferBuilder;
+import net.minecraft.client.renderer.BlockModelRenderer;
+import net.minecraft.client.renderer.BlockRendererDispatcher;
 import net.minecraft.client.renderer.GlStateManager;
 import net.minecraft.client.renderer.Tessellator;
+import net.minecraft.client.renderer.texture.TextureMap;
 import net.minecraft.client.renderer.vertex.DefaultVertexFormats;
+import net.minecraft.client.renderer.block.model.IBakedModel;
 import net.minecraft.entity.player.EntityPlayer;
+import net.minecraft.init.Biomes;
+import net.minecraft.init.Blocks;
+import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.EnumFacing;
 import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.RayTraceResult;
-import net.minecraft.world.World;
+import net.minecraft.world.IBlockAccess;
+import net.minecraft.world.WorldType;
+import net.minecraft.world.biome.Biome;
 import net.minecraftforge.client.event.RenderWorldLastEvent;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
 import net.minecraftforge.fml.relauncher.Side;
 import org.lwjgl.opengl.GL11;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Set;
 
 /**
- * 多方块结构放置预览渲染器。
- * 当玩家准星指向已放置的控制器方块时，以幽灵方块边框形式显示该控制器对应结构的完整占用空间，
- * 帮助玩家确认建造范围和缺失方块位置。
- *
- * 颜色约定：
- * - 青色：控制器位置
- * - 黄色：ME 接口位置
- * - 绿色：其他结构方块位置（可放置或已有正确方块）
- * - 红色：被其他方块阻挡的位置
+ * 多方块结构缺失方块幽灵投影渲染器。
+ * 当玩家位于已放置的控制器 32 格范围内时，自动渲染该控制器对应结构中
+ * 所有缺失方块的半透明模型，帮助玩家补全建造。
  */
 @Mod.EventBusSubscriber(modid = AE2Enhanced.MOD_ID, value = Side.CLIENT)
 public class StructurePlacementPreview {
 
-    private static final int COLOR_CONTROLLER = 0x00FFFF;
-    private static final int COLOR_ME_INTERFACE = 0xFFFF00;
-    private static final int COLOR_VALID = 0x00FF00;
-    private static final int COLOR_INVALID = 0xFF0000;
     private static final double MAX_PREVIEW_DISTANCE = 32.0;
+    private static final float GHOST_ALPHA = 0.35f;
+
+    /** 用于幽灵方块渲染的伪世界：全亮光照、空气方块（不剔除任何面）。 */
+    private static final IBlockAccess GHOST_WORLD = new GhostBlockAccess();
 
     @SubscribeEvent
     public static void onRenderWorldLast(RenderWorldLastEvent event) {
@@ -54,32 +61,8 @@ public class StructurePlacementPreview {
         EntityPlayer player = mc.player;
         if (player == null) return;
 
-        RayTraceResult ray = mc.objectMouseOver;
-        if (ray == null || ray.typeOfHit != RayTraceResult.Type.BLOCK) return;
-
-        BlockPos controllerPos = ray.getBlockPos();
-        World world = player.world;
-        IBlockState state = world.getBlockState(controllerPos);
-        Block block = state.getBlock();
-
-        StructureType type = null;
-        EnumFacing facing = EnumFacing.NORTH;
-        if (block == ModBlocks.ASSEMBLY_CONTROLLER) {
-            type = StructureType.ASSEMBLY;
-            facing = state.getValue(BlockAssemblyController.FACING);
-        } else if (block == ModBlocks.HYPERDIMENSIONAL_CONTROLLER) {
-            type = StructureType.HYPERDIMENSIONAL;
-            facing = state.getValue(BlockHyperdimensionalController.FACING);
-        } else if (block == ModBlocks.COMPUTATION_CORE) {
-            type = StructureType.SUPERCAUSAL;
-            facing = state.getValue(BlockComputationCore.FACING).getOpposite();
-        }
-        if (type == null) return;
-
-        double dx = controllerPos.getX() + 0.5 - player.posX;
-        double dy = controllerPos.getY() + 0.5 - player.posY;
-        double dz = controllerPos.getZ() + 0.5 - player.posZ;
-        if (dx * dx + dy * dy + dz * dz > MAX_PREVIEW_DISTANCE * MAX_PREVIEW_DISTANCE) return;
+        List<TileEntity> nearby = collectNearbyControllers(player);
+        if (nearby.isEmpty()) return;
 
         double rx = mc.getRenderManager().viewerPosX;
         double ry = mc.getRenderManager().viewerPosY;
@@ -87,140 +70,131 @@ public class StructurePlacementPreview {
 
         GlStateManager.pushMatrix();
         GlStateManager.translate(-rx, -ry, -rz);
-        GlStateManager.disableDepth();
-        GlStateManager.depthMask(false);
         GlStateManager.enableBlend();
-        GlStateManager.tryBlendFuncSeparate(
-            GlStateManager.SourceFactor.SRC_ALPHA, GlStateManager.DestFactor.ONE_MINUS_SRC_ALPHA,
-            GlStateManager.SourceFactor.ONE, GlStateManager.DestFactor.ZERO
-        );
-        GlStateManager.disableLighting();
-        GlStateManager.disableTexture2D();
-        GlStateManager.glLineWidth(2.0f);
+        GlStateManager.blendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
+        GlStateManager.color(1f, 1f, 1f, GHOST_ALPHA);
+        GlStateManager.enableTexture2D();
+        GlStateManager.disableDepth();
+        mc.getTextureManager().bindTexture(TextureMap.LOCATION_BLOCKS_TEXTURE);
+
+        Tessellator tessellator = Tessellator.getInstance();
+        BufferBuilder buffer = tessellator.getBuffer();
+        buffer.begin(GL11.GL_QUADS, DefaultVertexFormats.BLOCK);
 
         try {
-            Tessellator tessellator = Tessellator.getInstance();
-            BufferBuilder buffer = tessellator.getBuffer();
-            buffer.begin(GL11.GL_LINES, DefaultVertexFormats.POSITION_COLOR);
+            BlockRendererDispatcher dispatcher = mc.getBlockRendererDispatcher();
+            BlockModelRenderer modelRenderer = dispatcher.getBlockModelRenderer();
 
-            switch (type) {
-                case ASSEMBLY:
-                    renderAssembly(world, controllerPos, facing, buffer);
-                    break;
-                case HYPERDIMENSIONAL:
-                    renderHyperdimensional(world, controllerPos, facing, buffer);
-                    break;
-                case SUPERCAUSAL:
-                    renderSupercausal(world, controllerPos, facing, buffer);
-                    break;
+            for (TileEntity te : nearby) {
+                net.minecraft.world.World world = te.getWorld();
+                BlockPos pos = te.getPos();
+                IBlockState state = world.getBlockState(pos);
+
+                if (te instanceof TileAssemblyController) {
+                    EnumFacing facing = state.getValue(BlockAssemblyController.FACING);
+                    renderAssemblyGhost(world, pos, facing, buffer, dispatcher, modelRenderer);
+                } else if (te instanceof TileHyperdimensionalController) {
+                    EnumFacing facing = state.getValue(BlockHyperdimensionalController.FACING);
+                    renderHyperdimensionalGhost(world, pos, facing, buffer, dispatcher, modelRenderer);
+                } else if (te instanceof TileComputationCore) {
+                    EnumFacing facing = state.getValue(BlockComputationCore.FACING).getOpposite();
+                    renderSupercausalGhost(world, pos, facing, buffer, dispatcher, modelRenderer);
+                }
             }
-
-            tessellator.draw();
         } finally {
-            GlStateManager.glLineWidth(1.0f);
-            GlStateManager.enableTexture2D();
-            GlStateManager.enableLighting();
-            GlStateManager.depthMask(true);
+            tessellator.draw();
+
             GlStateManager.enableDepth();
+            GlStateManager.color(1f, 1f, 1f, 1f);
             GlStateManager.disableBlend();
             GlStateManager.popMatrix();
         }
     }
 
-    private static void renderAssembly(World world, BlockPos controllerPos, EnumFacing facing, BufferBuilder buffer) {
+    private static List<TileEntity> collectNearbyControllers(EntityPlayer player) {
+        List<TileEntity> result = new ArrayList<>();
+        double maxDistSq = MAX_PREVIEW_DISTANCE * MAX_PREVIEW_DISTANCE;
+        net.minecraft.world.World world = player.world;
+
+        for (TileEntity te : world.loadedTileEntityList) {
+            if (te.isInvalid()) continue;
+            if (!(te instanceof TileAssemblyController)
+                && !(te instanceof TileHyperdimensionalController)
+                && !(te instanceof TileComputationCore)) {
+                continue;
+            }
+            BlockPos pos = te.getPos();
+            double distSq = player.getDistanceSq(pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5);
+            if (distSq <= maxDistSq) {
+                result.add(te);
+            }
+        }
+        return result;
+    }
+
+    private static void renderAssemblyGhost(net.minecraft.world.World world, BlockPos controllerPos, EnumFacing facing,
+                                            BufferBuilder buffer, BlockRendererDispatcher dispatcher,
+                                            BlockModelRenderer modelRenderer) {
         BlockPos origin = controllerPos.add(rotate(new BlockPos(0, 0, 7), facing));
-        renderBlockSet(world, origin, facing, AssemblyStructure.CORE_SET, ModBlocks.ASSEMBLY_CONTROLLER, COLOR_CONTROLLER, buffer);
-        renderBlockSet(world, origin, facing, AssemblyStructure.PART1_SET, ModBlocks.ASSEMBLY_ME_INTERFACE, COLOR_ME_INTERFACE, buffer);
-        renderBlockSet(world, origin, facing, AssemblyStructure.PART2_SET, ModBlocks.ASSEMBLY_CASING, COLOR_VALID, buffer);
-        renderBlockSet(world, origin, facing, AssemblyStructure.PART3_SET, ModBlocks.ASSEMBLY_INNER_WALL, COLOR_VALID, buffer);
-        renderBlockSet(world, origin, facing, AssemblyStructure.PART4_SET, ModBlocks.ASSEMBLY_STABILIZER, COLOR_VALID, buffer);
+        renderGhostSet(world, origin, facing, AssemblyStructure.CORE_SET, ModBlocks.ASSEMBLY_CONTROLLER, buffer, dispatcher, modelRenderer);
+        renderGhostSet(world, origin, facing, AssemblyStructure.PART1_SET, ModBlocks.ASSEMBLY_ME_INTERFACE, buffer, dispatcher, modelRenderer);
+        renderGhostSet(world, origin, facing, AssemblyStructure.PART2_SET, ModBlocks.ASSEMBLY_CASING, buffer, dispatcher, modelRenderer);
+        renderGhostSet(world, origin, facing, AssemblyStructure.PART3_SET, ModBlocks.ASSEMBLY_INNER_WALL, buffer, dispatcher, modelRenderer);
+        renderGhostSet(world, origin, facing, AssemblyStructure.PART4_SET, ModBlocks.ASSEMBLY_STABILIZER, buffer, dispatcher, modelRenderer);
     }
 
-    private static void renderHyperdimensional(World world, BlockPos controllerPos, EnumFacing facing, BufferBuilder buffer) {
-        renderBlockSet(world, controllerPos, facing, HyperdimensionalStructure.CONTROLLER_SET, ModBlocks.HYPERDIMENSIONAL_CONTROLLER, COLOR_CONTROLLER, buffer);
-        renderBlockSet(world, controllerPos, facing, HyperdimensionalStructure.ME_INTERFACE_SET, ModBlocks.HYPERDIMENSIONAL_ME_INTERFACE, COLOR_ME_INTERFACE, buffer);
-        renderBlockSet(world, controllerPos, facing, HyperdimensionalStructure.CORE_SET, ModBlocks.HYPERDIMENSIONAL_SINGULARITY_CORE, COLOR_VALID, buffer);
-        renderBlockSet(world, controllerPos, facing, HyperdimensionalStructure.CASING_SET, ModBlocks.HYPERDIMENSIONAL_CASING, COLOR_VALID, buffer);
+    private static void renderHyperdimensionalGhost(net.minecraft.world.World world, BlockPos controllerPos, EnumFacing facing,
+                                                    BufferBuilder buffer, BlockRendererDispatcher dispatcher,
+                                                    BlockModelRenderer modelRenderer) {
+        renderGhostSet(world, controllerPos, facing, HyperdimensionalStructure.CONTROLLER_SET, ModBlocks.HYPERDIMENSIONAL_CONTROLLER, buffer, dispatcher, modelRenderer);
+        renderGhostSet(world, controllerPos, facing, HyperdimensionalStructure.ME_INTERFACE_SET, ModBlocks.HYPERDIMENSIONAL_ME_INTERFACE, buffer, dispatcher, modelRenderer);
+        renderGhostSet(world, controllerPos, facing, HyperdimensionalStructure.CORE_SET, ModBlocks.HYPERDIMENSIONAL_SINGULARITY_CORE, buffer, dispatcher, modelRenderer);
+        renderGhostSet(world, controllerPos, facing, HyperdimensionalStructure.CASING_SET, ModBlocks.HYPERDIMENSIONAL_CASING, buffer, dispatcher, modelRenderer);
     }
 
-    private static void renderSupercausal(World world, BlockPos controllerPos, EnumFacing facing, BufferBuilder buffer) {
-        EnumFacing sf = facing.getOpposite();
+    private static void renderSupercausalGhost(net.minecraft.world.World world, BlockPos controllerPos, EnumFacing facing,
+                                               BufferBuilder buffer, BlockRendererDispatcher dispatcher,
+                                               BlockModelRenderer modelRenderer) {
+        // 控制器位置已由核心方块占据，跳过
+        BlockPos meActual = controllerPos.add(rotate(SupercausalStructure.ME_INTERFACE_REL, facing));
+        renderGhostBlock(world, meActual, ModBlocks.SUPER_CRAFTING_INTERFACE, buffer, dispatcher, modelRenderer);
 
-        // 控制器
-        drawSingleBlock(world, controllerPos, ModBlocks.COMPUTATION_CORE, COLOR_CONTROLLER, buffer);
-
-        // ME 接口
-        BlockPos meActual = controllerPos.add(rotate(SupercausalStructure.ME_INTERFACE_REL, sf));
-        drawSingleBlock(world, meActual, ModBlocks.SUPER_CRAFTING_INTERFACE, COLOR_ME_INTERFACE, buffer);
-
-        // TENSOR_CASING_SET（跳过控制器位置，已由上方处理）
         for (BlockPos rel : SupercausalStructure.TENSOR_CASING_SET) {
             if (rel.equals(SupercausalStructure.CONTROLLER_REL)) continue;
-            BlockPos actual = controllerPos.add(rotate(rel, sf));
-            drawSingleBlock(world, actual, ModBlocks.CONSTANT_TENSOR_FIELD_CASING, COLOR_VALID, buffer);
+            BlockPos actual = controllerPos.add(rotate(rel, facing));
+            renderGhostBlock(world, actual, ModBlocks.CONSTANT_TENSOR_FIELD_CASING, buffer, dispatcher, modelRenderer);
         }
 
         for (BlockPos rel : SupercausalStructure.CAUSAL_ANCHOR_SET) {
-            BlockPos actual = controllerPos.add(rotate(rel, sf));
-            drawSingleBlock(world, actual, ModBlocks.CAUSAL_ANCHOR_CORE, COLOR_VALID, buffer);
+            BlockPos actual = controllerPos.add(rotate(rel, facing));
+            renderGhostBlock(world, actual, ModBlocks.CAUSAL_ANCHOR_CORE, buffer, dispatcher, modelRenderer);
         }
 
         for (BlockPos rel : SupercausalStructure.SPINOR_CASING_SET) {
-            BlockPos actual = controllerPos.add(rotate(rel, sf));
-            drawSingleBlock(world, actual, ModBlocks.CONSTANT_SPINOR_FIELD_CASING, COLOR_VALID, buffer);
+            BlockPos actual = controllerPos.add(rotate(rel, facing));
+            renderGhostBlock(world, actual, ModBlocks.CONSTANT_SPINOR_FIELD_CASING, buffer, dispatcher, modelRenderer);
         }
     }
 
-    private static void renderBlockSet(World world, BlockPos origin, EnumFacing facing,
-                                       Set<BlockPos> relSet, Block expected, int baseColor,
-                                       BufferBuilder buffer) {
+    private static void renderGhostSet(net.minecraft.world.World world, BlockPos origin, EnumFacing facing,
+                                       Set<BlockPos> relSet, Block expected,
+                                       BufferBuilder buffer, BlockRendererDispatcher dispatcher,
+                                       BlockModelRenderer modelRenderer) {
         for (BlockPos rel : relSet) {
             BlockPos actual = origin.add(rotate(rel, facing));
-            drawSingleBlock(world, actual, expected, baseColor, buffer);
+            renderGhostBlock(world, actual, expected, buffer, dispatcher, modelRenderer);
         }
     }
 
-    private static void drawSingleBlock(World world, BlockPos actual, Block expected, int baseColor, BufferBuilder buffer) {
-        IBlockState state = world.getBlockState(actual);
-        Block block = state.getBlock();
-        int color = baseColor;
-        if (!block.isReplaceable(world, actual) && block != expected) {
-            color = COLOR_INVALID;
-        }
-        drawBlockOutline(buffer, actual, color, 0.5f);
-    }
+    private static void renderGhostBlock(net.minecraft.world.World world, BlockPos actual, Block expected,
+                                         BufferBuilder buffer, BlockRendererDispatcher dispatcher,
+                                         BlockModelRenderer modelRenderer) {
+        IBlockState actualState = world.getBlockState(actual);
+        if (actualState.getBlock() == expected) return; // 已有正确方块，无需投影
 
-    private static void drawBlockOutline(BufferBuilder buffer, BlockPos pos, int color, float alpha) {
-        float r = ((color >> 16) & 0xFF) / 255.0f;
-        float g = ((color >> 8) & 0xFF) / 255.0f;
-        float b = (color & 0xFF) / 255.0f;
-
-        double x = pos.getX();
-        double y = pos.getY();
-        double z = pos.getZ();
-
-        // 底面
-        line(buffer, x, y, z, x + 1, y, z, r, g, b, alpha);
-        line(buffer, x + 1, y, z, x + 1, y, z + 1, r, g, b, alpha);
-        line(buffer, x + 1, y, z + 1, x, y, z + 1, r, g, b, alpha);
-        line(buffer, x, y, z + 1, x, y, z, r, g, b, alpha);
-        // 顶面
-        line(buffer, x, y + 1, z, x + 1, y + 1, z, r, g, b, alpha);
-        line(buffer, x + 1, y + 1, z, x + 1, y + 1, z + 1, r, g, b, alpha);
-        line(buffer, x + 1, y + 1, z + 1, x, y + 1, z + 1, r, g, b, alpha);
-        line(buffer, x, y + 1, z + 1, x, y + 1, z, r, g, b, alpha);
-        // 竖边
-        line(buffer, x, y, z, x, y + 1, z, r, g, b, alpha);
-        line(buffer, x + 1, y, z, x + 1, y + 1, z, r, g, b, alpha);
-        line(buffer, x + 1, y, z + 1, x + 1, y + 1, z + 1, r, g, b, alpha);
-        line(buffer, x, y, z + 1, x, y + 1, z + 1, r, g, b, alpha);
-    }
-
-    private static void line(BufferBuilder buffer, double x1, double y1, double z1,
-                             double x2, double y2, double z2,
-                             float r, float g, float b, float a) {
-        buffer.pos(x1, y1, z1).color(r, g, b, a).endVertex();
-        buffer.pos(x2, y2, z2).color(r, g, b, a).endVertex();
+        IBlockState state = expected.getDefaultState();
+        IBakedModel model = dispatcher.getModelForState(state);
+        modelRenderer.renderModel(GHOST_WORLD, model, state, actual, buffer, false);
     }
 
     /**
@@ -239,7 +213,33 @@ public class StructurePlacementPreview {
         }
     }
 
-    private enum StructureType {
-        ASSEMBLY, HYPERDIMENSIONAL, SUPERCAUSAL
+    /**
+     * 伪 IBlockAccess，用于幽灵方块渲染。
+     * 所有位置返回空气（不触发面剔除）与全亮光照。
+     */
+    private static class GhostBlockAccess implements IBlockAccess {
+        @Override
+        public net.minecraft.tileentity.TileEntity getTileEntity(BlockPos pos) { return null; }
+
+        @Override
+        public int getCombinedLight(BlockPos pos, int lightValue) { return 0xF000F0; }
+
+        @Override
+        public IBlockState getBlockState(BlockPos pos) { return Blocks.AIR.getDefaultState(); }
+
+        @Override
+        public boolean isAirBlock(BlockPos pos) { return true; }
+
+        @Override
+        public Biome getBiome(BlockPos pos) { return Biomes.PLAINS; }
+
+        @Override
+        public int getStrongPower(BlockPos pos, EnumFacing direction) { return 0; }
+
+        @Override
+        public WorldType getWorldType() { return WorldType.DEFAULT; }
+
+        @Override
+        public boolean isSideSolid(BlockPos pos, EnumFacing side, boolean _default) { return false; }
     }
 }
