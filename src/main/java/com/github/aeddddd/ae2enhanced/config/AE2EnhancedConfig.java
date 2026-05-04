@@ -79,6 +79,15 @@ public class AE2EnhancedConfig {
         NONE
     }
 
+    private static DamageMode parseDamageMode(String raw) {
+        if (raw == null) return DamageMode.ALL;
+        try {
+            return DamageMode.valueOf(raw.trim().toUpperCase());
+        } catch (IllegalArgumentException e) {
+            return DamageMode.ALL;
+        }
+    }
+
     public static class Crafting {
         @Config.Comment({
             "Maximum parallel crafting limit for the Computation Core.",
@@ -107,7 +116,12 @@ public class AE2EnhancedConfig {
             "  NONE         - No damage is dealt; the black hole only decays after its lifetime expires.",
             "Default: ALL"
         })
-        public DamageMode damageMode = DamageMode.ALL;
+        @Config.Name("damageMode")
+        public String damageMode = "ALL";
+
+        public DamageMode getDamageMode() {
+            return parseDamageMode(damageMode);
+        }
     }
 
     @Mod.EventBusSubscriber(modid = AE2Enhanced.MOD_ID)

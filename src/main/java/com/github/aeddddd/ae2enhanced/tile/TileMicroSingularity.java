@@ -55,7 +55,7 @@ public class TileMicroSingularity extends TileEntity implements ITickable {
         }
 
         // 事件视界：根据配置决定是否伤害生物
-        if (AE2EnhancedConfig.blackHole.damageMode != AE2EnhancedConfig.DamageMode.NONE) {
+        if (AE2EnhancedConfig.blackHole.getDamageMode() != AE2EnhancedConfig.DamageMode.NONE) {
             BlockPos origin = pos;
             AxisAlignedBB horizon = new AxisAlignedBB(
                     origin.getX() - HORIZON_RADIUS, origin.getY() - HORIZON_RADIUS, origin.getZ() - HORIZON_RADIUS,
@@ -65,7 +65,7 @@ public class TileMicroSingularity extends TileEntity implements ITickable {
                 if (!entity.isEntityAlive()) continue;
 
                 // 非创造模式过滤
-                if (AE2EnhancedConfig.blackHole.damageMode == AE2EnhancedConfig.DamageMode.NON_CREATIVE) {
+                if (AE2EnhancedConfig.blackHole.getDamageMode() == AE2EnhancedConfig.DamageMode.NON_CREATIVE) {
                     if (entity instanceof EntityPlayer && ((EntityPlayer) entity).isCreative()) {
                         continue;
                     }
