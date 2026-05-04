@@ -358,10 +358,19 @@ public class MixinCraftingCPUCluster {
             if (!isComplete && tasks.isEmpty()) {
                 @SuppressWarnings("unchecked")
                 IItemList<IAEItemStack> waitingFor = (IItemList<IAEItemStack>) waitingForField.get(cpu);
-                if (waitingFor == null || waitingFor.isEmpty()) {
+                boolean waitingForEmpty = true;
+                if (waitingFor != null) {
+                    for (IAEItemStack is : waitingFor) {
+                        if (is != null && is.getStackSize() > 0) {
+                            waitingForEmpty = false;
+                            break;
+                        }
+                    }
+                }
+                if (waitingForEmpty) {
                     completeJobMethod.invoke(cpu);
                     // 修复：completeJob() 不重置 finalOutput 也不调用 updateCPU()，
-                    // 导致 Crafting Monitor 在任务完成后不清空（大订单时尤为明显）
+                    // 导致 Crafting Monitor 在任务完成后不清空
                     if (finalOutputField != null) {
                         finalOutputField.set(cpu, null);
                     }
