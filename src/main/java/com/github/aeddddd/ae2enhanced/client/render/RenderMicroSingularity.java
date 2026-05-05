@@ -48,7 +48,10 @@ public class RenderMicroSingularity extends TileEntitySpecialRenderer<TileMicroS
 
         GlStateManager.pushMatrix();
         GlStateManager.translate(centerX, centerY, centerZ);
+        GlStateManager.color(1.0f, 1.0f, 1.0f, 1.0f);
 
+        boolean blendWasEnabled = GL11.glIsEnabled(GL11.GL_BLEND);
+        boolean cullWasEnabled = GL11.glIsEnabled(GL11.GL_CULL_FACE);
         GlStateManager.depthMask(false);
         GlStateManager.enableBlend();
         GlStateManager.tryBlendFuncSeparate(
@@ -58,7 +61,7 @@ public class RenderMicroSingularity extends TileEntitySpecialRenderer<TileMicroS
         GlStateManager.disableLighting();
         GlStateManager.disableTexture2D();
         GlStateManager.shadeModel(GL11.GL_SMOOTH);
-        boolean cullWasEnabled = GL11.glIsEnabled(GL11.GL_CULL_FACE);
+        GL11.glNormal3f(0.0f, 1.0f, 0.0f);
         GlStateManager.disableCull();
 
         try {
@@ -92,7 +95,9 @@ public class RenderMicroSingularity extends TileEntitySpecialRenderer<TileMicroS
             GlStateManager.enableTexture2D();
             GlStateManager.enableLighting();
             GlStateManager.depthMask(true);
-            GlStateManager.disableBlend();
+            if (!blendWasEnabled) {
+                GlStateManager.disableBlend();
+            }
             GlStateManager.tryBlendFuncSeparate(
                 GlStateManager.SourceFactor.SRC_ALPHA, GlStateManager.DestFactor.ONE_MINUS_SRC_ALPHA,
                 GlStateManager.SourceFactor.ONE, GlStateManager.DestFactor.ZERO

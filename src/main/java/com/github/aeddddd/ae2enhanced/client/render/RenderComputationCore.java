@@ -64,7 +64,10 @@ public class RenderComputationCore extends TileEntitySpecialRenderer<TileComputa
 
         GlStateManager.pushMatrix();
         GlStateManager.translate(cx, cy, cz);
+        GlStateManager.color(1.0f, 1.0f, 1.0f, 1.0f);
 
+        boolean blendWasEnabled = GL11.glIsEnabled(GL11.GL_BLEND);
+        boolean cullWasEnabled = GL11.glIsEnabled(GL11.GL_CULL_FACE);
         GlStateManager.depthMask(false);
         GlStateManager.enableBlend();
         GlStateManager.tryBlendFuncSeparate(
@@ -74,11 +77,8 @@ public class RenderComputationCore extends TileEntitySpecialRenderer<TileComputa
         GlStateManager.disableLighting();
         GlStateManager.disableTexture2D();
         GlStateManager.shadeModel(GL11.GL_SMOOTH);
-        boolean cullWasEnabled = GL11.glIsEnabled(GL11.GL_CULL_FACE);
+        GL11.glNormal3f(0.0f, 1.0f, 0.0f);
         GlStateManager.enableCull();
-        boolean blendWasEnabled = GL11.glIsEnabled(GL11.GL_BLEND);
-        GL11.glEnable(GL11.GL_LINE_SMOOTH);
-        GL11.glHint(GL11.GL_LINE_SMOOTH_HINT, GL11.GL_NICEST);
 
         try {
             // --- Inner star core ---
@@ -113,7 +113,6 @@ public class RenderComputationCore extends TileEntitySpecialRenderer<TileComputa
             GlStateManager.glLineWidth(1.0f);
             if (!blendWasEnabled) GlStateManager.disableBlend();
             if (!cullWasEnabled) GlStateManager.disableCull();
-            GL11.glDisable(GL11.GL_LINE_SMOOTH);
             GlStateManager.shadeModel(GL11.GL_FLAT);
             GlStateManager.enableTexture2D();
             GlStateManager.enableLighting();

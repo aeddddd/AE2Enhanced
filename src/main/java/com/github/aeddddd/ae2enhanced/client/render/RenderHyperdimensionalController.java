@@ -79,7 +79,10 @@ public class RenderHyperdimensionalController extends TileEntitySpecialRenderer<
 
         GlStateManager.pushMatrix();
         GlStateManager.translate(cx, cy, cz);
+        GlStateManager.color(1.0f, 1.0f, 1.0f, 1.0f);
 
+        boolean blendWasEnabled = GL11.glIsEnabled(GL11.GL_BLEND);
+        boolean cullWasEnabled = GL11.glIsEnabled(GL11.GL_CULL_FACE);
         GlStateManager.depthMask(false);
         GlStateManager.enableBlend();
         GlStateManager.tryBlendFuncSeparate(
@@ -89,9 +92,8 @@ public class RenderHyperdimensionalController extends TileEntitySpecialRenderer<
         GlStateManager.disableLighting();
         GlStateManager.disableTexture2D();
         GlStateManager.shadeModel(GL11.GL_SMOOTH);
-        boolean cullWasEnabled = GL11.glIsEnabled(GL11.GL_CULL_FACE);
+        GL11.glNormal3f(0.0f, 1.0f, 0.0f);
         GlStateManager.enableCull();
-        // GL_LINE_SMOOTH 已移除 — 在部分 Intel/AMD 驱动上会导致颜色通道丢失，整片变黑
 
         try {
             // 外立方体线框
@@ -137,7 +139,9 @@ public class RenderHyperdimensionalController extends TileEntitySpecialRenderer<
             GlStateManager.enableTexture2D();
             GlStateManager.enableLighting();
             GlStateManager.depthMask(true);
-            GlStateManager.disableBlend();
+            if (!blendWasEnabled) {
+                GlStateManager.disableBlend();
+            }
             GlStateManager.tryBlendFuncSeparate(
                 GlStateManager.SourceFactor.SRC_ALPHA, GlStateManager.DestFactor.ONE_MINUS_SRC_ALPHA,
                 GlStateManager.SourceFactor.ONE, GlStateManager.DestFactor.ZERO
