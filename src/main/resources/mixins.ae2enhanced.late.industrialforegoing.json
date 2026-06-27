@@ -1,0 +1,13 @@
+{
+  "package": "com.github.aeddddd.ae2enhanced.mixin.late.industrialforegoing",
+  "plugin": "com.github.aeddddd.ae2enhanced.mixin.IndustrialForegoingMixinPlugin",
+  "refmap": "mixin.refmap.json",
+  "target": "@env(DEFAULT)",
+  "minVersion": "0.8",
+  "compatibilityLevel": "JAVA_8",
+  "mixins": [
+    "MixinCustomElectricMachine"
+  ],
+  "client": [],
+  "server": []
+}

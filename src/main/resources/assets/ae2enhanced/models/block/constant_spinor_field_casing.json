@@ -1,0 +1,6 @@
+{
+  "parent": "block/cube_all",
+  "textures": {
+    "all": "ae2enhanced:blocks/constant_spinor_field_casing"
+  }
+}

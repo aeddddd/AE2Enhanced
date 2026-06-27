@@ -1,0 +1,25 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "DLD",
+    "LEL",
+    "DLD"
+  ],
+  "key": {
+    "D": {
+      "item": "minecraft:diamond"
+    },
+    "L": {
+      "item": "appliedenergistics2:material",
+      "data": 22
+    },
+    "E": {
+      "item": "appliedenergistics2:material",
+      "data": 24
+    }
+  },
+  "result": {
+    "item": "ae2enhanced:omni_upgrade_card",
+    "data": 1
+  }
+}

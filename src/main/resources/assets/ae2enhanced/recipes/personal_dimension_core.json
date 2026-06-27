@@ -1,0 +1,21 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "XXX",
+    "XSX",
+    "XXX"
+  ],
+  "key": {
+    "X": {
+      "item": "ae2enhanced:yellow_stripes_block_b"
+    },
+    "S": {
+      "item": "appliedenergistics2:material",
+      "data": 47
+    }
+  },
+  "result": {
+    "item": "ae2enhanced:personal_dimension",
+    "count": 1
+  }
+}

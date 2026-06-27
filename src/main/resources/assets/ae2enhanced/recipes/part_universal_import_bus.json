@@ -1,0 +1,27 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "PAP",
+    "BCB"
+  ],
+  "key": {
+    "P": {
+      "item": "appliedenergistics2:material",
+      "data": 22
+    },
+    "A": {
+      "item": "appliedenergistics2:material",
+      "data": 44
+    },
+    "B": {
+      "type": "forge:ore_dict",
+      "ore": "ingotIron"
+    },
+    "C": {
+      "item": "minecraft:sticky_piston"
+    }
+  },
+  "result": {
+    "item": "ae2enhanced:part_universal_import_bus"
+  }
+}

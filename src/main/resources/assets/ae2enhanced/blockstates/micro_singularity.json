@@ -1,0 +1,5 @@
+{
+  "variants": {
+    "normal": { "model": "ae2enhanced:micro_singularity" }
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "I E",
+    " C "
+  ],
+  "key": {
+    "I": {
+      "item": "ae2enhanced:part_universal_import_bus"
+    },
+    "E": {
+      "item": "ae2enhanced:part_universal_export_bus"
+    },
+    "C": {
+      "item": "minecraft:comparator"
+    }
+  },
+  "result": {
+    "item": "ae2enhanced:part_stocking_bus"
+  }
+}

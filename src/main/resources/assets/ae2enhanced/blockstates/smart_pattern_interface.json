@@ -1,0 +1,10 @@
+{
+  "variants": {
+    "normal": {
+      "model": "ae2enhanced:smart_pattern_interface"
+    },
+    "inventory": {
+      "model": "ae2enhanced:smart_pattern_interface"
+    }
+  }
+}

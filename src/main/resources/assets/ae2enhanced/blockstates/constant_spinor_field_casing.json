@@ -1,0 +1,6 @@
+{
+  "variants": {
+    "normal": { "model": "ae2enhanced:constant_spinor_field_casing" },
+    "inventory": { "model": "ae2enhanced:constant_spinor_field_casing" }
+  }
+}

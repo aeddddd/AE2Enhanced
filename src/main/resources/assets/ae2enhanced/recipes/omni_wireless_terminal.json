@@ -1,0 +1,27 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "ingredients": [
+    {
+      "item": "appliedenergistics2:part",
+      "data": 360
+    },
+    {
+      "item": "appliedenergistics2:part",
+      "data": 340
+    },
+    {
+      "item": "appliedenergistics2:part",
+      "data": 480
+    },
+    {
+      "item": "appliedenergistics2:part",
+      "data": 520
+    },
+    {
+      "item": "appliedenergistics2:wireless_terminal"
+    }
+  ],
+  "result": {
+    "item": "ae2enhanced:omni_wireless_terminal"
+  }
+}

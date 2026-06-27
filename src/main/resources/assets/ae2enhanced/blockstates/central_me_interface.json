@@ -1,0 +1,10 @@
+{
+  "variants": {
+    "normal": {
+      "model": "ae2enhanced:central_me_interface"
+    },
+    "inventory": {
+      "model": "ae2enhanced:central_me_interface"
+    }
+  }
+}

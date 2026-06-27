@@ -1,0 +1,16 @@
+{
+  "variants": {
+    "state=off": {
+      "model": "ae2enhanced:advanced_me_collector"
+    },
+    "state=on": {
+      "model": "ae2enhanced:advanced_me_collector"
+    },
+    "state=has_channel": {
+      "model": "ae2enhanced:advanced_me_collector"
+    },
+    "inventory": {
+      "model": "ae2enhanced:advanced_me_collector"
+    }
+  }
+}

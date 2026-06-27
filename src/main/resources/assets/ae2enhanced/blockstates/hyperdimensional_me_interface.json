@@ -1,0 +1,13 @@
+{
+  "variants": {
+    "formed=false": {
+      "model": "ae2enhanced:hyperdimensional_me_interface"
+    },
+    "formed=true": {
+      "model": "ae2enhanced:hyperdimensional_me_interface"
+    },
+    "inventory": {
+      "model": "ae2enhanced:hyperdimensional_me_interface"
+    }
+  }
+}

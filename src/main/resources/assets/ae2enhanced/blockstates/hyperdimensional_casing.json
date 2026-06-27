@@ -1,0 +1,6 @@
+{
+  "variants": {
+    "normal": { "model": "ae2enhanced:hyperdimensional_casing" },
+    "inventory": { "model": "ae2enhanced:hyperdimensional_casing" }
+  }
+}

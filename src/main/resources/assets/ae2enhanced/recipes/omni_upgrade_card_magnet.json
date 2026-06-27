@@ -1,0 +1,24 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "ISI",
+    "SCS",
+    "ISI"
+  ],
+  "key": {
+    "I": {
+      "item": "minecraft:iron_ingot"
+    },
+    "S": {
+      "item": "appliedenergistics2:material",
+      "data": 47
+    },
+    "C": {
+      "item": "ae2enhanced:channel_receiver_card"
+    }
+  },
+  "result": {
+    "item": "ae2enhanced:omni_upgrade_card",
+    "data": 0
+  }
+}

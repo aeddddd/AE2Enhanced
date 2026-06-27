@@ -1,0 +1,9 @@
+{
+  "variants": {
+    "facing=north": { "model": "ae2enhanced:computation_core" },
+    "facing=south": { "model": "ae2enhanced:computation_core", "y": 180 },
+    "facing=east":  { "model": "ae2enhanced:computation_core", "y": 90 },
+    "facing=west":  { "model": "ae2enhanced:computation_core", "y": 270 },
+    "inventory":    { "model": "ae2enhanced:computation_core" }
+  }
+}

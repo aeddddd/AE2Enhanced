@@ -1,0 +1,21 @@
+{
+  "package": "com.github.aeddddd.ae2enhanced.mixin.late",
+  "refmap": "mixin.refmap.json",
+  "target": "@env(DEFAULT)",
+  "minVersion": "0.8",
+  "compatibilityLevel": "JAVA_8",
+  "plugin": "com.github.aeddddd.ae2enhanced.mixin.TiiMixinPlugin",
+  "mixins": [
+    "energy.MixinGridStorageCacheEnergy",
+    "energy.MixinNetworkInventoryHandlerEnergy",
+    "energy.MixinNetworkMonitorEnergy",
+    "mana.MixinGridStorageCacheMana",
+    "mana.MixinNetworkInventoryHandlerMana",
+    "mana.MixinNetworkMonitorMana",
+    "starlight.MixinGridStorageCacheStarlight",
+    "starlight.MixinNetworkInventoryHandlerStarlight",
+    "starlight.MixinNetworkMonitorStarlight"
+  ],
+  "client": [],
+  "server": []
+}

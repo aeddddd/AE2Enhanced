@@ -1,0 +1,13 @@
+{
+  "package": "com.github.aeddddd.ae2enhanced.mixin.late.thermal",
+  "plugin": "com.github.aeddddd.ae2enhanced.mixin.ThermalMixinPlugin",
+  "refmap": "mixin.refmap.json",
+  "target": "@env(DEFAULT)",
+  "minVersion": "0.8",
+  "compatibilityLevel": "JAVA_8",
+  "mixins": [
+    "MixinTileMachineBase"
+  ],
+  "client": [],
+  "server": []
+}

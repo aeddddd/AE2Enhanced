@@ -1,0 +1,10 @@
+{
+  "ctm": {
+    "ctm_version": 1,
+    "type": "ctm",
+    "textures": [
+      "ae2enhanced:blocks/assembly_inner_wall_ctm"
+    ],
+    "layer": "SOLID"
+  }
+}

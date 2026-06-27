@@ -1,0 +1,80 @@
+.gradle
+build/
+!gradle/wrapper/gradle-wrapper.jar
+!**/src/main/**/build/
+!**/src/test/**/build/
+*md
+
+### IntelliJ IDEA ###
+.idea/
+*.iws
+*.iml
+*.ipr
+out/
+!**/src/main/**/out/
+!**/src/test/**/out/
+
+### Local Libraries ###
+libs/
+!libs/.gitkeep
+
+### Eclipse ###
+.apt_generated
+.classpath
+.factorypath
+.project
+.settings
+.springBeans
+.sts4-cache
+bin/
+!**/src/main/**/bin/
+!**/src/test/**/bin/
+
+### NetBeans ###
+/nbproject/private/
+/nbbuild/
+/dist/
+/nbdist/
+/.nb-gradle/
+
+### VS Code ###
+.vscode/
+*.code-workspace
+
+
+!README.md
+!README_zh.md
+### Minecraft Modding ###
+run/
+*.log
+hs_err_pid*
+replay_pid*
+eclipse/
+runClient/
+runServer/
+
+xml/
+*.css
+*.js
+*.html
+zone/
+*.txt
+
+
+### Bytecode / Decompiled classes ###
+*.class
+
+### Inspection Reports ###
+inspection_reports/
+
+### Decompiled / Temp ###
+*decompile*/
+
+
+### Runtime generated (Mixin refmaps / decompiled classes) ###
+
+log/
+
+
+docs/
+research/

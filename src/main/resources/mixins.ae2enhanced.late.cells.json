@@ -1,0 +1,14 @@
+{
+  "package": "com.github.aeddddd.ae2enhanced.mixin.late",
+  "refmap": "mixin.refmap.json",
+  "target": "@env(DEFAULT)",
+  "minVersion": "0.8",
+  "compatibilityLevel": "JAVA_8",
+  "mixins": [
+    "cells.MixinInterfaceUpgradeManager",
+    "cells.MixinAbstractInterfaceTile",
+    "cells.MixinAbstractCombinedInterfaceTile"
+  ],
+  "client": [],
+  "server": []
+}

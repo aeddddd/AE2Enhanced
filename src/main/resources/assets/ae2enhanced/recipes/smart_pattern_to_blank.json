@@ -1,0 +1,9 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "ingredients": [
+    {"item": "ae2enhanced:smart_pattern"}
+  ],
+  "result": {
+    "item": "ae2enhanced:smart_blank_pattern"
+  }
+}

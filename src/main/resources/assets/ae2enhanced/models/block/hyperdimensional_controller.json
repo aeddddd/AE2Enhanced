@@ -1,0 +1,12 @@
+{
+  "parent": "block/cube",
+  "textures": {
+    "particle": "ae2enhanced:blocks/hyperdimensional_casing",
+    "down": "ae2enhanced:blocks/hyperdimensional_casing",
+    "up": "ae2enhanced:blocks/hyperdimensional_casing",
+    "north": "ae2enhanced:blocks/hyperdimensional_controller",
+    "south": "ae2enhanced:blocks/hyperdimensional_casing",
+    "east": "ae2enhanced:blocks/hyperdimensional_casing",
+    "west": "ae2enhanced:blocks/hyperdimensional_casing"
+  }
+}

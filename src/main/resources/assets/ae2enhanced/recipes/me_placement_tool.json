@@ -1,0 +1,31 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "ABA",
+    "CDC",
+    "AEA"
+  ],
+  "key": {
+    "A": {
+      "item": "appliedenergistics2:material",
+      "data": 7
+    },
+    "B": {
+      "item": "appliedenergistics2:material",
+      "data": 24
+    },
+    "C": {
+      "item": "appliedenergistics2:material",
+      "data": 22
+    },
+    "D": {
+      "item": "appliedenergistics2:network_tool"
+    },
+    "E": {
+      "item": "appliedenergistics2:wireless_terminal"
+    }
+  },
+  "result": {
+    "item": "ae2enhanced:me_placement_tool"
+  }
+}

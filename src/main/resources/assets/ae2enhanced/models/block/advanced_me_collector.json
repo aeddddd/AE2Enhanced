@@ -1,0 +1,6 @@
+{
+  "parent": "block/cube_all",
+  "textures": {
+    "all": "ae2enhanced:blocks/advanced_me_collector"
+  }
+}

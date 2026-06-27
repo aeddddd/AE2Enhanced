@@ -1,0 +1,10 @@
+{
+  "ctm": {
+    "ctm_version": 1,
+    "type": "ctm",
+    "textures": [
+      "ae2enhanced:blocks/assembly_casing_ctm"
+    ],
+    "layer": "SOLID"
+  }
+}
