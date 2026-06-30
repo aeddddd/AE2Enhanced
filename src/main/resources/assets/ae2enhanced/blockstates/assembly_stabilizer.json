@@ -1,10 +1,5 @@
 {
   "variants": {
-    "normal": {
-      "model": "ae2enhanced:assembly_stabilizer"
-    },
-    "inventory": {
-      "model": "ae2enhanced:assembly_stabilizer"
-    }
+    "": { "model": "ae2enhanced:assembly_stabilizer" }
   }
 }

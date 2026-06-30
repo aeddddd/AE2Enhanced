@@ -1,6 +1,6 @@
 {
   "parent": "block/cube_all",
   "textures": {
-    "all": "ae2enhanced:blocks/causal_anchor_core"
+    "all": "ae2enhanced:block/hyperdimensional_singularity_core"
   }
 }

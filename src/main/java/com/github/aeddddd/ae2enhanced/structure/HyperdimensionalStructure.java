@@ -1,24 +1,36 @@
 package com.github.aeddddd.ae2enhanced.structure;
 
-import com.github.aeddddd.ae2enhanced.registry.content.BlockRegistry;
-import com.github.aeddddd.ae2enhanced.block.BlockHyperdimensionalController;
-import com.github.aeddddd.ae2enhanced.tile.TileHyperdimensionalController;
-import com.github.aeddddd.ae2enhanced.tile.TileHyperdimensionalMeInterface;
-import net.minecraft.block.Block;
-import net.minecraft.block.state.IBlockState;
-import net.minecraft.util.EnumFacing;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.world.World;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
 
-import java.util.*;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.world.entity.player.Inventory;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.state.BlockState;
 
-public class HyperdimensionalStructure {
+import com.github.aeddddd.ae2enhanced.block.HyperdimensionalControllerBlock;
+import com.github.aeddddd.ae2enhanced.blockentity.HyperdimensionalControllerBlockEntity;
+import com.github.aeddddd.ae2enhanced.multiblock.MultiblockMeInterfaceBlockEntity;
+import com.github.aeddddd.ae2enhanced.registry.ModBlocks;
 
-    // 相对于控制器 (0,0,0) 的坐标
+/**
+ * 超维度仓储中枢结构验证与一键装配逻辑。
+ * <p>坐标系以控制器为原点，默认朝向北方（Z 轴正方向伸出），根据控制器朝向旋转。</p>
+ */
+public final class HyperdimensionalStructure {
+
     public static final Set<BlockPos> CONTROLLER_SET;
-    public static final Set<BlockPos> ME_INTERFACE_SET;
+    public static final Set<BlockPos> INTERFACE_SET;
     public static final Set<BlockPos> CASING_SET;
-    public static final Set<BlockPos> CORE_SET; // singularity core
+    public static final Set<BlockPos> CORE_SET;
     public static final Set<BlockPos> ALL_SET;
 
     static {
@@ -28,7 +40,7 @@ public class HyperdimensionalStructure {
 
         Set<BlockPos> meInterface = new HashSet<>();
         meInterface.add(new BlockPos(0, 0, 4));
-        ME_INTERFACE_SET = Collections.unmodifiableSet(meInterface);
+        INTERFACE_SET = Collections.unmodifiableSet(meInterface);
 
         Set<BlockPos> core = new HashSet<>();
         core.add(new BlockPos(0, 0, 3));
@@ -57,208 +69,209 @@ public class HyperdimensionalStructure {
 
         Set<BlockPos> all = new HashSet<>();
         all.addAll(CONTROLLER_SET);
-        all.addAll(ME_INTERFACE_SET);
+        all.addAll(INTERFACE_SET);
         all.addAll(CORE_SET);
         all.addAll(CASING_SET);
         ALL_SET = Collections.unmodifiableSet(all);
     }
 
-    public static BlockPos rotate(BlockPos rel, EnumFacing facing) {
-        if (facing == EnumFacing.NORTH) return rel;
+    private HyperdimensionalStructure() {
+    }
+
+    public static BlockPos rotate(BlockPos rel, Direction facing) {
+        if (facing == Direction.NORTH) {
+            return rel;
+        }
         int x = rel.getX();
         int y = rel.getY();
         int z = rel.getZ();
-        switch (facing) {
-            case SOUTH: return new BlockPos(-x, y, -z);
-            case EAST:  return new BlockPos(-z, y, x);
-            case WEST:  return new BlockPos(z, y, -x);
-            default:    return rel;
-        }
+        return switch (facing) {
+            case SOUTH -> new BlockPos(-x, y, -z);
+            case EAST -> new BlockPos(-z, y, x);
+            case WEST -> new BlockPos(z, y, -x);
+            default -> rel;
+        };
     }
 
-    public static boolean validate(World world, BlockPos controllerPos) {
-        EnumFacing facing = getControllerFacing(world, controllerPos);
-        if (!checkBlock(world, controllerPos, CONTROLLER_SET, BlockRegistry.HYPERDIMENSIONAL_CONTROLLER, facing)) {
-            return false;
-        }
-        if (!checkBlock(world, controllerPos, ME_INTERFACE_SET, BlockRegistry.HYPERDIMENSIONAL_ME_INTERFACE, facing)) {
-            return false;
-        }
-        if (!checkBlock(world, controllerPos, CORE_SET, BlockRegistry.HYPERDIMENSIONAL_SINGULARITY_CORE, facing)) {
-            return false;
-        }
-        if (!checkBlock(world, controllerPos, CASING_SET, BlockRegistry.HYPERDIMENSIONAL_CASING, facing)) {
-            return false;
-        }
-        return true;
+    public static boolean validate(Level level, BlockPos controllerPos) {
+        Direction facing = getControllerFacing(level, controllerPos);
+        return checkBlock(level, controllerPos, CONTROLLER_SET, ModBlocks.HYPERDIMENSIONAL_CONTROLLER.get(), facing)
+                && checkBlock(level, controllerPos, INTERFACE_SET, ModBlocks.MULTIBLOCK_ME_INTERFACE.get(), facing)
+                && checkBlock(level, controllerPos, CORE_SET, ModBlocks.HYPERDIMENSIONAL_SINGULARITY_CORE.get(), facing)
+                && checkBlock(level, controllerPos, CASING_SET, ModBlocks.HYPERDIMENSIONAL_CASING.get(), facing);
     }
 
-    private static boolean checkBlock(World world, BlockPos controllerPos, Set<BlockPos> relativeSet, Block expected, EnumFacing facing) {
+    private static boolean checkBlock(Level level, BlockPos controllerPos, Set<BlockPos> relativeSet,
+            Block expected, Direction facing) {
         for (BlockPos rel : relativeSet) {
-            BlockPos actual = controllerPos.add(rotate(rel, facing));
-            if (!world.isBlockLoaded(actual)) {
-                continue; // chunk 未加载,保持当前状态,不判定为缺失
+            BlockPos actual = controllerPos.offset(rel.getX(), rel.getY(), rel.getZ());
+            if (!level.isLoaded(actual)) {
+                continue;
             }
-            if (world.getBlockState(actual).getBlock() != expected) {
+            if (level.getBlockState(actual).getBlock() != expected) {
                 return false;
             }
         }
         return true;
     }
 
-    public static Map<Block, Integer> getMissingMap(World world, BlockPos controllerPos) {
-        EnumFacing facing = getControllerFacing(world, controllerPos);
+    public static Map<Block, Integer> getMissingMap(Level level, BlockPos controllerPos) {
+        Direction facing = getControllerFacing(level, controllerPos);
         Map<Block, Integer> missing = new LinkedHashMap<>();
-        countMissing(world, controllerPos, ME_INTERFACE_SET, BlockRegistry.HYPERDIMENSIONAL_ME_INTERFACE, missing, facing);
-        countMissing(world, controllerPos, CORE_SET, BlockRegistry.HYPERDIMENSIONAL_SINGULARITY_CORE, missing, facing);
-        countMissing(world, controllerPos, CASING_SET, BlockRegistry.HYPERDIMENSIONAL_CASING, missing, facing);
+        countMissing(level, controllerPos, INTERFACE_SET, ModBlocks.MULTIBLOCK_ME_INTERFACE.get(), missing, facing);
+        countMissing(level, controllerPos, CORE_SET, ModBlocks.HYPERDIMENSIONAL_SINGULARITY_CORE.get(), missing, facing);
+        countMissing(level, controllerPos, CASING_SET, ModBlocks.HYPERDIMENSIONAL_CASING.get(), missing, facing);
         return missing;
     }
 
-    private static void countMissing(World world, BlockPos controllerPos, Set<BlockPos> relativeSet, Block expected, Map<Block, Integer> missing, EnumFacing facing) {
+    private static void countMissing(Level level, BlockPos controllerPos, Set<BlockPos> relativeSet,
+            Block expected, Map<Block, Integer> missing, Direction facing) {
         for (BlockPos rel : relativeSet) {
-            BlockPos actual = controllerPos.add(rotate(rel, facing));
-            if (!world.isBlockLoaded(actual)) {
+            BlockPos actual = controllerPos.offset(rel.getX(), rel.getY(), rel.getZ());
+            if (!level.isLoaded(actual)) {
                 continue;
             }
-            if (world.getBlockState(actual).getBlock() != expected) {
+            if (level.getBlockState(actual).getBlock() != expected) {
                 missing.put(expected, missing.getOrDefault(expected, 0) + 1);
             }
         }
     }
 
-    public static void assemble(World world, BlockPos controllerPos) {
-        if (world.isRemote) return;
-        TileHyperdimensionalController tile = getControllerTile(world, controllerPos);
-        if (tile != null) {
-            tile.assemble();
+    public static void assemble(Level level, BlockPos controllerPos) {
+        if (level.isClientSide()) {
+            return;
         }
-        EnumFacing facing = getControllerFacing(world, controllerPos);
-        updateMeInterfaceState(world, controllerPos, true, facing);
-    }
 
-    public static void disassemble(World world, BlockPos controllerPos) {
-        if (world.isRemote) return;
-        TileHyperdimensionalController tile = getControllerTile(world, controllerPos);
-        if (tile != null) {
-            tile.disassemble();
+        // 更新控制器状态
+        BlockState controllerState = level.getBlockState(controllerPos);
+        if (controllerState.getBlock() == ModBlocks.HYPERDIMENSIONAL_CONTROLLER.get()) {
+            if (level.getBlockEntity(controllerPos) instanceof HyperdimensionalControllerBlockEntity controller) {
+                controller.setFormed(true);
+            }
         }
-        EnumFacing facing = getControllerFacing(world, controllerPos);
-        updateMeInterfaceState(world, controllerPos, false, facing);
-    }
 
-    private static void updateMeInterfaceState(World world, BlockPos controllerPos, boolean formed, EnumFacing facing) {
-        IBlockState state = BlockRegistry.HYPERDIMENSIONAL_ME_INTERFACE.getDefaultState()
-            .withProperty(com.github.aeddddd.ae2enhanced.block.BlockHyperdimensionalMeInterface.FORMED, formed);
-        for (BlockPos rel : ME_INTERFACE_SET) {
-            BlockPos pos = controllerPos.add(rotate(rel, facing));
-            if (world.getBlockState(pos).getBlock() == BlockRegistry.HYPERDIMENSIONAL_ME_INTERFACE) {
-                world.setBlockState(pos, state);
-                net.minecraft.tileentity.TileEntity te = world.getTileEntity(pos);
-                if (te instanceof TileHyperdimensionalMeInterface) {
-                    ((TileHyperdimensionalMeInterface) te).setControllerPos(formed ? controllerPos : null);
+        // 绑定接口到控制器
+        for (BlockPos rel : INTERFACE_SET) {
+            BlockPos actual = controllerPos.offset(rel.getX(), rel.getY(), rel.getZ());
+            BlockState state = level.getBlockState(actual);
+            if (state.getBlock() == ModBlocks.MULTIBLOCK_ME_INTERFACE.get()) {
+                if (level.getBlockEntity(actual) instanceof MultiblockMeInterfaceBlockEntity interfaceBe) {
+                    interfaceBe.setControllerPos(controllerPos);
                 }
             }
         }
     }
 
-    private static TileHyperdimensionalController getControllerTile(World world, BlockPos pos) {
-        net.minecraft.tileentity.TileEntity te = world.getTileEntity(pos);
-        return te instanceof TileHyperdimensionalController ? (TileHyperdimensionalController) te : null;
-    }
-
-    private static EnumFacing getControllerFacing(World world, BlockPos controllerPos) {
-        IBlockState state = world.getBlockState(controllerPos);
-        if (state.getBlock() instanceof BlockHyperdimensionalController) {
-            return state.getValue(BlockHyperdimensionalController.FACING);
+    public static void disassemble(Level level, BlockPos controllerPos) {
+        if (level.isClientSide()) {
+            return;
         }
-        return EnumFacing.NORTH;
-    }
 
-    /**
-     * 创造模式：一键生成所有缺失方块
-     */
-    public static void placeMissingBlocks(World world, BlockPos controllerPos, net.minecraft.entity.player.EntityPlayer player) {
-        if (world.isRemote) return;
-        EnumFacing facing = getControllerFacing(world, controllerPos);
+        // 解除接口绑定
+        for (BlockPos rel : INTERFACE_SET) {
+            BlockPos actual = controllerPos.offset(rel.getX(), rel.getY(), rel.getZ());
+            BlockState state = level.getBlockState(actual);
+            if (state.getBlock() == ModBlocks.MULTIBLOCK_ME_INTERFACE.get()) {
+                if (level.getBlockEntity(actual) instanceof MultiblockMeInterfaceBlockEntity interfaceBe) {
+                    interfaceBe.setControllerPos(null);
+                }
+            }
+        }
 
-        placeBlocks(world, controllerPos, ME_INTERFACE_SET, BlockRegistry.HYPERDIMENSIONAL_ME_INTERFACE, facing);
-        placeBlocks(world, controllerPos, CORE_SET, BlockRegistry.HYPERDIMENSIONAL_SINGULARITY_CORE, facing);
-        placeBlocks(world, controllerPos, CASING_SET, BlockRegistry.HYPERDIMENSIONAL_CASING, facing);
-
-        // 立即触发组装(跳过 20 tick 等待)
-        assemble(world, controllerPos);
-    }
-
-    private static void placeBlocks(World world, BlockPos controllerPos, Set<BlockPos> set, Block block, EnumFacing facing) {
-        for (BlockPos rel : set) {
-            BlockPos pos = controllerPos.add(rotate(rel, facing));
-            if (world.getBlockState(pos).getBlock() != block) {
-                world.setBlockState(pos, block.getDefaultState());
+        // 更新控制器状态
+        BlockState controllerState = level.getBlockState(controllerPos);
+        if (controllerState.getBlock() == ModBlocks.HYPERDIMENSIONAL_CONTROLLER.get()) {
+            if (level.getBlockEntity(controllerPos) instanceof HyperdimensionalControllerBlockEntity controller) {
+                controller.setFormed(false);
             }
         }
     }
 
     /**
-     * 生存模式：检查背包材料,足够则扣除并放置
-     * @return 是否成功
+     * 创造模式：一键生成所有缺失方块并立即组装。
      */
-    public static boolean tryConsumeAndPlace(World world, BlockPos controllerPos, net.minecraft.entity.player.EntityPlayer player) {
-        if (world.isRemote) return false;
-        EnumFacing facing = getControllerFacing(world, controllerPos);
+    public static void placeMissingBlocks(Level level, BlockPos controllerPos, Player player) {
+        if (level.isClientSide()) {
+            return;
+        }
+        Direction facing = getControllerFacing(level, controllerPos);
 
-        Map<Block, Integer> missing = new LinkedHashMap<>();
-        countMissing(world, controllerPos, ME_INTERFACE_SET, BlockRegistry.HYPERDIMENSIONAL_ME_INTERFACE, missing, facing);
-        countMissing(world, controllerPos, CORE_SET, BlockRegistry.HYPERDIMENSIONAL_SINGULARITY_CORE, missing, facing);
-        countMissing(world, controllerPos, CASING_SET, BlockRegistry.HYPERDIMENSIONAL_CASING, missing, facing);
+        placeBlocks(level, controllerPos, INTERFACE_SET, ModBlocks.MULTIBLOCK_ME_INTERFACE.get(), facing);
+        placeBlocks(level, controllerPos, CORE_SET, ModBlocks.HYPERDIMENSIONAL_SINGULARITY_CORE.get(), facing);
+        placeBlocks(level, controllerPos, CASING_SET, ModBlocks.HYPERDIMENSIONAL_CASING.get(), facing);
 
+        assemble(level, controllerPos);
+    }
+
+    private static void placeBlocks(Level level, BlockPos controllerPos, Set<BlockPos> set, Block block,
+            Direction facing) {
+        for (BlockPos rel : set) {
+            BlockPos pos = controllerPos.offset(rel.getX(), rel.getY(), rel.getZ());
+            if (level.getBlockState(pos).getBlock() != block) {
+                level.setBlock(pos, block.defaultBlockState(), Block.UPDATE_ALL);
+            }
+        }
+    }
+
+    /**
+     * 生存模式：检查背包材料，足够则扣除并放置，最后组装。
+     */
+    public static boolean tryConsumeAndPlace(Level level, BlockPos controllerPos, Player player) {
+        if (level.isClientSide()) {
+            return false;
+        }
+
+        Map<Block, Integer> missing = getMissingMap(level, controllerPos);
         if (missing.isEmpty()) {
-            assemble(world, controllerPos);
+            assemble(level, controllerPos);
             return true;
         }
 
-        // 检查背包是否有足够材料
-        net.minecraft.entity.player.InventoryPlayer inv = player.inventory;
+        Inventory inv = player.getInventory();
         Map<Block, Integer> needed = new LinkedHashMap<>(missing);
 
-        for (net.minecraft.item.ItemStack stack : inv.mainInventory) {
-            if (stack.isEmpty()) continue;
+        for (ItemStack stack : inv.items) {
+            if (stack.isEmpty()) {
+                continue;
+            }
             for (Map.Entry<Block, Integer> entry : needed.entrySet()) {
-                Block block = entry.getKey();
-                if (stack.getItem() == net.minecraft.item.Item.getItemFromBlock(block)) {
+                if (stack.getItem() == entry.getKey().asItem()) {
                     int need = entry.getValue();
                     int have = stack.getCount();
-                    if (have >= need) {
-                        entry.setValue(0);
-                    } else {
-                        entry.setValue(need - have);
-                    }
+                    entry.setValue(Math.max(0, need - have));
                     break;
                 }
             }
         }
 
         for (int count : needed.values()) {
-            if (count > 0) return false; // 材料不足
+            if (count > 0) {
+                return false;
+            }
         }
 
-        // 扣除材料
         for (Map.Entry<Block, Integer> entry : missing.entrySet()) {
             Block block = entry.getKey();
             int remaining = entry.getValue();
-            net.minecraft.item.Item item = net.minecraft.item.Item.getItemFromBlock(block);
-            for (int i = 0; i < inv.mainInventory.size() && remaining > 0; i++) {
-                net.minecraft.item.ItemStack stack = inv.mainInventory.get(i);
-                if (stack.getItem() == item) {
+            for (int i = 0; i < inv.items.size() && remaining > 0; i++) {
+                ItemStack stack = inv.items.get(i);
+                if (stack.getItem() == block.asItem()) {
                     int take = Math.min(stack.getCount(), remaining);
-                    int removed = inv.decrStackSize(i, take).getCount();
-                    remaining -= removed;
+                    inv.removeItem(i, take);
+                    remaining -= take;
                 }
             }
         }
 
-        // 放置方块
-        placeMissingBlocks(world, controllerPos, player);
+        placeMissingBlocks(level, controllerPos, player);
         return true;
+    }
+
+    private static Direction getControllerFacing(Level level, BlockPos controllerPos) {
+        BlockState state = level.getBlockState(controllerPos);
+        if (state.getBlock() == ModBlocks.HYPERDIMENSIONAL_CONTROLLER.get()) {
+            return state.getValue(HyperdimensionalControllerBlock.FACING);
+        }
+        return Direction.NORTH;
     }
 }

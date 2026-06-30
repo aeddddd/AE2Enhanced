@@ -1,0 +1,15 @@
+{
+  "itemGroup.ae2enhanced": "AE2 Enhanced",
+  "block.ae2enhanced.hyperdimensional_controller": "Hyperdimensional Storage Controller",
+  "block.ae2enhanced.multiblock_me_interface": "Multiblock ME Interface",
+  "block.ae2enhanced.hyperdimensional_casing": "Hyperdimensional Casing",
+  "block.ae2enhanced.hyperdimensional_singularity_core": "Hyperdimensional Singularity Core",
+  "block.ae2enhanced.assembly_controller": "Assembly Controller",
+  "block.ae2enhanced.assembly_casing": "Assembly Casing",
+  "block.ae2enhanced.assembly_inner_wall": "Assembly Inner Wall",
+  "block.ae2enhanced.assembly_stabilizer": "Assembly Stabilizer",
+  "block.ae2enhanced.computation_controller": "Supercausal Computation Controller",
+  "block.ae2enhanced.constant_tensor_field_casing": "Constant Tensor Field Casing",
+  "block.ae2enhanced.constant_spinor_field_casing": "Constant Spinor Field Casing",
+  "block.ae2enhanced.causal_anchor_core": "Causal Anchor Core"
+}

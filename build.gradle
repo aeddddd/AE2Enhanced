@@ -1,186 +1,154 @@
 buildscript {
     repositories {
-        jcenter()
-        maven { url = "https://files.minecraftforge.net/maven" }
-        maven { url = "https://repo.spongepowered.org/repository/maven-public/" }
+        maven { url = 'https://maven.minecraftforge.net' }
     }
     dependencies {
-        classpath 'net.minecraftforge.gradle:ForgeGradle:2.3-SNAPSHOT'
-        classpath 'org.spongepowered:mixingradle:0.6-SNAPSHOT'
+        classpath 'net.minecraftforge:ForgeAutoRenamingTool:1.0.2:all'
     }
 }
-apply plugin: 'net.minecraftforge.gradle.forge'
-apply plugin: 'org.spongepowered.mixin'
 
-version = '1.5.4-fix6'
+plugins {
+    id 'java-library'
+    id 'idea'
+    id 'maven-publish'
+    id 'net.neoforged.gradle.userdev' version '7.0.145'
+}
+
+version = project.mod_version
 group = 'com.github.aeddddd'
-archivesBaseName = 'AE2Enhanced'
 
-sourceCompatibility = targetCompatibility = '1.8'
-compileJava {
-    sourceCompatibility = targetCompatibility = '1.8'
-    options.encoding = 'UTF-8'
+base {
+    archivesName = 'AE2Enhanced'
 }
 
-sourceSets {
-    main {
-        java {
-            srcDirs = ['src/main/java']
-        }
+java.toolchain.languageVersion = JavaLanguageVersion.of(project.java_version.toInteger())
+
+runs {
+    configureEach {
+        workingDirectory project.file('run')
+        modSource project.sourceSets.main
+    }
+    client {
+        systemProperty 'forge.enabledGameTestNamespaces', project.mod_id
+    }
+    server {
+        systemProperty 'forge.enabledGameTestNamespaces', project.mod_id
+        programArgument '--nogui'
+    }
+    data {
+        programArguments.addAll '--mod', project.mod_id, '--all', '--output',
+                file('src/generated/resources/').getAbsolutePath(), '--existing',
+                file('src/main/resources/').getAbsolutePath()
     }
 }
 
-minecraft {
-    version = '1.12.2-14.23.5.2768'
-    runDir = 'run'
-    mappings = 'stable_39'
-}
+sourceSets.main.resources { srcDir 'src/generated/resources' }
 
 repositories {
     mavenCentral()
-    maven { url = 'https://maven.cleanroommc.com' }
-    maven { url = 'https://dvs1.progwml6.com/files/maven' }
+    maven { url = 'https://maven.neoforged.net/releases' }
+    maven { url = 'https://modmaven.dev/' }
+    maven { url = 'https://repo.spongepowered.org/maven/' }
+    maven { url = 'https://www.cursemaven.com' }
     maven { url = 'https://maven.blamejared.com' }
 }
 
 dependencies {
-    compile files('libs/ae2-uel-v0.56.7.jar')
-    compileOnly files('libs/ae2fc-2.7.10-unofficial.jar')
-    compileOnly files('libs/Mekanism-1.12.2-9.8.3.390.jar')
-    compileOnly files('libs/MekanismEnergistics-0.1.5.jar')
-    compileOnly files('libs/Thaumcraft-1.12.2-6.1.BETA26.jar')
-    compileOnly files('libs/thaumic-energistics-extended-life-1.12.2-2.3.5.jar')
-    compileOnly files('libs/Baubles-1.12-1.5.2.jar')
-    compileOnly files('libs/Botania r1.10-364.4.jar')
-    compileOnly files('libs/terminal_interaction_integration-1.0.jar')
-    compileOnly files('libs/BloodMagic-1.12.2-2.4.3-105.jar')
-    compileOnly files('libs/ActuallyAdditions-1.12.2-r152.jar')
-    compileOnly files('libs/CoFHCore-1.12.2-4.6.6.1-universal.jar')
-    compileOnly files('libs/ThermalExpansion-1.12.2-5.5.7.1-universal.jar')
-    compileOnly files('libs/ThermalFoundation-1.12.2-2.6.7.1-universal.jar')
-    compileOnly files('libs/EnderIO-1.12.2-5.3.72.jar')
-    compileOnly files('libs/EnderCore-1.12.2-0.5.78.jar')
-    compileOnly files('libs/industrialforegoing-1.12.2-1.12.13-237.jar')
-    compileOnly files('libs/AutoSave-1.12.2-1.0.11.jar')
-    compileOnly files('libs/RebornCore-1.12.2-3.19.4.529-universal.jar')
-    compileOnly files('libs/TechReborn-1.12.2-2.27.3.1084-universal.jar')
-    compileOnly files('libs/nuclearcraft-1.12.2-2o.9.7.jar')
-    compileOnly files('libs/Draconic-Evolution-1.12.2-2.3.28.354-universal.jar')
-    compileOnly files('libs/extendedcrafting-nomifactory-edition-1.7.0.6.jar')
-    // fastutil: 高性能集合库,打包进 jar
-    compile 'it.unimi.dsi:fastutil:8.5.12'
-
-    compile files('libs/!mixinbooter-10.6.jar')
-    annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
-
-    testImplementation 'org.junit.jupiter:junit-jupiter-api:5.10.0'
-    testImplementation 'org.junit.jupiter:junit-jupiter-params:5.10.0'
-    testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.10.0'
-
-    deobfProvided 'mezz.jei:jei_1.12.2:4.16.1.302:api'
-    deobfProvided 'mezz.jei:jei_1.12.2:4.16.1.302'
-    deobfProvided 'CraftTweaker2:CraftTweaker2-MC1120-Main:1.12-4.1.20.574'
+    implementation "net.neoforged:forge:${project.neo_version}"
+    implementation 'appeng:appliedenergistics2-forge:15.3.4'
+    compileOnly 'org.spongepowered:mixin:0.8.7'
+    annotationProcessor 'org.spongepowered:mixin:0.8.7:processor'
 }
 
-test {
-    useJUnitPlatform()
-}
+tasks.withType(ProcessResources).configureEach {
+    var replaceProperties = [
+            version: version,
+            mod_id: project.mod_id,
+            mod_name: project.mod_name
+    ]
+    inputs.properties replaceProperties
 
-mixin {
-    add sourceSets.main, 'mixin.refmap.json'
-}
-
-processResources {
-    inputs.property 'version', project.version
-    inputs.property 'mcversion', project.minecraft.version
-    from(sourceSets.main.resources.srcDirs) {
-        include 'mcmod.info'
-        expand 'version':project.version, 'mcversion':project.minecraft.version
-    }
-    from(sourceSets.main.resources.srcDirs) {
-        exclude 'mcmod.info'
+    filesMatching(['META-INF/mods.toml']) {
+        expand replaceProperties
     }
 }
 
-// runClient 时自动检测 HEI：若 mods 文件夹中存在 HEI,则排除原版 JEI jar,
-// 避免原版 JEI 与 HEI 的类冲突；若只有原版 JEI,则保持兼容.
-afterEvaluate {
-    tasks.runClient {
-        doFirst {
-            def hasHEI = fileTree('run/mods').matching { include '**/HadEnoughItems*.jar' }.files.size() > 0
-            if (hasHEI) {
-                classpath = classpath.filter { file ->
-                    !file.name.contains('jei_1.12.2-4.16.1')
-                }
-                println "[AE2Enhanced] Detected HEI in run/mods, excluded vanilla JEI from runtime classpath."
-            }
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    options.compilerArgs += [
+            '-AoutRefMapFile=' + file("${project.buildDir}/classes/java/main/mixins.ae2enhanced.refmap.json").absolutePath
+    ]
+}
+
+tasks.register('copyMixinRefmap', Copy) {
+    group = 'build'
+    from("${project.buildDir}/classes/java/main/mixins.ae2enhanced.refmap.json")
+    into("${project.buildDir}/resources/main")
+    dependsOn(tasks.compileJava)
+}
+
+tasks.jar {
+    dependsOn(tasks.copyMixinRefmap)
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    manifest {
+        attributes(
+                'MixinConfigs': 'mixins.ae2enhanced.json'
+        )
+    }
+}
+
+def clientMappingsFile = file("${System.getProperty('user.home')}/.gradle/caches/minecraft/versions/1.20.1/client.txt")
+
+tasks.register('generateReobfMapping') {
+    dependsOn(tasks.neoFormMergeMappings)
+    def mappingFile = layout.buildDirectory.file('reobf/official_to_srg.tsrg')
+    outputs.file(mappingFile)
+
+    doLast {
+        mappingFile.get().asFile.parentFile.mkdirs()
+        javaexec {
+            classpath = files('buildSrc/build/classes/java/main') + buildscript.configurations.classpath
+            mainClass = 'ComposeOfficialSrg'
+            args = [
+                    clientMappingsFile,
+                    tasks.neoFormMergeMappings.output.get().asFile,
+                    mappingFile.get().asFile
+            ]
         }
     }
 }
 
-jar {
-    // 排除 JEI 内部类的编译期 stub,避免与运行时 JEI/HEI 的类冲突
-    exclude 'mezz/jei/**'
-    
-    // 打包 fastutil 并手动瘦身,排除不相关的原始类型包
-    from {
-        configurations.compile.findAll { it.name.contains('fastutil') }.collect { zipTree(it) }
+tasks.register('reobfJar', Exec) {
+    dependsOn(tasks.generateReobfMapping)
+
+    def fartJar = project.configurations.detachedConfiguration(
+            project.dependencies.create('net.minecraftforge:ForgeAutoRenamingTool:1.0.2:all')
+    ).files.find { it.name.endsWith('-all.jar') }
+    def mappingFile = tasks.generateReobfMapping.outputs.files.singleFile
+    def inputJar = tasks.jar.archiveFile
+    def outputJar = layout.buildDirectory.file("libs/${tasks.jar.archiveFileName.get()}")
+    def libsFile = layout.buildDirectory.file('reobf/fart_libraries.txt')
+
+    doFirst {
+        libsFile.get().asFile.parentFile.mkdirs()
+        libsFile.get().asFile.text = ''
+        libsFile.get().asFile << "-e=${clientMappingsFile.parentFile}/client.jar\n"
+        sourceSets.main.runtimeClasspath.files.each { libsFile.get().asFile << "-e=${it.absolutePath}\n" }
     }
-    
-    // 排除 fastutil 中不相关的原始类型包
-    exclude 'it/unimi/dsi/fastutil/doubles/**'
-    exclude 'it/unimi/dsi/fastutil/shorts/**'
-    exclude 'it/unimi/dsi/fastutil/floats/**'
-    exclude 'it/unimi/dsi/fastutil/chars/**'
-    exclude 'it/unimi/dsi/fastutil/bytes/**'
-    exclude 'it/unimi/dsi/fastutil/booleans/**'
-    exclude 'it/unimi/dsi/fastutil/io/**'
-    
-    // 进一步排除 objects/longs/ints 包中与其他原始类型组合的类
-    exclude 'it/unimi/dsi/fastutil/objects/Object2Double*'
-    exclude 'it/unimi/dsi/fastutil/objects/Object2Float*'
-    exclude 'it/unimi/dsi/fastutil/objects/Object2Short*'
-    exclude 'it/unimi/dsi/fastutil/objects/Object2Char*'
-    exclude 'it/unimi/dsi/fastutil/objects/Object2Byte*'
-    exclude 'it/unimi/dsi/fastutil/objects/Object2Boolean*'
-    exclude 'it/unimi/dsi/fastutil/objects/*Double*'
-    exclude 'it/unimi/dsi/fastutil/objects/*Float*'
-    exclude 'it/unimi/dsi/fastutil/objects/*Short*'
-    exclude 'it/unimi/dsi/fastutil/objects/*Char*'
-    exclude 'it/unimi/dsi/fastutil/objects/*Byte*'
-    exclude 'it/unimi/dsi/fastutil/objects/*Boolean*'
-    
-    exclude 'it/unimi/dsi/fastutil/longs/Long2Double*'
-    exclude 'it/unimi/dsi/fastutil/longs/Long2Float*'
-    exclude 'it/unimi/dsi/fastutil/longs/Long2Short*'
-    exclude 'it/unimi/dsi/fastutil/longs/Long2Char*'
-    exclude 'it/unimi/dsi/fastutil/longs/Long2Byte*'
-    exclude 'it/unimi/dsi/fastutil/longs/Long2Boolean*'
-    exclude 'it/unimi/dsi/fastutil/longs/*Double*'
-    exclude 'it/unimi/dsi/fastutil/longs/*Float*'
-    exclude 'it/unimi/dsi/fastutil/longs/*Short*'
-    exclude 'it/unimi/dsi/fastutil/longs/*Char*'
-    exclude 'it/unimi/dsi/fastutil/longs/*Byte*'
-    exclude 'it/unimi/dsi/fastutil/longs/*Boolean*'
-    
-    exclude 'it/unimi/dsi/fastutil/ints/Int2Double*'
-    exclude 'it/unimi/dsi/fastutil/ints/Int2Float*'
-    exclude 'it/unimi/dsi/fastutil/ints/Int2Short*'
-    exclude 'it/unimi/dsi/fastutil/ints/Int2Char*'
-    exclude 'it/unimi/dsi/fastutil/ints/Int2Byte*'
-    exclude 'it/unimi/dsi/fastutil/ints/Int2Boolean*'
-    exclude 'it/unimi/dsi/fastutil/ints/*Double*'
-    exclude 'it/unimi/dsi/fastutil/ints/*Float*'
-    exclude 'it/unimi/dsi/fastutil/ints/*Short*'
-    exclude 'it/unimi/dsi/fastutil/ints/*Char*'
-    exclude 'it/unimi/dsi/fastutil/ints/*Byte*'
-    exclude 'it/unimi/dsi/fastutil/ints/*Boolean*'
-    
-    manifest {
-        attributes([
-            'FMLCorePluginContainsFMLMod': true,
-            'ForceLoadAsMod': true,
-            'FMLCorePlugin': 'com.github.aeddddd.ae2enhanced.mixin.AssemblyMixinPlugin'
-        ])
+
+    commandLine('java', '-jar', fartJar,
+            '--input', inputJar.get().asFile,
+            '--output', outputJar.get().asFile,
+            '--map', mappingFile,
+            '--cfg', libsFile.get().asFile,
+            '--ann-fix', '--ids-fix', '--src-fix', '--record-fix')
+}
+
+tasks.jar.finalizedBy('reobfJar')
+
+idea {
+    module {
+        downloadSources = true
+        downloadJavadoc = true
     }
 }

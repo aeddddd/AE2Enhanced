@@ -1,9 +1,0 @@
-{
-  "type": "minecraft:crafting_shapeless",
-  "ingredients": [
-    {"item": "ae2enhanced:channel_receiver_card"}
-  ],
-  "result": {
-    "item": "ae2enhanced:channel_receiver_card"
-  }
-}

@@ -1,10 +1,5 @@
 {
   "variants": {
-    "normal": {
-      "model": "ae2enhanced:assembly_inner_wall"
-    },
-    "inventory": {
-      "model": "ae2enhanced:assembly_inner_wall"
-    }
+    "": { "model": "ae2enhanced:assembly_inner_wall" }
   }
 }

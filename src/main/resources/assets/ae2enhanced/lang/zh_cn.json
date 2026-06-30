@@ -1,0 +1,15 @@
+{
+  "itemGroup.ae2enhanced": "AE2 增强",
+  "block.ae2enhanced.hyperdimensional_controller": "超维度仓储控制器",
+  "block.ae2enhanced.multiblock_me_interface": "多方块 ME 接口",
+  "block.ae2enhanced.hyperdimensional_casing": "超维度外壳",
+  "block.ae2enhanced.hyperdimensional_singularity_core": "超维度奇点核心",
+  "block.ae2enhanced.assembly_controller": "装配控制器",
+  "block.ae2enhanced.assembly_casing": "装配外壳",
+  "block.ae2enhanced.assembly_inner_wall": "装配内壁",
+  "block.ae2enhanced.assembly_stabilizer": "装配稳定器",
+  "block.ae2enhanced.computation_controller": "超因果计算核心控制器",
+  "block.ae2enhanced.constant_tensor_field_casing": "恒定张量场外殻",
+  "block.ae2enhanced.constant_spinor_field_casing": "恒定旋量场外殻",
+  "block.ae2enhanced.causal_anchor_core": "因果锚定核心"
+}

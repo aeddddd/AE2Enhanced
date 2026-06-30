@@ -1,7 +1,0 @@
-{
-    "variants": {
-        "state=off": { "model": "ae2enhanced:me_network_recycler" },
-        "state=on": { "model": "ae2enhanced:me_network_recycler" },
-        "state=has_channel": { "model": "ae2enhanced:me_network_recycler" }
-    }
-}

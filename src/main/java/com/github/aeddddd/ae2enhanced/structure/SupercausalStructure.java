@@ -1,14 +1,22 @@
 package com.github.aeddddd.ae2enhanced.structure;
 
-import com.github.aeddddd.ae2enhanced.registry.content.BlockRegistry;
-import com.github.aeddddd.ae2enhanced.config.AE2EnhancedConfig;
-import net.minecraft.block.Block;
-import net.minecraft.tileentity.TileEntity;
-import net.minecraft.util.EnumFacing;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.world.World;
-
 import java.util.*;
+
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.world.entity.player.Inventory;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.block.state.BlockState;
+
+import com.github.aeddddd.ae2enhanced.computation.block.ComputationControllerBlock;
+import com.github.aeddddd.ae2enhanced.computation.blockentity.ComputationCoreBlockEntity;
+import com.github.aeddddd.ae2enhanced.multiblock.MultiblockMeInterfaceBlock;
+import com.github.aeddddd.ae2enhanced.registry.ModBlocks;
 
 /**
  * 超因果计算核心的多方块结构验证系统
@@ -900,16 +908,16 @@ public class SupercausalStructure {
      * We use the opposite of the controller's block facing so that the structure
      * expands behind the controller, leaving the controller's front face open to air.
      */
-    public static EnumFacing getControllerFacing(World world, BlockPos controllerPos) {
-        net.minecraft.block.state.IBlockState state = world.getBlockState(controllerPos);
-        if (state.getBlock() instanceof com.github.aeddddd.ae2enhanced.block.BlockComputationCore) {
-            return state.getValue(com.github.aeddddd.ae2enhanced.block.BlockComputationCore.FACING).getOpposite();
+    public static Direction getControllerFacing(Level world, BlockPos controllerPos) {
+        BlockState state = world.getBlockState(controllerPos);
+        if (state.getBlock() instanceof ComputationControllerBlock) {
+            return state.getValue(ComputationControllerBlock.FACING).getOpposite();
         }
-        return EnumFacing.NORTH;
+        return Direction.NORTH;
     }
 
-    public static BlockPos rotate(BlockPos rel, EnumFacing facing) {
-        if (facing == EnumFacing.NORTH) return rel;
+    public static BlockPos rotate(BlockPos rel, Direction facing) {
+        if (facing == Direction.NORTH) return rel;
         int x = rel.getX();
         int y = rel.getY();
         int z = rel.getZ();
@@ -925,49 +933,49 @@ public class SupercausalStructure {
      * 验证结构完整性.
      * @return 验证结果,包含是否通过、缺失方块统计、因果锚定核心数量和计算出的并行上限.
      */
-    public static ValidationResult validate(World world, BlockPos controllerPos) {
-        EnumFacing facing = getControllerFacing(world, controllerPos);
+    public static ValidationResult validate(Level world, BlockPos controllerPos) {
+        Direction facing = getControllerFacing(world, controllerPos);
         Map<Block, Integer> missing = new LinkedHashMap<>();
         int causalCount = 0;
 
         // 验证恒定张量场外壳
         for (BlockPos rel : TENSOR_CASING_SET) {
-            BlockPos actual = controllerPos.add(rotate(rel, facing));
-            if (!world.isBlockLoaded(actual)) continue;
-            if (world.getBlockState(actual).getBlock() != BlockRegistry.CONSTANT_TENSOR_FIELD_CASING) {
+            BlockPos actual = controllerPos.offset(rotate(rel, facing));
+            if (!world.isLoaded(actual)) continue;
+            if (world.getBlockState(actual).getBlock() != ModBlocks.CONSTANT_TENSOR_FIELD_CASING.get()) {
                 if (actual.equals(controllerPos)) continue; // 控制器位置由核心方块占用,跳过
-                missing.put(BlockRegistry.CONSTANT_TENSOR_FIELD_CASING, missing.getOrDefault(BlockRegistry.CONSTANT_TENSOR_FIELD_CASING, 0) + 1);
+                missing.put(ModBlocks.CONSTANT_TENSOR_FIELD_CASING.get(), missing.getOrDefault(ModBlocks.CONSTANT_TENSOR_FIELD_CASING.get(), 0) + 1);
             }
         }
 
         // 验证因果锚定核心
         for (BlockPos rel : CAUSAL_ANCHOR_SET) {
-            BlockPos actual = controllerPos.add(rotate(rel, facing));
-            if (!world.isBlockLoaded(actual)) continue;
-            if (world.getBlockState(actual).getBlock() == BlockRegistry.CAUSAL_ANCHOR_CORE) {
+            BlockPos actual = controllerPos.offset(rotate(rel, facing));
+            if (!world.isLoaded(actual)) continue;
+            if (world.getBlockState(actual).getBlock() == ModBlocks.CAUSAL_ANCHOR_CORE.get()) {
                 causalCount++;
             } else {
-                missing.put(BlockRegistry.CAUSAL_ANCHOR_CORE, missing.getOrDefault(BlockRegistry.CAUSAL_ANCHOR_CORE, 0) + 1);
+                missing.put(ModBlocks.CAUSAL_ANCHOR_CORE.get(), missing.getOrDefault(ModBlocks.CAUSAL_ANCHOR_CORE.get(), 0) + 1);
             }
         }
 
         // 验证恒定旋量场外壳
         for (BlockPos rel : SPINOR_CASING_SET) {
-            BlockPos actual = controllerPos.add(rotate(rel, facing));
-            if (!world.isBlockLoaded(actual)) continue;
-            if (world.getBlockState(actual).getBlock() != BlockRegistry.CONSTANT_SPINOR_FIELD_CASING) {
-                missing.put(BlockRegistry.CONSTANT_SPINOR_FIELD_CASING, missing.getOrDefault(BlockRegistry.CONSTANT_SPINOR_FIELD_CASING, 0) + 1);
+            BlockPos actual = controllerPos.offset(rotate(rel, facing));
+            if (!world.isLoaded(actual)) continue;
+            if (world.getBlockState(actual).getBlock() != ModBlocks.CONSTANT_SPINOR_FIELD_CASING.get()) {
+                missing.put(ModBlocks.CONSTANT_SPINOR_FIELD_CASING.get(), missing.getOrDefault(ModBlocks.CONSTANT_SPINOR_FIELD_CASING.get(), 0) + 1);
             }
         }
 
         // 验证 ME 接口
-        BlockPos meInterfacePos = controllerPos.add(rotate(ME_INTERFACE_REL, facing));
+        BlockPos meInterfacePos = controllerPos.offset(rotate(ME_INTERFACE_REL, facing));
         boolean meInterfaceValid = false;
-        if (world.isBlockLoaded(meInterfacePos)) {
-            meInterfaceValid = world.getBlockState(meInterfacePos).getBlock() == BlockRegistry.SUPER_CRAFTING_INTERFACE;
+        if (world.isLoaded(meInterfacePos)) {
+            meInterfaceValid = world.getBlockState(meInterfacePos).getBlock() == ModBlocks.MULTIBLOCK_ME_INTERFACE.get();
         }
         if (!meInterfaceValid) {
-            missing.put(BlockRegistry.SUPER_CRAFTING_INTERFACE, missing.getOrDefault(BlockRegistry.SUPER_CRAFTING_INTERFACE, 0) + 1);
+            missing.put(ModBlocks.MULTIBLOCK_ME_INTERFACE.get(), missing.getOrDefault(ModBlocks.MULTIBLOCK_ME_INTERFACE.get(), 0) + 1);
         }
 
         boolean passed = missing.isEmpty();
@@ -977,115 +985,135 @@ public class SupercausalStructure {
     }
 
     /**
-     * 返回配置的并行合成上限(默认 16384).
+     * 返回并行合成上限(默认 16384).
      */
     public static int computeParallel() {
-        return AE2EnhancedConfig.crafting.maxParallel;
+        return 16384;
     }
 
-    public static void assemble(World world, BlockPos controllerPos) {
-        if (world.isRemote) return;
-        TileEntity te = world.getTileEntity(controllerPos);
-        if (te instanceof com.github.aeddddd.ae2enhanced.tile.TileComputationCore) {
-            com.github.aeddddd.ae2enhanced.tile.TileComputationCore tile =
-                (com.github.aeddddd.ae2enhanced.tile.TileComputationCore) te;
+    public static void assemble(Level world, BlockPos controllerPos) {
+        if (world.isClientSide()) return;
+        BlockEntity te = world.getBlockEntity(controllerPos);
+        if (te instanceof ComputationCoreBlockEntity tile) {
             ValidationResult result = validate(world, controllerPos);
             if (result.passed) {
-                tile.assemble(result.parallelLimit);
+                BlockPos interfacePos = getMeInterfacePos(world, controllerPos);
+                updateMeInterfaceState(world, controllerPos, true);
+                tile.assemble(result.parallelLimit, interfacePos);
             }
         }
     }
 
-    public static void disassemble(World world, BlockPos controllerPos) {
-        if (world.isRemote) return;
-        TileEntity te = world.getTileEntity(controllerPos);
-        if (te instanceof com.github.aeddddd.ae2enhanced.tile.TileComputationCore) {
-            com.github.aeddddd.ae2enhanced.tile.TileComputationCore tile =
-                (com.github.aeddddd.ae2enhanced.tile.TileComputationCore) te;
+    public static void disassemble(Level world, BlockPos controllerPos) {
+        if (world.isClientSide()) return;
+        BlockEntity te = world.getBlockEntity(controllerPos);
+        if (te instanceof ComputationCoreBlockEntity tile) {
             tile.disassemble();
+        }
+        updateMeInterfaceState(world, controllerPos, false);
+    }
+
+    private static BlockPos getMeInterfacePos(Level world, BlockPos controllerPos) {
+        Direction facing = getControllerFacing(world, controllerPos);
+        return controllerPos.offset(rotate(ME_INTERFACE_REL, facing));
+    }
+
+    private static void updateMeInterfaceState(Level world, BlockPos controllerPos, boolean formed) {
+        BlockPos interfacePos = getMeInterfacePos(world, controllerPos);
+        if (!world.isLoaded(interfacePos)) {
+            return;
+        }
+        BlockState state = ModBlocks.MULTIBLOCK_ME_INTERFACE.get().defaultBlockState()
+                .setValue(MultiblockMeInterfaceBlock.FORMED, formed);
+        if (world.getBlockState(interfacePos).getBlock() == ModBlocks.MULTIBLOCK_ME_INTERFACE.get()) {
+            world.setBlock(interfacePos, state, Block.UPDATE_ALL);
+            BlockEntity te = world.getBlockEntity(interfacePos);
+            if (te instanceof com.github.aeddddd.ae2enhanced.multiblock.MultiblockMeInterfaceBlockEntity me) {
+                me.setControllerPos(formed ? controllerPos : null);
+            }
         }
     }
 
     /**
      * Creative mode: place all missing blocks instantly.
      */
-    public static void placeMissingBlocks(World world, BlockPos controllerPos, net.minecraft.entity.player.EntityPlayer player) {
-        if (world.isRemote) return;
-        EnumFacing facing = getControllerFacing(world, controllerPos);
+    public static void placeMissingBlocks(Level world, BlockPos controllerPos, Player player) {
+        if (world.isClientSide()) return;
+        Direction facing = getControllerFacing(world, controllerPos);
 
-        placeBlocks(world, controllerPos, TENSOR_CASING_SET, BlockRegistry.CONSTANT_TENSOR_FIELD_CASING, facing, player);
-        placeBlocks(world, controllerPos, CAUSAL_ANCHOR_SET, BlockRegistry.CAUSAL_ANCHOR_CORE, facing, player);
-        placeBlocks(world, controllerPos, SPINOR_CASING_SET, BlockRegistry.CONSTANT_SPINOR_FIELD_CASING, facing, player);
+        placeBlocks(world, controllerPos, TENSOR_CASING_SET, ModBlocks.CONSTANT_TENSOR_FIELD_CASING.get(), facing, player);
+        placeBlocks(world, controllerPos, CAUSAL_ANCHOR_SET, ModBlocks.CAUSAL_ANCHOR_CORE.get(), facing, player);
+        placeBlocks(world, controllerPos, SPINOR_CASING_SET, ModBlocks.CONSTANT_SPINOR_FIELD_CASING.get(), facing, player);
 
-        BlockPos meInterfacePos = controllerPos.add(rotate(ME_INTERFACE_REL, facing));
-        if (world.getBlockState(meInterfacePos).getBlock() != BlockRegistry.SUPER_CRAFTING_INTERFACE) {
-            world.setBlockState(meInterfacePos, BlockRegistry.SUPER_CRAFTING_INTERFACE.getDefaultState());
+        BlockPos meInterfacePos = controllerPos.offset(rotate(ME_INTERFACE_REL, facing));
+        if (world.getBlockState(meInterfacePos).getBlock() != ModBlocks.MULTIBLOCK_ME_INTERFACE.get()) {
+            world.setBlock(meInterfacePos, ModBlocks.MULTIBLOCK_ME_INTERFACE.get().defaultBlockState(), Block.UPDATE_ALL);
         }
 
         assemble(world, controllerPos);
     }
 
-    private static void placeBlocks(World world, BlockPos controllerPos, Set<BlockPos> set, Block block, EnumFacing facing, net.minecraft.entity.player.EntityPlayer player) {
+    private static void placeBlocks(Level world, BlockPos controllerPos, Set<BlockPos> set, Block block, Direction facing, Player player) {
         for (BlockPos rel : set) {
             if (rel.equals(CONTROLLER_REL)) continue; // skip controller position
-            BlockPos pos = controllerPos.add(rotate(rel, facing));
+            BlockPos pos = controllerPos.offset(rotate(rel, facing));
             if (world.getBlockState(pos).getBlock() == block) continue;
             // avoid suffocating player
-            if (player != null && pos.equals(player.getPosition())) {
+            if (player != null && pos.equals(player.blockPosition())) {
                 movePlayerToSafety(world, controllerPos, player);
             }
-            world.setBlockState(pos, block.getDefaultState());
+            world.setBlock(pos, block.defaultBlockState(), Block.UPDATE_ALL);
         }
     }
 
-    private static void movePlayerToSafety(World world, BlockPos controllerPos, net.minecraft.entity.player.EntityPlayer player) {
-        BlockPos safe = controllerPos.up(2);
+    private static void movePlayerToSafety(Level world, BlockPos controllerPos, Player player) {
+        BlockPos safe = controllerPos.above(2);
         for (int dy = 2; dy < 10; dy++) {
-            BlockPos candidate = controllerPos.up(dy);
-            if (world.isAirBlock(candidate) && world.isAirBlock(candidate.up())) {
+            BlockPos candidate = controllerPos.above(dy);
+            if (world.isEmptyBlock(candidate) && world.isEmptyBlock(candidate.above())) {
                 safe = candidate;
                 break;
             }
         }
-        player.setPositionAndUpdate(safe.getX() + 0.5, safe.getY(), safe.getZ() + 0.5);
+        player.teleportTo(safe.getX() + 0.5, safe.getY(), safe.getZ() + 0.5);
     }
 
     /**
      * Survival mode: check inventory, consume materials, place missing blocks.
      * @return true if successful
      */
-    public static boolean tryConsumeAndPlace(World world, BlockPos controllerPos, net.minecraft.entity.player.EntityPlayer player) {
-        if (world.isRemote) return false;
-        EnumFacing facing = getControllerFacing(world, controllerPos);
+    public static boolean tryConsumeAndPlace(Level world, BlockPos controllerPos, Player player) {
+        if (world.isClientSide()) return false;
+        Direction facing = getControllerFacing(world, controllerPos);
 
         Map<Block, Integer> missing = new LinkedHashMap<>();
         for (BlockPos rel : TENSOR_CASING_SET) {
             if (rel.equals(CONTROLLER_REL)) continue; // skip controller position
-            BlockPos actual = controllerPos.add(rotate(rel, facing));
-            if (!world.isBlockLoaded(actual)) continue;
-            if (world.getBlockState(actual).getBlock() != BlockRegistry.CONSTANT_TENSOR_FIELD_CASING) {
-                missing.put(BlockRegistry.CONSTANT_TENSOR_FIELD_CASING, missing.getOrDefault(BlockRegistry.CONSTANT_TENSOR_FIELD_CASING, 0) + 1);
+            BlockPos actual = controllerPos.offset(rotate(rel, facing));
+            if (!world.isLoaded(actual)) continue;
+            if (world.getBlockState(actual).getBlock() != ModBlocks.CONSTANT_TENSOR_FIELD_CASING.get()) {
+                missing.put(ModBlocks.CONSTANT_TENSOR_FIELD_CASING.get(), missing.getOrDefault(ModBlocks.CONSTANT_TENSOR_FIELD_CASING.get(), 0) + 1);
             }
         }
         for (BlockPos rel : CAUSAL_ANCHOR_SET) {
             if (rel.equals(CONTROLLER_REL)) continue; // skip controller position
-            BlockPos actual = controllerPos.add(rotate(rel, facing));
-            if (!world.isBlockLoaded(actual)) continue;
-            if (world.getBlockState(actual).getBlock() != BlockRegistry.CAUSAL_ANCHOR_CORE) {
-                missing.put(BlockRegistry.CAUSAL_ANCHOR_CORE, missing.getOrDefault(BlockRegistry.CAUSAL_ANCHOR_CORE, 0) + 1);
+            BlockPos actual = controllerPos.offset(rotate(rel, facing));
+            if (!world.isLoaded(actual)) continue;
+            if (world.getBlockState(actual).getBlock() != ModBlocks.CAUSAL_ANCHOR_CORE.get()) {
+                missing.put(ModBlocks.CAUSAL_ANCHOR_CORE.get(), missing.getOrDefault(ModBlocks.CAUSAL_ANCHOR_CORE.get(), 0) + 1);
             }
         }
         for (BlockPos rel : SPINOR_CASING_SET) {
             if (rel.equals(CONTROLLER_REL)) continue; // skip controller position
-            BlockPos actual = controllerPos.add(rotate(rel, facing));
-            if (!world.isBlockLoaded(actual)) continue;
-            if (world.getBlockState(actual).getBlock() != BlockRegistry.CONSTANT_SPINOR_FIELD_CASING) {
-                missing.put(BlockRegistry.CONSTANT_SPINOR_FIELD_CASING, missing.getOrDefault(BlockRegistry.CONSTANT_SPINOR_FIELD_CASING, 0) + 1);
+            BlockPos actual = controllerPos.offset(rotate(rel, facing));
+            if (!world.isLoaded(actual)) continue;
+            if (world.getBlockState(actual).getBlock() != ModBlocks.CONSTANT_SPINOR_FIELD_CASING.get()) {
+                missing.put(ModBlocks.CONSTANT_SPINOR_FIELD_CASING.get(), missing.getOrDefault(ModBlocks.CONSTANT_SPINOR_FIELD_CASING.get(), 0) + 1);
             }
         }
-        BlockPos meInterfacePos = controllerPos.add(rotate(ME_INTERFACE_REL, facing));
-        if (world.isBlockLoaded(meInterfacePos) && world.getBlockState(meInterfacePos).getBlock() != BlockRegistry.SUPER_CRAFTING_INTERFACE) {
-            missing.put(BlockRegistry.SUPER_CRAFTING_INTERFACE, missing.getOrDefault(BlockRegistry.SUPER_CRAFTING_INTERFACE, 0) + 1);
+        BlockPos meInterfacePos = controllerPos.offset(rotate(ME_INTERFACE_REL, facing));
+        if (world.isLoaded(meInterfacePos) && world.getBlockState(meInterfacePos).getBlock() != ModBlocks.MULTIBLOCK_ME_INTERFACE.get()) {
+            missing.put(ModBlocks.MULTIBLOCK_ME_INTERFACE.get(), missing.getOrDefault(ModBlocks.MULTIBLOCK_ME_INTERFACE.get(), 0) + 1);
         }
 
         if (missing.isEmpty()) {
@@ -1093,14 +1121,14 @@ public class SupercausalStructure {
             return true;
         }
 
-        net.minecraft.entity.player.InventoryPlayer inv = player.inventory;
+        Inventory inv = player.getInventory();
         Map<Block, Integer> needed = new LinkedHashMap<>(missing);
 
-        for (net.minecraft.item.ItemStack stack : inv.mainInventory) {
+        for (ItemStack stack : inv.items) {
             if (stack.isEmpty()) continue;
             for (Map.Entry<Block, Integer> entry : needed.entrySet()) {
                 Block block = entry.getKey();
-                if (stack.getItem() == net.minecraft.item.Item.getItemFromBlock(block)) {
+                if (stack.getItem() == block.asItem()) {
                     int need = entry.getValue();
                     int have = stack.getCount();
                     if (have >= need) {
@@ -1121,12 +1149,12 @@ public class SupercausalStructure {
         for (Map.Entry<Block, Integer> entry : missing.entrySet()) {
             Block block = entry.getKey();
             int remaining = entry.getValue();
-            net.minecraft.item.Item item = net.minecraft.item.Item.getItemFromBlock(block);
-            for (int i = 0; i < inv.mainInventory.size() && remaining > 0; i++) {
-                net.minecraft.item.ItemStack stack = inv.mainInventory.get(i);
+            Item item = block.asItem();
+            for (int i = 0; i < inv.items.size() && remaining > 0; i++) {
+                ItemStack stack = inv.items.get(i);
                 if (stack.getItem() == item) {
                     int take = Math.min(stack.getCount(), remaining);
-                    int removed = inv.decrStackSize(i, take).getCount();
+                    int removed = inv.removeItem(i, take).getCount();
                     remaining -= removed;
                 }
             }

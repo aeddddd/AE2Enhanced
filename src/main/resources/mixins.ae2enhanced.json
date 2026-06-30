@@ -1,0 +1,14 @@
+{
+  "required": true,
+  "minVersion": "0.8.5",
+  "package": "com.github.aeddddd.ae2enhanced.mixin",
+  "compatibilityLevel": "JAVA_17",
+  "refmap": "mixins.ae2enhanced.refmap.json",
+  "mixins": [
+    "MixinCraftingService"
+  ],
+  "client": [],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

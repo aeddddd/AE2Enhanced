@@ -3,7 +3,6 @@
     "facing=north": { "model": "ae2enhanced:assembly_controller" },
     "facing=south": { "model": "ae2enhanced:assembly_controller", "y": 180 },
     "facing=east":  { "model": "ae2enhanced:assembly_controller", "y": 90 },
-    "facing=west":  { "model": "ae2enhanced:assembly_controller", "y": 270 },
-    "inventory":    { "model": "ae2enhanced:assembly_controller" }
+    "facing=west":  { "model": "ae2enhanced:assembly_controller", "y": 270 }
   }
 }

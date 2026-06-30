@@ -1,6 +1,5 @@
 {
   "variants": {
-    "normal": { "model": "ae2enhanced:hyperdimensional_singularity_core" },
-    "inventory": { "model": "ae2enhanced:hyperdimensional_singularity_core" }
+    "": { "model": "ae2enhanced:hyperdimensional_singularity_core" }
   }
 }

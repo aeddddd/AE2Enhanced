@@ -1,10 +1,5 @@
 {
   "variants": {
-    "normal": {
-      "model": "ae2enhanced:assembly_casing"
-    },
-    "inventory": {
-      "model": "ae2enhanced:assembly_casing"
-    }
+    "": { "model": "ae2enhanced:assembly_casing" }
   }
 }

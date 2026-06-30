@@ -1,6 +1,5 @@
 {
   "variants": {
-    "normal": { "model": "ae2enhanced:causal_anchor_core" },
-    "inventory": { "model": "ae2enhanced:causal_anchor_core" }
+    "": { "model": "ae2enhanced:causal_anchor_core" }
   }
 }

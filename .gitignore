@@ -3,7 +3,15 @@ build/
 !gradle/wrapper/gradle-wrapper.jar
 !**/src/main/**/build/
 !**/src/test/**/build/
-*md
+
+# Markdown documentation (except project-level agent/human readmes)
+docs/
+research/
+github-wiki/
+*.md
+!README.md
+!README_zh.md
+!AGENTS.md
 
 ### IntelliJ IDEA ###
 .idea/
@@ -15,7 +23,7 @@ out/
 !**/src/test/**/out/
 
 ### Local Libraries ###
-libs/
+libs/*
 !libs/.gitkeep
 
 ### Eclipse ###
@@ -41,9 +49,6 @@ bin/
 .vscode/
 *.code-workspace
 
-
-!README.md
-!README_zh.md
 ### Minecraft Modding ###
 run/
 *.log
@@ -60,21 +65,11 @@ xml/
 zone/
 *.txt
 
-
 ### Bytecode / Decompiled classes ###
 *.class
 
 ### Inspection Reports ###
 inspection_reports/
 
-### Decompiled / Temp ###
-*decompile*/
-
-
-### Runtime generated (Mixin refmaps / decompiled classes) ###
-
+### Runtime generated ###
 log/
-
-
-docs/
-research/
