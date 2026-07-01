@@ -32,11 +32,12 @@ public class MixinCraftingService {
 
     @Inject(method = "onServerEndTick", at = @At("TAIL"), remap = false)
     private void ae2e$injectVirtualCpus(CallbackInfo ci) {
-        // 先移除本网格中已注册的虚拟 CPU，再重新加入仍然活跃的实例。
-        // 这样可以在结构拆解或节点掉线后自动清理。
+        // 先清理注册表中已失效或已销毁的虚拟 CPU，并把它们从本网格的集群集合中移除。
+        // 再为本网格重新加入仍然活跃的虚拟集群，保证列表与注册表状态一致。
         this.craftingCPUClusters.removeAll(VirtualCraftingCPURegistry.getClusters());
         for (CraftingCPUCluster cluster : VirtualCraftingCPURegistry.getClusters()) {
             if (cluster.isDestroyed() || !cluster.isActive()) {
+                VirtualCraftingCPURegistry.unregister(cluster);
                 continue;
             }
             if (cluster.getGrid() == this.grid) {

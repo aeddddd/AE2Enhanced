@@ -1,0 +1,17 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "EQE",
+    "OCO",
+    "EQE"
+  ],
+  "key": {
+    "E": { "item": "ae2:engineering_processor" },
+    "Q": { "item": "ae2:quartz_glass" },
+    "O": { "item": "ae2:dense_energy_cell" },
+    "C": { "item": "ae2enhanced:hyperdimensional_singularity_core" }
+  },
+  "result": {
+    "item": "ae2enhanced:hyperdimensional_controller"
+  }
+}

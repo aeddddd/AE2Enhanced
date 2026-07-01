@@ -3,6 +3,9 @@ loaderVersion="[47,)"
 license="GNU GENERAL PUBLIC LICENSE Version 2"
 issueTrackerURL="https://github.com/aeddddd/AE2Enhanced/issues"
 
+[[mixins]]
+config="mixins.ae2enhanced.json"
+
 [[mods]]
 modId="${mod_id}"
 version="${version}"

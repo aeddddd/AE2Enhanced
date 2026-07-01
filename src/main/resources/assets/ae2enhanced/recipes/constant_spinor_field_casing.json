@@ -1,0 +1,17 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "DQD",
+    "QEQ",
+    "DQD"
+  ],
+  "key": {
+    "D": { "item": "ae2enhanced:assembly_casing" },
+    "Q": { "item": "ae2:quartz_glass" },
+    "E": { "item": "ae2:engineering_processor" }
+  },
+  "result": {
+    "item": "ae2enhanced:constant_spinor_field_casing",
+    "count": 4
+  }
+}

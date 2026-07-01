@@ -4,8 +4,10 @@
   "package": "com.github.aeddddd.ae2enhanced.mixin",
   "compatibilityLevel": "JAVA_17",
   "refmap": "mixins.ae2enhanced.refmap.json",
+  "plugin": "com.github.aeddddd.ae2enhanced.mixin.AE2EnhancedMixinPlugin",
   "mixins": [
-    "MixinCraftingService"
+    "MixinCraftingService",
+    "AppEngBaseMixin"
   ],
   "client": [],
   "injectors": {

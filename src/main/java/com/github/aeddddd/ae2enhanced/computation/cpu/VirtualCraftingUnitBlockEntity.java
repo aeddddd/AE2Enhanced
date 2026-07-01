@@ -18,11 +18,13 @@ import appeng.core.definitions.AEBlockEntities;
 public class VirtualCraftingUnitBlockEntity extends CraftingBlockEntity {
 
     private final IManagedGridNode interfaceNode;
+    private final int parallel;
 
     public VirtualCraftingUnitBlockEntity(Level level, BlockPos pos, BlockState state,
-            IManagedGridNode interfaceNode) {
+            IManagedGridNode interfaceNode, int parallel) {
         super(AEBlockEntities.CRAFTING_UNIT, pos, state);
         this.interfaceNode = interfaceNode;
+        this.parallel = parallel;
         setLevel(level);
     }
 
@@ -38,7 +40,7 @@ public class VirtualCraftingUnitBlockEntity extends CraftingBlockEntity {
 
     @Override
     public int getAcceleratorThreads() {
-        return 16;
+        return parallel;
     }
 
     @Override

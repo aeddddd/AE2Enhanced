@@ -509,7 +509,7 @@ public class AssemblyStructure {
         if (level.isClientSide()) return;
         AssemblyControllerBlockEntity tile = getControllerTile(level, controllerPos);
         if (tile != null) {
-            tile.setFormed(true);
+            tile.assemble();
         }
         Direction facing = getControllerFacing(level, controllerPos);
         BlockPos origin = getOriginFromController(controllerPos, facing);
@@ -523,7 +523,7 @@ public class AssemblyStructure {
         if (level.isClientSide()) return;
         AssemblyControllerBlockEntity tile = getControllerTile(level, controllerPos);
         if (tile != null) {
-            tile.setFormed(false);
+            tile.disassemble();
         }
         Direction facing = getControllerFacing(level, controllerPos);
         BlockPos origin = getOriginFromController(controllerPos, facing);

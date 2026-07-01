@@ -1,0 +1,17 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "MQM",
+    "QCQ",
+    "MQM"
+  ],
+  "key": {
+    "M": { "item": "ae2enhanced:assembly_casing" },
+    "Q": { "item": "ae2:quartz_glass" },
+    "C": { "item": "ae2:calculation_processor" }
+  },
+  "result": {
+    "item": "ae2enhanced:constant_tensor_field_casing",
+    "count": 4
+  }
+}

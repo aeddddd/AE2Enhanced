@@ -17,9 +17,19 @@ import appeng.api.stacks.KeyCounter;
 public class HyperdimensionalMEStorage implements MEStorage {
 
     private final HyperdimensionalStorage storage;
+    private final IActionSource source;
 
-    public HyperdimensionalMEStorage(HyperdimensionalStorage storage) {
+    public HyperdimensionalMEStorage(HyperdimensionalStorage storage, IActionSource source) {
         this.storage = storage;
+        this.source = source;
+    }
+
+    public HyperdimensionalStorage getInternalStorage() {
+        return storage;
+    }
+
+    public IActionSource getSource() {
+        return source;
     }
 
     @Override
@@ -29,19 +39,23 @@ public class HyperdimensionalMEStorage implements MEStorage {
 
     @Override
     public long insert(AEKey what, long amount, Actionable mode, IActionSource source) {
-        if (amount <= 0) {
+        if (amount <= 0 || what == null) {
             return 0;
         }
         BigInteger delta = BigInteger.valueOf(amount);
-        if (mode == Actionable.SIMULATE) {
-            return amount;
+        BigInteger actual = delta.min(storage.getRemainingCapacity(what));
+        if (actual.signum() <= 0) {
+            return 0;
         }
-        return storage.add(what, delta).longValue();
+        if (mode == Actionable.SIMULATE) {
+            return actual.min(BigInteger.valueOf(Long.MAX_VALUE)).longValue();
+        }
+        return storage.add(what, actual).min(BigInteger.valueOf(Long.MAX_VALUE)).longValue();
     }
 
     @Override
     public long extract(AEKey what, long amount, Actionable mode, IActionSource source) {
-        if (amount <= 0) {
+        if (amount <= 0 || what == null) {
             return 0;
         }
         BigInteger delta = BigInteger.valueOf(amount);
@@ -53,7 +67,7 @@ public class HyperdimensionalMEStorage implements MEStorage {
         if (mode == Actionable.SIMULATE) {
             return actual.longValue();
         }
-        return storage.remove(what, delta).longValue();
+        return storage.remove(what, actual).longValue();
     }
 
     @Override

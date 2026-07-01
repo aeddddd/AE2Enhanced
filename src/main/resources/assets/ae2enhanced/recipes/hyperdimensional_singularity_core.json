@@ -1,0 +1,17 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "CSC",
+    "SPS",
+    "CSC"
+  ],
+  "key": {
+    "C": { "item": "ae2enhanced:hyperdimensional_casing" },
+    "S": { "item": "ae2:singularity" },
+    "P": { "item": "ae2:calculation_processor" }
+  },
+  "result": {
+    "item": "ae2enhanced:hyperdimensional_singularity_core",
+    "count": 2
+  }
+}

@@ -15,7 +15,6 @@ import appeng.api.crafting.IPatternDetails;
 import appeng.api.networking.IGridNode;
 import appeng.api.networking.IManagedGridNode;
 import appeng.api.networking.crafting.ICraftingProvider;
-import appeng.api.networking.crafting.ICraftingService;
 import appeng.api.networking.energy.IEnergyService;
 import appeng.api.networking.storage.IStorageService;
 import appeng.api.storage.IStorageMounts;
@@ -30,13 +29,15 @@ import com.github.aeddddd.ae2enhanced.registry.ModItems;
 
 /**
  * 通用多方块 ME 接口方块实体。
- * <p>作为 grid node 宿主，向 AE2 网络提供 IStorageProvider 与 ICraftingProvider 服务，并委托给背后的控制器。</p>
+ * <p>作为 grid node 宿主，向 AE2 网络提供 IStorageProvider、ICraftingProvider
+ * 与 IVirtualCpuProvider 服务，并委托给背后的控制器。</p>
  */
 public class MultiblockMeInterfaceBlockEntity extends AENetworkBlockEntity
-        implements IStorageProvider, ICraftingProvider {
+        implements IStorageProvider, ICraftingProvider, IVirtualCpuProvider {
 
     @Nullable
     private BlockPos controllerPos = null;
+    private final IControllerLocator controllerLocator = IControllerLocator.defaultLocator();
 
     public MultiblockMeInterfaceBlockEntity(BlockPos pos, BlockState state) {
         this(com.github.aeddddd.ae2enhanced.registry.ModBlockEntities.MULTIBLOCK_ME_INTERFACE.get(), pos, state);
@@ -52,7 +53,8 @@ public class MultiblockMeInterfaceBlockEntity extends AENetworkBlockEntity
                 .setIdlePowerUsage(1.0)
                 .setVisualRepresentation(ModItems.MULTIBLOCK_ME_INTERFACE.get())
                 .addService(IStorageProvider.class, this)
-                .addService(ICraftingProvider.class, this);
+                .addService(ICraftingProvider.class, this)
+                .addService(IVirtualCpuProvider.class, this);
     }
 
     @Nullable
@@ -106,6 +108,23 @@ public class MultiblockMeInterfaceBlockEntity extends AENetworkBlockEntity
         return null;
     }
 
+    /**
+     * 尝试使用定位器恢复控制器坐标。
+     */
+    public void recoverController() {
+        if (level == null || level.isClientSide() || controllerPos != null) {
+            return;
+        }
+        BlockState state = getBlockState();
+        if (!state.getValue(AE2EBaseEntityBlock.FORMED)) {
+            return;
+        }
+        BlockPos located = controllerLocator.locateController(level, worldPosition);
+        if (located != null) {
+            setControllerPos(located);
+        }
+    }
+
     public void requestNetworkUpdate() {
         IManagedGridNode node = getMainNode();
         IStorageProvider.requestUpdate(node);
@@ -114,8 +133,16 @@ public class MultiblockMeInterfaceBlockEntity extends AENetworkBlockEntity
 
     @Override
     public void onReady() {
-        if (controllerPos != null) {
-            super.onReady();
+        // 节点始终 ready；由控制器是否成形决定实际提供哪些服务。
+        super.onReady();
+    }
+
+    @Override
+    public void onLoad() {
+        super.onLoad();
+        // 服务端加载后若控制器坐标丢失但方块状态显示成形，尝试容错恢复。
+        if (level != null && !level.isClientSide() && controllerPos == null) {
+            recoverController();
         }
     }
 
@@ -172,6 +199,24 @@ public class MultiblockMeInterfaceBlockEntity extends AENetworkBlockEntity
 
     @Override
     public int getPatternPriority() {
+        return 0;
+    }
+
+    // ---- IVirtualCpuProvider ----
+
+    @Override
+    public boolean isVirtualCpuAvailable() {
+        return getController() instanceof com.github.aeddddd.ae2enhanced.computation.blockentity.ComputationCoreBlockEntity core
+                && core.isFormed();
+    }
+
+    @Override
+    public int getVirtualCpuParallelLimit() {
+        IMultiblockController controller = getController();
+        if (controller instanceof com.github.aeddddd.ae2enhanced.computation.blockentity.ComputationCoreBlockEntity core
+                && core.isFormed()) {
+            return core.getParallelLimit();
+        }
         return 0;
     }
 

@@ -3,11 +3,13 @@ package com.github.aeddddd.ae2enhanced;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.eventbus.api.IEventBus;
 import net.minecraftforge.fml.ModContainer;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.event.lifecycle.FMLCommonSetupEvent;
 
+import com.github.aeddddd.ae2enhanced.event.StructureEventHandler;
 import com.github.aeddddd.ae2enhanced.network.ModNetwork;
 import com.github.aeddddd.ae2enhanced.registry.ModBlockEntities;
 import com.github.aeddddd.ae2enhanced.registry.ModBlocks;
@@ -37,5 +39,6 @@ public class AE2Enhanced {
 
     private void commonSetup(FMLCommonSetupEvent event) {
         LOGGER.info("AE2Enhanced common setup");
+        MinecraftForge.EVENT_BUS.register(StructureEventHandler.class);
     }
 }

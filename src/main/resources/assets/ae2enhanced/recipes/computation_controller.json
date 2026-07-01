@@ -1,0 +1,16 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "CAC",
+    "M M",
+    "CAC"
+  ],
+  "key": {
+    "C": { "item": "ae2enhanced:causal_anchor_core" },
+    "A": { "item": "ae2enhanced:constant_tensor_field_casing" },
+    "M": { "item": "ae2:controller" }
+  },
+  "result": {
+    "item": "ae2enhanced:computation_controller"
+  }
+}

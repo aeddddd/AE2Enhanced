@@ -4,6 +4,7 @@ buildscript {
     }
     dependencies {
         classpath 'net.minecraftforge:ForgeAutoRenamingTool:1.0.2:all'
+        classpath 'com.google.code.gson:gson:2.10.1'
     }
 }
 
@@ -27,6 +28,12 @@ runs {
     configureEach {
         workingDirectory project.file('run')
         modSource project.sourceSets.main
+        systemProperty 'forge.logging.markers', 'REGISTRIES'
+        systemProperty 'forge.logging.console.level', 'debug'
+        jvmArgument '-Dmixin.env.remapRefMap=true'
+        jvmArgument '-Dmixin.env.refMapRemappingFile=' + layout.buildDirectory.file('reobf/srg_to_official.tsrg').get().asFile.absolutePath
+        programArgument '-mixin.config=mixins.ae2enhanced.json'
+        systemProperty 'ae2enhanced.devCompat', 'true'
     }
     client {
         systemProperty 'forge.enabledGameTestNamespaces', project.mod_id
@@ -42,6 +49,10 @@ runs {
     }
 }
 
+tasks.withType(net.neoforged.gradle.common.runs.tasks.RunExec).configureEach {
+    dependsOn tasks.generateReobfMapping
+}
+
 sourceSets.main.resources { srcDir 'src/generated/resources' }
 
 repositories {
@@ -55,7 +66,9 @@ repositories {
 
 dependencies {
     implementation "net.neoforged:forge:${project.neo_version}"
-    implementation 'appeng:appliedenergistics2-forge:15.3.4'
+    // AE2 发布 jar 为 SRG，在官方映射开发环境下需要反混淆后 runtime。
+    compileOnly 'appeng:appliedenergistics2-forge:15.3.4'
+    runtimeOnly files({ tasks.deobfAe2Jar.outputs.files.singleFile })
     compileOnly 'org.spongepowered:mixin:0.8.7'
     annotationProcessor 'org.spongepowered:mixin:0.8.7:processor'
 }
@@ -68,7 +81,7 @@ tasks.withType(ProcessResources).configureEach {
     ]
     inputs.properties replaceProperties
 
-    filesMatching(['META-INF/mods.toml']) {
+    filesMatching(['META-INF/neoforge.mods.toml', 'META-INF/mods.toml']) {
         expand replaceProperties
     }
 }
@@ -116,6 +129,61 @@ tasks.register('generateReobfMapping') {
             ]
         }
     }
+}
+
+tasks.register('generateSrgToOfficialMapping') {
+    dependsOn(tasks.generateReobfMapping)
+    def input = tasks.generateReobfMapping.outputs.files.singleFile
+    def mappingFile = layout.buildDirectory.file('reobf/srg_to_official.tsrg')
+    def forgeUniversal = project.file(".gradle/repositories/ng_dummy_ng/net/neoforged/forge/${project.neo_version}/forge-${project.neo_version}.jar")
+    outputs.file(mappingFile)
+
+    doLast {
+        mappingFile.get().asFile.parentFile.mkdirs()
+        javaexec {
+            classpath = files('buildSrc/build/classes/java/main') + buildscript.configurations.classpath
+            mainClass = 'ComposeSrgToOfficial'
+            args = [
+                    input,
+                    mappingFile.get().asFile,
+                    "${clientMappingsFile.parentFile}/client.jar",
+                    "${clientMappingsFile.parentFile}/server.jar",
+                    forgeUniversal
+            ]
+        }
+    }
+}
+
+// 反混淆 AE2 jar（类 + refmap）供开发环境运行使用。
+tasks.register('deobfAe2Jar', JavaExec) {
+    dependsOn tasks.generateSrgToOfficialMapping
+    def ae2Jar = file('libs/appliedenergistics2-forge-15.3.4.jar')
+    def mappingFile = tasks.generateSrgToOfficialMapping.outputs.files.singleFile
+    def outputJar = layout.buildDirectory.file('reobf/ae2-deobf.jar')
+
+    inputs.file ae2Jar
+    inputs.file mappingFile
+    outputs.file outputJar
+
+    classpath = files('buildSrc/build/classes/java/main') + buildscript.configurations.classpath
+    mainClass = 'Ae2Deobfuscator'
+    args = [ae2Jar, mappingFile, outputJar.get().asFile]
+}
+
+// 仅对 AE2 mixin refmap 做补丁（备用）。
+tasks.register('fixAe2Refmap', JavaExec) {
+    dependsOn tasks.generateSrgToOfficialMapping
+    def ae2Jar = file('libs/appliedenergistics2-forge-15.3.4.jar')
+    def mappingFile = tasks.generateSrgToOfficialMapping.outputs.files.singleFile
+    def outputJar = layout.buildDirectory.file('reobf/ae2-refmap-fixed.jar')
+
+    inputs.file ae2Jar
+    inputs.file mappingFile
+    outputs.file outputJar
+
+    classpath = files('buildSrc/build/classes/java/main') + buildscript.configurations.classpath
+    mainClass = 'FixAe2Refmap'
+    args = [ae2Jar, mappingFile, outputJar.get().asFile]
 }
 
 tasks.register('reobfJar', Exec) {

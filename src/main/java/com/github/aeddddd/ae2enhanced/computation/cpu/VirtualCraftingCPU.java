@@ -36,13 +36,13 @@ public class VirtualCraftingCPU {
     private final CraftingCPUCluster cluster;
 
     public VirtualCraftingCPU(ComputationCoreBlockEntity host, IManagedGridNode interfaceNode,
-            Level level, BlockPos pos) {
+            Level level, BlockPos pos, int parallel) {
         this.host = host;
         this.interfaceNode = interfaceNode;
         this.cluster = new CraftingCPUCluster(pos, pos);
 
         VirtualCraftingUnitBlockEntity fakeUnit = new VirtualCraftingUnitBlockEntity(level,
-                pos, AEBlocks.CRAFTING_UNIT.block().defaultBlockState(), interfaceNode);
+                pos, AEBlocks.CRAFTING_UNIT.block().defaultBlockState(), interfaceNode, parallel);
         try {
             ADD_BLOCK_ENTITY.invoke(cluster, fakeUnit);
         } catch (ReflectiveOperationException e) {
@@ -64,6 +64,14 @@ public class VirtualCraftingCPU {
 
     public boolean isDestroyed() {
         return cluster.isDestroyed();
+    }
+
+    public boolean isBusy() {
+        return cluster.isBusy();
+    }
+
+    public ComputationCoreBlockEntity getHost() {
+        return host;
     }
 
     public void destroy() {

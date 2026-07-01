@@ -104,7 +104,7 @@ public final class HyperdimensionalStructure {
     private static boolean checkBlock(Level level, BlockPos controllerPos, Set<BlockPos> relativeSet,
             Block expected, Direction facing) {
         for (BlockPos rel : relativeSet) {
-            BlockPos actual = controllerPos.offset(rel.getX(), rel.getY(), rel.getZ());
+            BlockPos actual = controllerPos.offset(rotate(rel, facing));
             if (!level.isLoaded(actual)) {
                 continue;
             }
@@ -127,7 +127,7 @@ public final class HyperdimensionalStructure {
     private static void countMissing(Level level, BlockPos controllerPos, Set<BlockPos> relativeSet,
             Block expected, Map<Block, Integer> missing, Direction facing) {
         for (BlockPos rel : relativeSet) {
-            BlockPos actual = controllerPos.offset(rel.getX(), rel.getY(), rel.getZ());
+            BlockPos actual = controllerPos.offset(rotate(rel, facing));
             if (!level.isLoaded(actual)) {
                 continue;
             }
@@ -146,13 +146,14 @@ public final class HyperdimensionalStructure {
         BlockState controllerState = level.getBlockState(controllerPos);
         if (controllerState.getBlock() == ModBlocks.HYPERDIMENSIONAL_CONTROLLER.get()) {
             if (level.getBlockEntity(controllerPos) instanceof HyperdimensionalControllerBlockEntity controller) {
-                controller.setFormed(true);
+                controller.assemble();
             }
         }
 
         // 绑定接口到控制器
+        Direction facing = getControllerFacing(level, controllerPos);
         for (BlockPos rel : INTERFACE_SET) {
-            BlockPos actual = controllerPos.offset(rel.getX(), rel.getY(), rel.getZ());
+            BlockPos actual = controllerPos.offset(rotate(rel, facing));
             BlockState state = level.getBlockState(actual);
             if (state.getBlock() == ModBlocks.MULTIBLOCK_ME_INTERFACE.get()) {
                 if (level.getBlockEntity(actual) instanceof MultiblockMeInterfaceBlockEntity interfaceBe) {
@@ -168,8 +169,9 @@ public final class HyperdimensionalStructure {
         }
 
         // 解除接口绑定
+        Direction facing = getControllerFacing(level, controllerPos);
         for (BlockPos rel : INTERFACE_SET) {
-            BlockPos actual = controllerPos.offset(rel.getX(), rel.getY(), rel.getZ());
+            BlockPos actual = controllerPos.offset(rotate(rel, facing));
             BlockState state = level.getBlockState(actual);
             if (state.getBlock() == ModBlocks.MULTIBLOCK_ME_INTERFACE.get()) {
                 if (level.getBlockEntity(actual) instanceof MultiblockMeInterfaceBlockEntity interfaceBe) {
@@ -182,7 +184,7 @@ public final class HyperdimensionalStructure {
         BlockState controllerState = level.getBlockState(controllerPos);
         if (controllerState.getBlock() == ModBlocks.HYPERDIMENSIONAL_CONTROLLER.get()) {
             if (level.getBlockEntity(controllerPos) instanceof HyperdimensionalControllerBlockEntity controller) {
-                controller.setFormed(false);
+                controller.disassemble();
             }
         }
     }
@@ -206,7 +208,7 @@ public final class HyperdimensionalStructure {
     private static void placeBlocks(Level level, BlockPos controllerPos, Set<BlockPos> set, Block block,
             Direction facing) {
         for (BlockPos rel : set) {
-            BlockPos pos = controllerPos.offset(rel.getX(), rel.getY(), rel.getZ());
+            BlockPos pos = controllerPos.offset(rotate(rel, facing));
             if (level.getBlockState(pos).getBlock() != block) {
                 level.setBlock(pos, block.defaultBlockState(), Block.UPDATE_ALL);
             }

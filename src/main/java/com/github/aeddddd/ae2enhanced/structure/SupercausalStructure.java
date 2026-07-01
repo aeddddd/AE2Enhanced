@@ -16,6 +16,7 @@ import net.minecraft.world.level.block.state.BlockState;
 import com.github.aeddddd.ae2enhanced.computation.block.ComputationControllerBlock;
 import com.github.aeddddd.ae2enhanced.computation.blockentity.ComputationCoreBlockEntity;
 import com.github.aeddddd.ae2enhanced.multiblock.MultiblockMeInterfaceBlock;
+import com.github.aeddddd.ae2enhanced.config.AE2EnhancedConfig;
 import com.github.aeddddd.ae2enhanced.registry.ModBlocks;
 
 /**
@@ -985,10 +986,10 @@ public class SupercausalStructure {
     }
 
     /**
-     * 返回并行合成上限(默认 16384).
+     * 返回每个虚拟 CPU 的并行合成上限（由配置决定）。
      */
     public static int computeParallel() {
-        return 16384;
+        return AE2EnhancedConfig.COMMON.computationMaxParallel.get();
     }
 
     public static void assemble(Level world, BlockPos controllerPos) {

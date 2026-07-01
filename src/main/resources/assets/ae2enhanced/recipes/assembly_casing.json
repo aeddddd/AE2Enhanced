@@ -1,0 +1,16 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "SSS",
+    "SDS",
+    "SSS"
+  ],
+  "key": {
+    "S": { "item": "ae2:smooth_sky_stone_block" },
+    "D": { "item": "ae2:dense_energy_cell" }
+  },
+  "result": {
+    "item": "ae2enhanced:assembly_casing",
+    "count": 4
+  }
+}

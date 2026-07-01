@@ -41,6 +41,18 @@ public final class ModItems {
     public static final RegistryObject<Item> ASSEMBLY_STABILIZER = DR.register("assembly_stabilizer",
             () -> new BlockItem(ModBlocks.ASSEMBLY_STABILIZER.get(), new Item.Properties()));
 
+    public static final RegistryObject<Item> ASSEMBLY_PARALLEL_UPGRADE = DR.register("assembly_parallel_upgrade",
+            () -> new Item(new Item.Properties()));
+
+    public static final RegistryObject<Item> ASSEMBLY_SPEED_UPGRADE = DR.register("assembly_speed_upgrade",
+            () -> new Item(new Item.Properties()));
+
+    public static final RegistryObject<Item> ASSEMBLY_CAPACITY_UPGRADE = DR.register("assembly_capacity_upgrade",
+            () -> new Item(new Item.Properties()));
+
+    public static final RegistryObject<Item> ASSEMBLY_AUTO_UPLOAD_UPGRADE = DR.register("assembly_auto_upload_upgrade",
+            () -> new Item(new Item.Properties()));
+
     // Supercausal Computation Core
     public static final RegistryObject<Item> COMPUTATION_CONTROLLER = DR.register("computation_controller",
             () -> new BlockItem(ModBlocks.COMPUTATION_CONTROLLER.get(), new Item.Properties()));

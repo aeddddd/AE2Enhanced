@@ -3,12 +3,16 @@ package com.github.aeddddd.ae2enhanced.multiblock;
 import java.util.HashSet;
 import java.util.Set;
 
+import javax.annotation.Nullable;
+
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
+
+import appeng.api.networking.security.IActionSource;
 
 import com.github.aeddddd.ae2enhanced.blockentity.AE2EBaseBlockEntity;
 
@@ -30,12 +34,41 @@ public abstract class MultiblockControllerBlockEntity extends AE2EBaseBlockEntit
         return formed;
     }
 
+    /**
+     * 直接设置成形状态并触发方块更新。
+     * <p>外部代码应优先使用 {@link #assemble()} / {@link #disassemble()}，
+     * 以便统一调用 {@link #onAssemble()} / {@link #onDisassemble()} 钩子。</p>
+     */
     public void setFormed(boolean formed) {
         if (this.formed != formed) {
             this.formed = formed;
             setChanged();
             markForUpdate();
         }
+    }
+
+    /**
+     * 装配结构：先调用子类钩子，再置为成形，最后刷新接口服务。
+     */
+    public void assemble() {
+        if (isFormed()) {
+            return;
+        }
+        onAssemble();
+        setFormed(true);
+        refreshInterfaceServices();
+    }
+
+    /**
+     * 拆解结构：先调用子类钩子，再置为未成形，最后刷新接口服务。
+     */
+    public void disassemble() {
+        if (!isFormed()) {
+            return;
+        }
+        onDisassemble();
+        setFormed(false);
+        refreshInterfaceServices();
     }
 
     @Override
@@ -45,20 +78,35 @@ public abstract class MultiblockControllerBlockEntity extends AE2EBaseBlockEntit
 
     @Override
     public void attachInterface(BlockPos interfacePos) {
-        if (interfaces.add(interfacePos)) {
+        if (interfaces.add(interfacePos.immutable())) {
             setChanged();
         }
     }
 
     @Override
     public void detachInterface(BlockPos interfacePos) {
-        if (interfaces.remove(interfacePos)) {
+        if (interfaces.remove(interfacePos.immutable())) {
             setChanged();
         }
     }
 
     public Set<BlockPos> getInterfaces() {
         return new HashSet<>(interfaces);
+    }
+
+    @Override
+    public IActionSource getActionSource() {
+        if (level == null || level.isClientSide()) {
+            return IActionSource.empty();
+        }
+        for (BlockPos pos : interfaces) {
+            if (level.getBlockEntity(pos) instanceof MultiblockMeInterfaceBlockEntity me) {
+                if (me.getActionableNode() != null) {
+                    return IActionSource.ofMachine(me);
+                }
+            }
+        }
+        return IActionSource.empty();
     }
 
     /**
@@ -72,6 +120,50 @@ public abstract class MultiblockControllerBlockEntity extends AE2EBaseBlockEntit
             if (level.getBlockEntity(pos) instanceof MultiblockMeInterfaceBlockEntity interfaceBe) {
                 interfaceBe.requestNetworkUpdate();
             }
+        }
+    }
+
+    @Override
+    public void onLoad() {
+        super.onLoad();
+        // 服务端加载后，若已成形则安排一次服务刷新，确保网络能重新发现控制器。
+        if (level != null && !level.isClientSide() && isFormed()) {
+            refreshInterfaceServices();
+        }
+    }
+
+    @Override
+    public void setRemoved() {
+        if (level != null && !level.isClientSide() && isFormed()) {
+            disassemble();
+        }
+        super.setRemoved();
+    }
+
+    @Override
+    public void onChunkUnloaded() {
+        super.onChunkUnloaded();
+        // 子类可覆写以在区块卸载时释放临时资源，但不应执行完整拆解。
+    }
+
+    /**
+     * 服务端每 tick 调用入口。子类覆写以处理验证、保存等逻辑。
+     */
+    public void serverTick() {
+    }
+
+    @Override
+    public CompoundTag getUpdateTag() {
+        CompoundTag tag = super.getUpdateTag();
+        tag.putBoolean("formed", formed);
+        return tag;
+    }
+
+    @Override
+    public void handleUpdateTag(CompoundTag tag) {
+        super.handleUpdateTag(tag);
+        if (tag.contains("formed", Tag.TAG_BYTE)) {
+            this.formed = tag.getBoolean("formed");
         }
     }
 

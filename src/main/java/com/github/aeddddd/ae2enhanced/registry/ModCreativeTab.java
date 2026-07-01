@@ -32,6 +32,10 @@ public final class ModCreativeTab {
                         output.accept(new ItemStack(ModItems.ASSEMBLY_CASING.get()));
                         output.accept(new ItemStack(ModItems.ASSEMBLY_INNER_WALL.get()));
                         output.accept(new ItemStack(ModItems.ASSEMBLY_STABILIZER.get()));
+                        output.accept(new ItemStack(ModItems.ASSEMBLY_PARALLEL_UPGRADE.get()));
+                        output.accept(new ItemStack(ModItems.ASSEMBLY_SPEED_UPGRADE.get()));
+                        output.accept(new ItemStack(ModItems.ASSEMBLY_CAPACITY_UPGRADE.get()));
+                        output.accept(new ItemStack(ModItems.ASSEMBLY_AUTO_UPLOAD_UPGRADE.get()));
 
                         // Supercausal Computation Core
                         output.accept(new ItemStack(ModItems.COMPUTATION_CONTROLLER.get()));

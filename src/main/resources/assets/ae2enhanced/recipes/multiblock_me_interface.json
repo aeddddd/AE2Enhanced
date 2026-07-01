@@ -1,0 +1,17 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "IPI",
+    "FNF",
+    "IPI"
+  ],
+  "key": {
+    "I": { "item": "ae2:interface" },
+    "P": { "item": "ae2:fluix_pearl" },
+    "F": { "item": "ae2:fluix_glass_cable" },
+    "N": { "item": "ae2:engineering_processor" }
+  },
+  "result": {
+    "item": "ae2enhanced:multiblock_me_interface"
+  }
+}
