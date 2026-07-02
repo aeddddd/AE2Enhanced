@@ -8,12 +8,14 @@ import java.util.Map;
 import javax.annotation.Nullable;
 
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.core.NonNullList;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.AABB;
 import net.minecraftforge.items.ItemStackHandler;
 
 import appeng.api.config.Actionable;
@@ -27,7 +29,11 @@ import appeng.api.stacks.KeyCounter;
 import appeng.api.storage.MEStorage;
 
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
+import com.github.aeddddd.ae2enhanced.assembly.block.AssemblyControllerBlock;
 import com.github.aeddddd.ae2enhanced.assembly.pattern.ScaledPatternDetails;
+import com.github.aeddddd.ae2enhanced.config.AE2EnhancedConfig;
+import com.github.aeddddd.ae2enhanced.crafting.blackhole.BlackHoleCraftingHelper;
+import com.github.aeddddd.ae2enhanced.crafting.blackhole.BlackHoleRecipe;
 import com.github.aeddddd.ae2enhanced.multiblock.IPatternProviderHost;
 import com.github.aeddddd.ae2enhanced.multiblock.MultiblockControllerBlockEntity;
 import com.github.aeddddd.ae2enhanced.registry.ModBlockEntities;
@@ -57,6 +63,8 @@ public class AssemblyControllerBlockEntity extends MultiblockControllerBlockEnti
     private int patternRefreshTicks = 0;
     private boolean patternsDirty = false;
     private boolean batchBusy = false;
+    private final Map<String, Integer> blackHoleBuffer = new HashMap<>();
+    private int blackHoleTick = 0;
 
     public AssemblyControllerBlockEntity(BlockPos pos, BlockState state) {
         super(ModBlockEntities.ASSEMBLY_CONTROLLER.get(), pos, state);
@@ -175,6 +183,47 @@ public class AssemblyControllerBlockEntity extends MultiblockControllerBlockEnti
 
         // 每 tick 重置 batchBusy，允许下一 tick 继续接收 pushPattern
         this.batchBusy = false;
+
+        // 黑洞事件视界逻辑
+        if (AE2EnhancedConfig.COMMON.enableBlackHole.get() && isFormed()) {
+            blackHoleTick++;
+            if (blackHoleTick % 5 == 0) {
+                BlockState state = level.getBlockState(worldPosition);
+                Direction facing = state.getValue(AssemblyControllerBlock.FACING);
+                BlockPos center = AssemblyStructure.getOriginFromController(worldPosition, facing);
+                BlockPos outputPos = center.above();
+
+                BlackHoleCraftingHelper.killLivingEntities(level, center);
+                BlackHoleCraftingHelper.suckItems(level, center);
+
+                AABB craftBox = new AABB(
+                        center.getX() - 1, center.getY() - 1, center.getZ() - 1,
+                        center.getX() + 1, center.getY() + 1, center.getZ() + 1);
+                var items = level.getEntitiesOfClass(net.minecraft.world.entity.item.ItemEntity.class, craftBox);
+                Map<String, Integer> preTypes = new HashMap<>();
+                for (var entity : items) {
+                    String key = BlackHoleRecipe.keyOf(entity.getItem());
+                    preTypes.merge(key, entity.getItem().getCount(), Integer::sum);
+                }
+
+                boolean crafted = !preTypes.isEmpty() && BlackHoleCraftingHelper.tryCraft(level, center, outputPos, true);
+                if (crafted) {
+                    blackHoleBuffer.clear();
+                } else if (!preTypes.isEmpty()) {
+                    for (Map.Entry<String, Integer> entry : preTypes.entrySet()) {
+                        blackHoleBuffer.merge(entry.getKey(), entry.getValue(), Integer::sum);
+                    }
+                    if (blackHoleBuffer.size() > 5) {
+                        BlackHoleCraftingHelper.explode(level, center);
+                        blackHoleBuffer.clear();
+                        if (AE2EnhancedConfig.COMMON.debugMode.get()) {
+                            AE2Enhanced.LOGGER.info("[AE2E] 黑洞过载爆炸于 {}", center);
+                        }
+                    }
+                }
+                setChanged();
+            }
+        }
     }
 
     private void ensurePatternCapacity() {
@@ -260,7 +309,6 @@ public class AssemblyControllerBlockEntity extends MultiblockControllerBlockEnti
         if (level == null || !isFormed()) {
             return result;
         }
-        long multiplier = getParallelCap();
         int patternSlots = getPatternSlotCount();
         for (int i = UPGRADE_SLOTS; i < UPGRADE_SLOTS + patternSlots; i++) {
             ItemStack stack = itemHandler.getStackInSlot(i);
@@ -269,7 +317,7 @@ public class AssemblyControllerBlockEntity extends MultiblockControllerBlockEnti
             }
             IPatternDetails base = PatternDetailsHelper.decodePattern(stack, level);
             if (base != null) {
-                result.add(new ScaledPatternDetails(base, multiplier));
+                result.add(base);
             }
         }
         return result;
@@ -281,7 +329,23 @@ public class AssemblyControllerBlockEntity extends MultiblockControllerBlockEnti
     }
 
     public boolean pushPattern(IPatternDetails pattern, KeyCounter[] inputs, @Nullable IManagedGridNode node) {
-        if (level == null || level.isClientSide() || !isFormed()) {
+        return pushPatternBatch(pattern, inputs, node, 1);
+    }
+
+    /**
+     * 批量执行样板任务，一次性处理 {@code batchSize} 个副本。
+     * <p>由 {@code MixinCraftingCpuLogic} 在 AE2 合成 CPU 调用时拦截并注入，
+     * 使装配枢纽的并行升级真正生效。调用方必须确保输入已从 CPU 库存中提取，
+     * 本方法只负责消耗传入的 inputs 并将产物与剩余物加入缓冲。</p>
+     *
+     * @param pattern   原始样板（未缩放）
+     * @param inputs    单副本输入
+     * @param node      优先使用的网络节点（可为 null）
+     * @param batchSize 要批量处理的副本数量
+     * @return 是否成功执行
+     */
+    public boolean pushPatternBatch(IPatternDetails pattern, KeyCounter[] inputs, @Nullable IManagedGridNode node, long batchSize) {
+        if (level == null || level.isClientSide() || !isFormed() || batchSize <= 0) {
             return false;
         }
 
@@ -291,49 +355,18 @@ public class AssemblyControllerBlockEntity extends MultiblockControllerBlockEnti
             return false;
         }
 
+        // 确保至少能连上网络，用于后续注入产物
         IManagedGridNode targetNode = resolveNode(node);
         if (targetNode == null || targetNode.getGrid() == null) {
             return false;
         }
-        IStorageService storageService = targetNode.getGrid().getStorageService();
-        if (storageService == null) {
-            return false;
-        }
-        MEStorage storage = storageService.getInventory();
-        var source = getActionSource();
 
-        // 预检查输入是否足够：优先使用 AE2 传入的 inputs
-        for (KeyCounter input : inputs) {
-            for (var entry : input) {
-                AEKey key = entry.getKey();
-                long needed = entry.getLongValue();
-                if (needed <= 0) {
-                    continue;
-                }
-                long available = storage.extract(key, needed, Actionable.SIMULATE, source);
-                if (available < needed) {
-                    return false;
-                }
-            }
-        }
-
-        // 扣除输入
-        for (KeyCounter input : inputs) {
-            for (var entry : input) {
-                AEKey key = entry.getKey();
-                long needed = entry.getLongValue();
-                if (needed <= 0) {
-                    continue;
-                }
-                storage.extract(key, needed, Actionable.MODULATE, source);
-            }
-        }
-
-        // 产物与剩余物先进入缓冲，按 getCraftingTicks() 延迟后注入网络
-        long multiplier = (pattern instanceof ScaledPatternDetails scaled) ? scaled.getMultiplier() : 1L;
+        // 传入的 inputs 已由 CPU 库存提取，装配枢纽直接消耗它们，
+        // 产物与剩余物按 batchSize 倍率加入缓冲，按 getCraftingTicks() 延迟后注入网络
         for (GenericStack output : pattern.getOutputs()) {
             if (output != null && output.amount() > 0) {
-                pendingOutputs.add(output);
+                long amount = safeMultiply(output.amount(), batchSize);
+                pendingOutputs.add(new GenericStack(output.what(), amount));
             }
         }
         IPatternDetails.IInput[] patternInputs = pattern.getInputs();
@@ -346,10 +379,10 @@ public class AssemblyControllerBlockEntity extends MultiblockControllerBlockEnti
                 AEKey key = entry.getKey();
                 AEKey remaining = input.getRemainingKey(key);
                 if (remaining != null) {
-                    long remainingAmount = multiplier;
+                    long remainingAmount = safeMultiply(1, batchSize);
                     GenericStack[] possible = input.getPossibleInputs();
                     if (possible.length > 0 && possible[0].amount() > 0) {
-                        remainingAmount = entry.getLongValue() / possible[0].amount();
+                        remainingAmount = safeMultiply(entry.getLongValue() / possible[0].amount(), batchSize);
                     }
                     if (remainingAmount > 0) {
                         pendingOutputs.add(new GenericStack(remaining, remainingAmount));
@@ -361,6 +394,14 @@ public class AssemblyControllerBlockEntity extends MultiblockControllerBlockEnti
         jobTimers.add(getCraftingTicks());
         batchBusy = true;
         return true;
+    }
+
+    private static long safeMultiply(long a, long b) {
+        try {
+            return Math.multiplyExact(a, b);
+        } catch (ArithmeticException e) {
+            return Long.MAX_VALUE;
+        }
     }
 
     @Nullable
@@ -404,6 +445,14 @@ public class AssemblyControllerBlockEntity extends MultiblockControllerBlockEnti
                 }
             }
         }
+        if (data.contains("blackHoleBuffer", ListTag.TAG_LIST)) {
+            blackHoleBuffer.clear();
+            ListTag list = data.getList("blackHoleBuffer", CompoundTag.TAG_COMPOUND);
+            for (int i = 0; i < list.size(); i++) {
+                CompoundTag entryTag = list.getCompound(i);
+                blackHoleBuffer.put(entryTag.getString("key"), entryTag.getInt("count"));
+            }
+        }
         ensurePatternCapacity();
     }
 
@@ -418,6 +467,15 @@ public class AssemblyControllerBlockEntity extends MultiblockControllerBlockEnti
             }
         }
         data.put("pendingOutputs", list);
+
+        ListTag bufferList = new ListTag();
+        for (Map.Entry<String, Integer> entry : blackHoleBuffer.entrySet()) {
+            CompoundTag entryTag = new CompoundTag();
+            entryTag.putString("key", entry.getKey());
+            entryTag.putInt("count", entry.getValue());
+            bufferList.add(entryTag);
+        }
+        data.put("blackHoleBuffer", bufferList);
     }
 
     /**

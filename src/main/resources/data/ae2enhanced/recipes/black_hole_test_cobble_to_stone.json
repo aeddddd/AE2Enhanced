@@ -1,0 +1,9 @@
+{
+  "type": "ae2enhanced:black_hole",
+  "inputs": {
+    "minecraft:cobblestone": 64
+  },
+  "output": {
+    "item": "minecraft:stone"
+  }
+}

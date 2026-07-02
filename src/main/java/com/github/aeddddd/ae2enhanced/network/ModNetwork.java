@@ -5,6 +5,7 @@ import net.minecraftforge.network.NetworkRegistry;
 import net.minecraftforge.network.simple.SimpleChannel;
 
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
+import com.github.aeddddd.ae2enhanced.network.packet.AssemblyPagePacket;
 import com.github.aeddddd.ae2enhanced.network.packet.RequestAssemblyPacket;
 
 /**
@@ -28,6 +29,12 @@ public final class ModNetwork {
                 .encoder(RequestAssemblyPacket::encode)
                 .decoder(RequestAssemblyPacket::decode)
                 .consumerMainThread(RequestAssemblyPacket::handle)
+                .add();
+
+        CHANNEL.messageBuilder(AssemblyPagePacket.class, nextId())
+                .encoder(AssemblyPagePacket::encode)
+                .decoder(AssemblyPagePacket::decode)
+                .consumerMainThread(AssemblyPagePacket::handle)
                 .add();
     }
 

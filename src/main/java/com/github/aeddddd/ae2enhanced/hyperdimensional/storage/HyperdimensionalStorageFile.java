@@ -38,18 +38,39 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.zip.CRC32;
 
 /**
  * 超维度仓储持久化文件管理。
  * <p>每个 Nexus 对应一个独立目录：{@code <world>/ae2enhanced/storage/<nexusId>/}，
  * 其中每个通道分别保存为二进制文件（items.bin、fluids.bin、energy.bin）。
  * 旧版单文件 {@code <nexusId>.dat} 在首次加载时自动迁移到二进制格式并备份为 {@code .backup}。</p>
+ *
+ * <p>二进制格式（版本 2）：</p>
+ * <ul>
+ *   <li>Magic: 4 bytes ('A','E','2','E')</li>
+ *   <li>Version: 4 bytes int</li>
+ *   <li>Flags: 4 bytes int</li>
+ *   <li>Entry count: 4 bytes int</li>
+ *   <li>Entries: 每个条目为 [descriptor length][descriptor bytes][sign][magnitude length][magnitude bytes]</li>
+ *   <li>CRC32: 4 bytes（覆盖 Magic 到 Entries 末尾）</li>
+ * </ul>
+ *
+ * <p>条目描述符（版本 2）：</p>
+ * <ul>
+ *   <li>Type: 1 byte（1=物品, 2=流体, 3=能量）</li>
+ *   <li>Key NBT: 物品/流体直接写入 {@link AEKey#toTag()} 的完整 CompoundTag；能量写入标记字符串</li>
+ * </ul>
+ *
+ * <p>版本 1 的格式仍可读，但新文件统一以版本 2 写入。加载失败时进入安全模式，
+ * 并将损坏文件备份为 {@code .corrupt}，防止进一步破坏数据。</p>
  */
 public final class HyperdimensionalStorageFile {
 
     // 二进制文件格式常量
     private static final byte[] MAGIC = new byte[] { 'A', 'E', '2', 'E' };
-    private static final int BINARY_VERSION = 1;
+    private static final int BINARY_VERSION = 2;
+    private static final int BINARY_VERSION_1 = 1;
 
     private static final byte TYPE_ITEM = 1;
     private static final byte TYPE_FLUID = 2;
@@ -63,6 +84,11 @@ public final class HyperdimensionalStorageFile {
     private static final String TAG_KEY = "key";
     private static final String TAG_AMOUNT = "amount";
     private static final int LEGACY_VERSION = 2;
+
+    // 安全限制
+    private static final int MAX_DESCRIPTOR_LENGTH = 1_000_000;
+    private static final int MAX_MAGNITUDE_LENGTH = 1_000_000;
+    private static final int MAX_ENTRY_COUNT = 100_000_000;
 
     private final Path directory;
     private final UUID nexusId;
@@ -144,7 +170,7 @@ public final class HyperdimensionalStorageFile {
         }
         try {
             byte[] data = readFileLocked(file);
-            parseBinaryFile(data, consumer);
+            parseBinaryFile(data, consumer, file);
         } catch (Exception e) {
             enterSafeMode("loadChannel " + type.getId(), e);
         }
@@ -316,12 +342,15 @@ public final class HyperdimensionalStorageFile {
     // ===== 二进制文件读写 =====
 
     private byte[] serializeBinaryFile(Map<AEKey, BigInteger> entries) throws IOException {
-        ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        try (DataOutputStream out = new DataOutputStream(baos)) {
+        ByteArrayOutputStream content = new ByteArrayOutputStream();
+        try (DataOutputStream out = new DataOutputStream(content)) {
             // 头部 16 字节
             out.write(MAGIC);
             out.writeInt(BINARY_VERSION);
             out.writeInt(0); // flags
+            if (entries.size() > MAX_ENTRY_COUNT) {
+                throw new IOException("Too many entries: " + entries.size());
+            }
             out.writeInt(entries.size());
             for (Map.Entry<AEKey, BigInteger> entry : entries.entrySet()) {
                 byte[] descriptor = writeDescriptor(entry.getKey());
@@ -334,10 +363,26 @@ public final class HyperdimensionalStorageFile {
                 out.write(magnitude);
             }
         }
-        return baos.toByteArray();
+        byte[] contentBytes = content.toByteArray();
+        CRC32 crc = new CRC32();
+        crc.update(contentBytes);
+        byte[] crcBytes = new byte[4];
+        long crcValue = crc.getValue();
+        crcBytes[0] = (byte) (crcValue >>> 24);
+        crcBytes[1] = (byte) (crcValue >>> 16);
+        crcBytes[2] = (byte) (crcValue >>> 8);
+        crcBytes[3] = (byte) crcValue;
+
+        ByteArrayOutputStream result = new ByteArrayOutputStream();
+        result.write(contentBytes);
+        result.write(crcBytes);
+        return result.toByteArray();
     }
 
-    private void parseBinaryFile(byte[] data, BiConsumer<AEKey, BigInteger> consumer) throws IOException {
+    private void parseBinaryFile(byte[] data, BiConsumer<AEKey, BigInteger> consumer, Path sourceFile) throws IOException {
+        if (data.length < 4) {
+            throw new IOException("File too small to contain magic");
+        }
         try (DataInputStream in = new DataInputStream(new ByteArrayInputStream(data))) {
             byte[] magic = new byte[4];
             in.readFully(magic);
@@ -345,31 +390,106 @@ public final class HyperdimensionalStorageFile {
                 throw new IOException("Invalid magic bytes");
             }
             int version = in.readInt();
-            if (version != BINARY_VERSION) {
+            if (version != BINARY_VERSION && version != BINARY_VERSION_1) {
                 throw new IOException("Unsupported binary version: " + version);
             }
-            in.readInt(); // flags，当前未使用
-            int count = in.readInt();
-            for (int i = 0; i < count; i++) {
-                int descLen = in.readInt();
-                if (descLen < 0 || descLen > 1_000_000) {
-                    throw new IOException("Invalid descriptor length: " + descLen);
+            // 回退到已读取的头部位置，以便重新验证 CRC
+            if (version == BINARY_VERSION) {
+                in.readInt(); // flags
+                int count = in.readInt();
+                if (count < 0 || count > MAX_ENTRY_COUNT) {
+                    throw new IOException("Invalid entry count: " + count);
                 }
-                byte[] descriptor = new byte[descLen];
-                in.readFully(descriptor);
-                AEKey key = readDescriptor(descriptor);
-                int sign = in.readByte();
-                int magLen = in.readInt();
-                if (magLen < 0 || magLen > 1_000_000) {
-                    throw new IOException("Invalid magnitude length: " + magLen);
+                for (int i = 0; i < count; i++) {
+                    int descLen = in.readInt();
+                    if (descLen < 0 || descLen > MAX_DESCRIPTOR_LENGTH) {
+                        throw new IOException("Invalid descriptor length: " + descLen);
+                    }
+                    byte[] descriptor = new byte[descLen];
+                    in.readFully(descriptor);
+                    AEKey key = readDescriptor(descriptor, version);
+                    int sign = in.readByte();
+                    if (sign < -1 || sign > 1) {
+                        throw new IOException("Invalid sign byte: " + sign);
+                    }
+                    int magLen = in.readInt();
+                    if (magLen < 0 || magLen > MAX_MAGNITUDE_LENGTH) {
+                        throw new IOException("Invalid magnitude length: " + magLen);
+                    }
+                    byte[] magnitude = new byte[magLen];
+                    in.readFully(magnitude);
+                    BigInteger amount = new BigInteger(sign, magnitude);
+                    if (key != null && amount.signum() > 0) {
+                        consumer.accept(key, amount);
+                    }
                 }
-                byte[] magnitude = new byte[magLen];
-                in.readFully(magnitude);
-                BigInteger amount = new BigInteger(sign, magnitude);
-                if (key != null && amount.signum() > 0) {
-                    consumer.accept(key, amount);
+                // 验证 CRC32
+                int remaining = in.available();
+                if (remaining != 4) {
+                    throw new IOException("CRC32 missing or extra trailing bytes: " + remaining);
+                }
+                byte[] storedCrc = new byte[4];
+                in.readFully(storedCrc);
+                long storedCrcValue = ((storedCrc[0] & 0xFFL) << 24)
+                        | ((storedCrc[1] & 0xFFL) << 16)
+                        | ((storedCrc[2] & 0xFFL) << 8)
+                        | (storedCrc[3] & 0xFFL);
+                long computedCrc = computeCrcOfContent(data);
+                if (storedCrcValue != computedCrc) {
+                    throw new IOException("CRC32 mismatch: stored=" + storedCrcValue + ", computed=" + computedCrc);
+                }
+            } else {
+                // 版本 1：旧格式，无 CRC32
+                in.readInt(); // flags
+                int count = in.readInt();
+                if (count < 0 || count > MAX_ENTRY_COUNT) {
+                    throw new IOException("Invalid entry count: " + count);
+                }
+                for (int i = 0; i < count; i++) {
+                    int descLen = in.readInt();
+                    if (descLen < 0 || descLen > MAX_DESCRIPTOR_LENGTH) {
+                        throw new IOException("Invalid descriptor length: " + descLen);
+                    }
+                    byte[] descriptor = new byte[descLen];
+                    in.readFully(descriptor);
+                    AEKey key = readDescriptor(descriptor, version);
+                    int sign = in.readByte();
+                    int magLen = in.readInt();
+                    if (magLen < 0 || magLen > MAX_MAGNITUDE_LENGTH) {
+                        throw new IOException("Invalid magnitude length: " + magLen);
+                    }
+                    byte[] magnitude = new byte[magLen];
+                    in.readFully(magnitude);
+                    BigInteger amount = new BigInteger(sign, magnitude);
+                    if (key != null && amount.signum() > 0) {
+                        consumer.accept(key, amount);
+                    }
                 }
             }
+        } catch (IOException e) {
+            backupCorruptFile(sourceFile, e);
+            throw e;
+        }
+    }
+
+    private long computeCrcOfContent(byte[] data) {
+        // data 的最后 4 个字节是 CRC32，其余为内容
+        CRC32 crc = new CRC32();
+        int contentLength = data.length - 4;
+        if (contentLength < 0) {
+            contentLength = 0;
+        }
+        crc.update(data, 0, contentLength);
+        return crc.getValue();
+    }
+
+    private void backupCorruptFile(Path file, Exception cause) {
+        try {
+            Path corrupt = directory.resolve(file.getFileName() + ".corrupt");
+            Files.move(file, corrupt, StandardCopyOption.REPLACE_EXISTING);
+            AE2Enhanced.LOGGER.warn("[AE2E] Backed up corrupt hyperdimensional storage file {} to {}", file, corrupt);
+        } catch (IOException moveEx) {
+            AE2Enhanced.LOGGER.error("[AE2E] Failed to backup corrupt storage file {}: {}", file, moveEx.toString());
         }
     }
 
@@ -378,12 +498,12 @@ public final class HyperdimensionalStorageFile {
         try (DataOutputStream out = new DataOutputStream(baos)) {
             if (key instanceof AEItemKey itemKey) {
                 out.writeByte(TYPE_ITEM);
-                ResourceLocation id = BuiltInRegistries.ITEM.getKey(itemKey.getItem());
-                out.writeUTF(id != null ? id.toString() : "");
+                CompoundTag tag = itemKey.toTag();
+                NbtIo.write(tag, out);
             } else if (key instanceof AEFluidKey fluidKey) {
                 out.writeByte(TYPE_FLUID);
-                ResourceLocation id = BuiltInRegistries.FLUID.getKey(fluidKey.getFluid());
-                out.writeUTF(id != null ? id.toString() : "");
+                CompoundTag tag = fluidKey.toTag();
+                NbtIo.write(tag, out);
             } else if (key instanceof EnergyKey) {
                 out.writeByte(TYPE_ENERGY);
                 out.writeUTF(ENERGY_MARKER);
@@ -396,26 +516,34 @@ public final class HyperdimensionalStorageFile {
     }
 
     @Nullable
-    private AEKey readDescriptor(byte[] descriptor) {
+    private AEKey readDescriptor(byte[] descriptor, int version) {
         try (DataInputStream in = new DataInputStream(new ByteArrayInputStream(descriptor))) {
             int type = in.readByte();
-            String id = in.readUTF();
+            if (version == BINARY_VERSION_1) {
+                return readDescriptorV1(type, in);
+            }
             return switch (type) {
                 case TYPE_ITEM -> {
-                    ResourceLocation loc = new ResourceLocation(id);
-                    if (!BuiltInRegistries.ITEM.containsKey(loc)) {
+                    CompoundTag tag = NbtIo.read(in);
+                    if (tag == null) {
                         yield null;
                     }
-                    Item item = BuiltInRegistries.ITEM.get(loc);
-                    yield AEItemKey.of(item);
+                    AEKey key = AEKey.fromTagGeneric(tag);
+                    if (!(key instanceof AEItemKey)) {
+                        yield null;
+                    }
+                    yield key;
                 }
                 case TYPE_FLUID -> {
-                    ResourceLocation loc = new ResourceLocation(id);
-                    if (!BuiltInRegistries.FLUID.containsKey(loc)) {
+                    CompoundTag tag = NbtIo.read(in);
+                    if (tag == null) {
                         yield null;
                     }
-                    Fluid fluid = BuiltInRegistries.FLUID.get(loc);
-                    yield AEFluidKey.of(fluid);
+                    AEKey key = AEKey.fromTagGeneric(tag);
+                    if (!(key instanceof AEFluidKey)) {
+                        yield null;
+                    }
+                    yield key;
                 }
                 case TYPE_ENERGY -> EnergyKey.INSTANCE;
                 default -> null;
@@ -424,6 +552,31 @@ public final class HyperdimensionalStorageFile {
             AE2Enhanced.LOGGER.warn("[AE2E] Failed to read hyperdimensional storage descriptor: {}", e.toString());
             return null;
         }
+    }
+
+    @Nullable
+    private AEKey readDescriptorV1(int type, DataInputStream in) throws IOException {
+        String id = in.readUTF();
+        return switch (type) {
+            case TYPE_ITEM -> {
+                ResourceLocation loc = new ResourceLocation(id);
+                if (!BuiltInRegistries.ITEM.containsKey(loc)) {
+                    yield null;
+                }
+                Item item = BuiltInRegistries.ITEM.get(loc);
+                yield AEItemKey.of(item);
+            }
+            case TYPE_FLUID -> {
+                ResourceLocation loc = new ResourceLocation(id);
+                if (!BuiltInRegistries.FLUID.containsKey(loc)) {
+                    yield null;
+                }
+                Fluid fluid = BuiltInRegistries.FLUID.get(loc);
+                yield AEFluidKey.of(fluid);
+            }
+            case TYPE_ENERGY -> EnergyKey.INSTANCE;
+            default -> null;
+        };
     }
 
     // ===== 文件锁辅助 =====
@@ -435,8 +588,14 @@ public final class HyperdimensionalStorageFile {
             if (size > Integer.MAX_VALUE) {
                 throw new IOException("File too large: " + size);
             }
+            if (size < 0) {
+                throw new IOException("Invalid file size: " + size);
+            }
             ByteBuffer buffer = ByteBuffer.allocate((int) size);
-            channel.read(buffer);
+            int read = channel.read(buffer);
+            if (read != size) {
+                throw new IOException("Failed to read entire file: expected " + size + ", got " + read);
+            }
             return buffer.array();
         }
     }

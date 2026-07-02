@@ -1,0 +1,9 @@
+{
+  "type": "ae2enhanced:black_hole",
+  "inputs": {
+    "minecraft:iron_ingot": 32
+  },
+  "output": {
+    "item": "minecraft:gold_ingot"
+  }
+}

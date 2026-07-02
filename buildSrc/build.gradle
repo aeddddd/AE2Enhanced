@@ -12,7 +12,7 @@ repositories {
 }
 
 dependencies {
-    implementation 'net.minecraftforge:ForgeAutoRenamingTool:1.0.2:all'
+    implementation 'net.minecraftforge:ForgeAutoRenamingTool:1.1.2:all'
     implementation 'com.google.code.gson:gson:2.10.1'
     implementation 'org.ow2.asm:asm:9.5'
     implementation 'org.ow2.asm:asm-commons:9.5'

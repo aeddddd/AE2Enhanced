@@ -98,7 +98,7 @@ public class MultiblockMeInterfaceBlockEntity extends AENetworkBlockEntity
     }
 
     @Nullable
-    private IMultiblockController getController() {
+    public IMultiblockController getController() {
         if (controllerPos == null || level == null) {
             return null;
         }

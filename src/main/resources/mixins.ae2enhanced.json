@@ -7,6 +7,9 @@
   "plugin": "com.github.aeddddd.ae2enhanced.mixin.AE2EnhancedMixinPlugin",
   "mixins": [
     "MixinCraftingService",
+    "MixinCraftingCPUCluster",
+    "MixinCraftingCpuLogic",
+    "MixinPatternEncodingTermMenu",
     "AppEngBaseMixin"
   ],
   "client": [],

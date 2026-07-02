@@ -45,6 +45,8 @@ public class VirtualCraftingUnitBlockEntity extends CraftingBlockEntity {
 
     @Override
     public void breakCluster() {
-        // 虚拟方块不处于真实世界，取消默认的掉落行为
+        // 虚拟方块不处于真实世界，取消默认的掉落行为。
+        // MixinCraftingCPUCluster 同时会拦截 CraftingCPUCluster.breakCluster，
+        // 此处保留空实现作为双重保险。
     }
 }

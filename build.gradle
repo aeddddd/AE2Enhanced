@@ -3,7 +3,7 @@ buildscript {
         maven { url = 'https://maven.minecraftforge.net' }
     }
     dependencies {
-        classpath 'net.minecraftforge:ForgeAutoRenamingTool:1.0.2:all'
+        classpath 'net.minecraftforge:ForgeAutoRenamingTool:1.1.2:all'
         classpath 'com.google.code.gson:gson:2.10.1'
     }
 }
@@ -59,7 +59,7 @@ repositories {
     mavenCentral()
     maven { url = 'https://maven.neoforged.net/releases' }
     maven { url = 'https://modmaven.dev/' }
-    maven { url = 'https://repo.spongepowered.org/maven/' }
+    maven { url = 'https://repo.spongepowered.org/maven' }
     maven { url = 'https://www.cursemaven.com' }
     maven { url = 'https://maven.blamejared.com' }
 }
@@ -71,6 +71,18 @@ dependencies {
     runtimeOnly files({ tasks.deobfAe2Jar.outputs.files.singleFile })
     compileOnly 'org.spongepowered:mixin:0.8.7'
     annotationProcessor 'org.spongepowered:mixin:0.8.7:processor'
+    
+    // MixinExtras：编译期注解与注解处理器
+    compileOnly 'io.github.llamalad7:mixinextras-common:0.4.1'
+    annotationProcessor 'io.github.llamalad7:mixinextras-common:0.4.1'
+    // MixinExtras：通过 jarJar 打包到 mod jar，避免生产环境缺失
+    jarJar(group: 'io.github.llamalad7', name: 'mixinextras-forge', version: '0.4.1') {
+        jarJar.ranged(it, '[0.4.1,0.5)')
+    }
+}
+
+tasks.named('jarJar', net.neoforged.gradle.common.tasks.JarJar) {
+    // 依赖声明已自动加入 jarJar 配置；此处无需额外 configuration(...) 调用
 }
 
 tasks.withType(ProcessResources).configureEach {
@@ -101,8 +113,10 @@ tasks.register('copyMixinRefmap', Copy) {
 }
 
 tasks.jar {
+    archiveClassifier = 'dev'
     dependsOn(tasks.copyMixinRefmap)
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+
     manifest {
         attributes(
                 'MixinConfigs': 'mixins.ae2enhanced.json'
@@ -186,33 +200,38 @@ tasks.register('fixAe2Refmap', JavaExec) {
     args = [ae2Jar, mappingFile, outputJar.get().asFile]
 }
 
+// 使用 FART 对 jarJar 输出（含 META-INF/jarjar）进行 official->SRG 重混淆。
+// 需要 ComposeOfficialSrg 生成带字段描述符的 TSRG2，否则 BlockEntity.level 等字段无法正确映射。
 tasks.register('reobfJar', Exec) {
     dependsOn(tasks.generateReobfMapping)
+    dependsOn(tasks.jarJar)
+    dependsOn(tasks.deobfAe2Jar)
 
     def fartJar = project.configurations.detachedConfiguration(
-            project.dependencies.create('net.minecraftforge:ForgeAutoRenamingTool:1.0.2:all')
+            project.dependencies.create('net.minecraftforge:ForgeAutoRenamingTool:1.1.2:all')
     ).files.find { it.name.endsWith('-all.jar') }
     def mappingFile = tasks.generateReobfMapping.outputs.files.singleFile
-    def inputJar = tasks.jar.archiveFile
-    def outputJar = layout.buildDirectory.file("libs/${tasks.jar.archiveFileName.get()}")
-    def libsFile = layout.buildDirectory.file('reobf/fart_libraries.txt')
+    def inputJar = tasks.jarJar.archiveFile
+    def outputJar = layout.buildDirectory.file("libs/${tasks.jar.archiveBaseName.get()}-${tasks.jar.archiveVersion.get()}.jar")
+    def ae2DeobfJar = tasks.deobfAe2Jar.outputs.files.singleFile
 
-    doFirst {
-        libsFile.get().asFile.parentFile.mkdirs()
-        libsFile.get().asFile.text = ''
-        libsFile.get().asFile << "-e=${clientMappingsFile.parentFile}/client.jar\n"
-        sourceSets.main.runtimeClasspath.files.each { libsFile.get().asFile << "-e=${it.absolutePath}\n" }
-    }
+    def libsArgs = []
+    sourceSets.main.runtimeClasspath.files.each { libsArgs += ['--lib', it.absolutePath] }
+    libsArgs += ['--lib', ae2DeobfJar.absolutePath]
 
     commandLine('java', '-jar', fartJar,
             '--input', inputJar.get().asFile,
             '--output', outputJar.get().asFile,
             '--map', mappingFile,
-            '--cfg', libsFile.get().asFile,
+            *libsArgs,
             '--ann-fix', '--ids-fix', '--src-fix', '--record-fix')
 }
 
 tasks.jar.finalizedBy('reobfJar')
+
+tasks.named('jarJar', net.neoforged.gradle.common.tasks.JarJar) {
+    archiveClassifier = 'jarjar'
+}
 
 idea {
     module {

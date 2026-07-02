@@ -41,9 +41,13 @@ public class AE2CompatEventHandler {
     private static boolean registerEventInitialized = false;
     private static boolean newRegistryInitialized = false;
 
+    private static boolean isDevCompatEnabled() {
+        return Boolean.getBoolean("ae2enhanced.devCompat");
+    }
+
     @SubscribeEvent(priority = EventPriority.HIGH)
     public static void onNewRegistry(NewRegistryEvent event) {
-        if (newRegistryInitialized) {
+        if (newRegistryInitialized || !isDevCompatEnabled()) {
             return;
         }
         newRegistryInitialized = true;
@@ -56,7 +60,7 @@ public class AE2CompatEventHandler {
 
     @SubscribeEvent(priority = EventPriority.LOWEST)
     public static void onRegister(RegisterEvent event) {
-        if (registerEventInitialized || !event.getRegistryKey().equals(Registries.BLOCK)) {
+        if (registerEventInitialized || !event.getRegistryKey().equals(Registries.BLOCK) || !isDevCompatEnabled()) {
             return;
         }
         registerEventInitialized = true;

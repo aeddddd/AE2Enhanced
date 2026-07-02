@@ -9,6 +9,7 @@ import net.minecraftforge.fml.ModContainer;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.event.lifecycle.FMLCommonSetupEvent;
 
+import com.github.aeddddd.ae2enhanced.config.AE2EnhancedConfig;
 import com.github.aeddddd.ae2enhanced.event.StructureEventHandler;
 import com.github.aeddddd.ae2enhanced.network.ModNetwork;
 import com.github.aeddddd.ae2enhanced.registry.ModBlockEntities;
@@ -16,6 +17,7 @@ import com.github.aeddddd.ae2enhanced.registry.ModBlocks;
 import com.github.aeddddd.ae2enhanced.registry.ModCreativeTab;
 import com.github.aeddddd.ae2enhanced.registry.ModItems;
 import com.github.aeddddd.ae2enhanced.registry.ModMenus;
+import com.github.aeddddd.ae2enhanced.registry.ModRecipes;
 
 @Mod(AE2Enhanced.MOD_ID)
 public class AE2Enhanced {
@@ -23,12 +25,17 @@ public class AE2Enhanced {
     public static final Logger LOGGER = LogManager.getLogger(AE2Enhanced.class);
 
     public AE2Enhanced(IEventBus modEventBus, ModContainer container) {
+        // 注册配置
+        AE2EnhancedConfig.register();
+
         // 注册 DeferredRegister
         ModBlocks.DR.register(modEventBus);
         ModItems.DR.register(modEventBus);
         ModBlockEntities.DR.register(modEventBus);
         ModMenus.DR.register(modEventBus);
         ModCreativeTab.DR.register(modEventBus);
+        ModRecipes.DR.register(modEventBus);
+        ModRecipes.RECIPE_TYPES.register(modEventBus);
 
         // 生命周期事件
         modEventBus.addListener(this::commonSetup);

@@ -3,6 +3,8 @@ package com.github.aeddddd.ae2enhanced.mixin;
 import java.util.List;
 import java.util.Set;
 
+import com.llamalad7.mixinextras.MixinExtrasBootstrap;
+
 import org.objectweb.asm.tree.ClassNode;
 import org.spongepowered.asm.mixin.extensibility.IMixinConfigPlugin;
 import org.spongepowered.asm.mixin.extensibility.IMixinInfo;
@@ -12,7 +14,7 @@ import org.spongepowered.asm.mixin.extensibility.IMixinInfo;
  *
  * <p>AE2 的官方映射开发环境兼容性 Mixin（{@link AppEngBaseMixin}）会修改 AE2 的
  * 初始化时机。该修改只应在 NeoGradle 反混淆开发环境下启用；在生产环境（SRG 运行）
- * 中必须跳过，否则会导致 AE2 初始化被错误延迟。
+ * 中必须跳过，否则会导致 AE2 初始化被错误延迟。</p>
  */
 public class AE2EnhancedMixinPlugin implements IMixinConfigPlugin {
 
@@ -20,6 +22,7 @@ public class AE2EnhancedMixinPlugin implements IMixinConfigPlugin {
 
     @Override
     public void onLoad(String mixinPackage) {
+        MixinExtrasBootstrap.init();
     }
 
     @Override

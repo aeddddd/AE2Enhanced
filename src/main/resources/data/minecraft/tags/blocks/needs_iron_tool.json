@@ -1,0 +1,17 @@
+{
+  "replace": false,
+  "values": [
+    "ae2enhanced:assembly_casing",
+    "ae2enhanced:assembly_controller",
+    "ae2enhanced:assembly_inner_wall",
+    "ae2enhanced:assembly_stabilizer",
+    "ae2enhanced:causal_anchor_core",
+    "ae2enhanced:computation_controller",
+    "ae2enhanced:constant_spinor_field_casing",
+    "ae2enhanced:constant_tensor_field_casing",
+    "ae2enhanced:hyperdimensional_casing",
+    "ae2enhanced:hyperdimensional_controller",
+    "ae2enhanced:hyperdimensional_singularity_core",
+    "ae2enhanced:multiblock_me_interface"
+  ]
+}

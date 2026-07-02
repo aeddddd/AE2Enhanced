@@ -11,6 +11,7 @@ import appeng.blockentity.crafting.CraftingBlockEntity;
 import appeng.core.definitions.AEBlocks;
 import appeng.me.cluster.implementations.CraftingCPUCluster;
 
+import com.github.aeddddd.ae2enhanced.AE2Enhanced;
 import com.github.aeddddd.ae2enhanced.computation.blockentity.ComputationCoreBlockEntity;
 
 /**
@@ -47,6 +48,12 @@ public class VirtualCraftingCPU {
             ADD_BLOCK_ENTITY.invoke(cluster, fakeUnit);
         } catch (ReflectiveOperationException e) {
             throw new RuntimeException("Failed to add virtual unit to CraftingCPUCluster", e);
+        }
+
+        try {
+            ((IVirtualCraftingCPU) (Object) cluster).ae2enhanced$setHost(host);
+        } catch (ClassCastException e) {
+            AE2Enhanced.LOGGER.warn("MixinCraftingCPUCluster 未加载，虚拟 CPU 将完全依赖虚假方块实体。");
         }
     }
 

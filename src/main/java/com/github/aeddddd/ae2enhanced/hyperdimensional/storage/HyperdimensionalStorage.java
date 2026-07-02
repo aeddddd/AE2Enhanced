@@ -17,6 +17,7 @@ import java.util.UUID;
 import java.util.function.Consumer;
 
 import com.github.aeddddd.ae2enhanced.hyperdimensional.storage.channel.AbstractStorageChannel;
+import com.github.aeddddd.ae2enhanced.hyperdimensional.storage.channel.EnergyKey;
 import com.github.aeddddd.ae2enhanced.hyperdimensional.storage.channel.EnergyStorageChannel;
 import com.github.aeddddd.ae2enhanced.hyperdimensional.storage.channel.FluidStorageChannel;
 import com.github.aeddddd.ae2enhanced.hyperdimensional.storage.channel.ItemStorageChannel;
@@ -40,6 +41,8 @@ public class HyperdimensionalStorage {
     private final Consumer<HyperdimensionalStorage> changeCallback;
 
     private boolean dirty = false;
+    private KeyCounter availableStacksCache = null;
+    private volatile boolean cacheValid = false;
 
     public HyperdimensionalStorage(UUID nexusId) {
         this(nexusId, null, null);
@@ -84,6 +87,7 @@ public class HyperdimensionalStorage {
      */
     public void registerChannel(StorageChannel<?> channel) {
         channels.put(channel.getKeyType(), channel);
+        invalidateCache();
     }
 
     /**
@@ -157,11 +161,96 @@ public class HyperdimensionalStorage {
 
     /**
      * 将各通道可用内容写入统计容器。
+     * <p>结果会被内部缓存，避免每次网络同步都遍历全量条目；缓存会在存储变化时自动失效。</p>
      */
     public void getAvailableStacks(KeyCounter out) {
-        for (StorageChannel<?> channel : channels.values()) {
-            channel.getAvailableStacks(out);
+        rebuildCacheIfNeeded();
+        if (availableStacksCache != null) {
+            out.addAll(availableStacksCache);
         }
+    }
+
+    /**
+     * 强制重建可用内容缓存。
+     */
+    public void rebuildCache() {
+        availableStacksCache = new KeyCounter();
+        for (StorageChannel<?> channel : channels.values()) {
+            // 能量为内部自定义 key type，不直接暴露给 AE2 网络
+            if (channel.getKeyType() == EnergyKey.ENERGY_KEY_TYPE) {
+                continue;
+            }
+            channel.getAvailableStacks(availableStacksCache);
+        }
+        cacheValid = true;
+    }
+
+    private void rebuildCacheIfNeeded() {
+        if (!cacheValid || availableStacksCache == null) {
+            rebuildCache();
+        }
+    }
+
+    private void invalidateCache() {
+        cacheValid = false;
+    }
+
+    /**
+     * 按查询字符串过滤当前可用内容，返回匹配条目的快照。
+     * <p>查询匹配不区分大小写，支持本地化名称与 ID 字符串。</p>
+     *
+     * @param query 查询字符串（可为 null 或空，表示返回全部）
+     * @return 匹配条目列表，每个条目包含 key 与数量
+     */
+    public List<SearchEntry> searchAvailableStacks(@Nullable String query) {
+        rebuildCacheIfNeeded();
+        List<SearchEntry> result = new ArrayList<>();
+        if (availableStacksCache == null) {
+            return result;
+        }
+        String normalized = query == null ? "" : query.toLowerCase(java.util.Locale.ROOT).trim();
+        for (var entry : availableStacksCache) {
+            AEKey key = entry.getKey();
+            long count = entry.getLongValue();
+            if (count <= 0) {
+                continue;
+            }
+            if (normalized.isEmpty()
+                    || key.getDisplayName().getString().toLowerCase(java.util.Locale.ROOT).contains(normalized)
+                    || key.getId().toString().toLowerCase(java.util.Locale.ROOT).contains(normalized)) {
+                result.add(new SearchEntry(key, count));
+            }
+        }
+        return result;
+    }
+
+    /**
+     * 将当前可用内容按每页固定大小分页返回。
+     *
+     * @param page     页码（从 0 开始）
+     * @param pageSize 每页大小
+     * @return 指定页的搜索条目
+     */
+    public List<SearchEntry> getAvailableStacksPaged(int page, int pageSize) {
+        List<SearchEntry> all = searchAvailableStacks(null);
+        if (pageSize <= 0) {
+            return all;
+        }
+        int from = page * pageSize;
+        if (from < 0 || from >= all.size()) {
+            return new ArrayList<>();
+        }
+        int to = Math.min(from + pageSize, all.size());
+        return all.subList(from, to);
+    }
+
+    /**
+     * 搜索条目记录。
+     *
+     * @param key   AE key
+     * @param count 数量（上限为 {@link Long#MAX_VALUE}）
+     */
+    public record SearchEntry(AEKey key, long count) {
     }
 
     /**
@@ -205,6 +294,7 @@ public class HyperdimensionalStorage {
                 abstractChannel.loadFrom(loaded);
             }
         }
+        invalidateCache();
     }
 
     /**
@@ -259,6 +349,7 @@ public class HyperdimensionalStorage {
      */
     public void load(CompoundTag tag) {
         // 二进制文件负责加载实际数据；NBT 仅保留版本标记。
+        invalidateCache();
     }
 
     private void markDirty() {
@@ -266,6 +357,7 @@ public class HyperdimensionalStorage {
         if (file != null) {
             file.markDirty();
         }
+        invalidateCache();
         for (StorageListener listener : listeners) {
             listener.onStorageChanged(this);
         }

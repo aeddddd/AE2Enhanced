@@ -11,6 +11,8 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.level.block.state.BlockState;
 
+import appeng.api.networking.IGridNode;
+
 import com.github.aeddddd.ae2enhanced.computation.cpu.VirtualCraftingCPU;
 import com.github.aeddddd.ae2enhanced.computation.cpu.VirtualCraftingCPURegistry;
 import com.github.aeddddd.ae2enhanced.config.AE2EnhancedConfig;
@@ -59,6 +61,23 @@ public class ComputationCoreBlockEntity extends MultiblockControllerBlockEntity 
             }
         }
         return count;
+    }
+
+    /**
+     * 获取虚拟 CPU 挂靠的通用 ME 接口节点。
+     * <p>用于在 Mixin 中把虚拟集群的网格操作重定向到真实控制器。</p>
+     *
+     * @return 接口节点，若未绑定或接口已失效则返回 null。
+     */
+    @Nullable
+    public IGridNode getActionSourceNode() {
+        if (level == null || interfacePos == null) {
+            return null;
+        }
+        if (level.getBlockEntity(interfacePos) instanceof MultiblockMeInterfaceBlockEntity me) {
+            return me.getActionableNode();
+        }
+        return null;
     }
 
     /**

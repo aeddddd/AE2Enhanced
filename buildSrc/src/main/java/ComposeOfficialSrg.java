@@ -44,7 +44,7 @@ public class ComposeOfficialSrg {
                 for (IMappingFile.IField f : cls.getFields()) {
                     String obfName = f.getOriginal();
                     String srgName = f.getMapped();
-                    String officialName = fl.get(obfName);
+                    String officialName = fl.getName(obfName);
                     if (officialName == null) continue;
                     pw.println("\t" + officialName + " " + srgName);
                 }
@@ -87,10 +87,12 @@ public class ComposeOfficialSrg {
 
     static class FieldLookup {
         Map<String, String> byName = new HashMap<>();
+
         void put(String obfName, String officialName) {
             byName.put(obfName, officialName);
         }
-        String get(String obfName) {
+
+        String getName(String obfName) {
             return byName.get(obfName);
         }
     }
