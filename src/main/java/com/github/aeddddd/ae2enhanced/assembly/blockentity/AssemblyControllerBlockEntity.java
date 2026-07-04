@@ -12,6 +12,7 @@ import net.minecraft.core.Direction;
 import net.minecraft.core.NonNullList;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
+import net.minecraft.nbt.Tag;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
@@ -21,7 +22,9 @@ import net.minecraftforge.items.ItemStackHandler;
 import appeng.api.config.Actionable;
 import appeng.api.crafting.IPatternDetails;
 import appeng.api.crafting.PatternDetailsHelper;
+import appeng.api.networking.IGrid;
 import appeng.api.networking.IManagedGridNode;
+import appeng.api.networking.energy.IEnergyService;
 import appeng.api.networking.storage.IStorageService;
 import appeng.api.stacks.AEKey;
 import appeng.api.stacks.GenericStack;
@@ -36,6 +39,7 @@ import com.github.aeddddd.ae2enhanced.crafting.blackhole.BlackHoleCraftingHelper
 import com.github.aeddddd.ae2enhanced.crafting.blackhole.BlackHoleRecipe;
 import com.github.aeddddd.ae2enhanced.multiblock.IPatternProviderHost;
 import com.github.aeddddd.ae2enhanced.multiblock.MultiblockControllerBlockEntity;
+import com.github.aeddddd.ae2enhanced.multiblock.MultiblockMeInterfaceBlockEntity;
 import com.github.aeddddd.ae2enhanced.registry.ModBlockEntities;
 import com.github.aeddddd.ae2enhanced.registry.ModItems;
 import com.github.aeddddd.ae2enhanced.structure.AssemblyStructure;
@@ -65,6 +69,9 @@ public class AssemblyControllerBlockEntity extends MultiblockControllerBlockEnti
     private boolean batchBusy = false;
     private final Map<String, Integer> blackHoleBuffer = new HashMap<>();
     private int blackHoleTick = 0;
+    private boolean networkActive = false;
+    private boolean networkPowered = false;
+    private int statusTick = 0;
 
     public AssemblyControllerBlockEntity(BlockPos pos, BlockState state) {
         super(ModBlockEntities.ASSEMBLY_CONTROLLER.get(), pos, state);
@@ -224,6 +231,51 @@ public class AssemblyControllerBlockEntity extends MultiblockControllerBlockEnti
                 setChanged();
             }
         }
+
+        if (++statusTick >= 20) {
+            statusTick = 0;
+            refreshNetworkStatus();
+        }
+    }
+
+    private void refreshNetworkStatus() {
+        if (level == null || level.isClientSide()) {
+            return;
+        }
+        boolean active = false;
+        boolean powered = false;
+        for (BlockPos pos : getInterfaces()) {
+            if (level.getBlockEntity(pos) instanceof MultiblockMeInterfaceBlockEntity me) {
+                IManagedGridNode node = me.getMainNode();
+                if (node != null) {
+                    active = node.isActive();
+                    IGrid grid = node.getGrid();
+                    if (grid != null) {
+                        IEnergyService energy = grid.getEnergyService();
+                        powered = energy != null && energy.isNetworkPowered();
+                    }
+                    break;
+                }
+            }
+        }
+        if (networkActive != active || networkPowered != powered) {
+            networkActive = active;
+            networkPowered = powered;
+            setChanged();
+            markForUpdate();
+        }
+    }
+
+    public boolean isNetworkActive() {
+        return networkActive;
+    }
+
+    public boolean isNetworkPowered() {
+        return networkPowered;
+    }
+
+    public int getJobCount() {
+        return jobTimers.size();
     }
 
     private void ensurePatternCapacity() {
@@ -453,6 +505,8 @@ public class AssemblyControllerBlockEntity extends MultiblockControllerBlockEnti
                 blackHoleBuffer.put(entryTag.getString("key"), entryTag.getInt("count"));
             }
         }
+        networkActive = data.getBoolean("networkActive");
+        networkPowered = data.getBoolean("networkPowered");
         ensurePatternCapacity();
     }
 
@@ -476,6 +530,27 @@ public class AssemblyControllerBlockEntity extends MultiblockControllerBlockEnti
             bufferList.add(entryTag);
         }
         data.put("blackHoleBuffer", bufferList);
+        data.putBoolean("networkActive", networkActive);
+        data.putBoolean("networkPowered", networkPowered);
+    }
+
+    @Override
+    public CompoundTag getUpdateTag() {
+        CompoundTag tag = super.getUpdateTag();
+        tag.putBoolean("networkActive", networkActive);
+        tag.putBoolean("networkPowered", networkPowered);
+        return tag;
+    }
+
+    @Override
+    public void handleUpdateTag(CompoundTag tag) {
+        super.handleUpdateTag(tag);
+        if (tag.contains("networkActive", Tag.TAG_BYTE)) {
+            networkActive = tag.getBoolean("networkActive");
+        }
+        if (tag.contains("networkPowered", Tag.TAG_BYTE)) {
+            networkPowered = tag.getBoolean("networkPowered");
+        }
     }
 
     /**

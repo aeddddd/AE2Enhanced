@@ -4,14 +4,19 @@ build/
 !**/src/main/**/build/
 !**/src/test/**/build/
 
-# Markdown documentation (except project-level agent/human readmes)
+# Python scripts and bytecodes
+*.py
+*.pyc
+*.pyd
+*.pyo
+
+# Markdown documentation (except project-level human readmes)
 docs/
 research/
 github-wiki/
 *.md
 !README.md
 !README_zh.md
-!AGENTS.md
 
 ### IntelliJ IDEA ###
 .idea/
@@ -27,6 +32,7 @@ libs/*
 !libs/.gitkeep
 
 ### Eclipse ###
+.eclipse/
 .apt_generated
 .classpath
 .factorypath
