@@ -1,0 +1,15 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "SSS",
+    "S S",
+    "SSS"
+  ],
+  "key": {
+    "S": { "item": "ae2:smooth_sky_stone_block" }
+  },
+  "result": {
+    "item": "ae2enhanced:assembly_casing_1",
+    "count": 4
+  }
+}

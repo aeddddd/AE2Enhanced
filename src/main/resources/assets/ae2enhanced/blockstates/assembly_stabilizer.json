@@ -1,5 +1,5 @@
 {
   "variants": {
-    "": { "model": "ae2enhanced:assembly_stabilizer" }
+    "": { "model": "ae2enhanced:block/assembly_stabilizer" }
   }
 }

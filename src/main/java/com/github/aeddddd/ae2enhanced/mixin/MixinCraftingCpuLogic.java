@@ -30,20 +30,34 @@ import org.spongepowered.asm.mixin.Unique;
  * 使并行升级真正生效。
  * <p>具体做法：从 CPU 本地库存中额外提取 {@code batchSize - 1} 份输入，
  * 将原 1 份输入与额外输入一并交给装配枢纽消耗，并修正 CPU 的预期产物与剩余物统计。</p>
+ * <p>相比依赖 {@code @Local} 获取 task，这里通过反射访问 {@code CraftingCpuLogic.job}
+ * 与 {@code ExecutingCraftingJob.tasks}，避免局部变量捕获失败导致并行无法生效。</p>
  */
 @Mixin(value = CraftingCpuLogic.class, remap = false)
 public class MixinCraftingCpuLogic {
 
     @Unique
+    private static final Field AE2E$JOB_FIELD;
+    @Unique
+    private static final Field AE2E$TASKS_FIELD;
+    @Unique
     private static final Field AE2E$TASK_PROGRESS_VALUE_FIELD;
 
     static {
         try {
+            AE2E$JOB_FIELD = CraftingCpuLogic.class.getDeclaredField("job");
+            AE2E$JOB_FIELD.setAccessible(true);
+
+            // ExecutingCraftingJob 是 package-private，用字符串反射避免跨包引用编译错误
+            Class<?> executingJobClass = Class.forName("appeng.crafting.execution.ExecutingCraftingJob");
+            AE2E$TASKS_FIELD = executingJobClass.getDeclaredField("tasks");
+            AE2E$TASKS_FIELD.setAccessible(true);
+
             Class<?> taskProgressClass = Class.forName("appeng.crafting.execution.ExecutingCraftingJob$TaskProgress");
             AE2E$TASK_PROGRESS_VALUE_FIELD = taskProgressClass.getDeclaredField("value");
             AE2E$TASK_PROGRESS_VALUE_FIELD.setAccessible(true);
         } catch (Exception e) {
-            throw new RuntimeException("[AE2E] Failed to access ExecutingCraftingJob.TaskProgress.value", e);
+            throw new RuntimeException("[AE2E] Failed to initialize CraftingCpuLogic batch reflection", e);
         }
     }
 
@@ -53,7 +67,6 @@ public class MixinCraftingCpuLogic {
             IPatternDetails details,
             KeyCounter[] inputs,
             Operation<Boolean> original,
-            @Local(ordinal = 0) Map.Entry<?, ?> task,
             @Local(ordinal = 0) KeyCounter expectedOutputs,
             @Local(ordinal = 1) KeyCounter expectedContainerItems) {
 
@@ -66,7 +79,12 @@ public class MixinCraftingCpuLogic {
             return original.call(provider, details, inputs);
         }
 
-        long remaining = ae2e$getTaskValue(task);
+        // 通过反射获取当前 task 的剩余数量，避免 @Local 捕获失败
+        long remaining = ae2e$getRemaining(details);
+        if (remaining <= 1) {
+            return original.call(provider, details, inputs);
+        }
+
         long cap = hub.getParallelCap();
         long batchSize = Math.min(remaining, cap);
         if (batchSize <= 1) {
@@ -81,15 +99,15 @@ public class MixinCraftingCpuLogic {
             return original.call(provider, details, inputs);
         }
 
-        // 执行批量推送
-        if (!hub.pushPatternBatch(details, inputs, null, batchSize)) {
+        // 执行批量推送，传入接口节点以便控制器注入产物
+        if (!hub.pushPatternBatch(details, inputs, meInterface.getMainNode(), batchSize)) {
             // 批量推送失败，将额外提取的输入重新注入 CPU 库存
             ae2e$reinjectKeyCounters(extraInputs, cpuInv);
             return false;
         }
 
         // 原始代码会再将 value 减 1，因此这里只扣除 batchSize - 1
-        ae2e$setTaskValue(task, remaining - (batchSize - 1));
+        ae2e$setRemaining(details, remaining - (batchSize - 1));
 
         // 原始代码只插入 1 份预期输出，这里补充 batchSize - 1 份
         ae2e$multiplyKeyCounter(expectedOutputs, batchSize - 1);
@@ -150,9 +168,18 @@ public class MixinCraftingCpuLogic {
     }
 
     @Unique
-    private static long ae2e$getTaskValue(Map.Entry<?, ?> task) {
+    @SuppressWarnings("unchecked")
+    private long ae2e$getRemaining(IPatternDetails details) {
         try {
-            Object progress = task.getValue();
+            Object job = AE2E$JOB_FIELD.get((CraftingCpuLogic) (Object) this);
+            if (job == null) {
+                return 1;
+            }
+            Map<IPatternDetails, ?> tasks = (Map<IPatternDetails, ?>) AE2E$TASKS_FIELD.get(job);
+            Object progress = tasks.get(details);
+            if (progress == null) {
+                return 1;
+            }
             return AE2E$TASK_PROGRESS_VALUE_FIELD.getLong(progress);
         } catch (Exception e) {
             return 1;
@@ -160,9 +187,18 @@ public class MixinCraftingCpuLogic {
     }
 
     @Unique
-    private static void ae2e$setTaskValue(Map.Entry<?, ?> task, long value) {
+    @SuppressWarnings("unchecked")
+    private void ae2e$setRemaining(IPatternDetails details, long value) {
         try {
-            Object progress = task.getValue();
+            Object job = AE2E$JOB_FIELD.get((CraftingCpuLogic) (Object) this);
+            if (job == null) {
+                return;
+            }
+            Map<IPatternDetails, ?> tasks = (Map<IPatternDetails, ?>) AE2E$TASKS_FIELD.get(job);
+            Object progress = tasks.get(details);
+            if (progress == null) {
+                return;
+            }
             AE2E$TASK_PROGRESS_VALUE_FIELD.setLong(progress, value);
         } catch (Exception e) {
             // 失败时交给原始代码继续处理，避免崩溃

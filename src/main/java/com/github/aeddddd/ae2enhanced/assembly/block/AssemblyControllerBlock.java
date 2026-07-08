@@ -27,6 +27,7 @@ import net.minecraftforge.network.NetworkHooks;
 
 import com.github.aeddddd.ae2enhanced.assembly.blockentity.AssemblyControllerBlockEntity;
 import com.github.aeddddd.ae2enhanced.client.gui.AssemblyMenu;
+import com.github.aeddddd.ae2enhanced.client.gui.AssemblyUnformedMenu;
 import com.github.aeddddd.ae2enhanced.structure.AssemblyStructure;
 import com.github.aeddddd.ae2enhanced.structure.ControllerIndex;
 
@@ -63,10 +64,20 @@ public class AssemblyControllerBlock extends Block implements EntityBlock {
             return InteractionResult.SUCCESS;
         }
         if (player instanceof ServerPlayer serverPlayer) {
-            NetworkHooks.openScreen(serverPlayer,
-                    new SimpleMenuProvider((id, inv, p) -> new AssemblyMenu(id, inv, pos),
-                            Component.translatable("gui.ae2enhanced.assembly")),
-                    buf -> buf.writeBlockPos(pos));
+            BlockEntity be = level.getBlockEntity(pos);
+            if (be instanceof AssemblyControllerBlockEntity controller) {
+                if (controller.isFormed()) {
+                    NetworkHooks.openScreen(serverPlayer,
+                            new SimpleMenuProvider((id, inv, p) -> new AssemblyMenu(id, inv, pos),
+                                    Component.translatable("gui.ae2enhanced.assembly")),
+                            buf -> buf.writeBlockPos(pos));
+                } else {
+                    NetworkHooks.openScreen(serverPlayer,
+                            new SimpleMenuProvider((id, inv, p) -> new AssemblyUnformedMenu(id, inv, pos),
+                                    Component.translatable("gui.ae2enhanced.unformed.title")),
+                            buf -> buf.writeBlockPos(pos));
+                }
+            }
         }
         return InteractionResult.CONSUME;
     }

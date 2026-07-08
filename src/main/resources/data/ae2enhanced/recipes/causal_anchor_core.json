@@ -6,7 +6,7 @@
     "C C"
   ],
   "key": {
-    "C": { "item": "ae2:calculation_processor" },
+    "C": { "item": "ae2:engineering_processor" },
     "D": { "item": "minecraft:diamond" },
     "I": { "item": "minecraft:iron_ingot" }
   },

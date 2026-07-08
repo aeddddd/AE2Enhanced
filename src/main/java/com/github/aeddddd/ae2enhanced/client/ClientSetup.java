@@ -7,8 +7,11 @@ import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.event.lifecycle.FMLClientSetupEvent;
 
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
+import com.github.aeddddd.ae2enhanced.client.gui.AssemblyPatternScreen;
 import com.github.aeddddd.ae2enhanced.client.gui.AssemblyScreen;
+import com.github.aeddddd.ae2enhanced.client.gui.AssemblyUnformedScreen;
 import com.github.aeddddd.ae2enhanced.client.gui.ComputationCoreScreen;
+import com.github.aeddddd.ae2enhanced.client.gui.ComputationUnformedScreen;
 import com.github.aeddddd.ae2enhanced.client.gui.HyperdimensionalNexusScreen;
 import com.github.aeddddd.ae2enhanced.client.gui.HyperdimensionalUnformedScreen;
 import com.github.aeddddd.ae2enhanced.registry.ModMenus;
@@ -23,9 +26,12 @@ public final class ClientSetup {
     public static void clientSetup(FMLClientSetupEvent event) {
         event.enqueueWork(() -> {
             MenuScreens.register(ModMenus.ASSEMBLY.get(), AssemblyScreen::new);
+            MenuScreens.register(ModMenus.ASSEMBLY_PATTERN.get(), AssemblyPatternScreen::new);
+            MenuScreens.register(ModMenus.ASSEMBLY_UNFORMED.get(), AssemblyUnformedScreen::new);
             MenuScreens.register(ModMenus.HYPERDIMENSIONAL_NEXUS.get(), HyperdimensionalNexusScreen::new);
             MenuScreens.register(ModMenus.HYPERDIMENSIONAL_UNFORMED.get(), HyperdimensionalUnformedScreen::new);
             MenuScreens.register(ModMenus.COMPUTATION_CORE.get(), ComputationCoreScreen::new);
+            MenuScreens.register(ModMenus.COMPUTATION_UNFORMED.get(), ComputationUnformedScreen::new);
         });
     }
 

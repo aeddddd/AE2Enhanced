@@ -1,5 +1,5 @@
 {
   "variants": {
-    "": { "model": "ae2enhanced:constant_tensor_field_casing" }
+    "": { "model": "ae2enhanced:block/constant_tensor_field_casing" }
   }
 }

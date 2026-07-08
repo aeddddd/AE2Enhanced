@@ -2,13 +2,13 @@
   "type": "minecraft:crafting_shaped",
   "pattern": [
     "DQD",
-    "QEQ",
+    "QCQ",
     "DQD"
   ],
   "key": {
-    "D": { "item": "ae2enhanced:assembly_casing" },
+    "D": { "item": "ae2:logic_processor" },
     "Q": { "item": "ae2:quartz_glass" },
-    "E": { "item": "ae2:engineering_processor" }
+    "C": { "item": "ae2:calculation_processor" }
   },
   "result": {
     "item": "ae2enhanced:constant_spinor_field_casing",

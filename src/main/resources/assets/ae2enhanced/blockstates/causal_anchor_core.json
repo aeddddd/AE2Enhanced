@@ -1,5 +1,5 @@
 {
   "variants": {
-    "": { "model": "ae2enhanced:causal_anchor_core" }
+    "": { "model": "ae2enhanced:block/causal_anchor_core" }
   }
 }

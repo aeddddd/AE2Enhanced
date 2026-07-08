@@ -1,0 +1,6 @@
+{
+  "parent": "block/cube_all",
+  "textures": {
+    "all": "ae2enhanced:block/assembly_casing_2"
+  }
+}

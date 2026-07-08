@@ -1,5 +1,5 @@
 {
   "variants": {
-    "": { "model": "ae2enhanced:constant_spinor_field_casing" }
+    "": { "model": "ae2enhanced:block/constant_spinor_field_casing" }
   }
 }

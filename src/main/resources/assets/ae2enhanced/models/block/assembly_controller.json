@@ -1,12 +1,12 @@
 {
   "parent": "block/cube",
   "textures": {
-    "particle": "ae2enhanced:block/assembly_casing",
-    "down": "ae2enhanced:block/assembly_casing",
-    "up": "ae2enhanced:block/assembly_casing",
+    "particle": "ae2enhanced:block/assembly_casing_1",
+    "down": "ae2enhanced:block/assembly_casing_1",
+    "up": "ae2enhanced:block/assembly_casing_1",
     "north": "ae2enhanced:block/assembly_controller",
-    "south": "ae2enhanced:block/assembly_casing",
-    "east": "ae2enhanced:block/assembly_casing",
-    "west": "ae2enhanced:block/assembly_casing"
+    "south": "ae2enhanced:block/assembly_casing_1",
+    "east": "ae2enhanced:block/assembly_casing_1",
+    "west": "ae2enhanced:block/assembly_casing_1"
   }
 }

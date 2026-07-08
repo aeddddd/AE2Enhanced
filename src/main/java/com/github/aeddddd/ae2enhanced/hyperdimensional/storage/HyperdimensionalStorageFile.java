@@ -28,7 +28,6 @@ import java.io.IOException;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
-import java.nio.channels.FileLock;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
@@ -579,11 +578,13 @@ public final class HyperdimensionalStorageFile {
         };
     }
 
-    // ===== 文件锁辅助 =====
+    // ===== 文件读写辅助 =====
+    // 注：Minecraft 服务端逻辑为单线程，且所有调用均发生在服务端主线程，
+    // 因此不需要 FileLock。移除 FileLock 与 channel.force 可避免 Windows 上
+    // 因外部进程或系统服务持有文件锁而导致的保存卡顿/死锁。
 
     private static byte[] readFileLocked(Path path) throws IOException {
-        try (FileChannel channel = FileChannel.open(path, StandardOpenOption.READ);
-                FileLock lock = channel.lock(0, Long.MAX_VALUE, true)) {
+        try (FileChannel channel = FileChannel.open(path, StandardOpenOption.READ)) {
             long size = channel.size();
             if (size > Integer.MAX_VALUE) {
                 throw new IOException("File too large: " + size);
@@ -604,10 +605,8 @@ public final class HyperdimensionalStorageFile {
         try (FileChannel channel = FileChannel.open(path,
                 StandardOpenOption.WRITE,
                 StandardOpenOption.CREATE,
-                StandardOpenOption.TRUNCATE_EXISTING);
-                FileLock lock = channel.lock()) {
+                StandardOpenOption.TRUNCATE_EXISTING)) {
             channel.write(ByteBuffer.wrap(data));
-            channel.force(false);
         }
     }
 

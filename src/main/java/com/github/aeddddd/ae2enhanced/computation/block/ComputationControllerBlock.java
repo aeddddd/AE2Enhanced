@@ -11,7 +11,6 @@ import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.SimpleMenuProvider;
 import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.inventory.SimpleContainerData;
 import net.minecraft.world.item.context.BlockPlaceContext;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
@@ -27,6 +26,7 @@ import net.minecraft.world.phys.BlockHitResult;
 import net.minecraftforge.network.NetworkHooks;
 
 import com.github.aeddddd.ae2enhanced.client.gui.ComputationCoreMenu;
+import com.github.aeddddd.ae2enhanced.client.gui.ComputationUnformedMenu;
 import com.github.aeddddd.ae2enhanced.computation.blockentity.ComputationCoreBlockEntity;
 import com.github.aeddddd.ae2enhanced.structure.ComputationCoreIndex;
 import com.github.aeddddd.ae2enhanced.structure.SupercausalStructure;
@@ -66,10 +66,18 @@ public class ComputationControllerBlock extends Block implements EntityBlock {
             return InteractionResult.PASS;
         }
 
-        if (player instanceof ServerPlayer serverPlayer) {
-            NetworkHooks.openScreen(serverPlayer, new SimpleMenuProvider(
-                    (id, inv, p) -> new ComputationCoreMenu(id, inv, pos, new SimpleContainerData(4)),
-                    Component.translatable("gui.ae2enhanced.computation_core")), pos);
+        if (controller.isFormed()) {
+            if (player instanceof ServerPlayer serverPlayer) {
+                NetworkHooks.openScreen(serverPlayer, new SimpleMenuProvider(
+                        (id, inv, p) -> new ComputationCoreMenu(id, inv, pos),
+                        Component.translatable("gui.ae2enhanced.computation_core")), pos);
+            }
+        } else {
+            if (player instanceof ServerPlayer serverPlayer) {
+                NetworkHooks.openScreen(serverPlayer, new SimpleMenuProvider(
+                        (id, inv, p) -> new ComputationUnformedMenu(id, inv, pos),
+                        Component.translatable("gui.ae2enhanced.computation.unformed.title")), pos);
+            }
         }
         return InteractionResult.SUCCESS;
     }

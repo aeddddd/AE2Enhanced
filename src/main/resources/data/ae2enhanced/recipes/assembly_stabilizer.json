@@ -1,14 +1,14 @@
 {
   "type": "minecraft:crafting_shaped",
   "pattern": [
-    "CRC",
-    "RPR",
-    "CRC"
+    "DMD",
+    "MCM",
+    "DMD"
   ],
   "key": {
-    "C": { "item": "ae2enhanced:assembly_casing" },
-    "R": { "item": "minecraft:redstone_block" },
-    "P": { "item": "minecraft:piston" }
+    "C": { "item": "ae2enhanced:assembly_casing_1" },
+    "M": { "item": "ae2:fluix_pearl" },
+    "D": { "item": "ae2:logic_processor" }
   },
   "result": {
     "item": "ae2enhanced:assembly_stabilizer",

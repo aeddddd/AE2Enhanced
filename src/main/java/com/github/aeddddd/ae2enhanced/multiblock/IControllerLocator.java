@@ -7,7 +7,6 @@ import net.minecraft.core.Direction;
 import net.minecraft.world.level.Level;
 
 import com.github.aeddddd.ae2enhanced.registry.ModBlocks;
-import com.github.aeddddd.ae2enhanced.structure.AssemblyStructure;
 import com.github.aeddddd.ae2enhanced.structure.HyperdimensionalStructure;
 import com.github.aeddddd.ae2enhanced.structure.SupercausalStructure;
 
@@ -41,14 +40,7 @@ public interface IControllerLocator {
                     return hd;
                 }
 
-                // 装配枢纽：几何中心为原点，控制器在 (0,0,-7)，接口在 PART1_SET 中
-                for (BlockPos rel : AssemblyStructure.PART1_SET) {
-                    BlockPos asm = interfacePos.subtract(AssemblyStructure.rotate(rel.offset(0, 0, 7), facing));
-                    if (level.getBlockState(asm).is(ModBlocks.ASSEMBLY_CONTROLLER.get())
-                            && AssemblyStructure.validate(level, asm)) {
-                        return asm;
-                    }
-                }
+                // 装配枢纽：已不再使用通用 ME 接口，定位器不再扫描旧结构。
 
                 // 超因果计算核心：接口相对控制器坐标 (0,0,-6)
                 BlockPos sc = interfacePos.subtract(SupercausalStructure.rotate(new BlockPos(0, 0, -6), facing));

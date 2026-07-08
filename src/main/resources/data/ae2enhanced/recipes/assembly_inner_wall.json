@@ -1,13 +1,13 @@
 {
   "type": "minecraft:crafting_shaped",
   "pattern": [
-    " C ",
-    "CIC",
-    " C "
+    " M ",
+    "MCM",
+    " M "
   ],
   "key": {
-    "C": { "item": "ae2enhanced:assembly_casing" },
-    "I": { "item": "minecraft:iron_bars" }
+    "M": { "item": "ae2:fluix_pearl" },
+    "C": { "item": "ae2enhanced:assembly_casing_1" }
   },
   "result": {
     "item": "ae2enhanced:assembly_inner_wall",

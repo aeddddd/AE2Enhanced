@@ -26,6 +26,7 @@ import appeng.blockentity.grid.AENetworkBlockEntity;
 
 import com.github.aeddddd.ae2enhanced.block.AE2EBaseEntityBlock;
 import com.github.aeddddd.ae2enhanced.registry.ModItems;
+import com.github.aeddddd.ae2enhanced.util.BlockEntityRemovalHelper;
 
 /**
  * 通用多方块 ME 接口方块实体。
@@ -148,7 +149,8 @@ public class MultiblockMeInterfaceBlockEntity extends AENetworkBlockEntity
 
     @Override
     public void setRemoved() {
-        if (controllerPos != null && level != null
+        if (controllerPos != null && level != null && !level.isClientSide()
+                && BlockEntityRemovalHelper.isBlockBeingBroken(this)
                 && level.getBlockEntity(controllerPos) instanceof IMultiblockController controller) {
             controller.detachInterface(worldPosition);
         }

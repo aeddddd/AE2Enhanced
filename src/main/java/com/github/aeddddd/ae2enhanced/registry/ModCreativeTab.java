@@ -29,7 +29,10 @@ public final class ModCreativeTab {
 
                         // Assembly Hub
                         output.accept(new ItemStack(ModItems.ASSEMBLY_CONTROLLER.get()));
-                        output.accept(new ItemStack(ModItems.ASSEMBLY_CASING.get()));
+                        output.accept(new ItemStack(ModItems.ASSEMBLY_CASING_1.get()));
+                        output.accept(new ItemStack(ModItems.ASSEMBLY_CASING_2.get()));
+                        output.accept(new ItemStack(ModItems.ASSEMBLY_CASING_3.get()));
+                        output.accept(new ItemStack(ModItems.ASSEMBLY_CASING_4.get()));
                         output.accept(new ItemStack(ModItems.ASSEMBLY_INNER_WALL.get()));
                         output.accept(new ItemStack(ModItems.ASSEMBLY_STABILIZER.get()));
                         output.accept(new ItemStack(ModItems.ASSEMBLY_PARALLEL_UPGRADE.get()));

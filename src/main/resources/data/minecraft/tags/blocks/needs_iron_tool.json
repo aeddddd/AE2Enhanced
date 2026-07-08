@@ -1,7 +1,6 @@
 {
   "replace": false,
   "values": [
-    "ae2enhanced:assembly_casing",
     "ae2enhanced:assembly_controller",
     "ae2enhanced:assembly_inner_wall",
     "ae2enhanced:assembly_stabilizer",
@@ -12,6 +11,10 @@
     "ae2enhanced:hyperdimensional_casing",
     "ae2enhanced:hyperdimensional_controller",
     "ae2enhanced:hyperdimensional_singularity_core",
-    "ae2enhanced:multiblock_me_interface"
+    "ae2enhanced:multiblock_me_interface",
+    "ae2enhanced:assembly_casing_1",
+    "ae2enhanced:assembly_casing_2",
+    "ae2enhanced:assembly_casing_3",
+    "ae2enhanced:assembly_casing_4"
   ]
 }

@@ -81,13 +81,9 @@ public class HyperdimensionalControllerBlock extends Block implements EntityBloc
 
         // 未成形：打开缺失方块 GUI
         if (player instanceof ServerPlayer serverPlayer) {
-            java.util.Map<Block, Integer> missing = HyperdimensionalStructure.getMissingMap(level, pos);
             NetworkHooks.openScreen(serverPlayer, new SimpleMenuProvider(
-                    (id, inv, p) -> new HyperdimensionalUnformedMenu(id, inv, pos, missing),
-                    Component.translatable("gui.ae2enhanced.hyperdimensional_unformed")), buf -> {
-                        buf.writeBlockPos(pos);
-                        HyperdimensionalUnformedMenu.encodeMissing(buf, missing);
-                    });
+                    (id, inv, p) -> new HyperdimensionalUnformedMenu(id, inv, pos),
+                    Component.translatable("gui.ae2enhanced.hyperdimensional_unformed")), buf -> buf.writeBlockPos(pos));
         }
         return InteractionResult.SUCCESS;
     }

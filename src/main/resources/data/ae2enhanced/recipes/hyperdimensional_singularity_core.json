@@ -1,14 +1,13 @@
 {
   "type": "minecraft:crafting_shaped",
   "pattern": [
-    "CSC",
-    "SPS",
-    "CSC"
+    "MSM",
+    "SMS",
+    "MSM"
   ],
   "key": {
-    "C": { "item": "ae2enhanced:hyperdimensional_casing" },
-    "S": { "item": "ae2:singularity" },
-    "P": { "item": "ae2:calculation_processor" }
+    "M": { "item": "ae2:fluix_pearl" },
+    "S": { "item": "ae2:engineering_processor" }
   },
   "result": {
     "item": "ae2enhanced:hyperdimensional_singularity_core",

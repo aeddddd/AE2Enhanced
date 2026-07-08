@@ -32,8 +32,17 @@ public final class ModItems {
     public static final RegistryObject<Item> ASSEMBLY_CONTROLLER = DR.register("assembly_controller",
             () -> new BlockItem(ModBlocks.ASSEMBLY_CONTROLLER.get(), new Item.Properties()));
 
-    public static final RegistryObject<Item> ASSEMBLY_CASING = DR.register("assembly_casing",
-            () -> new BlockItem(ModBlocks.ASSEMBLY_CASING.get(), new Item.Properties()));
+    public static final RegistryObject<Item> ASSEMBLY_CASING_1 = DR.register("assembly_casing_1",
+            () -> new BlockItem(ModBlocks.ASSEMBLY_CASING_1.get(), new Item.Properties()));
+
+    public static final RegistryObject<Item> ASSEMBLY_CASING_2 = DR.register("assembly_casing_2",
+            () -> new BlockItem(ModBlocks.ASSEMBLY_CASING_2.get(), new Item.Properties()));
+
+    public static final RegistryObject<Item> ASSEMBLY_CASING_3 = DR.register("assembly_casing_3",
+            () -> new BlockItem(ModBlocks.ASSEMBLY_CASING_3.get(), new Item.Properties()));
+
+    public static final RegistryObject<Item> ASSEMBLY_CASING_4 = DR.register("assembly_casing_4",
+            () -> new BlockItem(ModBlocks.ASSEMBLY_CASING_4.get(), new Item.Properties()));
 
     public static final RegistryObject<Item> ASSEMBLY_INNER_WALL = DR.register("assembly_inner_wall",
             () -> new BlockItem(ModBlocks.ASSEMBLY_INNER_WALL.get(), new Item.Properties()));

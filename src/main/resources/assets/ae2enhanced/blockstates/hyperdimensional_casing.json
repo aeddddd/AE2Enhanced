@@ -1,5 +1,5 @@
 {
   "variants": {
-    "": { "model": "ae2enhanced:hyperdimensional_casing" }
+    "": { "model": "ae2enhanced:block/hyperdimensional_casing" }
   }
 }

@@ -40,6 +40,7 @@ public class HyperdimensionalControllerBlockEntity extends MultiblockControllerB
     private static final String TAG_NETWORK_POWERED = "networkPowered";
     private static final String TAG_STORAGE_TYPES = "storageTypes";
     private static final String TAG_STORAGE_TOTAL = "storageTotal";
+    private static final String TAG_SAFE_MODE = "safeMode";
 
     @Nullable
     private UUID nexusId;
@@ -57,6 +58,7 @@ public class HyperdimensionalControllerBlockEntity extends MultiblockControllerB
     private boolean networkPowered = false;
     private int storageTypes = 0;
     private long storageTotal = 0;
+    private boolean safeMode = false;
 
     public HyperdimensionalControllerBlockEntity(BlockPos pos, BlockState blockState) {
         super(ModBlockEntities.HYPERDIMENSIONAL_CONTROLLER.get(), pos, blockState);
@@ -86,6 +88,14 @@ public class HyperdimensionalControllerBlockEntity extends MultiblockControllerB
 
     public long getStorageTotal() {
         return storageTotal;
+    }
+
+    public boolean isSafeMode() {
+        return safeMode;
+    }
+
+    public String getStorageTotalRaw() {
+        return String.valueOf(storageTotal);
     }
 
     @Override
@@ -162,7 +172,7 @@ public class HyperdimensionalControllerBlockEntity extends MultiblockControllerB
         refreshMeStorageSource();
     }
 
-    private void flushStorage() {
+    public void flushStorage() {
         if (storage == null || level == null || level.isClientSide()) {
             return;
         }
@@ -257,9 +267,11 @@ public class HyperdimensionalControllerBlockEntity extends MultiblockControllerB
             }
             total = sum.min(BigInteger.valueOf(Long.MAX_VALUE)).longValue();
         }
-        boolean changed = storageTypes != types || storageTotal != total;
+        boolean sm = storage != null && storage.isSafeMode();
+        boolean changed = storageTypes != types || storageTotal != total || safeMode != sm;
         storageTypes = types;
         storageTotal = total;
+        safeMode = sm;
         if (changed) {
             markForUpdate();
         }
@@ -285,6 +297,7 @@ public class HyperdimensionalControllerBlockEntity extends MultiblockControllerB
         tag.putBoolean(TAG_NETWORK_POWERED, networkPowered);
         tag.putInt(TAG_STORAGE_TYPES, storageTypes);
         tag.putLong(TAG_STORAGE_TOTAL, storageTotal);
+        tag.putBoolean(TAG_SAFE_MODE, safeMode);
         return tag;
     }
 
@@ -303,6 +316,9 @@ public class HyperdimensionalControllerBlockEntity extends MultiblockControllerB
         if (tag.contains(TAG_STORAGE_TOTAL, Tag.TAG_LONG)) {
             storageTotal = tag.getLong(TAG_STORAGE_TOTAL);
         }
+        if (tag.contains(TAG_SAFE_MODE, Tag.TAG_BYTE)) {
+            safeMode = tag.getBoolean(TAG_SAFE_MODE);
+        }
     }
 
     @Override
@@ -317,6 +333,7 @@ public class HyperdimensionalControllerBlockEntity extends MultiblockControllerB
         networkPowered = data.getBoolean(TAG_NETWORK_POWERED);
         storageTypes = data.getInt(TAG_STORAGE_TYPES);
         storageTotal = data.getLong(TAG_STORAGE_TOTAL);
+        safeMode = data.getBoolean(TAG_SAFE_MODE);
         if (isFormed() && nexusId != null && level != null && !level.isClientSide()) {
             initStorage();
         }
@@ -332,5 +349,6 @@ public class HyperdimensionalControllerBlockEntity extends MultiblockControllerB
         data.putBoolean(TAG_NETWORK_POWERED, networkPowered);
         data.putInt(TAG_STORAGE_TYPES, storageTypes);
         data.putLong(TAG_STORAGE_TOTAL, storageTotal);
+        data.putBoolean(TAG_SAFE_MODE, safeMode);
     }
 }

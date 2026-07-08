@@ -3,7 +3,7 @@
         "ctm_version": 1,
         "type": "ctm",
         "textures": [
-            "ae2enhanced:blocks/hyperdimensional_casing_ctm"
+            "ae2enhanced:block/hyperdimensional_casing_ctm"
         ]
     }
 }

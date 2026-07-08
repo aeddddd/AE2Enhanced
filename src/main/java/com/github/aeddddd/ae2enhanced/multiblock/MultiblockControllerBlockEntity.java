@@ -15,6 +15,7 @@ import net.minecraft.world.level.block.state.BlockState;
 import appeng.api.networking.security.IActionSource;
 
 import com.github.aeddddd.ae2enhanced.blockentity.AE2EBaseBlockEntity;
+import com.github.aeddddd.ae2enhanced.util.BlockEntityRemovalHelper;
 
 /**
  * 多方块控制器方块实体基类。
@@ -134,7 +135,10 @@ public abstract class MultiblockControllerBlockEntity extends AE2EBaseBlockEntit
 
     @Override
     public void setRemoved() {
-        if (level != null && !level.isClientSide() && isFormed()) {
+        if (level != null && !level.isClientSide() && isFormed()
+                && BlockEntityRemovalHelper.isBlockBeingBroken(this)) {
+            // 仅在控制器方块真正被破坏时解散；
+            // 区块卸载或关服时触发 setRemoved 不应执行完整拆解，避免额外 IO 与状态异常。
             disassemble();
         }
         super.setRemoved();

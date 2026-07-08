@@ -4,14 +4,19 @@ import java.util.function.Supplier;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.SimpleMenuProvider;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraftforge.network.NetworkEvent;
+import net.minecraftforge.network.NetworkHooks;
 
 import com.github.aeddddd.ae2enhanced.client.gui.AssemblyMenu;
+import com.github.aeddddd.ae2enhanced.client.gui.AssemblyPatternMenu;
+import com.github.aeddddd.ae2enhanced.registry.ModMenus;
 
 /**
- * 客户端通知装配枢纽菜单切换页码的服务端包。
+ * 客户端请求装配枢纽菜单切换到指定样板页的服务端包。
  */
 public class AssemblyPagePacket implements ServerboundPacket {
 
@@ -49,16 +54,37 @@ public class AssemblyPagePacket implements ServerboundPacket {
             return;
         }
         AbstractContainerMenu menu = player.containerMenu;
-        if (!(menu instanceof AssemblyMenu assemblyMenu)) {
+        if (!(menu instanceof AssemblyMenu || menu instanceof AssemblyPatternMenu)) {
             return;
         }
-        if (!assemblyMenu.getControllerPos().equals(pos)) {
+        if (!getControllerPos(menu).equals(pos)) {
             return;
         }
-        if (!assemblyMenu.stillValid(player)) {
+        if (!menu.stillValid(player)) {
             return;
         }
-        assemblyMenu.setPageIndex(pageIndex);
+
+        int totalPages = 1;
+        var be = player.serverLevel().getBlockEntity(pos);
+        if (be instanceof com.github.aeddddd.ae2enhanced.assembly.blockentity.AssemblyControllerBlockEntity controller) {
+            totalPages = Math.max(1, controller.getPatternPages());
+        }
+        int target = Math.max(0, Math.min(pageIndex, totalPages - 1));
+
+        NetworkHooks.openScreen(player, new SimpleMenuProvider(
+                (id, inv, p) -> new AssemblyPatternMenu(id, inv, pos, target),
+                Component.translatable("gui.ae2enhanced.pattern.title")),
+                buf -> AssemblyPatternMenu.encodeExtra(buf, pos, target));
+    }
+
+    private static BlockPos getControllerPos(AbstractContainerMenu menu) {
+        if (menu instanceof AssemblyMenu assembly) {
+            return assembly.getControllerPos();
+        }
+        if (menu instanceof AssemblyPatternMenu pattern) {
+            return pattern.getControllerPos();
+        }
+        return BlockPos.ZERO;
     }
 
     public BlockPos pos() {

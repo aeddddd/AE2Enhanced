@@ -1,5 +1,5 @@
 {
   "variants": {
-    "": { "model": "ae2enhanced:hyperdimensional_singularity_core" }
+    "": { "model": "ae2enhanced:block/hyperdimensional_singularity_core" }
   }
 }

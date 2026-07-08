@@ -6,6 +6,7 @@ import net.minecraftforge.registries.DeferredRegister;
 import net.minecraftforge.registries.RegistryObject;
 
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
+import com.github.aeddddd.ae2enhanced.assembly.blockentity.AssemblyCasingBlockEntity;
 import com.github.aeddddd.ae2enhanced.assembly.blockentity.AssemblyControllerBlockEntity;
 import com.github.aeddddd.ae2enhanced.blockentity.HyperdimensionalControllerBlockEntity;
 import com.github.aeddddd.ae2enhanced.computation.blockentity.ComputationCoreBlockEntity;
@@ -32,6 +33,12 @@ public final class ModBlockEntities {
             .register("assembly_controller",
                     () -> BlockEntityType.Builder.of(AssemblyControllerBlockEntity::new,
                             ModBlocks.ASSEMBLY_CONTROLLER.get()).build(null));
+
+    public static final RegistryObject<BlockEntityType<AssemblyCasingBlockEntity>> ASSEMBLY_CASING = DR
+            .register("assembly_casing",
+                    () -> BlockEntityType.Builder.of(AssemblyCasingBlockEntity::new,
+                            ModBlocks.ASSEMBLY_CASING_1.get(), ModBlocks.ASSEMBLY_CASING_2.get(),
+                            ModBlocks.ASSEMBLY_CASING_3.get(), ModBlocks.ASSEMBLY_CASING_4.get()).build(null));
 
     public static final RegistryObject<BlockEntityType<ComputationCoreBlockEntity>> COMPUTATION_CONTROLLER = DR
             .register("computation_controller",

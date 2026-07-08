@@ -2,13 +2,13 @@
   "type": "minecraft:crafting_shaped",
   "pattern": [
     "SQS",
-    "QFQ",
+    "QCQ",
     "SQS"
   ],
   "key": {
-    "S": { "item": "ae2:smooth_sky_stone_block" },
+    "S": { "item": "ae2:fluix_pearl" },
     "Q": { "item": "ae2:quartz_glass" },
-    "F": { "item": "ae2:fluix_block" }
+    "C": { "item": "ae2enhanced:assembly_casing_1" }
   },
   "result": {
     "item": "ae2enhanced:hyperdimensional_casing",

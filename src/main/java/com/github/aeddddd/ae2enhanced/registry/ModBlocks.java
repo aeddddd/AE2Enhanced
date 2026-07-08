@@ -47,7 +47,16 @@ public final class ModBlocks {
     public static final RegistryObject<Block> ASSEMBLY_CONTROLLER = DR.register("assembly_controller",
             () -> new AssemblyControllerBlock(metalProperties()));
 
-    public static final RegistryObject<Block> ASSEMBLY_CASING = DR.register("assembly_casing",
+    public static final RegistryObject<Block> ASSEMBLY_CASING_1 = DR.register("assembly_casing_1",
+            () -> new AssemblyCasingBlock(metalProperties()));
+
+    public static final RegistryObject<Block> ASSEMBLY_CASING_2 = DR.register("assembly_casing_2",
+            () -> new AssemblyCasingBlock(metalProperties()));
+
+    public static final RegistryObject<Block> ASSEMBLY_CASING_3 = DR.register("assembly_casing_3",
+            () -> new AssemblyCasingBlock(metalProperties()));
+
+    public static final RegistryObject<Block> ASSEMBLY_CASING_4 = DR.register("assembly_casing_4",
             () -> new AssemblyCasingBlock(metalProperties()));
 
     public static final RegistryObject<Block> ASSEMBLY_INNER_WALL = DR.register("assembly_inner_wall",

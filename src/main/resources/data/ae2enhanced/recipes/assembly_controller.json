@@ -7,10 +7,11 @@
   ],
   "key": {
     "S": { "item": "ae2enhanced:assembly_stabilizer" },
-    "C": { "item": "ae2enhanced:assembly_casing" },
+    "C": { "item": "ae2enhanced:assembly_casing_1" },
     "H": { "item": "ae2:engineering_processor" }
   },
   "result": {
-    "item": "ae2enhanced:assembly_controller"
+    "item": "ae2enhanced:assembly_controller",
+    "count": 1
   }
 }
