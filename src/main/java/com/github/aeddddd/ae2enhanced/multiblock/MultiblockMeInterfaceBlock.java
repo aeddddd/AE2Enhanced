@@ -3,7 +3,6 @@ package com.github.aeddddd.ae2enhanced.multiblock;
 import javax.annotation.Nullable;
 
 import net.minecraft.core.BlockPos;
-import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
 
 import com.github.aeddddd.ae2enhanced.block.AE2EBaseEntityBlock;

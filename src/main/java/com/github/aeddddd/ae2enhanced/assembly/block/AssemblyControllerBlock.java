@@ -1,9 +1,6 @@
 package com.github.aeddddd.ae2enhanced.assembly.block;
 
-import javax.annotation.Nullable;
-
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.Direction;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -11,21 +8,14 @@ import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.SimpleMenuProvider;
 import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.item.context.BlockPlaceContext;
 import net.minecraft.world.level.Level;
-import net.minecraft.world.level.block.Block;
-import net.minecraft.world.level.block.EntityBlock;
 import net.minecraft.world.level.block.entity.BlockEntity;
-import net.minecraft.world.level.block.entity.BlockEntityTicker;
-import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.world.level.block.state.StateDefinition;
-import net.minecraft.world.level.block.state.properties.BlockStateProperties;
-import net.minecraft.world.level.block.state.properties.DirectionProperty;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraftforge.network.NetworkHooks;
 
 import com.github.aeddddd.ae2enhanced.assembly.blockentity.AssemblyControllerBlockEntity;
+import com.github.aeddddd.ae2enhanced.block.MultiblockControllerBlock;
 import com.github.aeddddd.ae2enhanced.client.gui.AssemblyMenu;
 import com.github.aeddddd.ae2enhanced.client.gui.AssemblyUnformedMenu;
 import com.github.aeddddd.ae2enhanced.structure.AssemblyStructure;
@@ -34,24 +24,10 @@ import com.github.aeddddd.ae2enhanced.structure.ControllerIndex;
 /**
  * 装配枢纽控制器方块。
  */
-public class AssemblyControllerBlock extends Block implements EntityBlock {
-
-    public static final DirectionProperty FACING = BlockStateProperties.HORIZONTAL_FACING;
+public class AssemblyControllerBlock extends MultiblockControllerBlock {
 
     public AssemblyControllerBlock(Properties properties) {
         super(properties);
-        registerDefaultState(stateDefinition.any().setValue(FACING, Direction.NORTH));
-    }
-
-    @Override
-    protected void createBlockStateDefinition(StateDefinition.Builder<Block, BlockState> builder) {
-        super.createBlockStateDefinition(builder);
-        builder.add(FACING);
-    }
-
-    @Override
-    public BlockState getStateForPlacement(BlockPlaceContext context) {
-        return defaultBlockState().setValue(FACING, context.getHorizontalDirection().getOpposite());
     }
 
     @Override
@@ -64,8 +40,7 @@ public class AssemblyControllerBlock extends Block implements EntityBlock {
             return InteractionResult.SUCCESS;
         }
         if (player instanceof ServerPlayer serverPlayer) {
-            BlockEntity be = level.getBlockEntity(pos);
-            if (be instanceof AssemblyControllerBlockEntity controller) {
+            if (level.getBlockEntity(pos) instanceof AssemblyControllerBlockEntity controller) {
                 if (controller.isFormed()) {
                     NetworkHooks.openScreen(serverPlayer,
                             new SimpleMenuProvider((id, inv, p) -> new AssemblyMenu(id, inv, pos),
@@ -83,54 +58,22 @@ public class AssemblyControllerBlock extends Block implements EntityBlock {
     }
 
     @Override
-    public void setPlacedBy(Level level, BlockPos pos, BlockState state, @Nullable net.minecraft.world.entity.LivingEntity placer,
-            net.minecraft.world.item.ItemStack stack) {
-        super.setPlacedBy(level, pos, state, placer, stack);
-        if (!level.isClientSide() && level instanceof ServerLevel serverLevel) {
-            ControllerIndex.get(serverLevel).add(pos);
-        }
-    }
-
-    @Override
-    public void onRemove(BlockState state, Level level, BlockPos pos, BlockState newState, boolean isMoving) {
-        if (!level.isClientSide() && state.getBlock() != newState.getBlock()) {
-            AssemblyStructure.disassemble(level, pos);
-            if (level instanceof ServerLevel serverLevel) {
-                ControllerIndex.get(serverLevel).remove(pos);
-            }
-        }
-        super.onRemove(state, level, pos, newState, isMoving);
-    }
-
-    @Override
-    public void neighborChanged(BlockState state, Level level, BlockPos pos, Block neighborBlock,
-            BlockPos neighborPos, boolean isMoving) {
-        super.neighborChanged(state, level, pos, neighborBlock, neighborPos, isMoving);
-        if (level.isClientSide()) {
-            return;
-        }
-        BlockEntity be = level.getBlockEntity(pos);
-        if (be instanceof AssemblyControllerBlockEntity controller) {
-            if (controller.isFormed() && !AssemblyStructure.validate(level, pos)) {
-                AssemblyStructure.disassemble(level, pos);
-            }
-        }
-    }
-
-    @Nullable
-    @Override
     public BlockEntity newBlockEntity(BlockPos pos, BlockState state) {
         return new AssemblyControllerBlockEntity(pos, state);
     }
 
-    @Nullable
     @Override
-    public <T extends BlockEntity> BlockEntityTicker<T> getTicker(Level level, BlockState state,
-            BlockEntityType<T> blockEntityType) {
-        return level.isClientSide() ? null : (lvl, p, st, be) -> {
-            if (be instanceof AssemblyControllerBlockEntity controller) {
-                controller.serverTick();
-            }
-        };
+    protected void addToIndex(ServerLevel level, BlockPos pos) {
+        ControllerIndex.get(level).add(pos);
+    }
+
+    @Override
+    protected void removeFromIndex(ServerLevel level, BlockPos pos) {
+        ControllerIndex.get(level).remove(pos);
+    }
+
+    @Override
+    protected void disassembleStructure(Level level, BlockPos pos) {
+        AssemblyStructure.disassemble(level, pos);
     }
 }

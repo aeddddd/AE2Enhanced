@@ -45,6 +45,21 @@ public interface IMultiblockController {
     }
 
     /**
+     * 返回是否可作为虚拟 Crafting CPU 源。
+     * <p>默认返回 false；仅超因果计算核心等实际提供虚拟 CPU 的控制器应返回 true。</p>
+     */
+    default boolean isVirtualCpuAvailable() {
+        return false;
+    }
+
+    /**
+     * 返回虚拟 CPU 的并行上限。
+     */
+    default int getVirtualCpuParallelLimit() {
+        return 0;
+    }
+
+    /**
      * 返回用于 AE2 网络操作的动作来源。
      * <p>默认由绑定的通用 ME 接口节点提供；没有可用接口时返回空源。</p>
      */

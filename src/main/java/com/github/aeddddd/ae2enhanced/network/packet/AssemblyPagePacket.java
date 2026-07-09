@@ -13,7 +13,6 @@ import net.minecraftforge.network.NetworkHooks;
 
 import com.github.aeddddd.ae2enhanced.client.gui.AssemblyMenu;
 import com.github.aeddddd.ae2enhanced.client.gui.AssemblyPatternMenu;
-import com.github.aeddddd.ae2enhanced.registry.ModMenus;
 
 /**
  * 客户端请求装配枢纽菜单切换到指定样板页的服务端包。

@@ -11,9 +11,7 @@ import java.util.Set;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
-import net.minecraft.world.entity.player.Inventory;
-import net.minecraft.world.item.Item;
-import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.state.BlockState;
@@ -21,15 +19,20 @@ import net.minecraft.world.level.block.state.BlockState;
 import com.github.aeddddd.ae2enhanced.assembly.block.AssemblyControllerBlock;
 import com.github.aeddddd.ae2enhanced.assembly.blockentity.AssemblyControllerBlockEntity;
 import com.github.aeddddd.ae2enhanced.registry.ModBlocks;
+import com.github.aeddddd.ae2enhanced.util.StructureUtils;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 
+/**
+ * 装配枢纽结构定义与验证。
+ */
 public class AssemblyStructure {
 
     public static final Set<BlockPos> ALL_SET;
     public static final Map<Block, Set<BlockPos>> BLOCK_SETS;
+    public static final AbstractMultiblockStructure INSTANCE;
 
     private static final Map<String, Block> BLOCK_MAP = new LinkedHashMap<>();
 
@@ -75,19 +78,8 @@ public class AssemblyStructure {
         }
         BLOCK_SETS = Collections.unmodifiableMap(unmodifiableSets);
         ALL_SET = Collections.unmodifiableSet(all);
-    }
 
-    public static BlockPos rotate(BlockPos rel, Direction facing) {
-        if (facing == Direction.NORTH) return rel;
-        int x = rel.getX();
-        int y = rel.getY();
-        int z = rel.getZ();
-        switch (facing) {
-            case SOUTH: return new BlockPos(-x, y, -z);
-            case EAST:  return new BlockPos(-z, y, x);
-            case WEST:  return new BlockPos(z, y, -x);
-            default:    return rel;
-        }
+        INSTANCE = new Impl(StructureDefinition.of(BLOCK_SETS, null));
     }
 
     public static BlockPos getOriginFromController(BlockPos controllerPos, Direction facing) {
@@ -95,146 +87,79 @@ public class AssemblyStructure {
         return controllerPos;
     }
 
-    private static Direction getControllerFacing(Level level, BlockPos controllerPos) {
-        BlockState state = level.getBlockState(controllerPos);
-        if (state.getBlock() instanceof AssemblyControllerBlock) {
-            return state.getValue(AssemblyControllerBlock.FACING);
-        }
-        return Direction.NORTH;
+    public static Set<BlockPos> getAllSet() {
+        return ALL_SET;
+    }
+
+    public static Direction getControllerFacing(Level level, BlockPos controllerPos) {
+        return INSTANCE.getRotation(level, controllerPos);
+    }
+
+    public static Set<Map.Entry<BlockPos, Block>> getExpectedBlocks(Level level, BlockPos controllerPos) {
+        return INSTANCE.getExpectedBlocks(level, controllerPos);
     }
 
     public static boolean validate(Level level, BlockPos controllerPos) {
-        Direction facing = getControllerFacing(level, controllerPos);
-        BlockPos origin = getOriginFromController(controllerPos, facing);
-        for (Map.Entry<BlockPos, Block> entry : getExpectedBlocks()) {
-            BlockPos rel = entry.getKey();
-            Block expected = entry.getValue();
-            BlockPos actual = origin.offset(rotate(rel, facing));
-            if (!level.isLoaded(actual)) {
-                continue;
-            }
-            if (level.getBlockState(actual).getBlock() != expected) {
-                return false;
-            }
-        }
-        return true;
+        return INSTANCE.validate(level, controllerPos);
     }
 
-    private static Set<Map.Entry<BlockPos, Block>> getExpectedBlocks() {
-        Set<Map.Entry<BlockPos, Block>> result = new HashSet<>();
-        for (Map.Entry<Block, Set<BlockPos>> blockEntry : BLOCK_SETS.entrySet()) {
-            Block block = blockEntry.getKey();
-            for (BlockPos rel : blockEntry.getValue()) {
-                result.add(new java.util.AbstractMap.SimpleEntry<>(rel, block));
-            }
-        }
-        return result;
+    public static ValidationResult validateDetailed(Level level, BlockPos controllerPos) {
+        return INSTANCE.validateDetailed(level, controllerPos);
     }
 
     public static Map<Block, Integer> getMissingMap(Level level, BlockPos controllerPos) {
-        Direction facing = getControllerFacing(level, controllerPos);
-        BlockPos origin = getOriginFromController(controllerPos, facing);
-        Map<Block, Integer> missing = new LinkedHashMap<>();
-        for (Map.Entry<BlockPos, Block> entry : getExpectedBlocks()) {
-            BlockPos rel = entry.getKey();
-            Block expected = entry.getValue();
-            BlockPos actual = origin.offset(rotate(rel, facing));
-            if (!level.isLoaded(actual)) {
-                continue;
-            }
-            if (level.getBlockState(actual).getBlock() != expected) {
-                missing.put(expected, missing.getOrDefault(expected, 0) + 1);
-            }
-        }
-        return missing;
+        return INSTANCE.getMissingMap(level, controllerPos);
     }
 
     public static void assemble(Level level, BlockPos controllerPos) {
-        if (level.isClientSide()) return;
-        AssemblyControllerBlockEntity tile = getControllerTile(level, controllerPos);
-        if (tile != null) {
-            tile.assemble();
-        }
+        INSTANCE.assemble(level, controllerPos);
     }
 
     public static void disassemble(Level level, BlockPos controllerPos) {
-        if (level.isClientSide()) return;
-        AssemblyControllerBlockEntity tile = getControllerTile(level, controllerPos);
-        if (tile != null) {
-            tile.disassemble();
+        INSTANCE.disassemble(level, controllerPos);
+    }
+
+    public static void placeMissingBlocks(Level level, BlockPos controllerPos, Player player) {
+        INSTANCE.placeMissingBlocks(level, controllerPos, player);
+    }
+
+    public static boolean tryConsumeAndPlace(Level level, BlockPos controllerPos, Player player) {
+        return INSTANCE.tryConsumeAndPlace(level, controllerPos, player);
+    }
+
+    private static class Impl extends AbstractMultiblockStructure {
+
+        private Impl(StructureDefinition definition) {
+            super(definition);
         }
-    }
 
-    private static AssemblyControllerBlockEntity getControllerTile(Level level, BlockPos pos) {
-        net.minecraft.world.level.block.entity.BlockEntity te = level.getBlockEntity(pos);
-        return te instanceof AssemblyControllerBlockEntity ? (AssemblyControllerBlockEntity) te : null;
-    }
-
-    public static void placeMissingBlocks(Level level, BlockPos controllerPos, net.minecraft.world.entity.player.Player player) {
-        if (level.isClientSide()) return;
-        Direction facing = getControllerFacing(level, controllerPos);
-        BlockPos origin = getOriginFromController(controllerPos, facing);
-        for (Map.Entry<BlockPos, Block> entry : getExpectedBlocks()) {
-            BlockPos rel = entry.getKey();
-            Block block = entry.getValue();
-            BlockPos pos = origin.offset(rotate(rel, facing));
-            if (level.getBlockState(pos).getBlock() != block) {
-                level.setBlock(pos, block.defaultBlockState(), Block.UPDATE_ALL);
+        @Override
+        public Direction getRotation(Level level, BlockPos controllerPos) {
+            BlockState state = level.getBlockState(controllerPos);
+            if (state.getBlock() instanceof AssemblyControllerBlock) {
+                return state.getValue(AssemblyControllerBlock.FACING);
             }
-        }
-        assemble(level, controllerPos);
-    }
-
-    public static boolean tryConsumeAndPlace(Level level, BlockPos controllerPos, net.minecraft.world.entity.player.Player player) {
-        if (level.isClientSide()) return false;
-        Direction facing = getControllerFacing(level, controllerPos);
-        BlockPos origin = getOriginFromController(controllerPos, facing);
-
-        Map<Block, Integer> missing = getMissingMap(level, controllerPos);
-        if (missing.isEmpty()) {
-            assemble(level, controllerPos);
-            return true;
+            return Direction.NORTH;
         }
 
-        Inventory inv = player.getInventory();
-        Map<Block, Integer> needed = new LinkedHashMap<>(missing);
-
-        for (ItemStack stack : inv.items) {
-            if (stack.isEmpty()) continue;
-            for (Map.Entry<Block, Integer> entry : needed.entrySet()) {
-                Block block = entry.getKey();
-                if (stack.getItem() == block.asItem()) {
-                    int need = entry.getValue();
-                    int have = stack.getCount();
-                    if (have >= need) {
-                        entry.setValue(0);
-                    } else {
-                        entry.setValue(need - have);
-                    }
-                    break;
-                }
+        @Override
+        public void assemble(Level level, BlockPos controllerPos) {
+            if (level.isClientSide()) {
+                return;
+            }
+            if (level.getBlockEntity(controllerPos) instanceof AssemblyControllerBlockEntity tile) {
+                tile.assemble();
             }
         }
 
-        for (int count : needed.values()) {
-            if (count > 0) return false;
-        }
-
-        for (Map.Entry<Block, Integer> entry : missing.entrySet()) {
-            Block block = entry.getKey();
-            int remaining = entry.getValue();
-            Item item = block.asItem();
-            for (int i = 0; i < inv.items.size() && remaining > 0; i++) {
-                ItemStack stack = inv.items.get(i);
-                if (stack.getItem() == item) {
-                    int take = Math.min(stack.getCount(), remaining);
-                    int removed = inv.removeItem(i, take).getCount();
-                    remaining -= removed;
-                }
+        @Override
+        public void disassemble(Level level, BlockPos controllerPos) {
+            if (level.isClientSide()) {
+                return;
+            }
+            if (level.getBlockEntity(controllerPos) instanceof AssemblyControllerBlockEntity tile) {
+                tile.disassemble();
             }
         }
-
-        placeMissingBlocks(level, controllerPos, player);
-        return true;
     }
 }

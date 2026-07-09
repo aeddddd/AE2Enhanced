@@ -19,7 +19,9 @@ import com.github.aeddddd.ae2enhanced.structure.HyperdimensionalStructure;
 import com.github.aeddddd.ae2enhanced.structure.SupercausalStructure;
 
 /**
- * 客户端请求一键放置多方块结构的占位包。
+ * 客户端请求一键放置/补全多方块结构的通用请求包。
+ * <p>服务端根据 {@link #controllerPos} 处的控制器类型，分别处理装配枢纽、超维度仓储中枢
+ * 与超因果计算核心的缺失方块放置与结构装配。</p>
  */
 public class RequestAssemblyPacket implements ServerboundPacket {
 

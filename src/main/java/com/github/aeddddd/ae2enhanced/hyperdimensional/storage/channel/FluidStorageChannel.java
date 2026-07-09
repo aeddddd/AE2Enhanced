@@ -1,36 +1,21 @@
 package com.github.aeddddd.ae2enhanced.hyperdimensional.storage.channel;
 
 import appeng.api.stacks.AEFluidKey;
-import appeng.api.stacks.AEKey;
 import appeng.api.stacks.AEKeyType;
-import net.minecraft.nbt.CompoundTag;
-
-import javax.annotation.Nullable;
+import com.github.aeddddd.ae2enhanced.hyperdimensional.storage.adapter.FluidStorageAdapter;
+import com.github.aeddddd.ae2enhanced.hyperdimensional.storage.descriptor.FluidDescriptor;
 
 /**
- * 流体通道，使用 {@link AEFluidKey} 作为键。
+ * 流体通道，内部使用 {@link FluidStorageAdapter} 处理 {@link AEFluidKey}。
  */
-public class FluidStorageChannel extends AbstractStorageChannel<AEFluidKey> {
+public class FluidStorageChannel extends AbstractStorageChannel<AEFluidKey, FluidDescriptor> {
+
+    public FluidStorageChannel() {
+        super(new FluidStorageAdapter());
+    }
 
     @Override
     public AEKeyType getKeyType() {
         return AEKeyType.fluids();
-    }
-
-    @Override
-    @Nullable
-    protected AEFluidKey cast(AEKey key) {
-        return AEFluidKey.is(key) ? (AEFluidKey) key : null;
-    }
-
-    @Override
-    protected CompoundTag writeKey(AEFluidKey key) {
-        return key.toTag();
-    }
-
-    @Override
-    @Nullable
-    protected AEFluidKey readKey(CompoundTag tag) {
-        return AEFluidKey.fromTag(tag);
     }
 }

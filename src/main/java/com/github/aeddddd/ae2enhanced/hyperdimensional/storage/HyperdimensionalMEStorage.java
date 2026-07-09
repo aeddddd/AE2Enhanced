@@ -9,7 +9,6 @@ import appeng.api.stacks.AEKey;
 import appeng.api.stacks.KeyCounter;
 import net.minecraft.network.chat.Component;
 
-import com.github.aeddddd.ae2enhanced.hyperdimensional.storage.channel.EnergyKey;
 import com.github.aeddddd.ae2enhanced.hyperdimensional.storage.channel.StorageChannel;
 
 /**

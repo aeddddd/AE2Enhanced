@@ -1,7 +1,6 @@
 package com.github.aeddddd.ae2enhanced.crafting.blackhole;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -35,10 +34,6 @@ public class BlackHoleRecipeRegistry {
     public static void removeById(String id) {
         RECIPES.removeIf(recipe -> recipe.getStringId().equals(id));
         PENDING_REMOVALS.remove(id);
-    }
-
-    public static List<BlackHoleRecipe> getRecipes() {
-        return Collections.unmodifiableList(RECIPES);
     }
 
     public static void queueRemoval(String id) {

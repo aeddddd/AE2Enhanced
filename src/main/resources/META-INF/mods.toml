@@ -16,7 +16,7 @@ A mod for NeoForge 1.20.1
 authors="aeddddd"
 
 [[dependencies.${mod_id}]]
-modId="forge"
+modId="neoforge"
 mandatory=true
 versionRange="[47,)"
 ordering="NONE"

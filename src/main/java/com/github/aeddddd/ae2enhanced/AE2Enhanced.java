@@ -10,6 +10,7 @@ import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.event.lifecycle.FMLCommonSetupEvent;
 
 import com.github.aeddddd.ae2enhanced.config.AE2EnhancedConfig;
+import com.github.aeddddd.ae2enhanced.data.DataGenerators;
 import com.github.aeddddd.ae2enhanced.event.StructureEventHandler;
 import com.github.aeddddd.ae2enhanced.network.ModNetwork;
 import com.github.aeddddd.ae2enhanced.registry.ModBlockEntities;
@@ -39,6 +40,7 @@ public class AE2Enhanced {
 
         // 生命周期事件
         modEventBus.addListener(this::commonSetup);
+        modEventBus.addListener(DataGenerators::gatherData);
 
         // 注册网络包
         ModNetwork.init();

@@ -1,23 +1,24 @@
 package com.github.aeddddd.ae2enhanced.structure;
 
-import java.util.*;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.Set;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
-import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.item.Item;
-import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
-import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 
 import com.github.aeddddd.ae2enhanced.computation.block.ComputationControllerBlock;
 import com.github.aeddddd.ae2enhanced.computation.blockentity.ComputationCoreBlockEntity;
-import com.github.aeddddd.ae2enhanced.multiblock.MultiblockMeInterfaceBlock;
 import com.github.aeddddd.ae2enhanced.config.AE2EnhancedConfig;
+import com.github.aeddddd.ae2enhanced.multiblock.MultiblockMeInterfaceBlockEntity;
 import com.github.aeddddd.ae2enhanced.registry.ModBlocks;
+import com.github.aeddddd.ae2enhanced.util.StructureUtils;
 
 /**
  * 超因果计算核心的多方块结构验证系统
@@ -32,6 +33,8 @@ public class SupercausalStructure {
     public static final Set<BlockPos> CAUSAL_ANCHOR_SET;
     public static final Set<BlockPos> SPINOR_CASING_SET;
     public static final Set<BlockPos> ALL_STRUCTURE_SET;
+
+    public static final AbstractMultiblockStructure INSTANCE;
 
     static {
         Set<BlockPos> tensor = new HashSet<>();
@@ -902,87 +905,55 @@ public class SupercausalStructure {
         all.addAll(CAUSAL_ANCHOR_SET);
         all.addAll(SPINOR_CASING_SET);
         ALL_STRUCTURE_SET = Collections.unmodifiableSet(all);
+
+        StructureDefinition definition = StructureDefinition.builder()
+                .addAll(ModBlocks.CONSTANT_TENSOR_FIELD_CASING.get(), TENSOR_CASING_SET)
+                .addAll(ModBlocks.CAUSAL_ANCHOR_CORE.get(), CAUSAL_ANCHOR_SET)
+                .addAll(ModBlocks.CONSTANT_SPINOR_FIELD_CASING.get(), SPINOR_CASING_SET)
+                .add(ModBlocks.MULTIBLOCK_ME_INTERFACE.get(), ME_INTERFACE_REL)
+                .interfacePos(ME_INTERFACE_REL)
+                .build();
+        INSTANCE = new Impl(definition);
     }
 
-    /**
-     * Returns the facing used for structure rotation.
-     * We use the opposite of the controller's block facing so that the structure
-     * expands behind the controller, leaving the controller's front face open to air.
-     */
-    public static Direction getControllerFacing(Level world, BlockPos controllerPos) {
-        BlockState state = world.getBlockState(controllerPos);
-        if (state.getBlock() instanceof ComputationControllerBlock) {
-            return state.getValue(ComputationControllerBlock.FACING).getOpposite();
-        }
-        return Direction.NORTH;
+    public static ValidationResult validate(Level level, BlockPos controllerPos) {
+        return INSTANCE.validateDetailed(level, controllerPos);
     }
 
-    public static BlockPos rotate(BlockPos rel, Direction facing) {
-        if (facing == Direction.NORTH) return rel;
-        int x = rel.getX();
-        int y = rel.getY();
-        int z = rel.getZ();
-        switch (facing) {
-            case SOUTH: return new BlockPos(-x, y, -z);
-            case EAST:  return new BlockPos(-z, y, x);
-            case WEST:  return new BlockPos(z, y, -x);
-            default:    return rel;
-        }
+    public static ValidationResult validateDetailed(Level level, BlockPos controllerPos) {
+        return INSTANCE.validateDetailed(level, controllerPos);
     }
 
-    /**
-     * 验证结构完整性.
-     * @return 验证结果,包含是否通过、缺失方块统计、因果锚定核心数量和计算出的并行上限.
-     */
-    public static ValidationResult validate(Level world, BlockPos controllerPos) {
-        Direction facing = getControllerFacing(world, controllerPos);
-        Map<Block, Integer> missing = new LinkedHashMap<>();
-        int causalCount = 0;
+    public static Set<BlockPos> getAllSet() {
+        return ALL_STRUCTURE_SET;
+    }
 
-        // 验证恒定张量场外壳
-        for (BlockPos rel : TENSOR_CASING_SET) {
-            BlockPos actual = controllerPos.offset(rotate(rel, facing));
-            if (!world.isLoaded(actual)) continue;
-            if (world.getBlockState(actual).getBlock() != ModBlocks.CONSTANT_TENSOR_FIELD_CASING.get()) {
-                if (actual.equals(controllerPos)) continue; // 控制器位置由核心方块占用,跳过
-                missing.put(ModBlocks.CONSTANT_TENSOR_FIELD_CASING.get(), missing.getOrDefault(ModBlocks.CONSTANT_TENSOR_FIELD_CASING.get(), 0) + 1);
-            }
-        }
+    public static Direction getControllerFacing(Level level, BlockPos controllerPos) {
+        return INSTANCE.getRotation(level, controllerPos);
+    }
 
-        // 验证因果锚定核心
-        for (BlockPos rel : CAUSAL_ANCHOR_SET) {
-            BlockPos actual = controllerPos.offset(rotate(rel, facing));
-            if (!world.isLoaded(actual)) continue;
-            if (world.getBlockState(actual).getBlock() == ModBlocks.CAUSAL_ANCHOR_CORE.get()) {
-                causalCount++;
-            } else {
-                missing.put(ModBlocks.CAUSAL_ANCHOR_CORE.get(), missing.getOrDefault(ModBlocks.CAUSAL_ANCHOR_CORE.get(), 0) + 1);
-            }
-        }
+    public static Set<Map.Entry<BlockPos, Block>> getExpectedBlocks(Level level, BlockPos controllerPos) {
+        return INSTANCE.getExpectedBlocks(level, controllerPos);
+    }
 
-        // 验证恒定旋量场外壳
-        for (BlockPos rel : SPINOR_CASING_SET) {
-            BlockPos actual = controllerPos.offset(rotate(rel, facing));
-            if (!world.isLoaded(actual)) continue;
-            if (world.getBlockState(actual).getBlock() != ModBlocks.CONSTANT_SPINOR_FIELD_CASING.get()) {
-                missing.put(ModBlocks.CONSTANT_SPINOR_FIELD_CASING.get(), missing.getOrDefault(ModBlocks.CONSTANT_SPINOR_FIELD_CASING.get(), 0) + 1);
-            }
-        }
+    public static Map<Block, Integer> getMissingMap(Level level, BlockPos controllerPos) {
+        return INSTANCE.getMissingMap(level, controllerPos);
+    }
 
-        // 验证 ME 接口
-        BlockPos meInterfacePos = controllerPos.offset(rotate(ME_INTERFACE_REL, facing));
-        boolean meInterfaceValid = false;
-        if (world.isLoaded(meInterfacePos)) {
-            meInterfaceValid = world.getBlockState(meInterfacePos).getBlock() == ModBlocks.MULTIBLOCK_ME_INTERFACE.get();
-        }
-        if (!meInterfaceValid) {
-            missing.put(ModBlocks.MULTIBLOCK_ME_INTERFACE.get(), missing.getOrDefault(ModBlocks.MULTIBLOCK_ME_INTERFACE.get(), 0) + 1);
-        }
+    public static void assemble(Level level, BlockPos controllerPos) {
+        INSTANCE.assemble(level, controllerPos);
+    }
 
-        boolean passed = missing.isEmpty();
-        int parallel = passed ? computeParallel() : 0;
+    public static void disassemble(Level level, BlockPos controllerPos) {
+        INSTANCE.disassemble(level, controllerPos);
+    }
 
-        return new ValidationResult(passed, missing, causalCount, parallel);
+    public static void placeMissingBlocks(Level level, BlockPos controllerPos, Player player) {
+        INSTANCE.placeMissingBlocks(level, controllerPos, player);
+    }
+
+    public static boolean tryConsumeAndPlace(Level level, BlockPos controllerPos, Player player) {
+        return INSTANCE.tryConsumeAndPlace(level, controllerPos, player);
     }
 
     /**
@@ -992,190 +963,147 @@ public class SupercausalStructure {
         return AE2EnhancedConfig.COMMON.computationMaxParallel.get();
     }
 
-    public static void assemble(Level world, BlockPos controllerPos) {
-        if (world.isClientSide()) return;
-        BlockEntity te = world.getBlockEntity(controllerPos);
-        if (te instanceof ComputationCoreBlockEntity tile) {
-            ValidationResult result = validate(world, controllerPos);
-            if (result.passed) {
-                BlockPos interfacePos = getMeInterfacePos(world, controllerPos);
-                updateMeInterfaceState(world, controllerPos, true);
-                tile.assemble(result.parallelLimit, interfacePos);
+    private static class Impl extends AbstractMultiblockStructure {
+
+        private Impl(StructureDefinition definition) {
+            super(definition);
+        }
+
+        /**
+         * Returns the facing used for structure rotation.
+         * We use the opposite of the controller's block facing so that the structure
+         * expands behind the controller, leaving the controller's front face open to air.
+         */
+        @Override
+        public Direction getRotation(Level level, BlockPos controllerPos) {
+            BlockState state = level.getBlockState(controllerPos);
+            if (state.getBlock() instanceof ComputationControllerBlock) {
+                return state.getValue(ComputationControllerBlock.FACING).getOpposite();
+            }
+            return Direction.NORTH;
+        }
+
+        @Override
+        public ValidationResult validateDetailed(Level level, BlockPos controllerPos) {
+            Map<Block, Integer> missing = new LinkedHashMap<>();
+            boolean allChunksLoaded = true;
+            int causalCount = 0;
+            Direction facing = getRotation(level, controllerPos);
+
+            for (Map.Entry<BlockPos, Block> entry : definition.getExpectedBlocks()) {
+                BlockPos rel = entry.getKey();
+                Block expected = entry.getValue();
+                // 控制器位置由核心方块占用，跳过张量外壳检查
+                if (rel.equals(CONTROLLER_REL) && expected == ModBlocks.CONSTANT_TENSOR_FIELD_CASING.get()) {
+                    continue;
+                }
+                BlockPos actual = controllerPos.offset(StructureUtils.rotate(rel, facing));
+                if (!level.isLoaded(actual)) {
+                    allChunksLoaded = false;
+                    missing.merge(expected, 1, Integer::sum);
+                    continue;
+                }
+                if (level.getBlockState(actual).getBlock() != expected) {
+                    missing.merge(expected, 1, Integer::sum);
+                } else if (expected == ModBlocks.CAUSAL_ANCHOR_CORE.get()) {
+                    causalCount++;
+                }
+            }
+
+            boolean passed = missing.isEmpty() && allChunksLoaded;
+            int parallel = passed ? computeParallel() : 0;
+            return new ValidationResult(passed, missing, allChunksLoaded, causalCount, parallel);
+        }
+
+        @Override
+        public Map<Block, Integer> getMissingMap(Level level, BlockPos controllerPos) {
+            Map<Block, Integer> missing = new LinkedHashMap<>();
+            Direction facing = getRotation(level, controllerPos);
+            for (Map.Entry<BlockPos, Block> entry : definition.getExpectedBlocks()) {
+                BlockPos rel = entry.getKey();
+                Block expected = entry.getValue();
+                if (rel.equals(CONTROLLER_REL) && expected == ModBlocks.CONSTANT_TENSOR_FIELD_CASING.get()) {
+                    continue;
+                }
+                BlockPos actual = controllerPos.offset(StructureUtils.rotate(rel, facing));
+                if (!level.isLoaded(actual)) {
+                    continue;
+                }
+                if (level.getBlockState(actual).getBlock() != expected) {
+                    missing.merge(expected, 1, Integer::sum);
+                }
+            }
+            return missing;
+        }
+
+        @Override
+        public void assemble(Level level, BlockPos controllerPos) {
+            if (level.isClientSide()) {
+                return;
+            }
+            ValidationResult result = validateDetailed(level, controllerPos);
+            if (!result.passed()) {
+                return;
+            }
+            if (level.getBlockEntity(controllerPos) instanceof ComputationCoreBlockEntity tile) {
+                Direction facing = getRotation(level, controllerPos);
+                BlockPos interfacePos = controllerPos.offset(StructureUtils.rotate(ME_INTERFACE_REL, facing));
+                if (level.getBlockEntity(interfacePos) instanceof MultiblockMeInterfaceBlockEntity me) {
+                    me.setControllerPos(controllerPos);
+                }
+                tile.assemble(result.parallelLimit(), interfacePos);
             }
         }
-    }
 
-    public static void disassemble(Level world, BlockPos controllerPos) {
-        if (world.isClientSide()) return;
-        BlockEntity te = world.getBlockEntity(controllerPos);
-        if (te instanceof ComputationCoreBlockEntity tile) {
-            tile.disassemble();
-        }
-        updateMeInterfaceState(world, controllerPos, false);
-    }
-
-    private static BlockPos getMeInterfacePos(Level world, BlockPos controllerPos) {
-        Direction facing = getControllerFacing(world, controllerPos);
-        return controllerPos.offset(rotate(ME_INTERFACE_REL, facing));
-    }
-
-    private static void updateMeInterfaceState(Level world, BlockPos controllerPos, boolean formed) {
-        BlockPos interfacePos = getMeInterfacePos(world, controllerPos);
-        if (!world.isLoaded(interfacePos)) {
-            return;
-        }
-        BlockState state = ModBlocks.MULTIBLOCK_ME_INTERFACE.get().defaultBlockState()
-                .setValue(MultiblockMeInterfaceBlock.FORMED, formed);
-        if (world.getBlockState(interfacePos).getBlock() == ModBlocks.MULTIBLOCK_ME_INTERFACE.get()) {
-            world.setBlock(interfacePos, state, Block.UPDATE_ALL);
-            BlockEntity te = world.getBlockEntity(interfacePos);
-            if (te instanceof com.github.aeddddd.ae2enhanced.multiblock.MultiblockMeInterfaceBlockEntity me) {
-                me.setControllerPos(formed ? controllerPos : null);
+        @Override
+        public void disassemble(Level level, BlockPos controllerPos) {
+            if (level.isClientSide()) {
+                return;
+            }
+            if (level.getBlockEntity(controllerPos) instanceof ComputationCoreBlockEntity tile) {
+                tile.disassemble();
+            }
+            Direction facing = getRotation(level, controllerPos);
+            BlockPos interfacePos = controllerPos.offset(StructureUtils.rotate(ME_INTERFACE_REL, facing));
+            if (level.getBlockEntity(interfacePos) instanceof MultiblockMeInterfaceBlockEntity me) {
+                me.setControllerPos(null);
             }
         }
-    }
 
-    /**
-     * Creative mode: place all missing blocks instantly.
-     */
-    public static void placeMissingBlocks(Level world, BlockPos controllerPos, Player player) {
-        if (world.isClientSide()) return;
-        Direction facing = getControllerFacing(world, controllerPos);
-
-        placeBlocks(world, controllerPos, TENSOR_CASING_SET, ModBlocks.CONSTANT_TENSOR_FIELD_CASING.get(), facing, player);
-        placeBlocks(world, controllerPos, CAUSAL_ANCHOR_SET, ModBlocks.CAUSAL_ANCHOR_CORE.get(), facing, player);
-        placeBlocks(world, controllerPos, SPINOR_CASING_SET, ModBlocks.CONSTANT_SPINOR_FIELD_CASING.get(), facing, player);
-
-        BlockPos meInterfacePos = controllerPos.offset(rotate(ME_INTERFACE_REL, facing));
-        if (world.getBlockState(meInterfacePos).getBlock() != ModBlocks.MULTIBLOCK_ME_INTERFACE.get()) {
-            world.setBlock(meInterfacePos, ModBlocks.MULTIBLOCK_ME_INTERFACE.get().defaultBlockState(), Block.UPDATE_ALL);
-        }
-
-        assemble(world, controllerPos);
-    }
-
-    private static void placeBlocks(Level world, BlockPos controllerPos, Set<BlockPos> set, Block block, Direction facing, Player player) {
-        for (BlockPos rel : set) {
-            if (rel.equals(CONTROLLER_REL)) continue; // skip controller position
-            BlockPos pos = controllerPos.offset(rotate(rel, facing));
-            if (world.getBlockState(pos).getBlock() == block) continue;
-            // avoid suffocating player
-            if (player != null && pos.equals(player.blockPosition())) {
-                movePlayerToSafety(world, controllerPos, player);
+        @Override
+        public void placeMissingBlocks(Level level, BlockPos controllerPos, Player player) {
+            if (level.isClientSide()) {
+                return;
             }
-            world.setBlock(pos, block.defaultBlockState(), Block.UPDATE_ALL);
-        }
-    }
-
-    private static void movePlayerToSafety(Level world, BlockPos controllerPos, Player player) {
-        BlockPos safe = controllerPos.above(2);
-        for (int dy = 2; dy < 10; dy++) {
-            BlockPos candidate = controllerPos.above(dy);
-            if (world.isEmptyBlock(candidate) && world.isEmptyBlock(candidate.above())) {
-                safe = candidate;
-                break;
+            Direction facing = getRotation(level, controllerPos);
+            for (Map.Entry<BlockPos, Block> entry : definition.getExpectedBlocks()) {
+                BlockPos rel = entry.getKey();
+                Block block = entry.getValue();
+                if (rel.equals(CONTROLLER_REL) && block == ModBlocks.CONSTANT_TENSOR_FIELD_CASING.get()) {
+                    continue;
+                }
+                BlockPos pos = controllerPos.offset(StructureUtils.rotate(rel, facing));
+                if (level.getBlockState(pos).getBlock() == block) {
+                    continue;
+                }
+                if (player != null && pos.equals(player.blockPosition())) {
+                    movePlayerToSafety(level, controllerPos, player);
+                }
+                level.setBlock(pos, block.defaultBlockState(), Block.UPDATE_ALL);
             }
-        }
-        player.teleportTo(safe.getX() + 0.5, safe.getY(), safe.getZ() + 0.5);
-    }
-
-    /**
-     * Survival mode: check inventory, consume materials, place missing blocks.
-     * @return true if successful
-     */
-    public static boolean tryConsumeAndPlace(Level world, BlockPos controllerPos, Player player) {
-        if (world.isClientSide()) return false;
-        Direction facing = getControllerFacing(world, controllerPos);
-
-        Map<Block, Integer> missing = new LinkedHashMap<>();
-        for (BlockPos rel : TENSOR_CASING_SET) {
-            if (rel.equals(CONTROLLER_REL)) continue; // skip controller position
-            BlockPos actual = controllerPos.offset(rotate(rel, facing));
-            if (!world.isLoaded(actual)) continue;
-            if (world.getBlockState(actual).getBlock() != ModBlocks.CONSTANT_TENSOR_FIELD_CASING.get()) {
-                missing.put(ModBlocks.CONSTANT_TENSOR_FIELD_CASING.get(), missing.getOrDefault(ModBlocks.CONSTANT_TENSOR_FIELD_CASING.get(), 0) + 1);
-            }
-        }
-        for (BlockPos rel : CAUSAL_ANCHOR_SET) {
-            if (rel.equals(CONTROLLER_REL)) continue; // skip controller position
-            BlockPos actual = controllerPos.offset(rotate(rel, facing));
-            if (!world.isLoaded(actual)) continue;
-            if (world.getBlockState(actual).getBlock() != ModBlocks.CAUSAL_ANCHOR_CORE.get()) {
-                missing.put(ModBlocks.CAUSAL_ANCHOR_CORE.get(), missing.getOrDefault(ModBlocks.CAUSAL_ANCHOR_CORE.get(), 0) + 1);
-            }
-        }
-        for (BlockPos rel : SPINOR_CASING_SET) {
-            if (rel.equals(CONTROLLER_REL)) continue; // skip controller position
-            BlockPos actual = controllerPos.offset(rotate(rel, facing));
-            if (!world.isLoaded(actual)) continue;
-            if (world.getBlockState(actual).getBlock() != ModBlocks.CONSTANT_SPINOR_FIELD_CASING.get()) {
-                missing.put(ModBlocks.CONSTANT_SPINOR_FIELD_CASING.get(), missing.getOrDefault(ModBlocks.CONSTANT_SPINOR_FIELD_CASING.get(), 0) + 1);
-            }
-        }
-        BlockPos meInterfacePos = controllerPos.offset(rotate(ME_INTERFACE_REL, facing));
-        if (world.isLoaded(meInterfacePos) && world.getBlockState(meInterfacePos).getBlock() != ModBlocks.MULTIBLOCK_ME_INTERFACE.get()) {
-            missing.put(ModBlocks.MULTIBLOCK_ME_INTERFACE.get(), missing.getOrDefault(ModBlocks.MULTIBLOCK_ME_INTERFACE.get(), 0) + 1);
+            assemble(level, controllerPos);
         }
 
-        if (missing.isEmpty()) {
-            assemble(world, controllerPos);
-            return true;
-        }
-
-        Inventory inv = player.getInventory();
-        Map<Block, Integer> needed = new LinkedHashMap<>(missing);
-
-        for (ItemStack stack : inv.items) {
-            if (stack.isEmpty()) continue;
-            for (Map.Entry<Block, Integer> entry : needed.entrySet()) {
-                Block block = entry.getKey();
-                if (stack.getItem() == block.asItem()) {
-                    int need = entry.getValue();
-                    int have = stack.getCount();
-                    if (have >= need) {
-                        entry.setValue(0);
-                    } else {
-                        entry.setValue(need - have);
-                    }
+        private static void movePlayerToSafety(Level level, BlockPos controllerPos, Player player) {
+            BlockPos safe = controllerPos.above(2);
+            for (int dy = 2; dy < 10; dy++) {
+                BlockPos candidate = controllerPos.above(dy);
+                if (level.isEmptyBlock(candidate) && level.isEmptyBlock(candidate.above())) {
+                    safe = candidate;
                     break;
                 }
             }
-        }
-
-        for (int count : needed.values()) {
-            if (count > 0) return false;
-        }
-
-        // Consume materials
-        for (Map.Entry<Block, Integer> entry : missing.entrySet()) {
-            Block block = entry.getKey();
-            int remaining = entry.getValue();
-            Item item = block.asItem();
-            for (int i = 0; i < inv.items.size() && remaining > 0; i++) {
-                ItemStack stack = inv.items.get(i);
-                if (stack.getItem() == item) {
-                    int take = Math.min(stack.getCount(), remaining);
-                    int removed = inv.removeItem(i, take).getCount();
-                    remaining -= removed;
-                }
-            }
-        }
-
-        placeMissingBlocks(world, controllerPos, player);
-        return true;
-    }
-
-    public static class ValidationResult {
-        public final boolean passed;
-        public final Map<Block, Integer> missing;
-        public final int causalAnchorCount;
-        public final int parallelLimit;
-
-        public ValidationResult(boolean passed, Map<Block, Integer> missing, int causalAnchorCount, int parallelLimit) {
-            this.passed = passed;
-            this.missing = Collections.unmodifiableMap(missing);
-            this.causalAnchorCount = causalAnchorCount;
-            this.parallelLimit = parallelLimit;
+            player.teleportTo(safe.getX() + 0.5, safe.getY(), safe.getZ() + 0.5);
         }
     }
 }

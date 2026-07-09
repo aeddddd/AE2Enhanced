@@ -28,10 +28,6 @@ public final class VirtualCraftingCPURegistry {
         CLUSTERS.remove(cluster);
     }
 
-    public static boolean isRegistered(CraftingCPUCluster cluster) {
-        return CLUSTERS.contains(cluster);
-    }
-
     public static Set<CraftingCPUCluster> getClusters() {
         return Collections.unmodifiableSet(CLUSTERS);
     }

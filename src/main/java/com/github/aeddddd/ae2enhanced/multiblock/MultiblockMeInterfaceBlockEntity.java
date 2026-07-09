@@ -12,11 +12,8 @@ import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
 
 import appeng.api.crafting.IPatternDetails;
-import appeng.api.networking.IGridNode;
 import appeng.api.networking.IManagedGridNode;
 import appeng.api.networking.crafting.ICraftingProvider;
-import appeng.api.networking.energy.IEnergyService;
-import appeng.api.networking.storage.IStorageService;
 import appeng.api.storage.IStorageMounts;
 import appeng.api.storage.IStorageProvider;
 import appeng.api.storage.MEStorage;
@@ -208,18 +205,14 @@ public class MultiblockMeInterfaceBlockEntity extends AENetworkBlockEntity
 
     @Override
     public boolean isVirtualCpuAvailable() {
-        return getController() instanceof com.github.aeddddd.ae2enhanced.computation.blockentity.ComputationCoreBlockEntity core
-                && core.isFormed();
+        IMultiblockController controller = getController();
+        return controller != null && controller.isVirtualCpuAvailable();
     }
 
     @Override
     public int getVirtualCpuParallelLimit() {
         IMultiblockController controller = getController();
-        if (controller instanceof com.github.aeddddd.ae2enhanced.computation.blockentity.ComputationCoreBlockEntity core
-                && core.isFormed()) {
-            return core.getParallelLimit();
-        }
-        return 0;
+        return controller != null ? controller.getVirtualCpuParallelLimit() : 0;
     }
 
     @Override

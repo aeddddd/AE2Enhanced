@@ -9,6 +9,7 @@ import net.minecraft.world.level.Level;
 import com.github.aeddddd.ae2enhanced.registry.ModBlocks;
 import com.github.aeddddd.ae2enhanced.structure.HyperdimensionalStructure;
 import com.github.aeddddd.ae2enhanced.structure.SupercausalStructure;
+import com.github.aeddddd.ae2enhanced.util.StructureUtils;
 
 /**
  * 控制器定位器。
@@ -33,20 +34,26 @@ public interface IControllerLocator {
     static IControllerLocator defaultLocator() {
         return (level, interfacePos) -> {
             for (Direction facing : Direction.Plane.HORIZONTAL) {
-                // 超维度仓储：接口相对控制器坐标 (0,0,4)
-                BlockPos hd = interfacePos.subtract(HyperdimensionalStructure.rotate(new BlockPos(0, 0, 4), facing));
-                if (level.getBlockState(hd).is(ModBlocks.HYPERDIMENSIONAL_CONTROLLER.get())
-                        && HyperdimensionalStructure.validate(level, hd)) {
-                    return hd;
+                // 超维度仓储：接口相对控制器坐标由结构定义给出
+                BlockPos hdRel = HyperdimensionalStructure.INSTANCE.getInterfaceRelativePos();
+                if (hdRel != null) {
+                    BlockPos hd = interfacePos.subtract(StructureUtils.rotate(hdRel, facing));
+                    if (level.getBlockState(hd).is(ModBlocks.HYPERDIMENSIONAL_CONTROLLER.get())
+                            && HyperdimensionalStructure.validate(level, hd)) {
+                        return hd;
+                    }
                 }
 
                 // 装配枢纽：已不再使用通用 ME 接口，定位器不再扫描旧结构。
 
-                // 超因果计算核心：接口相对控制器坐标 (0,0,-6)
-                BlockPos sc = interfacePos.subtract(SupercausalStructure.rotate(new BlockPos(0, 0, -6), facing));
-                if (level.getBlockState(sc).is(ModBlocks.COMPUTATION_CONTROLLER.get())
-                        && SupercausalStructure.validate(level, sc).passed) {
-                    return sc;
+                // 超因果计算核心：接口相对控制器坐标由结构定义给出
+                BlockPos scRel = SupercausalStructure.INSTANCE.getInterfaceRelativePos();
+                if (scRel != null) {
+                    BlockPos sc = interfacePos.subtract(StructureUtils.rotate(scRel, facing));
+                    if (level.getBlockState(sc).is(ModBlocks.COMPUTATION_CONTROLLER.get())
+                            && SupercausalStructure.validate(level, sc).passed) {
+                        return sc;
+                    }
                 }
             }
             return null;

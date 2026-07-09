@@ -40,12 +40,8 @@ public abstract class AE2EBaseEntityBlock extends Block implements EntityBlock {
 
     @Override
     public void onRemove(BlockState state, Level level, BlockPos pos, BlockState newState, boolean isMoving) {
-        if (state.getBlock() != newState.getBlock()) {
-            BlockEntity blockEntity = level.getBlockEntity(pos);
-            if (blockEntity != null) {
-                level.removeBlockEntity(pos);
-            }
-        }
+        // 交由 Minecraft 标准方块替换逻辑处理 BlockEntity 生命周期；
+        // 不手动调用 level.removeBlockEntity，避免重复移除或跳过 setRemoved 回调。
         super.onRemove(state, level, pos, newState, isMoving);
     }
 

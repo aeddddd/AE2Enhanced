@@ -1,7 +1,6 @@
 package com.github.aeddddd.ae2enhanced.computation.blockentity;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 
@@ -43,14 +42,6 @@ public class ComputationCoreBlockEntity extends MultiblockControllerBlockEntity 
 
     public int getParallelLimit() {
         return parallelLimit;
-    }
-
-    public List<VirtualCraftingCPU> getCpuPool() {
-        return Collections.unmodifiableList(cpuPool);
-    }
-
-    public int getPoolSize() {
-        return cpuPool.size();
     }
 
     public int getActiveJobs() {
@@ -121,6 +112,16 @@ public class ComputationCoreBlockEntity extends MultiblockControllerBlockEntity 
         unbindVirtualCpu();
         interfacePos = null;
         parallelLimit = 0;
+    }
+
+    @Override
+    public boolean isVirtualCpuAvailable() {
+        return isFormed();
+    }
+
+    @Override
+    public int getVirtualCpuParallelLimit() {
+        return isFormed() ? parallelLimit : 0;
     }
 
     public void serverTick() {

@@ -1,13 +1,19 @@
 package com.github.aeddddd.ae2enhanced.hyperdimensional.storage;
 
+import appeng.api.stacks.AEFluidKey;
+import appeng.api.stacks.AEItemKey;
 import appeng.api.stacks.AEKey;
 import appeng.api.stacks.AEKeyType;
-import appeng.api.stacks.AEItemKey;
-import appeng.api.stacks.AEFluidKey;
-
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
 import com.github.aeddddd.ae2enhanced.hyperdimensional.storage.channel.EnergyKey;
-
+import com.github.aeddddd.ae2enhanced.hyperdimensional.storage.codec.DescriptorCodec;
+import com.github.aeddddd.ae2enhanced.hyperdimensional.storage.codec.EnergyDescriptorCodec;
+import com.github.aeddddd.ae2enhanced.hyperdimensional.storage.codec.FluidDescriptorCodec;
+import com.github.aeddddd.ae2enhanced.hyperdimensional.storage.codec.ItemDescriptorCodec;
+import com.github.aeddddd.ae2enhanced.hyperdimensional.storage.descriptor.Descriptor;
+import com.github.aeddddd.ae2enhanced.hyperdimensional.storage.descriptor.EnergyDescriptor;
+import com.github.aeddddd.ae2enhanced.hyperdimensional.storage.descriptor.FluidDescriptor;
+import com.github.aeddddd.ae2enhanced.hyperdimensional.storage.descriptor.ItemDescriptor;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
@@ -32,8 +38,10 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -45,7 +53,7 @@ import java.util.zip.CRC32;
  * 其中每个通道分别保存为二进制文件（items.bin、fluids.bin、energy.bin）。
  * 旧版单文件 {@code <nexusId>.dat} 在首次加载时自动迁移到二进制格式并备份为 {@code .backup}。</p>
  *
- * <p>二进制格式（版本 2）：</p>
+ * <p>二进制格式（版本 2 / 3）：</p>
  * <ul>
  *   <li>Magic: 4 bytes ('A','E','2','E')</li>
  *   <li>Version: 4 bytes int</li>
@@ -55,10 +63,10 @@ import java.util.zip.CRC32;
  *   <li>CRC32: 4 bytes（覆盖 Magic 到 Entries 末尾）</li>
  * </ul>
  *
- * <p>条目描述符（版本 2）：</p>
+ * <p>条目描述符：</p>
  * <ul>
  *   <li>Type: 1 byte（1=物品, 2=流体, 3=能量）</li>
- *   <li>Key NBT: 物品/流体直接写入 {@link AEKey#toTag()} 的完整 CompoundTag；能量写入标记字符串</li>
+ *   <li>Key: 物品/流体由对应 {@link DescriptorCodec} 写入完整 NBT；能量写入标记字符串</li>
  * </ul>
  *
  * <p>版本 1 的格式仍可读，但新文件统一以版本 2 写入。加载失败时进入安全模式，
@@ -74,7 +82,6 @@ public final class HyperdimensionalStorageFile {
     private static final byte TYPE_ITEM = 1;
     private static final byte TYPE_FLUID = 2;
     private static final byte TYPE_ENERGY = 3;
-    private static final String ENERGY_MARKER = "ae2enhanced:energy";
 
     // 旧版 NBT 常量
     private static final String TAG_VERSION = "version";
@@ -91,7 +98,7 @@ public final class HyperdimensionalStorageFile {
 
     private final Path directory;
     private final UUID nexusId;
-    private boolean dirty = false;
+    private final Set<StorageSection> dirtySections = EnumSet.noneOf(StorageSection.class);
     private volatile boolean safeMode = false;
 
     private HyperdimensionalStorageFile(Path directory, UUID nexusId) {
@@ -147,7 +154,7 @@ public final class HyperdimensionalStorageFile {
     }
 
     /**
-     * 尝试迁移旧版 NBT 文件到二进制格式。
+     * 尝试迁移旧版 NBT 文件到二进制文件。
      */
     public void tryMigrateLegacy() {
         Path legacy = directory.resolveSibling(nexusId + ".dat");
@@ -157,62 +164,106 @@ public final class HyperdimensionalStorageFile {
     }
 
     /**
-     * 读取指定通道的二进制文件，对每个有效条目调用 consumer。
+     * 加载指定 section 的二进制文件，对每个有效条目调用 consumer。
+     * <p>由 {@link com.github.aeddddd.ae2enhanced.hyperdimensional.storage.adapter.AbstractStorageAdapter}
+     * 在初始化时调用。</p>
      */
-    public void loadChannel(AEKeyType type, BiConsumer<AEKey, BigInteger> consumer) {
-        if (safeMode || type == null || consumer == null) {
+    public <D extends Descriptor> void loadSection(
+            StorageSection section, byte type, DescriptorCodec<D> codec, BiConsumer<D, BigInteger> consumer) {
+        if (safeMode || section == null || codec == null || consumer == null) {
             return;
         }
-        Path file = getChannelFile(type);
-        if (!Files.exists(file)) {
+        Path file = getSectionFile(section);
+        if (file == null || !Files.exists(file)) {
             return;
         }
         try {
             byte[] data = readFileLocked(file);
-            parseBinaryFile(data, consumer, file);
+            parseBinaryFile(data, type, codec, consumer, file, section.getName());
         } catch (Exception e) {
-            enterSafeMode("loadChannel " + type.getId(), e);
+            enterSafeMode("loadSection " + section.getName(), e);
         }
     }
 
     /**
-     * 将指定通道的条目写入二进制文件。
+     * 将指定 section 的条目写入二进制文件。
+     * <p>仅当对应 section 为脏时才会实际写入，写入成功后标记该 section 已保存。</p>
      */
-    public void saveChannel(AEKeyType type, Map<AEKey, BigInteger> entries) {
-        if (safeMode || type == null || entries == null) {
+    public <D extends Descriptor> void saveSection(
+            StorageSection section, byte type, DescriptorCodec<D> codec, Map<D, BigInteger> entries) {
+        if (safeMode || section == null || codec == null || entries == null) {
+            return;
+        }
+        if (!isDirty(section)) {
             return;
         }
         try {
             ensureDirectory();
-            Path file = getChannelFile(type);
+            Path file = getSectionFile(section);
+            if (file == null) {
+                throw new IOException("Unknown section file: " + section.getName());
+            }
             Path temp = directory.resolve(file.getFileName() + ".tmp");
-            byte[] data = serializeBinaryFile(entries);
+            byte[] data = serializeBinaryFile(type, codec, entries);
             writeFileLocked(temp, data);
             Files.move(temp, file, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+            markClean(section);
         } catch (Exception e) {
-            enterSafeMode("saveChannel " + type.getId(), e);
+            enterSafeMode("saveSection " + section.getName(), e);
         }
     }
 
     /**
-     * 标记当前 Nexus 的存储数据已脏。
+     * 标记当前 Nexus 的所有 section 已脏（兼容旧的全局调用）。
      */
     public void markDirty() {
-        this.dirty = true;
+        dirtySections.addAll(EnumSet.allOf(StorageSection.class));
     }
 
     /**
-     * @return 当前是否脏
+     * 标记指定 section 已脏。
+     *
+     * @param section 发生变更的 section
+     */
+    public void markDirty(StorageSection section) {
+        if (section == null) {
+            return;
+        }
+        dirtySections.add(section);
+    }
+
+    /**
+     * @return 当前是否有任何 section 处于脏状态
      */
     public boolean isDirty() {
-        return dirty;
+        return !dirtySections.isEmpty();
     }
 
     /**
-     * 标记当前 Nexus 的存储数据已保存。
+     * @param section 指定 section
+     * @return 该 section 是否处于脏状态
+     */
+    public boolean isDirty(StorageSection section) {
+        return section != null && dirtySections.contains(section);
+    }
+
+    /**
+     * 标记当前 Nexus 的所有 section 已保存。
      */
     public void markClean() {
-        this.dirty = false;
+        dirtySections.clear();
+    }
+
+    /**
+     * 标记指定 section 已保存。
+     *
+     * @param section 已持久化的 section
+     */
+    public void markClean(StorageSection section) {
+        if (section == null) {
+            return;
+        }
+        dirtySections.remove(section);
     }
 
     /**
@@ -269,7 +320,7 @@ public final class HyperdimensionalStorageFile {
                 throw new IOException("Unknown legacy version: " + version);
             }
             for (Map.Entry<AEKeyType, Map<AEKey, BigInteger>> entry : grouped.entrySet()) {
-                saveChannel(entry.getKey(), entry.getValue());
+                saveLegacyEntries(entry.getKey(), entry.getValue());
             }
             Path backup = legacyPath.resolveSibling(legacyPath.getFileName() + ".backup");
             Files.move(legacyPath, backup, StandardCopyOption.REPLACE_EXISTING);
@@ -302,9 +353,13 @@ public final class HyperdimensionalStorageFile {
         }
     }
 
-    private Path getChannelFile(AEKeyType type) {
-        String name = getChannelFileName(type);
-        return directory.resolve(name);
+    @Nullable
+    private Path getSectionFile(StorageSection section) {
+        AEKeyType type = section.getKeyType();
+        if (type == null) {
+            return null;
+        }
+        return directory.resolve(getChannelFileName(type));
     }
 
     private String getChannelFileName(AEKeyType type) {
@@ -338,9 +393,40 @@ public final class HyperdimensionalStorageFile {
         return null;
     }
 
+    private void saveLegacyEntries(AEKeyType type, Map<AEKey, BigInteger> entries) throws IOException {
+        if (type == AEKeyType.items()) {
+            Map<ItemDescriptor, BigInteger> map = new HashMap<>();
+            for (Map.Entry<AEKey, BigInteger> e : entries.entrySet()) {
+                if (e.getKey() instanceof AEItemKey itemKey) {
+                    map.put(new ItemDescriptor(itemKey), e.getValue());
+                }
+            }
+            markDirty(StorageSection.ITEMS);
+            saveSection(StorageSection.ITEMS, TYPE_ITEM, ItemDescriptorCodec.INSTANCE, map);
+        } else if (type == AEKeyType.fluids()) {
+            Map<FluidDescriptor, BigInteger> map = new HashMap<>();
+            for (Map.Entry<AEKey, BigInteger> e : entries.entrySet()) {
+                if (e.getKey() instanceof AEFluidKey fluidKey) {
+                    map.put(new FluidDescriptor(fluidKey), e.getValue());
+                }
+            }
+            markDirty(StorageSection.FLUIDS);
+            saveSection(StorageSection.FLUIDS, TYPE_FLUID, FluidDescriptorCodec.INSTANCE, map);
+        } else if (type == EnergyKey.ENERGY_KEY_TYPE) {
+            BigInteger total = BigInteger.ZERO;
+            for (BigInteger amount : entries.values()) {
+                total = total.add(amount);
+            }
+            Map<EnergyDescriptor, BigInteger> map = Map.of(EnergyDescriptor.INSTANCE, total);
+            markDirty(StorageSection.ENERGY);
+            saveSection(StorageSection.ENERGY, TYPE_ENERGY, EnergyDescriptorCodec.INSTANCE, map);
+        }
+    }
+
     // ===== 二进制文件读写 =====
 
-    private byte[] serializeBinaryFile(Map<AEKey, BigInteger> entries) throws IOException {
+    private <D extends Descriptor> byte[] serializeBinaryFile(
+            byte type, DescriptorCodec<D> codec, Map<D, BigInteger> entries) throws IOException {
         ByteArrayOutputStream content = new ByteArrayOutputStream();
         try (DataOutputStream out = new DataOutputStream(content)) {
             // 头部 16 字节
@@ -351,8 +437,8 @@ public final class HyperdimensionalStorageFile {
                 throw new IOException("Too many entries: " + entries.size());
             }
             out.writeInt(entries.size());
-            for (Map.Entry<AEKey, BigInteger> entry : entries.entrySet()) {
-                byte[] descriptor = writeDescriptor(entry.getKey());
+            for (Map.Entry<D, BigInteger> entry : entries.entrySet()) {
+                byte[] descriptor = writeDescriptor(type, codec, entry.getKey());
                 out.writeInt(descriptor.length);
                 out.write(descriptor);
                 BigInteger count = entry.getValue();
@@ -378,7 +464,9 @@ public final class HyperdimensionalStorageFile {
         return result.toByteArray();
     }
 
-    private void parseBinaryFile(byte[] data, BiConsumer<AEKey, BigInteger> consumer, Path sourceFile) throws IOException {
+    private <D extends Descriptor> void parseBinaryFile(
+            byte[] data, byte expectedType, DescriptorCodec<D> codec, BiConsumer<D, BigInteger> consumer,
+            Path sourceFile, String typeName) throws IOException {
         if (data.length < 4) {
             throw new IOException("File too small to contain magic");
         }
@@ -392,37 +480,35 @@ public final class HyperdimensionalStorageFile {
             if (version != BINARY_VERSION && version != BINARY_VERSION_1) {
                 throw new IOException("Unsupported binary version: " + version);
             }
-            // 回退到已读取的头部位置，以便重新验证 CRC
+            in.readInt(); // flags
+            int count = in.readInt();
+            if (count < 0 || count > MAX_ENTRY_COUNT) {
+                throw new IOException("Invalid entry count: " + count);
+            }
+            for (int i = 0; i < count; i++) {
+                int descLen = in.readInt();
+                if (descLen < 0 || descLen > MAX_DESCRIPTOR_LENGTH) {
+                    throw new IOException("Invalid descriptor length: " + descLen);
+                }
+                byte[] descriptor = new byte[descLen];
+                in.readFully(descriptor);
+                D key = readDescriptor(descriptor, expectedType, codec, version);
+                int sign = in.readByte();
+                if (sign < -1 || sign > 1) {
+                    throw new IOException("Invalid sign byte: " + sign);
+                }
+                int magLen = in.readInt();
+                if (magLen < 0 || magLen > MAX_MAGNITUDE_LENGTH) {
+                    throw new IOException("Invalid magnitude length: " + magLen);
+                }
+                byte[] magnitude = new byte[magLen];
+                in.readFully(magnitude);
+                BigInteger amount = new BigInteger(sign, magnitude);
+                if (key != null && amount.signum() > 0) {
+                    consumer.accept(key, amount);
+                }
+            }
             if (version == BINARY_VERSION) {
-                in.readInt(); // flags
-                int count = in.readInt();
-                if (count < 0 || count > MAX_ENTRY_COUNT) {
-                    throw new IOException("Invalid entry count: " + count);
-                }
-                for (int i = 0; i < count; i++) {
-                    int descLen = in.readInt();
-                    if (descLen < 0 || descLen > MAX_DESCRIPTOR_LENGTH) {
-                        throw new IOException("Invalid descriptor length: " + descLen);
-                    }
-                    byte[] descriptor = new byte[descLen];
-                    in.readFully(descriptor);
-                    AEKey key = readDescriptor(descriptor, version);
-                    int sign = in.readByte();
-                    if (sign < -1 || sign > 1) {
-                        throw new IOException("Invalid sign byte: " + sign);
-                    }
-                    int magLen = in.readInt();
-                    if (magLen < 0 || magLen > MAX_MAGNITUDE_LENGTH) {
-                        throw new IOException("Invalid magnitude length: " + magLen);
-                    }
-                    byte[] magnitude = new byte[magLen];
-                    in.readFully(magnitude);
-                    BigInteger amount = new BigInteger(sign, magnitude);
-                    if (key != null && amount.signum() > 0) {
-                        consumer.accept(key, amount);
-                    }
-                }
-                // 验证 CRC32
                 int remaining = in.available();
                 if (remaining != 4) {
                     throw new IOException("CRC32 missing or extra trailing bytes: " + remaining);
@@ -436,33 +522,6 @@ public final class HyperdimensionalStorageFile {
                 long computedCrc = computeCrcOfContent(data);
                 if (storedCrcValue != computedCrc) {
                     throw new IOException("CRC32 mismatch: stored=" + storedCrcValue + ", computed=" + computedCrc);
-                }
-            } else {
-                // 版本 1：旧格式，无 CRC32
-                in.readInt(); // flags
-                int count = in.readInt();
-                if (count < 0 || count > MAX_ENTRY_COUNT) {
-                    throw new IOException("Invalid entry count: " + count);
-                }
-                for (int i = 0; i < count; i++) {
-                    int descLen = in.readInt();
-                    if (descLen < 0 || descLen > MAX_DESCRIPTOR_LENGTH) {
-                        throw new IOException("Invalid descriptor length: " + descLen);
-                    }
-                    byte[] descriptor = new byte[descLen];
-                    in.readFully(descriptor);
-                    AEKey key = readDescriptor(descriptor, version);
-                    int sign = in.readByte();
-                    int magLen = in.readInt();
-                    if (magLen < 0 || magLen > MAX_MAGNITUDE_LENGTH) {
-                        throw new IOException("Invalid magnitude length: " + magLen);
-                    }
-                    byte[] magnitude = new byte[magLen];
-                    in.readFully(magnitude);
-                    BigInteger amount = new BigInteger(sign, magnitude);
-                    if (key != null && amount.signum() > 0) {
-                        consumer.accept(key, amount);
-                    }
                 }
             }
         } catch (IOException e) {
@@ -492,90 +551,58 @@ public final class HyperdimensionalStorageFile {
         }
     }
 
-    private byte[] writeDescriptor(AEKey key) throws IOException {
+    private <D extends Descriptor> byte[] writeDescriptor(
+            byte type, DescriptorCodec<D> codec, D descriptor) throws IOException {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         try (DataOutputStream out = new DataOutputStream(baos)) {
-            if (key instanceof AEItemKey itemKey) {
-                out.writeByte(TYPE_ITEM);
-                CompoundTag tag = itemKey.toTag();
-                NbtIo.write(tag, out);
-            } else if (key instanceof AEFluidKey fluidKey) {
-                out.writeByte(TYPE_FLUID);
-                CompoundTag tag = fluidKey.toTag();
-                NbtIo.write(tag, out);
-            } else if (key instanceof EnergyKey) {
-                out.writeByte(TYPE_ENERGY);
-                out.writeUTF(ENERGY_MARKER);
-            } else {
-                out.writeByte((byte) 0);
-                out.writeUTF("");
-            }
+            out.writeByte(type);
+            codec.write(out, descriptor);
         }
         return baos.toByteArray();
     }
 
     @Nullable
-    private AEKey readDescriptor(byte[] descriptor, int version) {
+    private <D extends Descriptor> D readDescriptor(
+            byte[] descriptor, byte expectedType, DescriptorCodec<D> codec, int version) {
         try (DataInputStream in = new DataInputStream(new ByteArrayInputStream(descriptor))) {
             int type = in.readByte();
             if (version == BINARY_VERSION_1) {
-                return readDescriptorV1(type, in);
+                return readDescriptorV1(type, in, codec);
             }
-            return switch (type) {
-                case TYPE_ITEM -> {
-                    CompoundTag tag = NbtIo.read(in);
-                    if (tag == null) {
-                        yield null;
-                    }
-                    AEKey key = AEKey.fromTagGeneric(tag);
-                    if (!(key instanceof AEItemKey)) {
-                        yield null;
-                    }
-                    yield key;
-                }
-                case TYPE_FLUID -> {
-                    CompoundTag tag = NbtIo.read(in);
-                    if (tag == null) {
-                        yield null;
-                    }
-                    AEKey key = AEKey.fromTagGeneric(tag);
-                    if (!(key instanceof AEFluidKey)) {
-                        yield null;
-                    }
-                    yield key;
-                }
-                case TYPE_ENERGY -> EnergyKey.INSTANCE;
-                default -> null;
-            };
+            if (type != expectedType) {
+                AE2Enhanced.LOGGER.warn("[AE2E] Descriptor type mismatch: expected {}, got {}", expectedType, type);
+                return null;
+            }
+            return codec.read(in);
         } catch (Exception e) {
             AE2Enhanced.LOGGER.warn("[AE2E] Failed to read hyperdimensional storage descriptor: {}", e.toString());
             return null;
         }
     }
 
+    @SuppressWarnings("unchecked")
     @Nullable
-    private AEKey readDescriptorV1(int type, DataInputStream in) throws IOException {
+    private <D extends Descriptor> D readDescriptorV1(
+            int type, DataInputStream in, DescriptorCodec<D> codec) throws IOException {
         String id = in.readUTF();
-        return switch (type) {
-            case TYPE_ITEM -> {
-                ResourceLocation loc = new ResourceLocation(id);
-                if (!BuiltInRegistries.ITEM.containsKey(loc)) {
-                    yield null;
-                }
-                Item item = BuiltInRegistries.ITEM.get(loc);
-                yield AEItemKey.of(item);
+        if (type == TYPE_ITEM && codec instanceof ItemDescriptorCodec) {
+            ResourceLocation loc = new ResourceLocation(id);
+            if (!BuiltInRegistries.ITEM.containsKey(loc)) {
+                return null;
             }
-            case TYPE_FLUID -> {
-                ResourceLocation loc = new ResourceLocation(id);
-                if (!BuiltInRegistries.FLUID.containsKey(loc)) {
-                    yield null;
-                }
-                Fluid fluid = BuiltInRegistries.FLUID.get(loc);
-                yield AEFluidKey.of(fluid);
+            Item item = BuiltInRegistries.ITEM.get(loc);
+            return (D) new ItemDescriptor(AEItemKey.of(item));
+        } else if (type == TYPE_FLUID && codec instanceof FluidDescriptorCodec) {
+            ResourceLocation loc = new ResourceLocation(id);
+            if (!BuiltInRegistries.FLUID.containsKey(loc)) {
+                return null;
             }
-            case TYPE_ENERGY -> EnergyKey.INSTANCE;
-            default -> null;
-        };
+            Fluid fluid = BuiltInRegistries.FLUID.get(loc);
+            return (D) new FluidDescriptor(AEFluidKey.of(fluid));
+        } else if (type == TYPE_ENERGY && codec instanceof EnergyDescriptorCodec) {
+            return (D) EnergyDescriptor.INSTANCE;
+        }
+        return null;
     }
 
     // ===== 文件读写辅助 =====

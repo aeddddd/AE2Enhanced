@@ -7,6 +7,7 @@ import java.util.Map;
 import java.util.Set;
 
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.Level;
@@ -29,7 +30,10 @@ import com.github.aeddddd.ae2enhanced.structure.AssemblyStructure;
 import com.github.aeddddd.ae2enhanced.structure.ComputationCoreIndex;
 import com.github.aeddddd.ae2enhanced.structure.ControllerIndex;
 import com.github.aeddddd.ae2enhanced.structure.HyperdimensionalStructure;
+import com.github.aeddddd.ae2enhanced.structure.IMultiblockStructure;
 import com.github.aeddddd.ae2enhanced.structure.SupercausalStructure;
+import com.github.aeddddd.ae2enhanced.structure.ValidationResult;
+import com.github.aeddddd.ae2enhanced.util.StructureUtils;
 
 /**
  * 多方块结构全局事件驱动验证器。
@@ -132,35 +136,16 @@ public class StructureEventHandler {
      * 未完全加载时返回 false，防止 validate 误判导致解体。
      */
     private static boolean areAllChunksLoadedForController(Level level, BlockPos controllerPos) {
-        BlockState state = level.getBlockState(controllerPos);
-        Block block = state.getBlock();
-        if (block instanceof AssemblyControllerBlock) {
-            var facing = state.getValue(AssemblyControllerBlock.FACING);
-            BlockPos origin = AssemblyStructure.getOriginFromController(controllerPos, facing);
-            for (BlockPos rel : AssemblyStructure.ALL_SET) {
-                if (!level.isLoaded(origin.offset(rel))) {
-                    return false;
-                }
-            }
+        IMultiblockStructure structure = getStructureForController(level, controllerPos);
+        if (structure == null) {
             return true;
-        } else if (block instanceof HyperdimensionalControllerBlock) {
-            var facing = state.getValue(HyperdimensionalControllerBlock.FACING);
-            for (BlockPos rel : HyperdimensionalStructure.ALL_SET) {
-                BlockPos actual = controllerPos.offset(HyperdimensionalStructure.rotate(rel, facing));
-                if (!level.isLoaded(actual)) {
-                    return false;
-                }
+        }
+        Direction rotation = structure.getRotation(level, controllerPos);
+        for (BlockPos rel : structure.getAllPositions()) {
+            BlockPos actual = controllerPos.offset(StructureUtils.rotate(rel, rotation));
+            if (!level.isLoaded(actual)) {
+                return false;
             }
-            return true;
-        } else if (block instanceof ComputationControllerBlock) {
-            var facing = SupercausalStructure.getControllerFacing(level, controllerPos);
-            for (BlockPos rel : SupercausalStructure.ALL_STRUCTURE_SET) {
-                BlockPos actual = controllerPos.offset(SupercausalStructure.rotate(rel, facing));
-                if (!level.isLoaded(actual)) {
-                    return false;
-                }
-            }
-            return true;
         }
         return true;
     }
@@ -172,19 +157,9 @@ public class StructureEventHandler {
             BlockState state = level.getBlockState(controllerPos);
             Block block = state.getBlock();
             if (block instanceof AssemblyControllerBlock) {
-                var facing = state.getValue(AssemblyControllerBlock.FACING);
-                BlockPos origin = AssemblyStructure.getOriginFromController(controllerPos, facing);
-                BlockPos rel = changedPos.subtract(origin);
-                if (AssemblyStructure.ALL_SET.contains(rel)) {
-                    scheduleCheck(level, controllerPos);
-                }
+                checkControllerChanged(level, changedPos, controllerPos, AssemblyStructure.INSTANCE);
             } else if (block instanceof HyperdimensionalControllerBlock) {
-                var facing = state.getValue(HyperdimensionalControllerBlock.FACING);
-                BlockPos rel = changedPos.subtract(controllerPos);
-                BlockPos rotatedRel = HyperdimensionalStructure.rotate(rel, facing.getOpposite());
-                if (HyperdimensionalStructure.ALL_SET.contains(rotatedRel)) {
-                    scheduleCheck(level, controllerPos);
-                }
+                checkControllerChanged(level, changedPos, controllerPos, HyperdimensionalStructure.INSTANCE);
             }
         }
 
@@ -193,13 +168,17 @@ public class StructureEventHandler {
             BlockState state = level.getBlockState(controllerPos);
             Block block = state.getBlock();
             if (block instanceof ComputationControllerBlock) {
-                var facing = SupercausalStructure.getControllerFacing(level, controllerPos);
-                BlockPos rel = changedPos.subtract(controllerPos);
-                BlockPos rotatedRel = SupercausalStructure.rotate(rel, facing.getOpposite());
-                if (SupercausalStructure.ALL_STRUCTURE_SET.contains(rotatedRel)) {
-                    scheduleCheck(level, controllerPos);
-                }
+                checkControllerChanged(level, changedPos, controllerPos, SupercausalStructure.INSTANCE);
             }
+        }
+    }
+
+    private static void checkControllerChanged(ServerLevel level, BlockPos changedPos, BlockPos controllerPos, IMultiblockStructure structure) {
+        Direction rotation = structure.getRotation(level, controllerPos);
+        BlockPos rel = changedPos.subtract(controllerPos);
+        BlockPos rotatedRel = StructureUtils.rotate(rel, rotation.getOpposite());
+        if (structure.getAllPositions().contains(rotatedRel)) {
+            scheduleCheck(level, controllerPos);
         }
     }
 
@@ -217,32 +196,45 @@ public class StructureEventHandler {
         BlockState state = level.getBlockState(controllerPos);
         Block block = state.getBlock();
         if (block instanceof HyperdimensionalControllerBlock) {
-            boolean valid = HyperdimensionalStructure.validate(level, controllerPos);
+            ValidationResult result = HyperdimensionalStructure.validateDetailed(level, controllerPos);
             if (level.getBlockEntity(controllerPos) instanceof HyperdimensionalControllerBlockEntity tile) {
-                if (valid && !tile.isFormed()) {
+                if (result.passed() && !tile.isFormed()) {
                     HyperdimensionalStructure.assemble(level, controllerPos);
-                } else if (!valid && tile.isFormed()) {
+                } else if (!result.passed() && tile.isFormed()) {
                     HyperdimensionalStructure.disassemble(level, controllerPos);
                 }
             }
         } else if (block instanceof AssemblyControllerBlock) {
-            boolean valid = AssemblyStructure.validate(level, controllerPos);
+            ValidationResult result = AssemblyStructure.validateDetailed(level, controllerPos);
             if (level.getBlockEntity(controllerPos) instanceof AssemblyControllerBlockEntity tile) {
-                if (valid && !tile.isFormed()) {
+                if (result.passed() && !tile.isFormed()) {
                     AssemblyStructure.assemble(level, controllerPos);
-                } else if (!valid && tile.isFormed()) {
+                } else if (!result.passed() && tile.isFormed()) {
                     AssemblyStructure.disassemble(level, controllerPos);
                 }
             }
         } else if (block instanceof ComputationControllerBlock) {
-            SupercausalStructure.ValidationResult result = SupercausalStructure.validate(level, controllerPos);
+            ValidationResult result = SupercausalStructure.validateDetailed(level, controllerPos);
             if (level.getBlockEntity(controllerPos) instanceof ComputationCoreBlockEntity tile) {
-                if (result.passed && !tile.isFormed()) {
+                if (result.passed() && !tile.isFormed()) {
                     SupercausalStructure.assemble(level, controllerPos);
-                } else if (!result.passed && tile.isFormed()) {
+                } else if (!result.passed() && tile.isFormed()) {
                     SupercausalStructure.disassemble(level, controllerPos);
                 }
             }
         }
+    }
+
+    private static IMultiblockStructure getStructureForController(Level level, BlockPos controllerPos) {
+        BlockState state = level.getBlockState(controllerPos);
+        Block block = state.getBlock();
+        if (block instanceof AssemblyControllerBlock) {
+            return AssemblyStructure.INSTANCE;
+        } else if (block instanceof HyperdimensionalControllerBlock) {
+            return HyperdimensionalStructure.INSTANCE;
+        } else if (block instanceof ComputationControllerBlock) {
+            return SupercausalStructure.INSTANCE;
+        }
+        return null;
     }
 }

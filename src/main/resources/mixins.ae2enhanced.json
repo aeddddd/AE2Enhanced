@@ -10,7 +10,12 @@
     "MixinCraftingCPUCluster",
     "MixinCraftingCpuLogic",
     "MixinPatternEncodingTermMenu",
-    "AppEngBaseMixin"
+    "AppEngBaseMixin",
+    "accessor.CraftingCpuLogicAccessor",
+    "accessor.ExecutingCraftingJobAccessor",
+    "accessor.TaskProgressAccessor",
+    "accessor.ElapsedTimeTrackerAccessor",
+    "accessor.CraftingCPUClusterInvoker"
   ],
   "client": [],
   "injectors": {

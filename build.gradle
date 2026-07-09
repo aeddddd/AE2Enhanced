@@ -79,6 +79,8 @@ dependencies {
     jarJar(group: 'io.github.llamalad7', name: 'mixinextras-forge', version: '0.4.1') {
         jarJar.ranged(it, '[0.4.1,0.5)')
     }
+
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.10.0'
 }
 
 tasks.named('jarJar', net.neoforged.gradle.common.tasks.JarJar) {
@@ -111,6 +113,8 @@ tasks.register('copyMixinRefmap', Copy) {
     into("${project.buildDir}/resources/main")
     dependsOn(tasks.compileJava)
 }
+
+tasks.compileTestJava.dependsOn(tasks.named('copyMixinRefmap'))
 
 tasks.jar {
     archiveClassifier = 'dev'
@@ -183,6 +187,8 @@ tasks.register('deobfAe2Jar', JavaExec) {
     mainClass = 'Ae2Deobfuscator'
     args = [ae2Jar, mappingFile, outputJar.get().asFile]
 }
+
+tasks.test.dependsOn(tasks.named('deobfAe2Jar'))
 
 // 仅对 AE2 mixin refmap 做补丁（备用）。
 tasks.register('fixAe2Refmap', JavaExec) {
