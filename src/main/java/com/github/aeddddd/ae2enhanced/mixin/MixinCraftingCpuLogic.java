@@ -82,11 +82,16 @@ public class MixinCraftingCpuLogic {
                     }
 
                     for (ICraftingProvider provider : providers) {
-                        if (!(provider instanceof MultiblockMeInterfaceBlockEntity meInterface)) {
-                            continue;
+                        AssemblyControllerBlockEntity hub = null;
+                        if (provider instanceof AssemblyControllerBlockEntity controller) {
+                            hub = controller;
+                        } else if (provider instanceof MultiblockMeInterfaceBlockEntity meInterface) {
+                            var controller = meInterface.getController();
+                            if (controller instanceof AssemblyControllerBlockEntity) {
+                                hub = (AssemblyControllerBlockEntity) controller;
+                            }
                         }
-                        var controller = meInterface.getController();
-                        if (!(controller instanceof AssemblyControllerBlockEntity hub)) {
+                        if (hub == null) {
                             continue;
                         }
                         if (!hub.isFormed() || !hub.canBatch()) {

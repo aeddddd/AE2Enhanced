@@ -15,10 +15,12 @@ import net.minecraft.world.phys.BlockHitResult;
 import net.minecraftforge.network.NetworkHooks;
 
 import com.github.aeddddd.ae2enhanced.blockentity.HyperdimensionalControllerBlockEntity;
+import com.github.aeddddd.ae2enhanced.multiblock.MultiblockControllerBlockEntity;
 import com.github.aeddddd.ae2enhanced.client.gui.HyperdimensionalNexusMenu;
 import com.github.aeddddd.ae2enhanced.client.gui.HyperdimensionalUnformedMenu;
 import com.github.aeddddd.ae2enhanced.structure.ControllerIndex;
 import com.github.aeddddd.ae2enhanced.structure.HyperdimensionalStructure;
+import com.github.aeddddd.ae2enhanced.structure.IMultiblockStructure;
 
 /**
  * 超维度仓储中枢控制器。
@@ -32,7 +34,18 @@ public class HyperdimensionalControllerBlock extends MultiblockControllerBlock {
     @Override
     public InteractionResult use(BlockState state, Level level, BlockPos pos, Player player,
             InteractionHand hand, BlockHitResult hitResult) {
-        if (player.isShiftKeyDown() || level.isClientSide()) {
+        if (player.isShiftKeyDown()) {
+            if (level.getBlockEntity(pos) instanceof MultiblockControllerBlockEntity controller) {
+                if (!controller.isFormed()) {
+                    if (!level.isClientSide()) {
+                        controller.toggleStructureProjection();
+                    }
+                    return InteractionResult.sidedSuccess(level.isClientSide());
+                }
+            }
+            return InteractionResult.PASS;
+        }
+        if (level.isClientSide()) {
             return InteractionResult.PASS;
         }
 
@@ -68,6 +81,11 @@ public class HyperdimensionalControllerBlock extends MultiblockControllerBlock {
     @Override
     protected void removeFromIndex(ServerLevel level, BlockPos pos) {
         ControllerIndex.get(level).remove(pos);
+    }
+
+    @Override
+    protected IMultiblockStructure getStructure() {
+        return HyperdimensionalStructure.INSTANCE;
     }
 
     @Override

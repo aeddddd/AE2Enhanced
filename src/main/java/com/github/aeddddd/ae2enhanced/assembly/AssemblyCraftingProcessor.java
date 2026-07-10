@@ -48,8 +48,6 @@ import com.github.aeddddd.ae2enhanced.util.MathUtils;
  */
 public class AssemblyCraftingProcessor {
 
-    private static final int MAX_PENDING_OUTPUTS = 4096;
-
     private final AssemblyControllerBlockEntity controller;
     private final AssemblyUpgradeManager upgradeManager;
     private final AssemblyPatternManager patternManager;
@@ -79,6 +77,13 @@ public class AssemblyCraftingProcessor {
         this.controller = controller;
         this.upgradeManager = upgradeManager;
         this.patternManager = patternManager;
+    }
+
+    /**
+     * 产物缓冲上限，从配置动态读取。
+     */
+    private static int getMaxPendingOutputs() {
+        return AE2EnhancedConfig.COMMON.assemblyMaxPendingOutputs.get();
     }
 
     /**
@@ -125,7 +130,7 @@ public class AssemblyCraftingProcessor {
      * 供 Mixin 调用：检查 pendingOutputs 是否还能接受指定数量的 stack。
      */
     public boolean canAcceptRealBatch(int stackCount) {
-        return pendingOutputs.size() + stackCount <= MAX_PENDING_OUTPUTS;
+        return pendingOutputs.size() + stackCount <= getMaxPendingOutputs();
     }
 
     /**
@@ -148,7 +153,7 @@ public class AssemblyCraftingProcessor {
         if (stack == null || stack.amount() <= 0) {
             return;
         }
-        if (pendingOutputs.size() >= MAX_PENDING_OUTPUTS) {
+        if (pendingOutputs.size() >= getMaxPendingOutputs()) {
             AE2Enhanced.LOGGER.error("[AE2E] pendingOutputs overflow, dropping {}", stack);
             return;
         }
@@ -363,10 +368,10 @@ public class AssemblyCraftingProcessor {
             }
         }
 
-        if (pendingOutputs.size() + leftovers.size() > MAX_PENDING_OUTPUTS) {
+        if (pendingOutputs.size() + leftovers.size() > getMaxPendingOutputs()) {
             AE2Enhanced.LOGGER.error("[AE2E] pendingOutputs overflow in AssemblyController at {}, dropping {}",
-                    controller.getBlockPos(), pendingOutputs.size() + leftovers.size() - MAX_PENDING_OUTPUTS);
-            while (pendingOutputs.size() + leftovers.size() > MAX_PENDING_OUTPUTS) {
+                    controller.getBlockPos(), pendingOutputs.size() + leftovers.size() - getMaxPendingOutputs());
+            while (pendingOutputs.size() + leftovers.size() > getMaxPendingOutputs()) {
                 if (!leftovers.isEmpty()) {
                     leftovers.remove(leftovers.size() - 1);
                 } else {

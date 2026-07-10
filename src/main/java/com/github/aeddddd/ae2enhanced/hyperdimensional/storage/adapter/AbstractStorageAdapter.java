@@ -2,9 +2,9 @@ package com.github.aeddddd.ae2enhanced.hyperdimensional.storage.adapter;
 
 import appeng.api.config.Actionable;
 import appeng.api.stacks.AEKey;
+import appeng.api.stacks.AEKeyType;
 import appeng.api.stacks.KeyCounter;
 import com.github.aeddddd.ae2enhanced.hyperdimensional.storage.HyperdimensionalStorageFile;
-import com.github.aeddddd.ae2enhanced.hyperdimensional.storage.StorageSection;
 import com.github.aeddddd.ae2enhanced.hyperdimensional.storage.channel.StorageChannelConstants;
 import com.github.aeddddd.ae2enhanced.hyperdimensional.storage.codec.DescriptorCodec;
 import com.github.aeddddd.ae2enhanced.hyperdimensional.storage.descriptor.Descriptor;
@@ -18,30 +18,29 @@ import java.util.Objects;
 
 /**
  * 超维度仓储中枢的泛型存储适配器基类。
- * 统一物品/流体/能量等 AE key type 的公共逻辑：
+ * 统一物品/流体/能量以及第三方 AEKeyType 的公共逻辑：
  * - insert / extract 的 SIMULATE / MODULATE 事务
  * - getAvailableStacks 的遍历与数量转换
  * - 基于 BigInteger 的内部存储
  *
- * 子类只需实现：
+ * <p>子类只需实现：
  * - {@link #createDescriptor(T)}：从 AE key 构造描述符
  * - {@link #cast(AEKey)}：将 AE key 转换为本类型
  * - {@link #createResult(T, BigInteger)}：构造结果 key
- * - {@link #getTypeByte()}：返回二进制文件中的类型标识
- * - {@link #getCodec()} 与 {@link #getStorageSection()} 已由构造函数固定
+ * - {@link #getTypeByte()}：返回二进制文件中的类型标识（仅用于读取旧版格式）
  *
  * @param <T> AE key 类型，如 AEItemKey / AEFluidKey / EnergyKey
- * @param <D> 描述符类型，如 ItemDescriptor / FluidDescriptor / EnergyDescriptor
+ * @param <D> 描述符类型，如 ItemDescriptor / FluidDescriptor / EnergyDescriptor / GenericKeyDescriptor
  */
 public abstract class AbstractStorageAdapter<T extends AEKey, D extends Descriptor> {
 
     protected final Map<D, BigInteger> storage = new HashMap<>();
     private final DescriptorCodec<D> codec;
-    private final StorageSection section;
+    private final AEKeyType keyType;
 
-    protected AbstractStorageAdapter(DescriptorCodec<D> codec, StorageSection section) {
+    protected AbstractStorageAdapter(DescriptorCodec<D> codec, AEKeyType keyType) {
         this.codec = Objects.requireNonNull(codec);
-        this.section = Objects.requireNonNull(section);
+        this.keyType = Objects.requireNonNull(keyType);
     }
 
     /**
@@ -65,7 +64,8 @@ public abstract class AbstractStorageAdapter<T extends AEKey, D extends Descript
     public abstract T createResult(T request, BigInteger amount);
 
     /**
-     * 返回二进制文件中的类型标识字节。
+     * 返回旧版二进制文件中的类型标识字节（仅用于 v2 格式校验）。
+     * 新版 v3 通用格式不再依赖该字节。
      */
     protected abstract byte getTypeByte();
 
@@ -77,10 +77,10 @@ public abstract class AbstractStorageAdapter<T extends AEKey, D extends Descript
     }
 
     /**
-     * 返回本适配器对应的存储分区。
+     * 返回本适配器对应的 AEKeyType。
      */
-    public StorageSection getStorageSection() {
-        return section;
+    public AEKeyType getKeyType() {
+        return keyType;
     }
 
     /**
@@ -260,16 +260,17 @@ public abstract class AbstractStorageAdapter<T extends AEKey, D extends Descript
             return;
         }
         storage.clear();
-        file.loadSection(section, getTypeByte(), codec, storage::put);
+        file.loadSection(keyType, getTypeByte(), codec, storage::put);
     }
 
     /**
-     * 将本适配器的全部条目保存到二进制文件。
+     * 将本适配器的全部条目异步保存到二进制文件。
      */
     public void saveToFile(HyperdimensionalStorageFile file) {
         if (file == null || file.isSafeMode()) {
             return;
         }
-        file.saveSection(section, getTypeByte(), codec, storage);
+        int generation = file.getDirtyGeneration(keyType);
+        file.saveSection(keyType, generation, codec, storage);
     }
 }

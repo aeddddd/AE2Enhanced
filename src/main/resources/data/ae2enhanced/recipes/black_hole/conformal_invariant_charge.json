@@ -1,0 +1,11 @@
+{
+  "type": "ae2enhanced:black_hole",
+  "inputs": {
+    "ae2enhanced:stable_spacetime_manifold": 16,
+    "ae2enhanced:differential_form_stabilizer": 16
+  },
+  "output": {
+    "item": "ae2enhanced:conformal_invariant_charge",
+    "count": 1
+  }
+}

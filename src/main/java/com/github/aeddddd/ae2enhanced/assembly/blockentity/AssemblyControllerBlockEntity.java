@@ -1,28 +1,32 @@
 package com.github.aeddddd.ae2enhanced.assembly.blockentity;
 
 import java.util.BitSet;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 
 import javax.annotation.Nullable;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.nbt.CompoundTag;
-import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
+import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.CraftingRecipe;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.items.ItemStackHandler;
 
 import appeng.api.crafting.IPatternDetails;
+import appeng.api.implementations.blockentities.PatternContainerGroup;
+import appeng.api.inventories.InternalInventory;
 import appeng.api.networking.IGrid;
 import appeng.api.networking.IManagedGridNode;
 import appeng.api.networking.crafting.ICraftingProvider;
+import appeng.helpers.patternprovider.PatternContainer;
 import appeng.api.networking.energy.IEnergyService;
 import appeng.api.networking.security.IActionSource;
+import appeng.api.stacks.AEItemKey;
 import appeng.api.stacks.AEKey;
 import appeng.api.stacks.GenericStack;
 import appeng.api.stacks.KeyCounter;
@@ -31,12 +35,17 @@ import appeng.blockentity.grid.AENetworkBlockEntity;
 import appeng.crafting.inv.ListCraftingInventory;
 
 import com.github.aeddddd.ae2enhanced.assembly.AssemblyCraftingProcessor;
+import com.github.aeddddd.ae2enhanced.assembly.AssemblyPatternInventory;
 import com.github.aeddddd.ae2enhanced.assembly.AssemblyPatternManager;
+import com.github.aeddddd.ae2enhanced.assembly.AssemblyPatternSavedData;
 import com.github.aeddddd.ae2enhanced.assembly.AssemblyUpgradeManager;
+import com.github.aeddddd.ae2enhanced.block.MultiblockControllerBlock;
+import com.github.aeddddd.ae2enhanced.client.render.AbstractMultiblockRenderer;
 import com.github.aeddddd.ae2enhanced.config.AE2EnhancedConfig;
+import com.github.aeddddd.ae2enhanced.multiblock.IMultiblockController;
 import com.github.aeddddd.ae2enhanced.multiblock.IPatternProviderHost;
-import com.github.aeddddd.ae2enhanced.multiblock.MultiblockMeInterfaceBlockEntity;
 import com.github.aeddddd.ae2enhanced.registry.ModBlockEntities;
+import com.github.aeddddd.ae2enhanced.registry.ModBlocks;
 import com.github.aeddddd.ae2enhanced.registry.ModItems;
 import com.github.aeddddd.ae2enhanced.structure.AssemblyStructure;
 import com.github.aeddddd.ae2enhanced.util.BlockEntityRemovalHelper;
@@ -47,13 +56,13 @@ import com.github.aeddddd.ae2enhanced.util.BlockEntityRemovalHelper;
  * 核心逻辑已拆分到 {@link AssemblyPatternManager}、{@link AssemblyUpgradeManager} 与 {@link AssemblyCraftingProcessor}。</p>
  */
 public class AssemblyControllerBlockEntity extends AENetworkBlockEntity
-        implements IPatternProviderHost {
+        implements IPatternProviderHost, ICraftingProvider, PatternContainer, IMultiblockController {
 
     public static final int UPGRADE_SLOTS = 6;
     public static final int PATTERN_SLOTS_PER_PAGE = 102; // 17×6
     public static final int PATTERN_PAGES_BASE = 5;
-    public static final int PATTERN_PAGES_PER_CAPACITY = 5;
-    public static final int PATTERN_PAGES_MAX = 30;
+    public static final int PATTERN_PAGES_PER_CAPACITY = 10; // 10 张扩容卡即可完整解锁 100 页
+    public static final int PATTERN_PAGES_MAX = 100;
     public static final int TOTAL_SLOTS_MAX = UPGRADE_SLOTS + PATTERN_SLOTS_PER_PAGE * PATTERN_PAGES_MAX;
     public static final int TOTAL_SLOTS_BASE = UPGRADE_SLOTS + PATTERN_SLOTS_PER_PAGE * PATTERN_PAGES_BASE;
 
@@ -66,7 +75,7 @@ public class AssemblyControllerBlockEntity extends AENetworkBlockEntity
     private boolean networkActive = false;
     private boolean networkPowered = false;
     private boolean formed = false;
-    private final Set<BlockPos> interfaces = new HashSet<>();
+    private boolean showingStructureProjection = false;
 
     /**
      * 真实合成 batch 信息缓存：配方、催化剂槽位、槽位物品模板。
@@ -196,7 +205,8 @@ public class AssemblyControllerBlockEntity extends AENetworkBlockEntity
     protected IManagedGridNode createMainNode() {
         return super.createMainNode()
                 .setIdlePowerUsage(1.0)
-                .setVisualRepresentation(ModItems.ASSEMBLY_CONTROLLER.get());
+                .setVisualRepresentation(ModItems.ASSEMBLY_CONTROLLER.get())
+                .addService(ICraftingProvider.class, this);
     }
 
     @Override
@@ -275,6 +285,22 @@ public class AssemblyControllerBlockEntity extends AENetworkBlockEntity
         return formed;
     }
 
+    @Override
+    public boolean isShowingStructureProjection() {
+        return showingStructureProjection;
+    }
+
+    @Override
+    public void toggleStructureProjection() {
+        if (formed) {
+            showingStructureProjection = false;
+            return;
+        }
+        showingStructureProjection = !showingStructureProjection;
+        setChanged();
+        markForUpdate();
+    }
+
     public void setFormed(boolean formed) {
         if (this.formed != formed) {
             this.formed = formed;
@@ -308,47 +334,88 @@ public class AssemblyControllerBlockEntity extends AENetworkBlockEntity
     }
 
     @Override
-    public void attachInterface(BlockPos interfacePos) {
-        if (interfaces.add(interfacePos)) {
-            setChanged();
-            if (level != null && !level.isClientSide()) {
-                refreshInterfaceServices();
+    public net.minecraft.world.phys.AABB getRenderBoundingBox() {
+        BlockPos pos = getBlockPos();
+        Direction facing = Direction.NORTH;
+        if (level != null) {
+            BlockState state = level.getBlockState(pos);
+            if (state.hasProperty(MultiblockControllerBlock.FACING)) {
+                facing = state.getValue(MultiblockControllerBlock.FACING);
             }
         }
+        float[] bounds = AbstractMultiblockRenderer.computeBounds(AssemblyStructure.ALL_SET, facing);
+        Vec3 center = AbstractMultiblockRenderer.computeCenterOffset(bounds);
+        double radius = AbstractMultiblockRenderer.computeRadius(bounds) + 15.0;
+        Vec3 worldCenter = new Vec3(pos.getX() + center.x, pos.getY() + center.y, pos.getZ() + center.z);
+        return new net.minecraft.world.phys.AABB(worldCenter, worldCenter).inflate(radius);
+    }
+
+    @Override
+    public void attachInterface(BlockPos interfacePos) {
+        // 装配枢纽采用任意结构方块接入网络方案，不依赖通用 ME 接口方块。
     }
 
     @Override
     public void detachInterface(BlockPos interfacePos) {
-        if (interfaces.remove(interfacePos)) {
-            setChanged();
-        }
+        // 装配枢纽采用任意结构方块接入网络方案，不依赖通用 ME 接口方块。
     }
 
     @Override
     public IActionSource getActionSource() {
-        if (level != null) {
-            for (BlockPos pos : interfaces) {
-                if (level.getBlockEntity(pos) instanceof MultiblockMeInterfaceBlockEntity meInterface) {
-                    IManagedGridNode node = meInterface.getMainNode();
-                    if (node != null && node.isReady()) {
-                        return IActionSource.ofMachine(meInterface);
-                    }
-                }
-            }
-        }
         return IActionSource.ofMachine(this);
     }
 
+    /**
+     * 刷新控制器在 AE2 网络中的样板列表。
+     * <p>采用任意结构方块接入网络的方案，控制器自身即为网络节点，直接请求更新即可。</p>
+     */
     public void refreshInterfaceServices() {
         if (level == null || level.isClientSide()) {
             return;
         }
-        // 控制器自身不再注册 ICraftingProvider，应刷新通用 ME 接口节点的样板列表
-        for (BlockPos pos : interfaces) {
-            if (level.getBlockEntity(pos) instanceof MultiblockMeInterfaceBlockEntity meInterface) {
-                ICraftingProvider.requestUpdate(meInterface.getMainNode());
-            }
+        IManagedGridNode node = getMainNode();
+        if (node != null) {
+            ICraftingProvider.requestUpdate(node);
         }
+    }
+
+    @Override
+    public int getPatternPriority() {
+        return 0;
+    }
+
+    @Override
+    public void onReady() {
+        super.onReady();
+        if (level != null && !level.isClientSide() && isFormed()) {
+            refreshInterfaceServices();
+        }
+    }
+
+    @Override
+    public IGrid getGrid() {
+        IManagedGridNode node = getMainNode();
+        return node != null && node.isReady() ? node.getGrid() : null;
+    }
+
+    @Override
+    public boolean isVisibleInTerminal() {
+        return isFormed();
+    }
+
+    @Override
+    public InternalInventory getTerminalPatternInventory() {
+        return new AssemblyPatternInventory(patternManager);
+    }
+
+    @Override
+    public PatternContainerGroup getTerminalGroup() {
+        var icon = AEItemKey.of(new ItemStack(ModBlocks.ASSEMBLY_CONTROLLER.get()));
+        var name = Component.translatable("block.ae2enhanced.assembly_controller");
+        var tooltip = List.<Component>of(Component.translatable(
+                "gui.ae2enhanced.assembly.pattern_pages",
+                upgradeManager.getPatternPages()));
+        return new PatternContainerGroup(icon, name, tooltip);
     }
 
     @Override
@@ -356,6 +423,12 @@ public class AssemblyControllerBlockEntity extends AENetworkBlockEntity
         if (level != null && !level.isClientSide() && isFormed()
                 && BlockEntityRemovalHelper.isBlockBeingBroken(this)) {
             disassemble();
+        }
+        if (level != null && !level.isClientSide() && BlockEntityRemovalHelper.isBlockBeingBroken(this)) {
+            AssemblyPatternSavedData savedData = AssemblyPatternSavedData.get(level);
+            if (savedData != null) {
+                savedData.removePatterns(worldPosition);
+            }
         }
         super.setRemoved();
     }
@@ -388,17 +461,6 @@ public class AssemblyControllerBlockEntity extends AENetworkBlockEntity
         if (preferred != null && preferred.isReady()) {
             return preferred;
         }
-        // 优先使用已连接的通用 ME 接口节点，控制器自身节点可能未直接接入网络
-        if (level != null) {
-            for (BlockPos pos : interfaces) {
-                if (level.getBlockEntity(pos) instanceof MultiblockMeInterfaceBlockEntity meInterface) {
-                    IManagedGridNode node = meInterface.getMainNode();
-                    if (node != null && node.isReady()) {
-                        return node;
-                    }
-                }
-            }
-        }
         IManagedGridNode node = getMainNode();
         return node != null && node.isReady() ? node : null;
     }
@@ -416,16 +478,9 @@ public class AssemblyControllerBlockEntity extends AENetworkBlockEntity
         patternManager.load(data);
         craftingProcessor.load(data);
         formed = data.getBoolean("formed");
+        showingStructureProjection = data.getBoolean("showProjection");
         networkActive = data.getBoolean("networkActive");
         networkPowered = data.getBoolean("networkPowered");
-        if (data.contains("interfaces", ListTag.TAG_LIST)) {
-            interfaces.clear();
-            ListTag interfacesList = data.getList("interfaces", CompoundTag.TAG_COMPOUND);
-            for (int i = 0; i < interfacesList.size(); i++) {
-                CompoundTag posTag = interfacesList.getCompound(i);
-                interfaces.add(new BlockPos(posTag.getInt("x"), posTag.getInt("y"), posTag.getInt("z")));
-            }
-        }
         patternManager.ensurePatternCapacity();
     }
 
@@ -435,23 +490,16 @@ public class AssemblyControllerBlockEntity extends AENetworkBlockEntity
         patternManager.save(data);
         craftingProcessor.save(data);
         data.putBoolean("formed", formed);
+        data.putBoolean("showProjection", showingStructureProjection);
         data.putBoolean("networkActive", networkActive);
         data.putBoolean("networkPowered", networkPowered);
-        ListTag interfacesList = new ListTag();
-        for (BlockPos pos : interfaces) {
-            CompoundTag posTag = new CompoundTag();
-            posTag.putInt("x", pos.getX());
-            posTag.putInt("y", pos.getY());
-            posTag.putInt("z", pos.getZ());
-            interfacesList.add(posTag);
-        }
-        data.put("interfaces", interfacesList);
     }
 
     @Override
     public CompoundTag getUpdateTag() {
         CompoundTag tag = super.getUpdateTag();
         tag.putBoolean("formed", formed);
+        tag.putBoolean("showProjection", showingStructureProjection);
         tag.putBoolean("networkActive", networkActive);
         tag.putBoolean("networkPowered", networkPowered);
         return tag;
@@ -462,6 +510,9 @@ public class AssemblyControllerBlockEntity extends AENetworkBlockEntity
         super.handleUpdateTag(tag);
         if (tag.contains("formed", Tag.TAG_BYTE)) {
             this.formed = tag.getBoolean("formed");
+        }
+        if (tag.contains("showProjection", Tag.TAG_BYTE)) {
+            this.showingStructureProjection = tag.getBoolean("showProjection");
         }
         if (tag.contains("networkActive", Tag.TAG_BYTE)) {
             networkActive = tag.getBoolean("networkActive");

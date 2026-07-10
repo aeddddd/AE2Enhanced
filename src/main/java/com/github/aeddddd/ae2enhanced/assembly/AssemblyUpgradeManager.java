@@ -74,7 +74,7 @@ public class AssemblyUpgradeManager {
     }
 
     /**
-     * 当前可用样板页数。基础 5 页，每张扩容升级卡 +5 页，上限 30 页。
+     * 当前可用样板页数。基础 5 页，每张扩容升级卡 +10 页，10 张即可达到上限 100 页。
      */
     public int getPatternPages() {
         ItemStackHandler handler = getItemHandler();

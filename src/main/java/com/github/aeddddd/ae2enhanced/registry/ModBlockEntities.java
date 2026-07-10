@@ -8,6 +8,7 @@ import net.minecraftforge.registries.RegistryObject;
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
 import com.github.aeddddd.ae2enhanced.assembly.blockentity.AssemblyCasingBlockEntity;
 import com.github.aeddddd.ae2enhanced.assembly.blockentity.AssemblyControllerBlockEntity;
+import com.github.aeddddd.ae2enhanced.blackhole.blockentity.MicroSingularityBlockEntity;
 import com.github.aeddddd.ae2enhanced.blockentity.HyperdimensionalControllerBlockEntity;
 import com.github.aeddddd.ae2enhanced.computation.blockentity.ComputationCoreBlockEntity;
 import com.github.aeddddd.ae2enhanced.multiblock.MultiblockMeInterfaceBlockEntity;
@@ -28,6 +29,11 @@ public final class ModBlockEntities {
             .register("multiblock_me_interface",
                     () -> BlockEntityType.Builder.of(MultiblockMeInterfaceBlockEntity::new,
                             ModBlocks.MULTIBLOCK_ME_INTERFACE.get()).build(null));
+
+    public static final RegistryObject<BlockEntityType<MicroSingularityBlockEntity>> MICRO_SINGULARITY = DR.register(
+            "micro_singularity",
+            () -> BlockEntityType.Builder.of(MicroSingularityBlockEntity::new, ModBlocks.MICRO_SINGULARITY.get())
+                    .build(null));
 
     public static final RegistryObject<BlockEntityType<AssemblyControllerBlockEntity>> ASSEMBLY_CONTROLLER = DR
             .register("assembly_controller",

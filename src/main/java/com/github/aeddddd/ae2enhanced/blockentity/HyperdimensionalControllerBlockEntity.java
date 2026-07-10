@@ -11,6 +11,8 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.Vec3;
 
 import appeng.api.networking.IGrid;
 import appeng.api.networking.IManagedGridNode;
@@ -52,6 +54,8 @@ public class HyperdimensionalControllerBlockEntity extends MultiblockControllerB
     private int validationCooldown = 0;
     private int saveCooldown = 0;
     private int statusCooldown = 0;
+    private int networkUpdateCooldown = 0;
+    private boolean pendingNetworkUpdate = false;
 
     // 客户端同步字段
     private boolean networkActive = false;
@@ -99,6 +103,36 @@ public class HyperdimensionalControllerBlockEntity extends MultiblockControllerB
     }
 
     @Override
+    public AABB getRenderBoundingBox() {
+        BlockPos pos = getBlockPos();
+        Direction facing = Direction.NORTH;
+        if (level != null) {
+            BlockState state = level.getBlockState(pos);
+            if (state.hasProperty(com.github.aeddddd.ae2enhanced.block.MultiblockControllerBlock.FACING)) {
+                facing = state.getValue(com.github.aeddddd.ae2enhanced.block.MultiblockControllerBlock.FACING);
+            }
+        }
+        // 特效中心：结构中心 (0,0,2)，抬高 2.5
+        Vec3 localCenter = new Vec3(0.0, 2.5, 2.0);
+        Vec3 rotatedCenter = rotateOffset(localCenter, facing);
+        Vec3 worldCenter = new Vec3(pos.getX() + rotatedCenter.x, pos.getY() + rotatedCenter.y,
+                pos.getZ() + rotatedCenter.z);
+        return new AABB(worldCenter, worldCenter).inflate(8.0);
+    }
+
+    private static Vec3 rotateOffset(Vec3 local, Direction facing) {
+        double x = local.x;
+        double y = local.y;
+        double z = local.z;
+        return switch (facing) {
+            case SOUTH -> new Vec3(-x, y, -z);
+            case EAST -> new Vec3(-z, y, x);
+            case WEST -> new Vec3(z, y, -x);
+            default -> new Vec3(x, y, z);
+        };
+    }
+
+    @Override
     public void onAssemble() {
         initStorage();
         updateCableConnections();
@@ -126,10 +160,7 @@ public class HyperdimensionalControllerBlockEntity extends MultiblockControllerB
             return;
         }
         if (storage == null) {
-            HyperdimensionalStorageFile file = HyperdimensionalStorageFile.forNexus(server, nexusId);
-            file.tryMigrateLegacy();
-            storage = new HyperdimensionalStorage(nexusId, file, s -> onStorageContentChanged());
-            storage.markClean();
+            storage = HyperdimensionalStorageFile.loadOrCreate(server, nexusId, s -> onStorageContentChanged());
         }
         refreshMeStorageSource();
         // 后续 GUI 可在此注册监听器以实时刷新；网络统计每 20 tick 刷新一次。
@@ -146,18 +177,15 @@ public class HyperdimensionalControllerBlockEntity extends MultiblockControllerB
     }
 
     /**
-     * 当内部存储变化时通知所有通用 ME 接口重新挂载存储提供者，
-     * 确保 AE2 网络能及时感知超维度仓储内容变化。
+     * 当内部存储变化时通知 AE2 网络刷新。
+     * <p>为避免高频写入时反复调用 requestNetworkUpdate，这里仅标记 pending；
+     * 由 {@link #serverTick()} 以最低 5 tick 的间隔统一触发一次。</p>
      */
     private void onStorageContentChanged() {
         if (level == null || level.isClientSide()) {
             return;
         }
-        for (BlockPos pos : getInterfaces()) {
-            if (level.getBlockEntity(pos) instanceof MultiblockMeInterfaceBlockEntity me) {
-                me.requestNetworkUpdate();
-            }
-        }
+        pendingNetworkUpdate = true;
     }
 
     @Override
@@ -202,6 +230,16 @@ public class HyperdimensionalControllerBlockEntity extends MultiblockControllerB
         if (statusCooldown-- <= 0) {
             statusCooldown = 20;
             refreshNetworkStatus();
+        }
+
+        if (networkUpdateCooldown-- <= 0 && pendingNetworkUpdate) {
+            networkUpdateCooldown = 5;
+            pendingNetworkUpdate = false;
+            for (BlockPos pos : getInterfaces()) {
+                if (level.getBlockEntity(pos) instanceof MultiblockMeInterfaceBlockEntity me) {
+                    me.requestNetworkUpdate();
+                }
+            }
         }
     }
 

@@ -1,0 +1,11 @@
+{
+  "type": "ae2enhanced:black_hole",
+  "inputs": {
+    "minecraft:stone": 8,
+    "minecraft:diamond": 1
+  },
+  "output": {
+    "item": "minecraft:obsidian",
+    "count": 1
+  }
+}

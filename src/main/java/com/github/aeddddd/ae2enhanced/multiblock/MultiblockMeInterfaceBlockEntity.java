@@ -7,6 +7,7 @@ import javax.annotation.Nullable;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.Tag;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
@@ -222,18 +223,37 @@ public class MultiblockMeInterfaceBlockEntity extends AENetworkBlockEntity
 
     // ---- NBT ----
 
+    private static final String TAG_CONTROLLER_POS = "controllerPosTag";
+    private static final String TAG_HAS_CONTROLLER = "has";
+    private static final String TAG_CONTROLLER_POS_VALUE = "pos";
+
     @Override
     public void loadTag(CompoundTag data) {
         super.loadTag(data);
-        long encoded = data.getLong("controllerPos");
-        controllerPos = encoded != 0 ? BlockPos.of(encoded) : null;
+        if (data.contains(TAG_CONTROLLER_POS, Tag.TAG_COMPOUND)) {
+            CompoundTag posTag = data.getCompound(TAG_CONTROLLER_POS);
+            controllerPos = posTag.getBoolean(TAG_HAS_CONTROLLER)
+                    ? BlockPos.of(posTag.getLong(TAG_CONTROLLER_POS_VALUE))
+                    : null;
+        } else if (data.contains("controllerPos", Tag.TAG_LONG)) {
+            // 旧版兼容：无法区分 BlockPos(0,0,0) 与 null，这里保留原语义
+            long encoded = data.getLong("controllerPos");
+            controllerPos = encoded != 0 ? BlockPos.of(encoded) : null;
+        } else {
+            controllerPos = null;
+        }
     }
 
     @Override
     public void saveAdditional(CompoundTag data) {
         super.saveAdditional(data);
+        CompoundTag posTag = new CompoundTag();
         if (controllerPos != null) {
-            data.putLong("controllerPos", controllerPos.asLong());
+            posTag.putBoolean(TAG_HAS_CONTROLLER, true);
+            posTag.putLong(TAG_CONTROLLER_POS_VALUE, controllerPos.asLong());
+        } else {
+            posTag.putBoolean(TAG_HAS_CONTROLLER, false);
         }
+        data.put(TAG_CONTROLLER_POS, posTag);
     }
 }

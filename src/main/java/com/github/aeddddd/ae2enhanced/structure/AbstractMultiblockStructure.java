@@ -144,11 +144,21 @@ public abstract class AbstractMultiblockStructure implements IMultiblockStructur
         return definition.getAllPositions();
     }
 
+    @Override
+    public Map<Block, Integer> getRequiredMaterials() {
+        Map<Block, Integer> result = new LinkedHashMap<>();
+        for (Map.Entry<Block, Set<BlockPos>> entry : definition.getBlockSets().entrySet()) {
+            result.put(entry.getKey(), entry.getValue().size());
+        }
+        return result;
+    }
+
     /**
      * 获取按当前控制器朝向旋转后的期望方块相对坐标集合。
      *
      * @return (旋转后的相对坐标, 方块类型) 集合
      */
+    @Override
     public Set<Map.Entry<BlockPos, Block>> getExpectedBlocks(Level level, BlockPos controllerPos) {
         Direction rotation = getRotation(level, controllerPos);
         Set<Map.Entry<BlockPos, Block>> result = new HashSet<>();

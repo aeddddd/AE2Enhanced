@@ -1,7 +1,7 @@
 package com.github.aeddddd.ae2enhanced.hyperdimensional.storage.adapter;
 
 import appeng.api.stacks.AEKey;
-import com.github.aeddddd.ae2enhanced.hyperdimensional.storage.StorageSection;
+import appeng.api.stacks.AEKeyType;
 import com.github.aeddddd.ae2enhanced.hyperdimensional.storage.channel.EnergyKey;
 import com.github.aeddddd.ae2enhanced.hyperdimensional.storage.codec.EnergyDescriptorCodec;
 import com.github.aeddddd.ae2enhanced.hyperdimensional.storage.descriptor.EnergyDescriptor;
@@ -18,7 +18,7 @@ public class HyperdimensionalEnergyStorageAdapter extends AbstractStorageAdapter
     private static final byte TYPE_ENERGY = 3;
 
     public HyperdimensionalEnergyStorageAdapter() {
-        super(EnergyDescriptorCodec.INSTANCE, StorageSection.ENERGY);
+        super(EnergyDescriptorCodec.INSTANCE, EnergyKey.ENERGY_KEY_TYPE);
     }
 
     @Override

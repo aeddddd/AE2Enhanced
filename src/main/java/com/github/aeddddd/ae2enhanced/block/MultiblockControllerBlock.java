@@ -1,13 +1,20 @@
 package com.github.aeddddd.ae2enhanced.block;
 
+import java.util.List;
+import java.util.Map;
+
 import javax.annotation.Nullable;
 
+import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.TooltipFlag;
 import net.minecraft.world.item.context.BlockPlaceContext;
+import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.EntityBlock;
@@ -18,8 +25,10 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.StateDefinition;
 import net.minecraft.world.level.block.state.properties.BlockStateProperties;
 import net.minecraft.world.level.block.state.properties.DirectionProperty;
+import net.minecraft.ChatFormatting;
 
 import com.github.aeddddd.ae2enhanced.multiblock.MultiblockControllerBlockEntity;
+import com.github.aeddddd.ae2enhanced.structure.IMultiblockStructure;
 
 /**
  * 多方块控制器方块的通用基类。
@@ -78,6 +87,34 @@ public abstract class MultiblockControllerBlock extends Block implements EntityB
             }
         }
         super.onRemove(state, level, pos, newState, isMoving);
+    }
+
+    /**
+     * 获取当前控制器对应的多方块结构定义。
+     */
+    protected abstract IMultiblockStructure getStructure();
+
+    @Override
+    public void appendHoverText(ItemStack stack, @Nullable BlockGetter level, List<Component> tooltip,
+            TooltipFlag flag) {
+        super.appendHoverText(stack, level, tooltip, flag);
+
+        tooltip.add(Component.translatable("tooltip.ae2enhanced.structure_projection.toggle")
+                .withStyle(ChatFormatting.GRAY));
+        tooltip.add(Component.translatable("tooltip.ae2enhanced.structure_projection.hold_shift")
+                .withStyle(ChatFormatting.DARK_GRAY));
+
+        if (Screen.hasShiftDown()) {
+            tooltip.add(Component.empty());
+            tooltip.add(Component.translatable("tooltip.ae2enhanced.structure_projection.materials")
+                    .withStyle(ChatFormatting.YELLOW));
+            Map<Block, Integer> materials = getStructure().getRequiredMaterials();
+            for (Map.Entry<Block, Integer> entry : materials.entrySet()) {
+                Component name = entry.getKey().getName().withStyle(ChatFormatting.GRAY);
+                tooltip.add(Component.literal("  ").append(name)
+                        .append(Component.literal(" x" + entry.getValue()).withStyle(ChatFormatting.WHITE)));
+            }
+        }
     }
 
     /**

@@ -1,6 +1,7 @@
 package com.github.aeddddd.ae2enhanced.client;
 
 import net.minecraft.client.gui.screens.MenuScreens;
+import net.minecraft.client.renderer.blockentity.BlockEntityRenderers;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
@@ -14,6 +15,9 @@ import com.github.aeddddd.ae2enhanced.client.gui.ComputationCoreScreen;
 import com.github.aeddddd.ae2enhanced.client.gui.ComputationUnformedScreen;
 import com.github.aeddddd.ae2enhanced.client.gui.HyperdimensionalNexusScreen;
 import com.github.aeddddd.ae2enhanced.client.gui.HyperdimensionalUnformedScreen;
+import com.github.aeddddd.ae2enhanced.client.render.AssemblyHubRenderer;
+import com.github.aeddddd.ae2enhanced.client.render.HyperdimensionalControllerRenderer;
+import com.github.aeddddd.ae2enhanced.registry.ModBlockEntities;
 import com.github.aeddddd.ae2enhanced.registry.ModMenus;
 
 /**
@@ -32,6 +36,10 @@ public final class ClientSetup {
             MenuScreens.register(ModMenus.HYPERDIMENSIONAL_UNFORMED.get(), HyperdimensionalUnformedScreen::new);
             MenuScreens.register(ModMenus.COMPUTATION_CORE.get(), ComputationCoreScreen::new);
             MenuScreens.register(ModMenus.COMPUTATION_UNFORMED.get(), ComputationUnformedScreen::new);
+
+            BlockEntityRenderers.register(ModBlockEntities.ASSEMBLY_CONTROLLER.get(), AssemblyHubRenderer::new);
+            BlockEntityRenderers.register(ModBlockEntities.HYPERDIMENSIONAL_CONTROLLER.get(),
+                    HyperdimensionalControllerRenderer::new);
         });
     }
 

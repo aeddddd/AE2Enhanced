@@ -22,6 +22,7 @@ import com.github.aeddddd.ae2enhanced.util.BlockEntityRemovalHelper;
 public abstract class MultiblockControllerBlockEntity extends AE2EBaseBlockEntity implements IMultiblockController {
 
     private boolean formed = false;
+    private boolean showingStructureProjection = false;
     private final Set<BlockPos> interfaces = new HashSet<>();
 
     protected MultiblockControllerBlockEntity(BlockEntityType<?> type, BlockPos pos, BlockState state) {
@@ -31,6 +32,26 @@ public abstract class MultiblockControllerBlockEntity extends AE2EBaseBlockEntit
     @Override
     public boolean isFormed() {
         return formed;
+    }
+
+    /**
+     * 是否正在显示结构投影。
+     */
+    public boolean isShowingStructureProjection() {
+        return showingStructureProjection;
+    }
+
+    /**
+     * 切换结构投影显示状态。仅在未成形时有效。
+     */
+    public void toggleStructureProjection() {
+        if (formed) {
+            showingStructureProjection = false;
+            return;
+        }
+        showingStructureProjection = !showingStructureProjection;
+        setChanged();
+        markForUpdate();
     }
 
     /**
@@ -158,6 +179,7 @@ public abstract class MultiblockControllerBlockEntity extends AE2EBaseBlockEntit
     public CompoundTag getUpdateTag() {
         CompoundTag tag = super.getUpdateTag();
         tag.putBoolean("formed", formed);
+        tag.putBoolean("showProjection", showingStructureProjection);
         return tag;
     }
 
@@ -167,12 +189,16 @@ public abstract class MultiblockControllerBlockEntity extends AE2EBaseBlockEntit
         if (tag.contains("formed", Tag.TAG_BYTE)) {
             this.formed = tag.getBoolean("formed");
         }
+        if (tag.contains("showProjection", Tag.TAG_BYTE)) {
+            this.showingStructureProjection = tag.getBoolean("showProjection");
+        }
     }
 
     @Override
     public void loadTag(CompoundTag data) {
         super.loadTag(data);
         formed = data.getBoolean("formed");
+        showingStructureProjection = data.getBoolean("showProjection");
         interfaces.clear();
         if (data.contains("interfaces", Tag.TAG_LIST)) {
             ListTag list = data.getList("interfaces", Tag.TAG_LONG);
@@ -186,6 +212,7 @@ public abstract class MultiblockControllerBlockEntity extends AE2EBaseBlockEntit
     public void saveAdditional(CompoundTag data) {
         super.saveAdditional(data);
         data.putBoolean("formed", formed);
+        data.putBoolean("showProjection", showingStructureProjection);
         ListTag list = new ListTag();
         for (BlockPos pos : interfaces) {
             list.add(net.minecraft.nbt.LongTag.valueOf(pos.asLong()));

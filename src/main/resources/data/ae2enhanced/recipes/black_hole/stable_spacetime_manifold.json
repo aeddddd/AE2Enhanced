@@ -1,0 +1,11 @@
+{
+  "type": "ae2enhanced:black_hole",
+  "inputs": {
+    "ae2:spatial_cell_component_2": 16,
+    "ae2:singularity": 64
+  },
+  "output": {
+    "item": "ae2enhanced:stable_spacetime_manifold",
+    "count": 1
+  }
+}

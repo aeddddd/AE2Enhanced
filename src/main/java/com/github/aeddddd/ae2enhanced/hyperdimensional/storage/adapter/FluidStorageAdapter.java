@@ -2,7 +2,7 @@ package com.github.aeddddd.ae2enhanced.hyperdimensional.storage.adapter;
 
 import appeng.api.stacks.AEFluidKey;
 import appeng.api.stacks.AEKey;
-import com.github.aeddddd.ae2enhanced.hyperdimensional.storage.StorageSection;
+import appeng.api.stacks.AEKeyType;
 import com.github.aeddddd.ae2enhanced.hyperdimensional.storage.codec.FluidDescriptorCodec;
 import com.github.aeddddd.ae2enhanced.hyperdimensional.storage.descriptor.FluidDescriptor;
 
@@ -18,7 +18,7 @@ public class FluidStorageAdapter extends AbstractStorageAdapter<AEFluidKey, Flui
     private static final byte TYPE_FLUID = 2;
 
     public FluidStorageAdapter() {
-        super(FluidDescriptorCodec.INSTANCE, StorageSection.FLUIDS);
+        super(FluidDescriptorCodec.INSTANCE, AEKeyType.fluids());
     }
 
     @Override

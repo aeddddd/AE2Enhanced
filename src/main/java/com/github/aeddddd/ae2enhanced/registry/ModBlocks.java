@@ -20,6 +20,7 @@ import com.github.aeddddd.ae2enhanced.computation.block.ConstantSpinorFieldCasin
 import com.github.aeddddd.ae2enhanced.computation.block.ConstantTensorFieldCasingBlock;
 import com.github.aeddddd.ae2enhanced.block.HyperdimensionalControllerBlock;
 import com.github.aeddddd.ae2enhanced.block.HyperdimensionalSingularityCoreBlock;
+import com.github.aeddddd.ae2enhanced.block.MicroSingularityBlock;
 import com.github.aeddddd.ae2enhanced.multiblock.MultiblockMeInterfaceBlock;
 
 /**
@@ -42,6 +43,10 @@ public final class ModBlocks {
     // Common multiblock ME interface
     public static final RegistryObject<Block> MULTIBLOCK_ME_INTERFACE = DR.register("multiblock_me_interface",
             () -> new MultiblockMeInterfaceBlock(metalProperties()));
+
+    // Micro Singularity (black hole ritual)
+    public static final RegistryObject<Block> MICRO_SINGULARITY = DR.register("micro_singularity",
+            () -> new MicroSingularityBlock(microSingularityProperties()));
 
     // Assembly Hub
     public static final RegistryObject<Block> ASSEMBLY_CONTROLLER = DR.register("assembly_controller",
@@ -84,6 +89,16 @@ public final class ModBlocks {
                 .sound(SoundType.METAL)
                 .strength(5.0F, 10.0F)
                 .requiresCorrectToolForDrops();
+    }
+
+    private static BlockBehaviour.Properties microSingularityProperties() {
+        return BlockBehaviour.Properties.of()
+                .mapColor(MapColor.COLOR_BLACK)
+                .sound(SoundType.METAL)
+                .strength(-1.0F, 6000000.0F)
+                .lightLevel(state -> 1)
+                .noOcclusion()
+                .noCollission();
     }
 
     private ModBlocks() {

@@ -31,6 +31,16 @@ public interface IMultiblockController {
     void detachInterface(BlockPos interfacePos);
 
     /**
+     * @return 是否正在显示结构投影。
+     */
+    boolean isShowingStructureProjection();
+
+    /**
+     * 切换结构投影显示状态。
+     */
+    void toggleStructureProjection();
+
+    /**
      * 结构装配成功、状态即将置为成形时调用。
      * <p>子类可在此初始化存储、CPU 池等资源。</p>
      */

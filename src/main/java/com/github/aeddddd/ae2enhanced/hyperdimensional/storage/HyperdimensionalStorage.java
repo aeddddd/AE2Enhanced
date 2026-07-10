@@ -3,7 +3,15 @@ package com.github.aeddddd.ae2enhanced.hyperdimensional.storage;
 import appeng.api.config.Actionable;
 import appeng.api.stacks.AEKey;
 import appeng.api.stacks.AEKeyType;
+import appeng.api.stacks.AEKeyTypes;
 import appeng.api.stacks.KeyCounter;
+import com.github.aeddddd.ae2enhanced.hyperdimensional.storage.channel.AbstractStorageChannel;
+import com.github.aeddddd.ae2enhanced.hyperdimensional.storage.channel.EnergyKey;
+import com.github.aeddddd.ae2enhanced.hyperdimensional.storage.channel.EnergyStorageChannel;
+import com.github.aeddddd.ae2enhanced.hyperdimensional.storage.channel.FluidStorageChannel;
+import com.github.aeddddd.ae2enhanced.hyperdimensional.storage.channel.GenericStorageChannel;
+import com.github.aeddddd.ae2enhanced.hyperdimensional.storage.channel.ItemStorageChannel;
+import com.github.aeddddd.ae2enhanced.hyperdimensional.storage.channel.StorageChannel;
 import net.minecraft.nbt.CompoundTag;
 
 import javax.annotation.Nullable;
@@ -13,22 +21,15 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.function.Consumer;
 
-import com.github.aeddddd.ae2enhanced.hyperdimensional.storage.channel.AbstractStorageChannel;
-import com.github.aeddddd.ae2enhanced.hyperdimensional.storage.channel.EnergyKey;
-import com.github.aeddddd.ae2enhanced.hyperdimensional.storage.channel.EnergyStorageChannel;
-import com.github.aeddddd.ae2enhanced.hyperdimensional.storage.channel.FluidStorageChannel;
-import com.github.aeddddd.ae2enhanced.hyperdimensional.storage.channel.ItemStorageChannel;
-import com.github.aeddddd.ae2enhanced.hyperdimensional.storage.channel.StorageChannel;
-import com.github.aeddddd.ae2enhanced.hyperdimensional.storage.OptionalStorageManager;
-
 /**
  * 超维度仓储的内部存储容器。
- * <p>以多个 {@link StorageChannel} 管理不同 AE key type，默认支持物品、流体与内部能量，
- * 并预留第三方通道的注册接口。实际通道数据通过 {@link HyperdimensionalStorageFile}
- * 持久化为二进制文件，NBT 中不再嵌入完整内容。</p>
+ * <p>以多个 {@link StorageChannel} 管理不同 AE key type：默认支持物品、流体与内部能量，
+ * 并动态为游戏中所有已注册的 AEKeyType（包括第三方模组注册的类型）创建通用通道。
+ * 实际通道数据通过 {@link HyperdimensionalStorageFile} 持久化为二进制文件，NBT 中不再嵌入完整内容。</p>
  */
 public class HyperdimensionalStorage {
 
@@ -61,12 +62,20 @@ public class HyperdimensionalStorage {
         this.nexusId = nexusId;
         this.file = file;
         this.changeCallback = changeCallback;
-        // 默认注册物品、流体与能量通道
+
+        // 注册内置物品、流体、能量通道
         registerChannel(new ItemStorageChannel());
         registerChannel(new FluidStorageChannel());
         registerChannel(new EnergyStorageChannel());
-        // 通过反射尝试加载并注册第三方可选通道（气体、源质、mana、starlight 等）
-        OptionalStorageManager.getInstance().registerOptionalChannels(this);
+
+        // 动态为所有已注册的 AEKeyType 创建通用通道（不注册新的 AEKeyType）
+        for (AEKeyType keyType : AEKeyTypes.getAll()) {
+            if (keyType.equals(AEKeyType.items()) || keyType.equals(AEKeyType.fluids())) {
+                continue; // 已由专用通道处理
+            }
+            registerChannel(new GenericStorageChannel(keyType));
+        }
+
         loadFromFile();
     }
 
@@ -83,7 +92,6 @@ public class HyperdimensionalStorage {
 
     /**
      * 注册一个新的存储通道。如果该 key type 已存在，将覆盖旧通道。
-     * <p>此方法为后续通过反射加载第三方通道（mana、starlight、gas、essentia 等）预留。</p>
      *
      * @param channel 要注册的通道
      */
@@ -179,7 +187,7 @@ public class HyperdimensionalStorage {
         availableStacksCache = new KeyCounter();
         for (StorageChannel<?> channel : channels.values()) {
             // 能量为内部自定义 key type，不直接暴露给 AE2 网络
-            if (channel.getKeyType() == EnergyKey.ENERGY_KEY_TYPE) {
+            if (EnergyKey.ENERGY_KEY_TYPE.equals(channel.getKeyType())) {
                 continue;
             }
             channel.getAvailableStacks(availableStacksCache);
@@ -270,7 +278,7 @@ public class HyperdimensionalStorage {
     }
 
     public void addListener(StorageListener listener) {
-        listeners.add(listener);
+        listeners.add(Objects.requireNonNull(listener));
     }
 
     public void removeListener(StorageListener listener) {
@@ -294,6 +302,8 @@ public class HyperdimensionalStorage {
 
     /**
      * 将各通道数据持久化到二进制文件。
+     * <p>每个 section 的保存由异步线程完成，且仅在成功后才清除对应的脏代际；
+     * 本方法不再在末尾统一调用 {@code markClean()}，避免保存失败时丢失数据。</p>
      */
     public void persist() {
         if (file == null || isSafeMode()) {
@@ -301,13 +311,13 @@ public class HyperdimensionalStorage {
         }
         for (StorageChannel<?> channel : channels.values()) {
             if (channel instanceof AbstractStorageChannel<?, ?> abstractChannel) {
-                StorageSection section = abstractChannel.getAdapter().getStorageSection();
-                if (file.isDirty(section)) {
+                AEKeyType keyType = abstractChannel.getAdapter().getKeyType();
+                if (file.getDirtyGeneration(keyType) > 0) {
                     abstractChannel.saveToFile(file);
                 }
             }
         }
-        markClean();
+        // 注意：不再无条件 markClean()，各 section 的干净状态由 HyperdimensionalStorageFile 在异步保存成功后自行维护。
     }
 
     /**
@@ -353,7 +363,7 @@ public class HyperdimensionalStorage {
 
     private void markDirty(AEKeyType type) {
         if (file != null) {
-            file.markDirty(StorageSection.fromType(type));
+            file.markDirty(type);
         }
         invalidateCache();
         for (StorageListener listener : listeners) {

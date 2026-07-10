@@ -7,6 +7,10 @@ import net.minecraftforge.registries.DeferredRegister;
 import net.minecraftforge.registries.RegistryObject;
 
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
+import com.github.aeddddd.ae2enhanced.assembly.item.AssemblyUpgradeCardItem;
+import com.github.aeddddd.ae2enhanced.item.ConformalInvariantChargeItem;
+import com.github.aeddddd.ae2enhanced.item.DifferentialFormStabilizerItem;
+import com.github.aeddddd.ae2enhanced.item.StableSpacetimeManifoldItem;
 
 /**
  * 物品注册中心。
@@ -27,6 +31,19 @@ public final class ModItems {
 
     public static final RegistryObject<Item> MULTIBLOCK_ME_INTERFACE = DR.register("multiblock_me_interface",
             () -> new BlockItem(ModBlocks.MULTIBLOCK_ME_INTERFACE.get(), new Item.Properties()));
+
+    // Black Hole advanced materials
+    public static final RegistryObject<Item> STABLE_SPACETIME_MANIFOLD = DR.register("stable_spacetime_manifold",
+            () -> new StableSpacetimeManifoldItem(new Item.Properties()));
+
+    public static final RegistryObject<Item> DIFFERENTIAL_FORM_STABILIZER = DR.register("differential_form_stabilizer",
+            () -> new DifferentialFormStabilizerItem(new Item.Properties()));
+
+    public static final RegistryObject<Item> CONFORMAL_INVARIANT_CHARGE = DR.register("conformal_invariant_charge",
+            () -> new ConformalInvariantChargeItem(new Item.Properties()));
+
+    public static final RegistryObject<Item> MICRO_SINGULARITY = DR.register("micro_singularity",
+            () -> new BlockItem(ModBlocks.MICRO_SINGULARITY.get(), new Item.Properties()));
 
     // Assembly Hub
     public static final RegistryObject<Item> ASSEMBLY_CONTROLLER = DR.register("assembly_controller",
@@ -51,16 +68,16 @@ public final class ModItems {
             () -> new BlockItem(ModBlocks.ASSEMBLY_STABILIZER.get(), new Item.Properties()));
 
     public static final RegistryObject<Item> ASSEMBLY_PARALLEL_UPGRADE = DR.register("assembly_parallel_upgrade",
-            () -> new Item(new Item.Properties()));
+            () -> new AssemblyUpgradeCardItem(new Item.Properties().stacksTo(5)));
 
     public static final RegistryObject<Item> ASSEMBLY_SPEED_UPGRADE = DR.register("assembly_speed_upgrade",
-            () -> new Item(new Item.Properties()));
+            () -> new AssemblyUpgradeCardItem(new Item.Properties().stacksTo(5)));
 
     public static final RegistryObject<Item> ASSEMBLY_CAPACITY_UPGRADE = DR.register("assembly_capacity_upgrade",
-            () -> new Item(new Item.Properties()));
+            () -> new AssemblyUpgradeCardItem(new Item.Properties().stacksTo(10)));
 
     public static final RegistryObject<Item> ASSEMBLY_AUTO_UPLOAD_UPGRADE = DR.register("assembly_auto_upload_upgrade",
-            () -> new Item(new Item.Properties()));
+            () -> new AssemblyUpgradeCardItem(new Item.Properties().stacksTo(1)));
 
     // Supercausal Computation Core
     public static final RegistryObject<Item> COMPUTATION_CONTROLLER = DR.register("computation_controller",

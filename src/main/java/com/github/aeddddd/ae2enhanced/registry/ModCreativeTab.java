@@ -27,6 +27,12 @@ public final class ModCreativeTab {
                         output.accept(new ItemStack(ModItems.HYPERDIMENSIONAL_CASING.get()));
                         output.accept(new ItemStack(ModItems.HYPERDIMENSIONAL_SINGULARITY_CORE.get()));
 
+                        // Black Hole
+                        output.accept(new ItemStack(ModItems.STABLE_SPACETIME_MANIFOLD.get()));
+                        output.accept(new ItemStack(ModItems.DIFFERENTIAL_FORM_STABILIZER.get()));
+                        output.accept(new ItemStack(ModItems.CONFORMAL_INVARIANT_CHARGE.get()));
+                        output.accept(new ItemStack(ModItems.MICRO_SINGULARITY.get()));
+
                         // Assembly Hub
                         output.accept(new ItemStack(ModItems.ASSEMBLY_CONTROLLER.get()));
                         output.accept(new ItemStack(ModItems.ASSEMBLY_CASING_1.get()));

@@ -10,16 +10,22 @@ import net.minecraft.world.SimpleMenuProvider;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.block.entity.BlockEntityTicker;
+import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraftforge.network.NetworkHooks;
 
 import com.github.aeddddd.ae2enhanced.assembly.blockentity.AssemblyControllerBlockEntity;
 import com.github.aeddddd.ae2enhanced.block.MultiblockControllerBlock;
+import com.github.aeddddd.ae2enhanced.multiblock.IMultiblockController;
 import com.github.aeddddd.ae2enhanced.client.gui.AssemblyMenu;
 import com.github.aeddddd.ae2enhanced.client.gui.AssemblyUnformedMenu;
 import com.github.aeddddd.ae2enhanced.structure.AssemblyStructure;
 import com.github.aeddddd.ae2enhanced.structure.ControllerIndex;
+import com.github.aeddddd.ae2enhanced.structure.IMultiblockStructure;
+
+import javax.annotation.Nullable;
 
 /**
  * 装配枢纽控制器方块。
@@ -34,6 +40,14 @@ public class AssemblyControllerBlock extends MultiblockControllerBlock {
     public InteractionResult use(BlockState state, Level level, BlockPos pos, Player player,
             InteractionHand hand, BlockHitResult hitResult) {
         if (player.isShiftKeyDown()) {
+            if (level.getBlockEntity(pos) instanceof IMultiblockController controller) {
+                if (!controller.isFormed()) {
+                    if (!level.isClientSide()) {
+                        controller.toggleStructureProjection();
+                    }
+                    return InteractionResult.sidedSuccess(level.isClientSide());
+                }
+            }
             return InteractionResult.PASS;
         }
         if (level.isClientSide()) {
@@ -63,6 +77,17 @@ public class AssemblyControllerBlock extends MultiblockControllerBlock {
     }
 
     @Override
+    @Nullable
+    public <T extends BlockEntity> BlockEntityTicker<T> getTicker(Level level, BlockState state,
+            BlockEntityType<T> blockEntityType) {
+        return level.isClientSide() ? null : (lvl, p, st, be) -> {
+            if (be instanceof AssemblyControllerBlockEntity hub) {
+                hub.serverTick();
+            }
+        };
+    }
+
+    @Override
     protected void addToIndex(ServerLevel level, BlockPos pos) {
         ControllerIndex.get(level).add(pos);
     }
@@ -70,6 +95,11 @@ public class AssemblyControllerBlock extends MultiblockControllerBlock {
     @Override
     protected void removeFromIndex(ServerLevel level, BlockPos pos) {
         ControllerIndex.get(level).remove(pos);
+    }
+
+    @Override
+    protected IMultiblockStructure getStructure() {
+        return AssemblyStructure.INSTANCE;
     }
 
     @Override

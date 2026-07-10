@@ -75,6 +75,22 @@ public interface IMultiblockStructure {
     Set<BlockPos> getAllPositions();
 
     /**
+     * 获取结构所需全部材料清单。
+     *
+     * @return 方块类型到所需数量的映射
+     */
+    Map<Block, Integer> getRequiredMaterials();
+
+    /**
+     * 获取按当前控制器朝向旋转后的期望方块相对坐标集合。
+     *
+     * @param level 当前维度
+     * @param controllerPos 控制器位置
+     * @return (旋转后的相对坐标, 方块类型) 集合
+     */
+    Set<Map.Entry<BlockPos, Block>> getExpectedBlocks(Level level, BlockPos controllerPos);
+
+    /**
      * 获取通用 ME 接口相对坐标；若该结构不使用通用 ME 接口则返回 {@code null}。
      */
     @Nullable

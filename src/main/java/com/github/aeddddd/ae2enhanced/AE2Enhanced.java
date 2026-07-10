@@ -5,9 +5,9 @@ import org.apache.logging.log4j.Logger;
 
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.eventbus.api.IEventBus;
-import net.minecraftforge.fml.ModContainer;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.event.lifecycle.FMLCommonSetupEvent;
+import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
 
 import com.github.aeddddd.ae2enhanced.config.AE2EnhancedConfig;
 import com.github.aeddddd.ae2enhanced.data.DataGenerators;
@@ -25,7 +25,8 @@ public class AE2Enhanced {
     public static final String MOD_ID = "ae2enhanced";
     public static final Logger LOGGER = LogManager.getLogger(AE2Enhanced.class);
 
-    public AE2Enhanced(IEventBus modEventBus, ModContainer container) {
+    public AE2Enhanced() {
+        IEventBus modEventBus = FMLJavaModLoadingContext.get().getModEventBus();
         // 注册配置
         AE2EnhancedConfig.register();
 
@@ -48,6 +49,7 @@ public class AE2Enhanced {
 
     private void commonSetup(FMLCommonSetupEvent event) {
         LOGGER.info("AE2Enhanced common setup");
+        ModRecipes.init();
         MinecraftForge.EVENT_BUS.register(StructureEventHandler.class);
     }
 }
