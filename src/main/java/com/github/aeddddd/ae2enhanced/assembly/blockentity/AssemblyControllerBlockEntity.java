@@ -47,7 +47,7 @@ import com.github.aeddddd.ae2enhanced.multiblock.IPatternProviderHost;
 import com.github.aeddddd.ae2enhanced.registry.ModBlockEntities;
 import com.github.aeddddd.ae2enhanced.registry.ModBlocks;
 import com.github.aeddddd.ae2enhanced.registry.ModItems;
-import com.github.aeddddd.ae2enhanced.structure.AssemblyStructure;
+import com.github.aeddddd.ae2enhanced.structure.IMultiblockStructure;
 import com.github.aeddddd.ae2enhanced.util.BlockEntityRemovalHelper;
 
 /**
@@ -221,8 +221,9 @@ public class AssemblyControllerBlockEntity extends AENetworkBlockEntity
 
         if (validationCooldown-- <= 0) {
             validationCooldown = 20;
-            if (isFormed() && !AssemblyStructure.validate(level, worldPosition)) {
-                AssemblyStructure.disassemble(level, worldPosition);
+            IMultiblockStructure structure = getStructure();
+            if (structure != null && isFormed() && !structure.validate(level, worldPosition)) {
+                structure.disassemble(level, worldPosition);
             }
         }
 
@@ -309,6 +310,7 @@ public class AssemblyControllerBlockEntity extends AENetworkBlockEntity
         }
     }
 
+    @Override
     public void assemble() {
         if (isFormed()) {
             return;
@@ -318,6 +320,7 @@ public class AssemblyControllerBlockEntity extends AENetworkBlockEntity
         refreshInterfaceServices();
     }
 
+    @Override
     public void disassemble() {
         if (!isFormed()) {
             return;
@@ -334,6 +337,19 @@ public class AssemblyControllerBlockEntity extends AENetworkBlockEntity
     }
 
     @Override
+    @Nullable
+    public IMultiblockStructure getStructure() {
+        if (level == null) {
+            return null;
+        }
+        BlockState state = level.getBlockState(worldPosition);
+        if (state.getBlock() instanceof MultiblockControllerBlock controllerBlock) {
+            return controllerBlock.getStructure();
+        }
+        return null;
+    }
+
+    @Override
     public net.minecraft.world.phys.AABB getRenderBoundingBox() {
         BlockPos pos = getBlockPos();
         Direction facing = Direction.NORTH;
@@ -343,7 +359,9 @@ public class AssemblyControllerBlockEntity extends AENetworkBlockEntity
                 facing = state.getValue(MultiblockControllerBlock.FACING);
             }
         }
-        float[] bounds = AbstractMultiblockRenderer.computeBounds(AssemblyStructure.ALL_SET, facing);
+        IMultiblockStructure structure = getStructure();
+        java.util.Set<BlockPos> positions = structure != null ? structure.getAllPositions() : java.util.Set.of();
+        float[] bounds = AbstractMultiblockRenderer.computeBounds(positions, facing);
         Vec3 center = AbstractMultiblockRenderer.computeCenterOffset(bounds);
         double radius = AbstractMultiblockRenderer.computeRadius(bounds) + 15.0;
         Vec3 worldCenter = new Vec3(pos.getX() + center.x, pos.getY() + center.y, pos.getZ() + center.z);

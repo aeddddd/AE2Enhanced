@@ -82,6 +82,8 @@ public final class AE2EnhancedConfig {
 
     public static class ClientConfig {
         public final ForgeConfigSpec.BooleanValue enableAssemblyRenderer;
+        public final ForgeConfigSpec.BooleanValue enableAssemblyShader;
+        public final ForgeConfigSpec.BooleanValue forceCompatibilityMode;
         public final ForgeConfigSpec.BooleanValue enableHyperdimensionalRenderer;
         public final ForgeConfigSpec.IntValue renderDistance;
         public final ForgeConfigSpec.DoubleValue dynamicRenderIntensity;
@@ -95,6 +97,14 @@ public final class AE2EnhancedConfig {
             enableAssemblyRenderer = builder
                     .comment("是否启用装配枢纽中心渲染")
                     .define("enableAssemblyRenderer", true);
+
+            enableAssemblyShader = builder
+                    .comment("是否启用装配枢纽自定义 shader 渲染（禁用则回退到 VertexConsumer）")
+                    .define("enableAssemblyShader", true);
+
+            forceCompatibilityMode = builder
+                    .comment("强制兼容模式：禁用 shader 渲染，避免与光影包/优化模组冲突")
+                    .define("forceCompatibilityMode", false);
 
             enableHyperdimensionalRenderer = builder
                     .comment("是否启用超维度仓储全息渲染")

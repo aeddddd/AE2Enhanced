@@ -35,7 +35,7 @@ public interface IControllerLocator {
         return (level, interfacePos) -> {
             for (Direction facing : Direction.Plane.HORIZONTAL) {
                 // 超维度仓储：接口相对控制器坐标由结构定义给出
-                BlockPos hdRel = HyperdimensionalStructure.INSTANCE.getInterfaceRelativePos();
+                BlockPos hdRel = HyperdimensionalStructure.getInstance().getInterfaceRelativePos();
                 if (hdRel != null) {
                     BlockPos hd = interfacePos.subtract(StructureUtils.rotate(hdRel, facing));
                     if (level.getBlockState(hd).is(ModBlocks.HYPERDIMENSIONAL_CONTROLLER.get())
@@ -47,7 +47,7 @@ public interface IControllerLocator {
                 // 装配枢纽：已不再使用通用 ME 接口，定位器不再扫描旧结构。
 
                 // 超因果计算核心：接口相对控制器坐标由结构定义给出
-                BlockPos scRel = SupercausalStructure.INSTANCE.getInterfaceRelativePos();
+                BlockPos scRel = SupercausalStructure.getInstance().getInterfaceRelativePos();
                 if (scRel != null) {
                     BlockPos sc = interfacePos.subtract(StructureUtils.rotate(scRel, facing));
                     if (level.getBlockState(sc).is(ModBlocks.COMPUTATION_CONTROLLER.get())

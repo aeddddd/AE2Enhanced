@@ -18,9 +18,9 @@ import net.minecraftforge.network.NetworkHooks;
 
 import com.github.aeddddd.ae2enhanced.assembly.blockentity.AssemblyControllerBlockEntity;
 import com.github.aeddddd.ae2enhanced.block.MultiblockControllerBlock;
+import com.github.aeddddd.ae2enhanced.common.menu.AssemblyMenu;
+import com.github.aeddddd.ae2enhanced.common.menu.AssemblyUnformedMenu;
 import com.github.aeddddd.ae2enhanced.multiblock.IMultiblockController;
-import com.github.aeddddd.ae2enhanced.client.gui.AssemblyMenu;
-import com.github.aeddddd.ae2enhanced.client.gui.AssemblyUnformedMenu;
 import com.github.aeddddd.ae2enhanced.structure.AssemblyStructure;
 import com.github.aeddddd.ae2enhanced.structure.ControllerIndex;
 import com.github.aeddddd.ae2enhanced.structure.IMultiblockStructure;
@@ -98,8 +98,8 @@ public class AssemblyControllerBlock extends MultiblockControllerBlock {
     }
 
     @Override
-    protected IMultiblockStructure getStructure() {
-        return AssemblyStructure.INSTANCE;
+    public IMultiblockStructure getStructure() {
+        return AssemblyStructure.getInstance();
     }
 
     @Override

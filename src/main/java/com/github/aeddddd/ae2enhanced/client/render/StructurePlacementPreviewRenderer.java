@@ -119,10 +119,10 @@ public class StructurePlacementPreviewRenderer {
 
     private static IMultiblockStructure getStructureFor(BlockEntity be) {
         if (be instanceof AssemblyControllerBlockEntity) {
-            return AssemblyStructure.INSTANCE;
+            return AssemblyStructure.getInstance();
         }
         if (be instanceof HyperdimensionalControllerBlockEntity) {
-            return HyperdimensionalStructure.INSTANCE;
+            return HyperdimensionalStructure.getInstance();
         }
         return null;
     }

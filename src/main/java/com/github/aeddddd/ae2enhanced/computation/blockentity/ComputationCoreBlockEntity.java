@@ -18,7 +18,8 @@ import com.github.aeddddd.ae2enhanced.config.AE2EnhancedConfig;
 import com.github.aeddddd.ae2enhanced.multiblock.MultiblockControllerBlockEntity;
 import com.github.aeddddd.ae2enhanced.multiblock.MultiblockMeInterfaceBlockEntity;
 import com.github.aeddddd.ae2enhanced.registry.ModBlockEntities;
-import com.github.aeddddd.ae2enhanced.structure.SupercausalStructure;
+import com.github.aeddddd.ae2enhanced.structure.IMultiblockStructure;
+import com.github.aeddddd.ae2enhanced.structure.ValidationResult;
 
 /**
  * 超因果计算核心控制器方块实体。
@@ -96,7 +97,28 @@ public class ComputationCoreBlockEntity extends MultiblockControllerBlockEntity 
 
     @Override
     public void onAssemble() {
-        bindVirtualCpu();
+        super.onAssemble();
+        IMultiblockStructure structure = getStructure();
+        if (structure == null || level == null || level.isClientSide()) {
+            return;
+        }
+        ValidationResult result = structure.validateDetailed(level, worldPosition);
+        if (!result.passed()) {
+            return;
+        }
+        BlockPos interfacePos = findInterfacePos(structure);
+        bindVirtualCpu(interfacePos, result.parallelLimit());
+        this.interfacePos = interfacePos;
+        this.parallelLimit = result.parallelLimit();
+    }
+
+    @Nullable
+    private BlockPos findInterfacePos(IMultiblockStructure structure) {
+        if (structure.getInterfaceRelativePos() == null || level == null) {
+            return null;
+        }
+        net.minecraft.core.Direction facing = structure.getRotation(level, worldPosition);
+        return worldPosition.offset(com.github.aeddddd.ae2enhanced.util.StructureUtils.rotate(structure.getInterfaceRelativePos(), facing));
     }
 
     @Override
@@ -131,7 +153,7 @@ public class ComputationCoreBlockEntity extends MultiblockControllerBlockEntity 
 
         // 重新加载后若已成形但池为空，重新绑定初始 CPU
         if (isFormed() && cpuPool.isEmpty() && interfacePos != null) {
-            bindVirtualCpu();
+            bindVirtualCpu(interfacePos, parallelLimit);
         }
 
         if (isFormed()) {
@@ -140,8 +162,9 @@ public class ComputationCoreBlockEntity extends MultiblockControllerBlockEntity 
 
         if (validationCooldown-- <= 0) {
             validationCooldown = 20;
-            if (isFormed() && !SupercausalStructure.validate(level, worldPosition).passed) {
-                SupercausalStructure.disassemble(level, worldPosition);
+            IMultiblockStructure structure = getStructure();
+            if (structure != null && isFormed() && !structure.validateDetailed(level, worldPosition).passed()) {
+                structure.disassemble(level, worldPosition);
             }
         }
     }
@@ -180,7 +203,7 @@ public class ComputationCoreBlockEntity extends MultiblockControllerBlockEntity 
         }
     }
 
-    private void bindVirtualCpu() {
+    private void bindVirtualCpu(@Nullable BlockPos interfacePos, int parallelLimit) {
         if (level == null || interfacePos == null || !cpuPool.isEmpty()) {
             return;
         }

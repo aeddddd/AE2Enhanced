@@ -1,3 +1,5 @@
+package com.github.aeddddd.ae2enhanced.build;
+
 import java.io.*;
 import java.nio.file.*;
 import java.util.*;

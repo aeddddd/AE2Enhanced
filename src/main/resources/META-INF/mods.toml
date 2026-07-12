@@ -1,30 +1,32 @@
 modLoader="javafml"
 loaderVersion="[47,)"
-license="GNU GENERAL PUBLIC LICENSE Version 2"
-issueTrackerURL="https://github.com/aeddddd/AE2Enhanced/issues"
-
-[[mixins]]
-config="mixins.ae2enhanced.json"
+license="All Rights Reserved"
 
 [[mods]]
 modId="${mod_id}"
 version="${version}"
 displayName="${mod_name}"
 description='''
-A mod for NeoForge 1.20.1
+AE2Enhanced multiblock extension.
 '''
-authors="aeddddd"
 
-[[dependencies.${mod_id}]]
-modId="neoforge"
+[[dependencies.ae2enhanced]]
+modId="forge"
 mandatory=true
 versionRange="[47,)"
 ordering="NONE"
 side="BOTH"
 
-[[dependencies.${mod_id}]]
+[[dependencies.ae2enhanced]]
+modId="minecraft"
+mandatory=true
+versionRange="[1.20.1]"
+ordering="NONE"
+side="BOTH"
+
+[[dependencies.ae2enhanced]]
 modId="ae2"
 mandatory=true
 versionRange="[15.3.4,)"
-ordering="NONE"
+ordering="AFTER"
 side="BOTH"

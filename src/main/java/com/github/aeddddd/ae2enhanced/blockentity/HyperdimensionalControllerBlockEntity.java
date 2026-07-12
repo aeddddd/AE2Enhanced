@@ -28,7 +28,7 @@ import com.github.aeddddd.ae2enhanced.multiblock.IStorageHost;
 import com.github.aeddddd.ae2enhanced.multiblock.MultiblockControllerBlockEntity;
 import com.github.aeddddd.ae2enhanced.multiblock.MultiblockMeInterfaceBlockEntity;
 import com.github.aeddddd.ae2enhanced.registry.ModBlockEntities;
-import com.github.aeddddd.ae2enhanced.structure.HyperdimensionalStructure;
+import com.github.aeddddd.ae2enhanced.structure.IMultiblockStructure;
 
 /**
  * 超维度仓储中枢控制器方块实体。
@@ -215,8 +215,9 @@ public class HyperdimensionalControllerBlockEntity extends MultiblockControllerB
 
         if (validationCooldown-- <= 0) {
             validationCooldown = 20;
-            if (isFormed() && !HyperdimensionalStructure.validate(level, worldPosition)) {
-                HyperdimensionalStructure.disassemble(level, worldPosition);
+            IMultiblockStructure structure = getStructure();
+            if (structure != null && isFormed() && !structure.validate(level, worldPosition)) {
+                structure.disassemble(level, worldPosition);
             }
         }
 

@@ -5,27 +5,29 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.BiConsumer;
+import java.util.function.Function;
+import java.util.function.Supplier;
+
+import javax.annotation.Nullable;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.LevelAccessor;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.event.level.BlockEvent;
 import net.minecraftforge.event.level.ChunkEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
-import net.minecraftforge.fml.common.Mod;
 
-import com.github.aeddddd.ae2enhanced.AE2Enhanced;
 import com.github.aeddddd.ae2enhanced.assembly.block.AssemblyControllerBlock;
-import com.github.aeddddd.ae2enhanced.assembly.blockentity.AssemblyControllerBlockEntity;
 import com.github.aeddddd.ae2enhanced.block.HyperdimensionalControllerBlock;
-import com.github.aeddddd.ae2enhanced.blockentity.HyperdimensionalControllerBlockEntity;
 import com.github.aeddddd.ae2enhanced.computation.block.ComputationControllerBlock;
-import com.github.aeddddd.ae2enhanced.computation.blockentity.ComputationCoreBlockEntity;
+import com.github.aeddddd.ae2enhanced.multiblock.IMultiblockController;
 import com.github.aeddddd.ae2enhanced.structure.AssemblyStructure;
 import com.github.aeddddd.ae2enhanced.structure.ComputationCoreIndex;
 import com.github.aeddddd.ae2enhanced.structure.ControllerIndex;
@@ -37,46 +39,61 @@ import com.github.aeddddd.ae2enhanced.util.StructureUtils;
 
 /**
  * 多方块结构全局事件驱动验证器。
- * <p>移植自 master 的 {@code StructureEventHandler}，负责在方块变化、chunk 加载等事件后
- * 延迟验证结构完整性，并自动组装/解体。</p>
+ * <p>负责在方块变化、chunk 加载等事件后延迟验证结构完整性，并自动组装/解体。
+ * 具体 Block 到 {@link IMultiblockStructure} 的映射由 {@link #STRUCTURES} 集中管理。</p>
+ * <p>该类不在 {@code @Mod.EventBusSubscriber} 中自动注册，而是延迟到
+ * {@code FMLCommonSetupEvent} 中手动注册，以避免在方块注册完成前加载结构类。</p>
  */
-@Mod.EventBusSubscriber(modid = AE2Enhanced.MOD_ID, bus = Mod.EventBusSubscriber.Bus.FORGE)
 public class StructureEventHandler {
+
+    // Block 类型 -> 对应的多方块结构定义 Supplier（延迟获取）
+    private static final Map<Class<? extends Block>, Supplier<IMultiblockStructure>> STRUCTURES = Map.of(
+            AssemblyControllerBlock.class, AssemblyStructure::getInstance,
+            HyperdimensionalControllerBlock.class, HyperdimensionalStructure::getInstance,
+            ComputationControllerBlock.class, SupercausalStructure::getInstance);
+
+    // Block 类型 -> 从对应维度索引移除控制器位置的操作
+    private static final Map<Class<? extends Block>, BiConsumer<ServerLevel, BlockPos>> INDEX_REMOVERS = Map.of(
+            AssemblyControllerBlock.class, (level, pos) -> ControllerIndex.get(level).remove(pos),
+            HyperdimensionalControllerBlock.class, (level, pos) -> ControllerIndex.get(level).remove(pos),
+            ComputationControllerBlock.class, (level, pos) -> ComputationCoreIndex.get(level).remove(pos));
+
+    // Block 类型 -> 获取所有已注册控制器位置的 Supplier
+    private static final Map<Class<? extends Block>, Function<ServerLevel, Set<BlockPos>>> INDEX_PROVIDERS = Map.of(
+            AssemblyControllerBlock.class, level -> ControllerIndex.get(level).getAll(),
+            HyperdimensionalControllerBlock.class, level -> ControllerIndex.get(level).getAll(),
+            ComputationControllerBlock.class, level -> ComputationCoreIndex.get(level).getAll());
 
     // 按维度分离的待验证控制器位置 -> 剩余 tick
     private static final Map<ResourceKey<Level>, Map<BlockPos, Integer>> pendingChecks = new HashMap<>();
 
     @SubscribeEvent
     public static void onNeighborNotify(BlockEvent.NeighborNotifyEvent event) {
-        if (!(event.getLevel() instanceof Level level) || level.isClientSide() || !(level instanceof ServerLevel serverLevel)) {
+        ServerLevel level = asServerLevel(event.getLevel());
+        if (level == null) {
             return;
         }
-        checkSurroundingControllers(serverLevel, event.getPos());
+        checkSurroundingControllers(level, event.getPos());
     }
 
     @SubscribeEvent
     public static void onBlockBreak(BlockEvent.BreakEvent event) {
-        if (!(event.getLevel() instanceof Level level) || level.isClientSide() || !(level instanceof ServerLevel serverLevel)) {
+        ServerLevel level = asServerLevel(event.getLevel());
+        if (level == null) {
             return;
         }
 
         BlockPos pos = event.getPos();
-        BlockState state = level.getBlockState(pos);
-        Block brokenBlock = state.getBlock();
+        Block brokenBlock = level.getBlockState(pos).getBlock();
 
-        // 如果是控制器本身被破坏，立即解散
-        if (brokenBlock instanceof HyperdimensionalControllerBlock) {
-            HyperdimensionalStructure.disassemble(level, pos);
-            ControllerIndex.get(serverLevel).remove(pos);
-        } else if (brokenBlock instanceof AssemblyControllerBlock) {
-            AssemblyStructure.disassemble(level, pos);
-            ControllerIndex.get(serverLevel).remove(pos);
-        } else if (brokenBlock instanceof ComputationControllerBlock) {
-            SupercausalStructure.disassemble(level, pos);
-            ComputationCoreIndex.get(serverLevel).remove(pos);
+        Supplier<IMultiblockStructure> supplier = STRUCTURES.get(brokenBlock.getClass());
+        IMultiblockStructure structure = supplier != null ? supplier.get() : null;
+        if (structure != null) {
+            structure.disassemble(level, pos);
+            INDEX_REMOVERS.get(brokenBlock.getClass()).accept(level, pos);
         }
 
-        checkSurroundingControllers(serverLevel, pos);
+        checkSurroundingControllers(level, pos);
     }
 
     @SubscribeEvent
@@ -112,23 +129,23 @@ public class StructureEventHandler {
 
     @SubscribeEvent
     public static void onChunkLoad(ChunkEvent.Load event) {
-        if (!(event.getLevel() instanceof Level level) || level.isClientSide() || !(level instanceof ServerLevel serverLevel)) {
+        ServerLevel level = asServerLevel(event.getLevel());
+        if (level == null) {
             return;
         }
 
-        ControllerIndex index = ControllerIndex.get(serverLevel);
-        for (BlockPos controllerPos : index.getAll()) {
-            if (areAllChunksLoadedForController(level, controllerPos)) {
-                scheduleCheck(serverLevel, controllerPos);
+        for (Function<ServerLevel, Set<BlockPos>> provider : INDEX_PROVIDERS.values()) {
+            for (BlockPos controllerPos : provider.apply(level)) {
+                if (areAllChunksLoadedForController(level, controllerPos)) {
+                    scheduleCheck(level, controllerPos);
+                }
             }
         }
+    }
 
-        ComputationCoreIndex compIndex = ComputationCoreIndex.get(serverLevel);
-        for (BlockPos controllerPos : compIndex.getAll()) {
-            if (areAllChunksLoadedForController(level, controllerPos)) {
-                scheduleCheck(serverLevel, controllerPos);
-            }
-        }
+    @Nullable
+    private static ServerLevel asServerLevel(LevelAccessor levelAccessor) {
+        return levelAccessor instanceof ServerLevel serverLevel ? serverLevel : null;
     }
 
     /**
@@ -151,24 +168,12 @@ public class StructureEventHandler {
     }
 
     private static void checkSurroundingControllers(ServerLevel level, BlockPos changedPos) {
-        ControllerIndex index = ControllerIndex.get(level);
-        Set<BlockPos> controllers = index.getAll();
-        for (BlockPos controllerPos : controllers) {
-            BlockState state = level.getBlockState(controllerPos);
-            Block block = state.getBlock();
-            if (block instanceof AssemblyControllerBlock) {
-                checkControllerChanged(level, changedPos, controllerPos, AssemblyStructure.INSTANCE);
-            } else if (block instanceof HyperdimensionalControllerBlock) {
-                checkControllerChanged(level, changedPos, controllerPos, HyperdimensionalStructure.INSTANCE);
-            }
-        }
-
-        ComputationCoreIndex compIndex = ComputationCoreIndex.get(level);
-        for (BlockPos controllerPos : compIndex.getAll()) {
-            BlockState state = level.getBlockState(controllerPos);
-            Block block = state.getBlock();
-            if (block instanceof ComputationControllerBlock) {
-                checkControllerChanged(level, changedPos, controllerPos, SupercausalStructure.INSTANCE);
+        for (Function<ServerLevel, Set<BlockPos>> provider : INDEX_PROVIDERS.values()) {
+            for (BlockPos controllerPos : provider.apply(level)) {
+                IMultiblockStructure structure = getStructureForController(level, controllerPos);
+                if (structure != null) {
+                    checkControllerChanged(level, changedPos, controllerPos, structure);
+                }
             }
         }
     }
@@ -193,48 +198,24 @@ public class StructureEventHandler {
             return;
         }
 
-        BlockState state = level.getBlockState(controllerPos);
-        Block block = state.getBlock();
-        if (block instanceof HyperdimensionalControllerBlock) {
-            ValidationResult result = HyperdimensionalStructure.validateDetailed(level, controllerPos);
-            if (level.getBlockEntity(controllerPos) instanceof HyperdimensionalControllerBlockEntity tile) {
-                if (result.passed() && !tile.isFormed()) {
-                    HyperdimensionalStructure.assemble(level, controllerPos);
-                } else if (!result.passed() && tile.isFormed()) {
-                    HyperdimensionalStructure.disassemble(level, controllerPos);
-                }
-            }
-        } else if (block instanceof AssemblyControllerBlock) {
-            ValidationResult result = AssemblyStructure.validateDetailed(level, controllerPos);
-            if (level.getBlockEntity(controllerPos) instanceof AssemblyControllerBlockEntity tile) {
-                if (result.passed() && !tile.isFormed()) {
-                    AssemblyStructure.assemble(level, controllerPos);
-                } else if (!result.passed() && tile.isFormed()) {
-                    AssemblyStructure.disassemble(level, controllerPos);
-                }
-            }
-        } else if (block instanceof ComputationControllerBlock) {
-            ValidationResult result = SupercausalStructure.validateDetailed(level, controllerPos);
-            if (level.getBlockEntity(controllerPos) instanceof ComputationCoreBlockEntity tile) {
-                if (result.passed() && !tile.isFormed()) {
-                    SupercausalStructure.assemble(level, controllerPos);
-                } else if (!result.passed() && tile.isFormed()) {
-                    SupercausalStructure.disassemble(level, controllerPos);
-                }
+        IMultiblockStructure structure = getStructureForController(level, controllerPos);
+        if (structure == null) {
+            return;
+        }
+
+        ValidationResult result = structure.validateDetailed(level, controllerPos);
+        if (level.getBlockEntity(controllerPos) instanceof IMultiblockController tile) {
+            if (result.passed() && !tile.isFormed()) {
+                structure.assemble(level, controllerPos);
+            } else if (!result.passed() && tile.isFormed()) {
+                structure.disassemble(level, controllerPos);
             }
         }
     }
 
     private static IMultiblockStructure getStructureForController(Level level, BlockPos controllerPos) {
         BlockState state = level.getBlockState(controllerPos);
-        Block block = state.getBlock();
-        if (block instanceof AssemblyControllerBlock) {
-            return AssemblyStructure.INSTANCE;
-        } else if (block instanceof HyperdimensionalControllerBlock) {
-            return HyperdimensionalStructure.INSTANCE;
-        } else if (block instanceof ComputationControllerBlock) {
-            return SupercausalStructure.INSTANCE;
-        }
-        return null;
+        Supplier<IMultiblockStructure> supplier = STRUCTURES.get(state.getBlock().getClass());
+        return supplier != null ? supplier.get() : null;
     }
 }

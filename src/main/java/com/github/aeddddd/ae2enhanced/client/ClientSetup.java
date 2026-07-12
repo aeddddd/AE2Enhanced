@@ -1,8 +1,11 @@
 package com.github.aeddddd.ae2enhanced.client;
 
+import java.io.IOException;
+
 import net.minecraft.client.gui.screens.MenuScreens;
 import net.minecraft.client.renderer.blockentity.BlockEntityRenderers;
 import net.minecraftforge.api.distmarker.Dist;
+import net.minecraftforge.client.event.RegisterShadersEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.event.lifecycle.FMLClientSetupEvent;
@@ -15,6 +18,7 @@ import com.github.aeddddd.ae2enhanced.client.gui.ComputationCoreScreen;
 import com.github.aeddddd.ae2enhanced.client.gui.ComputationUnformedScreen;
 import com.github.aeddddd.ae2enhanced.client.gui.HyperdimensionalNexusScreen;
 import com.github.aeddddd.ae2enhanced.client.gui.HyperdimensionalUnformedScreen;
+import com.github.aeddddd.ae2enhanced.client.render.AE2EnhancedShaders;
 import com.github.aeddddd.ae2enhanced.client.render.AssemblyHubRenderer;
 import com.github.aeddddd.ae2enhanced.client.render.HyperdimensionalControllerRenderer;
 import com.github.aeddddd.ae2enhanced.registry.ModBlockEntities;
@@ -41,6 +45,11 @@ public final class ClientSetup {
             BlockEntityRenderers.register(ModBlockEntities.HYPERDIMENSIONAL_CONTROLLER.get(),
                     HyperdimensionalControllerRenderer::new);
         });
+    }
+
+    @SubscribeEvent
+    public static void registerShaders(RegisterShadersEvent event) throws IOException {
+        AE2EnhancedShaders.registerShaders(event);
     }
 
     private ClientSetup() {

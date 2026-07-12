@@ -19,6 +19,8 @@ import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.BlockStateProperties;
 
+import com.github.aeddddd.ae2enhanced.multiblock.IMultiblockController;
+import com.github.aeddddd.ae2enhanced.multiblock.MultiblockMeInterfaceBlockEntity;
 import com.github.aeddddd.ae2enhanced.util.StructureUtils;
 
 /**
@@ -175,10 +177,43 @@ public abstract class AbstractMultiblockStructure implements IMultiblockStructur
     }
 
     @Override
-    public abstract void assemble(Level level, BlockPos controllerPos);
+    public void assemble(Level level, BlockPos controllerPos) {
+        if (level.isClientSide()) {
+            return;
+        }
+        if (!(level.getBlockEntity(controllerPos) instanceof IMultiblockController controller)) {
+            return;
+        }
+        BlockPos interfacePos = findInterfacePos(level, controllerPos);
+        if (interfacePos != null && level.getBlockEntity(interfacePos) instanceof MultiblockMeInterfaceBlockEntity interfaceBe) {
+            interfaceBe.setControllerPos(controllerPos);
+        }
+        controller.assemble();
+    }
 
     @Override
-    public abstract void disassemble(Level level, BlockPos controllerPos);
+    public void disassemble(Level level, BlockPos controllerPos) {
+        if (level.isClientSide()) {
+            return;
+        }
+        if (!(level.getBlockEntity(controllerPos) instanceof IMultiblockController controller)) {
+            return;
+        }
+        controller.disassemble();
+        BlockPos interfacePos = findInterfacePos(level, controllerPos);
+        if (interfacePos != null && level.getBlockEntity(interfacePos) instanceof MultiblockMeInterfaceBlockEntity interfaceBe) {
+            interfaceBe.setControllerPos(null);
+        }
+    }
+
+    @Nullable
+    protected BlockPos findInterfacePos(Level level, BlockPos controllerPos) {
+        BlockPos rel = getInterfaceRelativePos();
+        if (rel == null) {
+            return null;
+        }
+        return controllerPos.offset(StructureUtils.rotate(rel, getRotation(level, controllerPos)));
+    }
 
     @Override
     public abstract Direction getRotation(Level level, BlockPos controllerPos);

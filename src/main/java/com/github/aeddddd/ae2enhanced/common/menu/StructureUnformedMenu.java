@@ -1,4 +1,4 @@
-package com.github.aeddddd.ae2enhanced.client.gui.menu;
+package com.github.aeddddd.ae2enhanced.common.menu;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.player.Inventory;
@@ -8,6 +8,8 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.Block;
 
 import java.util.Map;
+
+import com.github.aeddddd.ae2enhanced.client.gui.GuiConstants;
 
 /**
  * 多方块结构未成形状态菜单抽象基类。
@@ -33,7 +35,7 @@ public abstract class StructureUnformedMenu extends AbstractContainerMenu {
 
     @Override
     public boolean stillValid(Player player) {
-        return player.distanceToSqr(controllerPos.getX() + 0.5, controllerPos.getY() + 0.5, controllerPos.getZ() + 0.5) <= 64.0;
+        return player.distanceToSqr(controllerPos.getX() + 0.5, controllerPos.getY() + 0.5, controllerPos.getZ() + 0.5) <= GuiConstants.CONTAINER_MAX_DISTANCE_SQR;
     }
 
     @Override

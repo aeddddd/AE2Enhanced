@@ -7,13 +7,13 @@ import net.minecraftforge.registries.DeferredRegister;
 import net.minecraftforge.registries.RegistryObject;
 
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
-import com.github.aeddddd.ae2enhanced.client.gui.AssemblyMenu;
-import com.github.aeddddd.ae2enhanced.client.gui.AssemblyPatternMenu;
-import com.github.aeddddd.ae2enhanced.client.gui.AssemblyUnformedMenu;
-import com.github.aeddddd.ae2enhanced.client.gui.ComputationCoreMenu;
-import com.github.aeddddd.ae2enhanced.client.gui.ComputationUnformedMenu;
-import com.github.aeddddd.ae2enhanced.client.gui.HyperdimensionalNexusMenu;
-import com.github.aeddddd.ae2enhanced.client.gui.HyperdimensionalUnformedMenu;
+import com.github.aeddddd.ae2enhanced.common.menu.AssemblyMenu;
+import com.github.aeddddd.ae2enhanced.common.menu.AssemblyPatternMenu;
+import com.github.aeddddd.ae2enhanced.common.menu.AssemblyUnformedMenu;
+import com.github.aeddddd.ae2enhanced.common.menu.ComputationCoreMenu;
+import com.github.aeddddd.ae2enhanced.common.menu.ComputationUnformedMenu;
+import com.github.aeddddd.ae2enhanced.common.menu.HyperdimensionalNexusMenu;
+import com.github.aeddddd.ae2enhanced.common.menu.HyperdimensionalUnformedMenu;
 
 /**
  * 菜单类型注册中心。

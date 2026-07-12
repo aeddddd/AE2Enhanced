@@ -1,4 +1,4 @@
-package com.github.aeddddd.ae2enhanced.client.gui;
+package com.github.aeddddd.ae2enhanced.common.menu;
 
 import javax.annotation.Nullable;
 
@@ -17,6 +17,7 @@ import net.minecraftforge.items.SlotItemHandler;
 import appeng.api.crafting.PatternDetailsHelper;
 
 import com.github.aeddddd.ae2enhanced.assembly.blockentity.AssemblyControllerBlockEntity;
+import com.github.aeddddd.ae2enhanced.client.gui.GuiConstants;
 import com.github.aeddddd.ae2enhanced.registry.ModMenus;
 
 /**
@@ -116,7 +117,7 @@ public class AssemblyPatternMenu extends AbstractContainerMenu {
 
     @Override
     public boolean stillValid(Player player) {
-        return player.distanceToSqr(controllerPos.getX() + 0.5, controllerPos.getY() + 0.5, controllerPos.getZ() + 0.5) <= 64.0;
+        return player.distanceToSqr(controllerPos.getX() + 0.5, controllerPos.getY() + 0.5, controllerPos.getZ() + 0.5) <= GuiConstants.CONTAINER_MAX_DISTANCE_SQR;
     }
 
     @Override

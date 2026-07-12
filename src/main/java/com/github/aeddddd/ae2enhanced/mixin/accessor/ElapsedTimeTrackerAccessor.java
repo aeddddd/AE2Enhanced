@@ -12,5 +12,5 @@ import org.spongepowered.asm.mixin.gen.Invoker;
 @Mixin(value = ElapsedTimeTracker.class, remap = false)
 public interface ElapsedTimeTrackerAccessor {
     @Invoker("decrementItems")
-    void decrementItems(long amount, AEKeyType type);
+    void invokeDecrementItems(long amount, AEKeyType type);
 }

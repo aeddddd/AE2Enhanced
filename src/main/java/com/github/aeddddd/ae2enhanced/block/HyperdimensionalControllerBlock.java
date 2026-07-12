@@ -15,9 +15,9 @@ import net.minecraft.world.phys.BlockHitResult;
 import net.minecraftforge.network.NetworkHooks;
 
 import com.github.aeddddd.ae2enhanced.blockentity.HyperdimensionalControllerBlockEntity;
+import com.github.aeddddd.ae2enhanced.common.menu.HyperdimensionalNexusMenu;
+import com.github.aeddddd.ae2enhanced.common.menu.HyperdimensionalUnformedMenu;
 import com.github.aeddddd.ae2enhanced.multiblock.MultiblockControllerBlockEntity;
-import com.github.aeddddd.ae2enhanced.client.gui.HyperdimensionalNexusMenu;
-import com.github.aeddddd.ae2enhanced.client.gui.HyperdimensionalUnformedMenu;
 import com.github.aeddddd.ae2enhanced.structure.ControllerIndex;
 import com.github.aeddddd.ae2enhanced.structure.HyperdimensionalStructure;
 import com.github.aeddddd.ae2enhanced.structure.IMultiblockStructure;
@@ -84,8 +84,8 @@ public class HyperdimensionalControllerBlock extends MultiblockControllerBlock {
     }
 
     @Override
-    protected IMultiblockStructure getStructure() {
-        return HyperdimensionalStructure.INSTANCE;
+    public IMultiblockStructure getStructure() {
+        return HyperdimensionalStructure.getInstance();
     }
 
     @Override

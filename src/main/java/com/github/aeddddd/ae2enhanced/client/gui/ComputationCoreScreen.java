@@ -1,5 +1,7 @@
 package com.github.aeddddd.ae2enhanced.client.gui;
 
+import com.github.aeddddd.ae2enhanced.common.menu.ComputationCoreMenu;
+
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.network.chat.Component;
@@ -16,8 +18,8 @@ public class ComputationCoreScreen extends AbstractContainerScreen<ComputationCo
 
     public ComputationCoreScreen(ComputationCoreMenu menu, Inventory inv, Component title) {
         super(menu, inv, title);
-        this.imageWidth = 280;
-        this.imageHeight = 200;
+        this.imageWidth = GuiConstants.PANEL_WIDTH;
+        this.imageHeight = GuiConstants.PANEL_HEIGHT;
     }
 
     @Override
@@ -31,37 +33,39 @@ public class ComputationCoreScreen extends AbstractContainerScreen<ComputationCo
         this.renderBackground(graphics);
 
         drawTechPanelFrame(graphics);
-        drawInnerPanel(graphics, this.leftPos + 10, this.topPos + 36, this.leftPos + this.imageWidth - 10, this.topPos + this.imageHeight - 28);
+        drawInnerPanel(graphics, this.leftPos + GuiConstants.PANEL_CONTENT_LEFT_MARGIN, this.topPos + GuiConstants.COMPUTATION_INNER_PANEL_TOP,
+                this.leftPos + this.imageWidth - GuiConstants.PANEL_CONTENT_LEFT_MARGIN, this.topPos + this.imageHeight - GuiConstants.COMPUTATION_INNER_PANEL_BOTTOM_MARGIN);
 
         Component title = Component.translatable("gui.ae2enhanced.computation.formed.title");
         int titleWidth = this.font.width(title);
-        graphics.drawString(this.font, title, this.leftPos + (this.imageWidth - titleWidth) / 2, this.topPos + 8, GuiColors.ACCENT, false);
+        graphics.drawString(this.font, title, this.leftPos + (this.imageWidth - titleWidth) / 2, this.topPos + GuiConstants.COMPUTATION_TITLE_Y, GuiColors.ACCENT, false);
 
-        graphics.fill(this.leftPos + 16, this.topPos + 22, this.leftPos + this.imageWidth - 16, this.topPos + 23, GuiColors.ACCENT_SOFT);
+        graphics.fill(this.leftPos + GuiConstants.COMPUTATION_SEPARATOR_LEFT_MARGIN, this.topPos + GuiConstants.COMPUTATION_SEPARATOR_Y,
+                this.leftPos + this.imageWidth - GuiConstants.COMPUTATION_SEPARATOR_LEFT_MARGIN, this.topPos + GuiConstants.COMPUTATION_SEPARATOR_Y + 1, GuiColors.ACCENT_SOFT);
 
         ComputationCoreBlockEntity controller = this.menu.getController();
         if (controller == null) {
             graphics.drawString(this.font, Component.translatable("gui.ae2enhanced.computation.tile_unavailable"),
-                    this.leftPos + 20, this.topPos + 40, GuiColors.TEXT_WARN, false);
+                    this.leftPos + GuiConstants.COMPUTATION_CONTENT_START_X, this.topPos + GuiConstants.COMPUTATION_TILE_UNAVAILABLE_Y, GuiColors.TEXT_WARN, false);
             this.renderTooltip(graphics, mouseX, mouseY);
             return;
         }
 
-        int x = this.leftPos + 20;
-        int y = this.topPos + 42;
-        int lineHeight = 14;
+        int x = this.leftPos + GuiConstants.COMPUTATION_CONTENT_START_X;
+        int y = this.topPos + GuiConstants.COMPUTATION_CONTENT_START_Y;
+        int lineHeight = GuiConstants.COMPUTATION_LINE_HEIGHT;
 
         Component formedStr = controller.isFormed()
                 ? Component.translatable("gui.ae2enhanced.computation.status.online")
                 : Component.translatable("gui.ae2enhanced.computation.status.offline");
         graphics.drawString(this.font, Component.translatable("gui.ae2enhanced.computation.label.status", formedStr), x, y, GuiColors.TEXT_MAIN, false);
-        y += lineHeight + 4;
+        y += lineHeight + GuiConstants.COMPUTATION_PARAGRAPH_SPACING;
 
         int parallel = controller.getParallelLimit();
         graphics.drawString(this.font, Component.translatable("gui.ae2enhanced.computation.label.parallel", parallel), x, y, GuiColors.TEXT_MAIN, false);
-        y += 12;
-        drawBar(graphics, x, y, x + 140, 8, 1.0f, GuiColors.BAR_BG, GuiColors.BAR_FILL);
-        y += 14;
+        y += GuiConstants.COMPUTATION_SMALL_LINE_SPACING;
+        drawBar(graphics, x, y, x + GuiConstants.COMPUTATION_BAR_MAX_WIDTH, GuiConstants.COMPUTATION_BAR_HEIGHT, 1.0f, GuiColors.BAR_BG, GuiColors.BAR_FILL);
+        y += GuiConstants.COMPUTATION_BAR_HEIGHT + GuiConstants.COMPUTATION_PARAGRAPH_SPACING;
 
         int orders = controller.getActiveJobs();
         graphics.drawString(this.font, Component.translatable("gui.ae2enhanced.computation.label.active_orders", orders), x, y, GuiColors.TEXT_MAIN, false);
@@ -69,23 +73,23 @@ public class ComputationCoreScreen extends AbstractContainerScreen<ComputationCo
 
         int maxOrders = AE2EnhancedConfig.COMMON.computationMaxParallel.get();
         graphics.drawString(this.font, Component.translatable("gui.ae2enhanced.computation.label.queue_capacity", maxOrders), x, y, GuiColors.TEXT_MAIN, false);
-        y += lineHeight + 4;
+        y += lineHeight + GuiConstants.COMPUTATION_PARAGRAPH_SPACING;
 
-        graphics.fill(x, y, this.leftPos + this.imageWidth - 20, y + 1, GuiColors.BORDER_DIM);
-        y += 6;
+        graphics.fill(x, y, this.leftPos + this.imageWidth - GuiConstants.COMPUTATION_CONTENT_START_X, y + 1, GuiColors.BORDER_DIM);
+        y += GuiConstants.COMPUTATION_DIVIDER_VERTICAL_MARGIN;
 
         if (orders == 0) {
-            graphics.drawString(this.font, Component.translatable("gui.ae2enhanced.computation.orders.empty"), x, y, 0xFF668899, false);
+            graphics.drawString(this.font, Component.translatable("gui.ae2enhanced.computation.orders.empty"), x, y, GuiConstants.COMPUTATION_EMPTY_TEXT_COLOR, false);
         } else {
-            graphics.drawString(this.font, Component.translatable("gui.ae2enhanced.computation.orders.placeholder"), x, y, 0xFF668899, false);
+            graphics.drawString(this.font, Component.translatable("gui.ae2enhanced.computation.orders.placeholder"), x, y, GuiConstants.COMPUTATION_EMPTY_TEXT_COLOR, false);
         }
-        y += lineHeight + 4;
+        y += lineHeight + GuiConstants.COMPUTATION_PARAGRAPH_SPACING;
 
-        graphics.drawString(this.font, Component.translatable("gui.ae2enhanced.computation.engine.initializing"), x, y, 0xFF556677, false);
+        graphics.drawString(this.font, Component.translatable("gui.ae2enhanced.computation.engine.initializing"), x, y, GuiConstants.COMPUTATION_INITIALIZING_TEXT_COLOR, false);
 
         Component hint = Component.translatable("gui.ae2enhanced.computation.hint.close");
         int hintW = this.font.width(hint);
-        graphics.drawString(this.font, hint, this.leftPos + (this.imageWidth - hintW) / 2, this.topPos + this.imageHeight - 18, 0xFF445566, false);
+        graphics.drawString(this.font, hint, this.leftPos + (this.imageWidth - hintW) / 2, this.topPos + this.imageHeight - GuiConstants.COMPUTATION_HINT_BOTTOM_MARGIN, GuiConstants.COMPUTATION_HINT_TEXT_COLOR, false);
 
         this.renderTooltip(graphics, mouseX, mouseY);
     }
@@ -115,27 +119,27 @@ public class ComputationCoreScreen extends AbstractContainerScreen<ComputationCo
         int bottom = top + this.imageHeight;
 
         graphics.fill(left, top, right, bottom, GuiColors.PANEL_BG);
-        graphics.fill(left, top, right, top + 2, GuiColors.ACCENT);
+        graphics.fill(left, top, right, top + GuiConstants.COMPUTATION_FRAME_ACCENT_THICKNESS, GuiColors.ACCENT);
 
-        graphics.fill(left, top, right, top + 1, GuiColors.BORDER_DIM);
-        graphics.fill(left, bottom - 1, right, bottom, GuiColors.BORDER_DIM);
-        graphics.fill(left, top, left + 1, bottom, GuiColors.BORDER_DIM);
-        graphics.fill(right - 1, top, right, bottom, GuiColors.BORDER_DIM);
+        graphics.fill(left, top, right, top + GuiConstants.COMPUTATION_BORDER_THICKNESS, GuiColors.BORDER_DIM);
+        graphics.fill(left, bottom - GuiConstants.COMPUTATION_BORDER_THICKNESS, right, bottom, GuiColors.BORDER_DIM);
+        graphics.fill(left, top, left + GuiConstants.COMPUTATION_BORDER_THICKNESS, bottom, GuiColors.BORDER_DIM);
+        graphics.fill(right - GuiConstants.COMPUTATION_BORDER_THICKNESS, top, right, bottom, GuiColors.BORDER_DIM);
 
-        int corner = 10;
-        graphics.fill(left, top, left + corner, top + 2, GuiColors.ACCENT);
-        graphics.fill(left, top, left + 2, top + corner, GuiColors.ACCENT);
-        graphics.fill(right - corner, top, right, top + 2, GuiColors.ACCENT);
-        graphics.fill(right - 2, top, right, top + corner, GuiColors.ACCENT);
-        graphics.fill(left, bottom - 2, left + corner, bottom, GuiColors.ACCENT);
-        graphics.fill(left, bottom - corner, left + 2, bottom, GuiColors.ACCENT);
-        graphics.fill(right - corner, bottom - 2, right, bottom, GuiColors.ACCENT);
-        graphics.fill(right - 2, bottom - corner, right, bottom, GuiColors.ACCENT);
+        int corner = GuiConstants.COMPUTATION_CORNER_ACCENT_SIZE;
+        graphics.fill(left, top, left + corner, top + GuiConstants.COMPUTATION_FRAME_ACCENT_THICKNESS, GuiColors.ACCENT);
+        graphics.fill(left, top, left + GuiConstants.COMPUTATION_FRAME_ACCENT_THICKNESS, top + corner, GuiColors.ACCENT);
+        graphics.fill(right - corner, top, right, top + GuiConstants.COMPUTATION_FRAME_ACCENT_THICKNESS, GuiColors.ACCENT);
+        graphics.fill(right - GuiConstants.COMPUTATION_FRAME_ACCENT_THICKNESS, top, right, top + corner, GuiColors.ACCENT);
+        graphics.fill(left, bottom - GuiConstants.COMPUTATION_FRAME_ACCENT_THICKNESS, left + corner, bottom, GuiColors.ACCENT);
+        graphics.fill(left, bottom - corner, left + GuiConstants.COMPUTATION_FRAME_ACCENT_THICKNESS, bottom, GuiColors.ACCENT);
+        graphics.fill(right - corner, bottom - GuiConstants.COMPUTATION_FRAME_ACCENT_THICKNESS, right, bottom, GuiColors.ACCENT);
+        graphics.fill(right - GuiConstants.COMPUTATION_FRAME_ACCENT_THICKNESS, bottom - corner, right, bottom, GuiColors.ACCENT);
     }
 
     private void drawInnerPanel(GuiGraphics graphics, int left, int top, int right, int bottom) {
         graphics.fill(left, top, right, bottom, GuiColors.PANEL_LIGHT);
-        graphics.fill(left, top, right, top + 1, GuiColors.BORDER_DIM);
-        graphics.fill(left, bottom - 1, right, bottom, GuiColors.BORDER_DIM);
+        graphics.fill(left, top, right, top + GuiConstants.COMPUTATION_BORDER_THICKNESS, GuiColors.BORDER_DIM);
+        graphics.fill(left, bottom - GuiConstants.COMPUTATION_BORDER_THICKNESS, right, bottom, GuiColors.BORDER_DIM);
     }
 }

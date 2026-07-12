@@ -53,7 +53,9 @@ tasks.withType(net.neoforged.gradle.common.runs.tasks.RunExec).configureEach {
     dependsOn tasks.generateReobfMapping
 }
 
-sourceSets.main.resources { srcDir 'src/generated/resources' }
+if (file('src/generated/resources').exists()) {
+    sourceSets.main.resources { srcDir 'src/generated/resources' }
+}
 
 repositories {
     mavenCentral()
@@ -139,7 +141,7 @@ tasks.register('generateReobfMapping') {
         mappingFile.get().asFile.parentFile.mkdirs()
         javaexec {
             classpath = files('buildSrc/build/classes/java/main') + buildscript.configurations.classpath
-            mainClass = 'ComposeOfficialSrg'
+            mainClass = 'com.github.aeddddd.ae2enhanced.build.ComposeOfficialSrg'
             args = [
                     clientMappingsFile,
                     tasks.neoFormMergeMappings.output.get().asFile,
@@ -160,7 +162,7 @@ tasks.register('generateSrgToOfficialMapping') {
         mappingFile.get().asFile.parentFile.mkdirs()
         javaexec {
             classpath = files('buildSrc/build/classes/java/main') + buildscript.configurations.classpath
-            mainClass = 'ComposeSrgToOfficial'
+            mainClass = 'com.github.aeddddd.ae2enhanced.build.ComposeSrgToOfficial'
             args = [
                     input,
                     mappingFile.get().asFile,
@@ -184,7 +186,7 @@ tasks.register('deobfAe2Jar', JavaExec) {
     outputs.file outputJar
 
     classpath = files('buildSrc/build/classes/java/main') + buildscript.configurations.classpath
-    mainClass = 'Ae2Deobfuscator'
+    mainClass = 'com.github.aeddddd.ae2enhanced.build.Ae2Deobfuscator'
     args = [ae2Jar, mappingFile, outputJar.get().asFile]
 }
 
@@ -202,7 +204,7 @@ tasks.register('fixAe2Refmap', JavaExec) {
     outputs.file outputJar
 
     classpath = files('buildSrc/build/classes/java/main') + buildscript.configurations.classpath
-    mainClass = 'FixAe2Refmap'
+    mainClass = 'com.github.aeddddd.ae2enhanced.build.FixAe2Refmap'
     args = [ae2Jar, mappingFile, outputJar.get().asFile]
 }
 

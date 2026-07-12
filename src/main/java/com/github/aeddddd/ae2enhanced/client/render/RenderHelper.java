@@ -2,10 +2,8 @@ package com.github.aeddddd.ae2enhanced.client.render;
 
 import java.util.OptionalDouble;
 
-import com.mojang.blaze3d.vertex.BufferBuilder;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.blaze3d.vertex.PoseStack;
-import com.mojang.blaze3d.vertex.Tesselator;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import com.mojang.blaze3d.vertex.VertexFormat;
 import org.joml.Matrix4f;
@@ -43,6 +41,16 @@ public final class RenderHelper {
      * 自定义不透明 RenderType，用于黑色事件视界等实心体。
      */
     public static final RenderType TESR_SOLID = AE2ERenderTypes.TESR_SOLID;
+
+    /**
+     * 装配枢纽黑洞主体 RenderType（事件视界 + 吸积盘）。
+     */
+    public static final RenderType ASSEMBLY_BLACK_HOLE = AE2ERenderTypes.ASSEMBLY_BLACK_HOLE;
+
+    /**
+     * 装配枢纽黑洞发光 RenderType（相对论性喷流）。
+     */
+    public static final RenderType ASSEMBLY_BLACK_HOLE_GLOW = AE2ERenderTypes.ASSEMBLY_BLACK_HOLE_GLOW;
 
     /**
      * 将 0xRRGGBB 整数颜色拆分为顶点颜色分量。
@@ -279,6 +287,89 @@ public final class RenderHelper {
         drawTriangle(consumer, matrix, bottom, back, right, c);
         drawTriangle(consumer, matrix, bottom, left, back, c);
         drawTriangle(consumer, matrix, bottom, front, left, c);
+    }
+
+    /**
+     * 绘制吸积盘（扁平填充圆环）。
+     * <p>顶点颜色 R 通道作为 shader 部件 ID（建议传 0x010000）。</p>
+     *
+     * @param consumer 顶点消费者
+     * @param poseStack 姿态矩阵栈
+     * @param innerRadius 内半径
+     * @param outerRadius 外半径
+     * @param colorId 部件标识颜色
+     * @param segments 分段数
+     */
+    public static void drawAccretionDisk(VertexConsumer consumer, PoseStack poseStack,
+            float innerRadius, float outerRadius, int colorId, int segments) {
+        Matrix4f matrix = poseStack.last().pose();
+        int[] c = unpackColor(colorId, 0.0f);
+
+        for (int i = 0; i < segments; i++) {
+            float a0 = (float) (2 * Math.PI * i / segments);
+            float a1 = (float) (2 * Math.PI * (i + 1) / segments);
+
+            float cos0 = Mth.cos(a0);
+            float sin0 = Mth.sin(a0);
+            float cos1 = Mth.cos(a1);
+            float sin1 = Mth.sin(a1);
+
+            float ix0 = innerRadius * cos0;
+            float iz0 = innerRadius * sin0;
+            float ox0 = outerRadius * cos0;
+            float oz0 = outerRadius * sin0;
+
+            float ix1 = innerRadius * cos1;
+            float iz1 = innerRadius * sin1;
+            float ox1 = outerRadius * cos1;
+            float oz1 = outerRadius * sin1;
+
+            // 两个三角形填充扇区
+            vertex(consumer, matrix, new float[] { ix0, 0, iz0 }, c);
+            vertex(consumer, matrix, new float[] { ox0, 0, oz0 }, c);
+            vertex(consumer, matrix, new float[] { ox1, 0, oz1 }, c);
+
+            vertex(consumer, matrix, new float[] { ix0, 0, iz0 }, c);
+            vertex(consumer, matrix, new float[] { ox1, 0, oz1 }, c);
+            vertex(consumer, matrix, new float[] { ix1, 0, iz1 }, c);
+        }
+    }
+
+    /**
+     * 绘制相对论性喷流（上下双锥）。
+     * <p>顶点颜色 R 通道作为 shader 部件 ID（建议传 0x020000）。</p>
+     *
+     * @param consumer 顶点消费者
+     * @param poseStack 姿态矩阵栈
+     * @param baseRadius 底面半径
+     * @param height 喷流高度
+     * @param colorId 部件标识颜色
+     * @param segments 分段数
+     */
+    public static void drawRelativisticJet(VertexConsumer consumer, PoseStack poseStack,
+            float baseRadius, float height, int colorId, int segments) {
+        Matrix4f matrix = poseStack.last().pose();
+        int[] c = unpackColor(colorId, 0.0f);
+
+        for (int i = 0; i < segments; i++) {
+            float a0 = (float) (2 * Math.PI * i / segments);
+            float a1 = (float) (2 * Math.PI * (i + 1) / segments);
+
+            float x0 = baseRadius * Mth.cos(a0);
+            float z0 = baseRadius * Mth.sin(a0);
+            float x1 = baseRadius * Mth.cos(a1);
+            float z1 = baseRadius * Mth.sin(a1);
+
+            // 上锥
+            vertex(consumer, matrix, new float[] { 0, height, 0 }, c);
+            vertex(consumer, matrix, new float[] { x0, 0, z0 }, c);
+            vertex(consumer, matrix, new float[] { x1, 0, z1 }, c);
+
+            // 下锥
+            vertex(consumer, matrix, new float[] { 0, -height, 0 }, c);
+            vertex(consumer, matrix, new float[] { x1, 0, z1 }, c);
+            vertex(consumer, matrix, new float[] { x0, 0, z0 }, c);
+        }
     }
 
     /**

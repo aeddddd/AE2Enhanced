@@ -13,14 +13,13 @@ import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.state.BlockState;
 
 import com.github.aeddddd.ae2enhanced.block.HyperdimensionalControllerBlock;
-import com.github.aeddddd.ae2enhanced.blockentity.HyperdimensionalControllerBlockEntity;
-import com.github.aeddddd.ae2enhanced.multiblock.MultiblockMeInterfaceBlockEntity;
 import com.github.aeddddd.ae2enhanced.registry.ModBlocks;
 import com.github.aeddddd.ae2enhanced.util.StructureUtils;
 
 /**
  * 超维度仓储中枢结构验证与一键装配逻辑。
  * <p>坐标系以控制器为原点，默认朝向北方（Z 轴正方向伸出），根据控制器朝向旋转。</p>
+ * <p>结构定义延迟到 {@link #init()} 中完成，避免在方块注册前访问 {@link ModBlocks}。</p>
  */
 public final class HyperdimensionalStructure {
 
@@ -30,7 +29,8 @@ public final class HyperdimensionalStructure {
     public static final Set<BlockPos> CORE_SET;
     public static final Set<BlockPos> ALL_SET;
 
-    public static final AbstractMultiblockStructure INSTANCE;
+    private static AbstractMultiblockStructure INSTANCE;
+    private static boolean initialized = false;
 
     static {
         Set<BlockPos> controller = new HashSet<>();
@@ -72,6 +72,16 @@ public final class HyperdimensionalStructure {
         all.addAll(CORE_SET);
         all.addAll(CASING_SET);
         ALL_SET = Collections.unmodifiableSet(all);
+    }
+
+    /**
+     * 在方块注册完成后初始化 {@link AbstractMultiblockStructure} 实例。
+     */
+    public static void init() {
+        if (initialized) {
+            return;
+        }
+        initialized = true;
 
         StructureDefinition definition = StructureDefinition.builder()
                 .addAll(ModBlocks.HYPERDIMENSIONAL_CONTROLLER.get(), CONTROLLER_SET)
@@ -83,12 +93,24 @@ public final class HyperdimensionalStructure {
         INSTANCE = new Impl(definition);
     }
 
+    private static void ensureInitialized() {
+        if (!initialized) {
+            throw new IllegalStateException(
+                    "HyperdimensionalStructure has not been initialized. Call init() during FMLCommonSetupEvent.");
+        }
+    }
+
+    public static AbstractMultiblockStructure getInstance() {
+        ensureInitialized();
+        return INSTANCE;
+    }
+
     public static boolean validate(Level level, BlockPos controllerPos) {
-        return INSTANCE.validate(level, controllerPos);
+        return getInstance().validate(level, controllerPos);
     }
 
     public static ValidationResult validateDetailed(Level level, BlockPos controllerPos) {
-        return INSTANCE.validateDetailed(level, controllerPos);
+        return getInstance().validateDetailed(level, controllerPos);
     }
 
     public static Set<BlockPos> getAllSet() {
@@ -96,31 +118,31 @@ public final class HyperdimensionalStructure {
     }
 
     public static Direction getControllerFacing(Level level, BlockPos controllerPos) {
-        return INSTANCE.getRotation(level, controllerPos);
+        return getInstance().getRotation(level, controllerPos);
     }
 
     public static Set<Map.Entry<BlockPos, Block>> getExpectedBlocks(Level level, BlockPos controllerPos) {
-        return INSTANCE.getExpectedBlocks(level, controllerPos);
+        return getInstance().getExpectedBlocks(level, controllerPos);
     }
 
     public static Map<Block, Integer> getMissingMap(Level level, BlockPos controllerPos) {
-        return INSTANCE.getMissingMap(level, controllerPos);
+        return getInstance().getMissingMap(level, controllerPos);
     }
 
     public static void assemble(Level level, BlockPos controllerPos) {
-        INSTANCE.assemble(level, controllerPos);
+        getInstance().assemble(level, controllerPos);
     }
 
     public static void disassemble(Level level, BlockPos controllerPos) {
-        INSTANCE.disassemble(level, controllerPos);
+        getInstance().disassemble(level, controllerPos);
     }
 
     public static void placeMissingBlocks(Level level, BlockPos controllerPos, Player player) {
-        INSTANCE.placeMissingBlocks(level, controllerPos, player);
+        getInstance().placeMissingBlocks(level, controllerPos, player);
     }
 
     public static boolean tryConsumeAndPlace(Level level, BlockPos controllerPos, Player player) {
-        return INSTANCE.tryConsumeAndPlace(level, controllerPos, player);
+        return getInstance().tryConsumeAndPlace(level, controllerPos, player);
     }
 
     private static class Impl extends AbstractMultiblockStructure {
@@ -136,44 +158,6 @@ public final class HyperdimensionalStructure {
                 return state.getValue(HyperdimensionalControllerBlock.FACING);
             }
             return Direction.NORTH;
-        }
-
-        @Override
-        public void assemble(Level level, BlockPos controllerPos) {
-            if (level.isClientSide()) {
-                return;
-            }
-
-            Direction facing = getRotation(level, controllerPos);
-            for (BlockPos rel : INTERFACE_SET) {
-                BlockPos actual = controllerPos.offset(StructureUtils.rotate(rel, facing));
-                if (level.getBlockEntity(actual) instanceof MultiblockMeInterfaceBlockEntity interfaceBe) {
-                    interfaceBe.setControllerPos(controllerPos);
-                }
-            }
-
-            if (level.getBlockEntity(controllerPos) instanceof HyperdimensionalControllerBlockEntity controller) {
-                controller.assemble();
-            }
-        }
-
-        @Override
-        public void disassemble(Level level, BlockPos controllerPos) {
-            if (level.isClientSide()) {
-                return;
-            }
-
-            Direction facing = getRotation(level, controllerPos);
-            for (BlockPos rel : INTERFACE_SET) {
-                BlockPos actual = controllerPos.offset(StructureUtils.rotate(rel, facing));
-                if (level.getBlockEntity(actual) instanceof MultiblockMeInterfaceBlockEntity interfaceBe) {
-                    interfaceBe.setControllerPos(null);
-                }
-            }
-
-            if (level.getBlockEntity(controllerPos) instanceof HyperdimensionalControllerBlockEntity controller) {
-                controller.disassemble();
-            }
         }
     }
 }

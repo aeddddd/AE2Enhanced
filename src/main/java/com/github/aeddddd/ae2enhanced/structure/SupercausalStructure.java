@@ -14,9 +14,7 @@ import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.state.BlockState;
 
 import com.github.aeddddd.ae2enhanced.computation.block.ComputationControllerBlock;
-import com.github.aeddddd.ae2enhanced.computation.blockentity.ComputationCoreBlockEntity;
 import com.github.aeddddd.ae2enhanced.config.AE2EnhancedConfig;
-import com.github.aeddddd.ae2enhanced.multiblock.MultiblockMeInterfaceBlockEntity;
 import com.github.aeddddd.ae2enhanced.registry.ModBlocks;
 import com.github.aeddddd.ae2enhanced.util.StructureUtils;
 
@@ -34,7 +32,8 @@ public class SupercausalStructure {
     public static final Set<BlockPos> SPINOR_CASING_SET;
     public static final Set<BlockPos> ALL_STRUCTURE_SET;
 
-    public static final AbstractMultiblockStructure INSTANCE;
+    private static AbstractMultiblockStructure INSTANCE;
+    private static boolean initialized = false;
 
     static {
         Set<BlockPos> tensor = new HashSet<>();
@@ -905,6 +904,16 @@ public class SupercausalStructure {
         all.addAll(CAUSAL_ANCHOR_SET);
         all.addAll(SPINOR_CASING_SET);
         ALL_STRUCTURE_SET = Collections.unmodifiableSet(all);
+    }
+
+    /**
+     * 在方块注册完成后初始化 {@link AbstractMultiblockStructure} 实例。
+     */
+    public static void init() {
+        if (initialized) {
+            return;
+        }
+        initialized = true;
 
         StructureDefinition definition = StructureDefinition.builder()
                 .addAll(ModBlocks.CONSTANT_TENSOR_FIELD_CASING.get(), TENSOR_CASING_SET)
@@ -916,12 +925,24 @@ public class SupercausalStructure {
         INSTANCE = new Impl(definition);
     }
 
+    private static void ensureInitialized() {
+        if (!initialized) {
+            throw new IllegalStateException(
+                    "SupercausalStructure has not been initialized. Call init() during FMLCommonSetupEvent.");
+        }
+    }
+
+    public static AbstractMultiblockStructure getInstance() {
+        ensureInitialized();
+        return INSTANCE;
+    }
+
     public static ValidationResult validate(Level level, BlockPos controllerPos) {
-        return INSTANCE.validateDetailed(level, controllerPos);
+        return getInstance().validateDetailed(level, controllerPos);
     }
 
     public static ValidationResult validateDetailed(Level level, BlockPos controllerPos) {
-        return INSTANCE.validateDetailed(level, controllerPos);
+        return getInstance().validateDetailed(level, controllerPos);
     }
 
     public static Set<BlockPos> getAllSet() {
@@ -929,31 +950,31 @@ public class SupercausalStructure {
     }
 
     public static Direction getControllerFacing(Level level, BlockPos controllerPos) {
-        return INSTANCE.getRotation(level, controllerPos);
+        return getInstance().getRotation(level, controllerPos);
     }
 
     public static Set<Map.Entry<BlockPos, Block>> getExpectedBlocks(Level level, BlockPos controllerPos) {
-        return INSTANCE.getExpectedBlocks(level, controllerPos);
+        return getInstance().getExpectedBlocks(level, controllerPos);
     }
 
     public static Map<Block, Integer> getMissingMap(Level level, BlockPos controllerPos) {
-        return INSTANCE.getMissingMap(level, controllerPos);
+        return getInstance().getMissingMap(level, controllerPos);
     }
 
     public static void assemble(Level level, BlockPos controllerPos) {
-        INSTANCE.assemble(level, controllerPos);
+        getInstance().assemble(level, controllerPos);
     }
 
     public static void disassemble(Level level, BlockPos controllerPos) {
-        INSTANCE.disassemble(level, controllerPos);
+        getInstance().disassemble(level, controllerPos);
     }
 
     public static void placeMissingBlocks(Level level, BlockPos controllerPos, Player player) {
-        INSTANCE.placeMissingBlocks(level, controllerPos, player);
+        getInstance().placeMissingBlocks(level, controllerPos, player);
     }
 
     public static boolean tryConsumeAndPlace(Level level, BlockPos controllerPos, Player player) {
-        return INSTANCE.tryConsumeAndPlace(level, controllerPos, player);
+        return getInstance().tryConsumeAndPlace(level, controllerPos, player);
     }
 
     /**
@@ -1037,40 +1058,6 @@ public class SupercausalStructure {
         }
 
         @Override
-        public void assemble(Level level, BlockPos controllerPos) {
-            if (level.isClientSide()) {
-                return;
-            }
-            ValidationResult result = validateDetailed(level, controllerPos);
-            if (!result.passed()) {
-                return;
-            }
-            if (level.getBlockEntity(controllerPos) instanceof ComputationCoreBlockEntity tile) {
-                Direction facing = getRotation(level, controllerPos);
-                BlockPos interfacePos = controllerPos.offset(StructureUtils.rotate(ME_INTERFACE_REL, facing));
-                if (level.getBlockEntity(interfacePos) instanceof MultiblockMeInterfaceBlockEntity me) {
-                    me.setControllerPos(controllerPos);
-                }
-                tile.assemble(result.parallelLimit(), interfacePos);
-            }
-        }
-
-        @Override
-        public void disassemble(Level level, BlockPos controllerPos) {
-            if (level.isClientSide()) {
-                return;
-            }
-            if (level.getBlockEntity(controllerPos) instanceof ComputationCoreBlockEntity tile) {
-                tile.disassemble();
-            }
-            Direction facing = getRotation(level, controllerPos);
-            BlockPos interfacePos = controllerPos.offset(StructureUtils.rotate(ME_INTERFACE_REL, facing));
-            if (level.getBlockEntity(interfacePos) instanceof MultiblockMeInterfaceBlockEntity me) {
-                me.setControllerPos(null);
-            }
-        }
-
-        @Override
         public void placeMissingBlocks(Level level, BlockPos controllerPos, Player player) {
             if (level.isClientSide()) {
                 return;
@@ -1079,7 +1066,7 @@ public class SupercausalStructure {
             for (Map.Entry<BlockPos, Block> entry : definition.getExpectedBlocks()) {
                 BlockPos rel = entry.getKey();
                 Block block = entry.getValue();
-                if (rel.equals(CONTROLLER_REL) && block == ModBlocks.CONSTANT_TENSOR_FIELD_CASING.get()) {
+                if (isControllerTensorOverlap(rel, block)) {
                     continue;
                 }
                 BlockPos pos = controllerPos.offset(StructureUtils.rotate(rel, facing));
@@ -1092,6 +1079,10 @@ public class SupercausalStructure {
                 level.setBlock(pos, block.defaultBlockState(), Block.UPDATE_ALL);
             }
             assemble(level, controllerPos);
+        }
+
+        private static boolean isControllerTensorOverlap(BlockPos rel, Block expected) {
+            return rel.equals(CONTROLLER_REL) && expected == ModBlocks.CONSTANT_TENSOR_FIELD_CASING.get();
         }
 
         private static void movePlayerToSafety(Level level, BlockPos controllerPos, Player player) {

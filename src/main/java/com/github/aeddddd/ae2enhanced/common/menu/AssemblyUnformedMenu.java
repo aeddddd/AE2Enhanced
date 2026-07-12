@@ -1,4 +1,4 @@
-package com.github.aeddddd.ae2enhanced.client.gui;
+package com.github.aeddddd.ae2enhanced.common.menu;
 
 import java.util.Map;
 
@@ -10,7 +10,6 @@ import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.entity.BlockEntity;
 
 import com.github.aeddddd.ae2enhanced.assembly.blockentity.AssemblyControllerBlockEntity;
-import com.github.aeddddd.ae2enhanced.client.gui.menu.StructureUnformedMenu;
 import com.github.aeddddd.ae2enhanced.registry.ModMenus;
 import com.github.aeddddd.ae2enhanced.structure.AssemblyStructure;
 

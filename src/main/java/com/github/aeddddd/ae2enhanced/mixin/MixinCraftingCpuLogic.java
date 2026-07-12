@@ -24,6 +24,7 @@ import net.minecraft.world.level.Level;
 
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
 import com.github.aeddddd.ae2enhanced.assembly.blockentity.AssemblyControllerBlockEntity;
+import com.github.aeddddd.ae2enhanced.client.gui.GuiConstants;
 import com.github.aeddddd.ae2enhanced.mixin.accessor.CraftingCpuLogicAccessor;
 import com.github.aeddddd.ae2enhanced.mixin.accessor.ExecutingCraftingJobAccessor;
 import com.github.aeddddd.ae2enhanced.mixin.accessor.ElapsedTimeTrackerAccessor;
@@ -142,9 +143,9 @@ public class MixinCraftingCpuLogic {
                     }
                 }
                 iterations++;
-            } while (changed && iterations < 100000);
+            } while (changed && iterations < GuiConstants.MAX_BATCH_ITERATIONS);
         } catch (Exception e) {
-            AE2Enhanced.LOGGER.error("[AE2E] batchProcessAssemblyHubTasks failed", e);
+            AE2Enhanced.LOGGER.error(GuiConstants.LOGGER_PREFIX + " batchProcessAssemblyHubTasks failed", e);
         }
     }
 
@@ -211,7 +212,7 @@ public class MixinCraftingCpuLogic {
             cluster.markDirty();
             return true;
         } catch (Exception e) {
-            AE2Enhanced.LOGGER.error("[AE2E] Virtual batch failed", e);
+            AE2Enhanced.LOGGER.error(GuiConstants.LOGGER_PREFIX + " Virtual batch failed", e);
             return false;
         }
     }
@@ -329,7 +330,7 @@ public class MixinCraftingCpuLogic {
             cluster.markDirty();
             return true;
         } catch (Exception e) {
-            AE2Enhanced.LOGGER.error("[AE2E] Real batch failed", e);
+            AE2Enhanced.LOGGER.error(GuiConstants.LOGGER_PREFIX + " Real batch failed", e);
             return false;
         }
     }
@@ -362,7 +363,7 @@ public class MixinCraftingCpuLogic {
 
     @Unique
     private static void ae2e$decrementItems(ElapsedTimeTracker tracker, long amount, AEKeyType type) {
-        ((ElapsedTimeTrackerAccessor) tracker).decrementItems(amount, type);
+        ((ElapsedTimeTrackerAccessor) tracker).invokeDecrementItems(amount, type);
     }
 
     @Unique

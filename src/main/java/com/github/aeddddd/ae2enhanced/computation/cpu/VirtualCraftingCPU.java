@@ -31,7 +31,7 @@ public class VirtualCraftingCPU {
 
         VirtualCraftingUnitBlockEntity fakeUnit = new VirtualCraftingUnitBlockEntity(level,
                 pos, AEBlocks.CRAFTING_UNIT.block().defaultBlockState(), interfaceNode, parallel);
-        ((CraftingCPUClusterInvoker) (Object) cluster).addBlockEntity(fakeUnit);
+        ((CraftingCPUClusterInvoker) (Object) cluster).invokeAddBlockEntity(fakeUnit);
 
         try {
             ((IVirtualCraftingCPU) (Object) cluster).ae2enhanced$setHost(host);

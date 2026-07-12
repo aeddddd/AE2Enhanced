@@ -27,7 +27,7 @@
   "block.ae2enhanced.constant_tensor_field_casing": "恒定张量场外壳",
   "block.ae2enhanced.constant_spinor_field_casing": "恒定旋量场外壳",
   "block.ae2enhanced.causal_anchor_core": "因果锚定核心",
-  "block.ae2enhanced.computation_core.name": "超因果计算核心",
+  "block.ae2enhanced.computation_core": "超因果计算核心",
   "gui.ae2enhanced.assembly": "装配枢纽",
   "gui.ae2enhanced.assembly.page": "第 %s/%s 页",
   "gui.ae2enhanced.assembly.upgrades": "升级卡",

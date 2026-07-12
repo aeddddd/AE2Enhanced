@@ -19,6 +19,9 @@ import com.github.aeddddd.ae2enhanced.registry.ModCreativeTab;
 import com.github.aeddddd.ae2enhanced.registry.ModItems;
 import com.github.aeddddd.ae2enhanced.registry.ModMenus;
 import com.github.aeddddd.ae2enhanced.registry.ModRecipes;
+import com.github.aeddddd.ae2enhanced.structure.AssemblyStructure;
+import com.github.aeddddd.ae2enhanced.structure.HyperdimensionalStructure;
+import com.github.aeddddd.ae2enhanced.structure.SupercausalStructure;
 
 @Mod(AE2Enhanced.MOD_ID)
 public class AE2Enhanced {
@@ -49,6 +52,12 @@ public class AE2Enhanced {
 
     private void commonSetup(FMLCommonSetupEvent event) {
         LOGGER.info("AE2Enhanced common setup");
+
+        // 在方块注册完成后初始化多方块结构定义
+        AssemblyStructure.init();
+        HyperdimensionalStructure.init();
+        SupercausalStructure.init();
+
         ModRecipes.init();
         MinecraftForge.EVENT_BUS.register(StructureEventHandler.class);
     }

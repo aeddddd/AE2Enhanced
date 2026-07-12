@@ -1,5 +1,7 @@
 package com.github.aeddddd.ae2enhanced.client.gui;
 
+import com.github.aeddddd.ae2enhanced.common.menu.AssemblyMenu;
+
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.network.chat.Component;
@@ -19,17 +21,10 @@ public class AssemblyScreen extends AbstractContainerScreen<AssemblyMenu> {
     private static final ResourceLocation TEXTURE =
             new ResourceLocation(AE2Enhanced.MOD_ID, "textures/gui/1.png");
 
-    private static final int BTN_X = 79;
-    private static final int BTN_Y = 23;
-    private static final int BTN_W = 91;
-    private static final int BTN_H = 20;
-    private static final int HIGHLIGHT_U = 0;
-    private static final int HIGHLIGHT_V = 186;
-
     public AssemblyScreen(AssemblyMenu menu, Inventory inv, Component title) {
         super(menu, inv, title);
-        this.imageWidth = 176;
-        this.imageHeight = 166;
+        this.imageWidth = GuiConstants.DEFAULT_IMAGE_WIDTH;
+        this.imageHeight = GuiConstants.DEFAULT_IMAGE_HEIGHT;
     }
 
     @Override
@@ -49,31 +44,31 @@ public class AssemblyScreen extends AbstractContainerScreen<AssemblyMenu> {
     protected void renderBg(GuiGraphics graphics, float partialTicks, int mouseX, int mouseY) {
         graphics.blit(TEXTURE, this.leftPos, this.topPos, 0, 0, this.imageWidth, this.imageHeight, 256, 256);
         if (isMouseOverButton(mouseX, mouseY)) {
-            graphics.blit(TEXTURE, this.leftPos + BTN_X, this.topPos + BTN_Y,
-                    HIGHLIGHT_U, HIGHLIGHT_V, BTN_W, BTN_H, 256, 256);
+            graphics.blit(TEXTURE, this.leftPos + GuiConstants.ASSEMBLY_BUTTON_X, this.topPos + GuiConstants.ASSEMBLY_BUTTON_Y,
+                    GuiConstants.ASSEMBLY_HIGHLIGHT_U, GuiConstants.ASSEMBLY_HIGHLIGHT_V, GuiConstants.ASSEMBLY_BUTTON_WIDTH, GuiConstants.ASSEMBLY_BUTTON_HEIGHT, 256, 256);
         }
     }
 
     @Override
     protected void renderLabels(GuiGraphics graphics, int mouseX, int mouseY) {
         Component title = Component.translatable("gui.ae2enhanced.formed.title");
-        graphics.drawString(this.font, title, BTN_X, 8, 0xFFffaa00, false);
+        graphics.drawString(this.font, title, GuiConstants.ASSEMBLY_BUTTON_X, GuiConstants.TITLE_LABEL_Y, GuiConstants.ASSEMBLY_TITLE_COLOR, false);
 
         Component btnText = Component.translatable("gui.ae2enhanced.formed.open_patterns");
         int btnTextWidth = this.font.width(btnText);
-        int textX = BTN_X + (BTN_W - btnTextWidth) / 2;
-        int textY = BTN_Y + (BTN_H - 8) / 2;
-        graphics.drawString(this.font, btnText, textX, textY, 0xFFFFFFFF, false);
+        int textX = GuiConstants.ASSEMBLY_BUTTON_X + (GuiConstants.ASSEMBLY_BUTTON_WIDTH - btnTextWidth) / 2;
+        int textY = GuiConstants.ASSEMBLY_BUTTON_Y + (GuiConstants.ASSEMBLY_BUTTON_HEIGHT - 8) / 2;
+        graphics.drawString(this.font, btnText, textX, textY, GuiConstants.BUTTON_TEXT_COLOR, false);
 
         AssemblyControllerBlockEntity controller = this.menu.getController();
-        long parallelCap = controller != null ? controller.getParallelCap() : 64;
+        long parallelCap = controller != null ? controller.getParallelCap() : GuiConstants.FALLBACK_PARALLEL_CAPACITY;
         Component parallelText;
         if (parallelCap >= Long.MAX_VALUE / 2) {
             parallelText = Component.translatable("gui.ae2enhanced.formed.parallel.infinite");
         } else {
             parallelText = Component.translatable("gui.ae2enhanced.formed.parallel", parallelCap);
         }
-        graphics.drawString(this.font, parallelText, 12, 50, GuiColors.TEXT_DIM, false);
+        graphics.drawString(this.font, parallelText, GuiConstants.PARALLEL_TEXT_X, GuiConstants.PARALLEL_TEXT_Y, GuiColors.TEXT_DIM, false);
 
         Component netStatus;
         int netColor;
@@ -90,10 +85,10 @@ public class AssemblyScreen extends AbstractContainerScreen<AssemblyMenu> {
             netColor = GuiColors.TEXT_ERROR;
         }
         int nw = this.font.width(netStatus);
-        graphics.drawString(this.font, netStatus, this.imageWidth - 12 - nw, 50, netColor, false);
+        graphics.drawString(this.font, netStatus, this.imageWidth - GuiConstants.NETWORK_STATUS_RIGHT_MARGIN - nw, GuiConstants.NETWORK_STATUS_Y, netColor, false);
 
         int jobs = controller != null ? controller.getJobCount() : 0;
-        graphics.drawString(this.font, Component.translatable("gui.ae2enhanced.formed.jobs", jobs), 12, 62, GuiColors.TEXT_DIM, false);
+        graphics.drawString(this.font, Component.translatable("gui.ae2enhanced.formed.jobs", jobs), GuiConstants.JOBS_TEXT_X, GuiConstants.JOBS_TEXT_Y, GuiColors.TEXT_DIM, false);
     }
 
     @Override
@@ -106,7 +101,7 @@ public class AssemblyScreen extends AbstractContainerScreen<AssemblyMenu> {
     }
 
     private boolean isMouseOverButton(int mouseX, int mouseY) {
-        return mouseX >= this.leftPos + BTN_X && mouseX < this.leftPos + BTN_X + BTN_W
-                && mouseY >= this.topPos + BTN_Y && mouseY < this.topPos + BTN_Y + BTN_H;
+        return mouseX >= this.leftPos + GuiConstants.ASSEMBLY_BUTTON_X && mouseX < this.leftPos + GuiConstants.ASSEMBLY_BUTTON_X + GuiConstants.ASSEMBLY_BUTTON_WIDTH
+                && mouseY >= this.topPos + GuiConstants.ASSEMBLY_BUTTON_Y && mouseY < this.topPos + GuiConstants.ASSEMBLY_BUTTON_Y + GuiConstants.ASSEMBLY_BUTTON_HEIGHT;
     }
 }

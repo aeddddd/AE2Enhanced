@@ -1,3 +1,5 @@
+package com.github.aeddddd.ae2enhanced.build;
+
 import com.google.gson.*;
 import net.minecraftforge.fart.relocated.net.minecraftforge.srgutils.IMappingFile;
 import org.objectweb.asm.*;

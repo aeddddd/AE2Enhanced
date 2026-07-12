@@ -98,7 +98,7 @@ public class MixinCraftingCPUCluster implements IVirtualCraftingCPU {
     @Inject(method = "updateName", at = @At("HEAD"), cancellable = true, remap = false)
     private void ae2enhanced$onUpdateName(CallbackInfo ci) {
         if (this.ae2enhanced$host != null) {
-            this.myName = Component.translatable("block.ae2enhanced.computation_core.name");
+            this.myName = Component.translatable("block.ae2enhanced.computation_core");
             ci.cancel();
         }
     }

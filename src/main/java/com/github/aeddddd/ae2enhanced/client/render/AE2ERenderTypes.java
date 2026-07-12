@@ -79,7 +79,7 @@ public class AE2ERenderTypes extends RenderType {
                     .createCompositeState(false));
 
     /**
-     * 不透明 RenderType，用于黑色事件视界等实心体。
+     * 自定义不透明 RenderType，用于黑色事件视界等实心体。
      */
     public static final RenderType TESR_SOLID = create(
             "ae2enhanced_tesr_solid",
@@ -94,6 +94,50 @@ public class AE2ERenderTypes extends RenderType {
                     .setTransparencyState(NO_TRANSPARENCY)
                     .setWriteMaskState(COLOR_DEPTH_WRITE)
                     .setCullState(CULL)
+                    .setDepthTestState(LEQUAL_DEPTH_TEST)
+                    .createCompositeState(false));
+
+    /**
+     * 装配枢纽黑洞核心 shader。
+     */
+    private static final ShaderStateShard ASSEMBLY_BLACK_HOLE_SHADER =
+            new ShaderStateShard(AE2EnhancedShaders::getAssemblyBlackHole);
+
+    /**
+     * 装配枢纽黑洞主体 RenderType（事件视界 + 吸积盘），使用自定义 shader。
+     */
+    public static final RenderType ASSEMBLY_BLACK_HOLE = create(
+            "ae2enhanced_assembly_black_hole",
+            DefaultVertexFormat.POSITION_COLOR,
+            VertexFormat.Mode.TRIANGLES,
+            256,
+            false,
+            true,
+            CompositeState.builder()
+                    .setShaderState(ASSEMBLY_BLACK_HOLE_SHADER)
+                    .setLayeringState(VIEW_OFFSET_Z_LAYERING)
+                    .setTransparencyState(TRANSLUCENT_TRANSPARENCY)
+                    .setWriteMaskState(COLOR_DEPTH_WRITE)
+                    .setCullState(NO_CULL)
+                    .setDepthTestState(LEQUAL_DEPTH_TEST)
+                    .createCompositeState(false));
+
+    /**
+     * 装配枢纽黑洞发光 RenderType（相对论性喷流），使用自定义 shader 与 Additive 混合。
+     */
+    public static final RenderType ASSEMBLY_BLACK_HOLE_GLOW = create(
+            "ae2enhanced_assembly_black_hole_glow",
+            DefaultVertexFormat.POSITION_COLOR,
+            VertexFormat.Mode.TRIANGLES,
+            256,
+            false,
+            true,
+            CompositeState.builder()
+                    .setShaderState(ASSEMBLY_BLACK_HOLE_SHADER)
+                    .setLayeringState(VIEW_OFFSET_Z_LAYERING)
+                    .setTransparencyState(ADDITIVE_TRANSPARENCY)
+                    .setWriteMaskState(COLOR_WRITE)
+                    .setCullState(NO_CULL)
                     .setDepthTestState(LEQUAL_DEPTH_TEST)
                     .createCompositeState(false));
 }

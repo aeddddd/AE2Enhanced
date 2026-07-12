@@ -7,7 +7,7 @@ import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.Block;
 
-import com.github.aeddddd.ae2enhanced.client.gui.menu.StructureUnformedMenu;
+import com.github.aeddddd.ae2enhanced.common.menu.StructureUnformedMenu;
 import com.github.aeddddd.ae2enhanced.network.ModNetwork;
 import com.github.aeddddd.ae2enhanced.network.packet.RequestAssemblyPacket;
 
@@ -40,7 +40,7 @@ public abstract class StructureUnformedScreen<T extends StructureUnformedMenu> e
                                     int readyTextY, int hintTextY, int missingTitleY,
                                     int headerY, int headerDividerY) {
         super(menu, inv, title);
-        this.imageWidth = 280;
+        this.imageWidth = GuiConstants.PANEL_WIDTH;
         this.imageHeight = ySize;
         this.buttonYOffset = buttonYOffset;
         this.innerPanelBottom = innerPanelBottom;
@@ -52,7 +52,7 @@ public abstract class StructureUnformedScreen<T extends StructureUnformedMenu> e
         this.missingTitleY = missingTitleY;
         this.headerY = headerY;
         this.headerDividerY = headerDividerY;
-        this.assembleButton = new TechButton(0, 0, 160, 24, getAssembleButtonText(), btn -> requestAssembly());
+        this.assembleButton = new TechButton(0, 0, GuiConstants.ASSEMBLE_BUTTON_WIDTH, GuiConstants.ASSEMBLE_BUTTON_HEIGHT, getAssembleButtonText(), btn -> requestAssembly());
     }
 
     protected abstract String getTitleKey();
@@ -64,7 +64,7 @@ public abstract class StructureUnformedScreen<T extends StructureUnformedMenu> e
         super.init();
         this.titleLabelX = (this.imageWidth - this.font.width(this.title)) / 2;
         int centerX = this.leftPos + this.imageWidth / 2;
-        this.assembleButton.setX(centerX - 80);
+        this.assembleButton.setX(centerX - GuiConstants.ASSEMBLE_BUTTON_WIDTH / 2);
         this.assembleButton.setY(this.topPos + buttonYOffset);
         this.addRenderableWidget(this.assembleButton);
         refreshMissingMap();
@@ -130,20 +130,21 @@ public abstract class StructureUnformedScreen<T extends StructureUnformedMenu> e
     @Override
     protected void renderBg(GuiGraphics graphics, float partialTicks, int mouseX, int mouseY) {
         this.drawTechPanelFrame(graphics);
-        this.drawInnerPanel(graphics, this.leftPos + 10, this.topPos + 40, this.leftPos + this.imageWidth - 10, this.topPos + innerPanelBottom);
+        this.drawInnerPanel(graphics, this.leftPos + GuiConstants.PANEL_CONTENT_LEFT_MARGIN, this.topPos + GuiConstants.PANEL_CONTENT_TOP_MARGIN, this.leftPos + this.imageWidth - GuiConstants.PANEL_CONTENT_LEFT_MARGIN, this.topPos + innerPanelBottom);
     }
 
     @Override
     protected void renderLabels(GuiGraphics graphics, int mouseX, int mouseY) {
         Component title = Component.translatable(getTitleKey());
         int titleWidth = this.font.width(title);
-        graphics.drawString(this.font, title, (this.imageWidth - titleWidth) / 2, 12, GuiColors.ACCENT, false);
+        graphics.drawString(this.font, title, (this.imageWidth - titleWidth) / 2, GuiConstants.UNFORMED_TITLE_Y, GuiColors.ACCENT, false);
 
         Component subtitle = Component.translatable(getSubtitleKey());
         int subWidth = this.font.width(subtitle);
-        graphics.drawString(this.font, subtitle, (this.imageWidth - subWidth) / 2, 28, 0xFF88ccdd, false);
+        graphics.drawString(this.font, subtitle, (this.imageWidth - subWidth) / 2, GuiConstants.UNFORMED_SUBTITLE_Y, GuiConstants.SUBTITLE_COLOR, false);
 
-        graphics.fill(16, 36, this.imageWidth - 16, 37, GuiColors.ACCENT_SOFT);
+        graphics.fill(GuiConstants.UNFORMED_OUTER_DIVIDER_LEFT_MARGIN, GuiConstants.UNFORMED_HEADER_DIVIDER_Y,
+                this.imageWidth - GuiConstants.UNFORMED_OUTER_DIVIDER_LEFT_MARGIN, GuiConstants.UNFORMED_HEADER_DIVIDER_Y + 1, GuiColors.ACCENT_SOFT);
 
         if (missingMap.isEmpty()) {
             Component ready = Component.translatable("gui.ae2enhanced.unformed.ready");
@@ -152,14 +153,14 @@ public abstract class StructureUnformedScreen<T extends StructureUnformedMenu> e
 
             Component hint = Component.translatable("gui.ae2enhanced.unformed.hint");
             int hw = this.font.width(hint);
-            graphics.drawString(this.font, hint, (this.imageWidth - hw) / 2, hintTextY, 0xFF88aaaa, false);
+            graphics.drawString(this.font, hint, (this.imageWidth - hw) / 2, hintTextY, GuiConstants.HINT_COLOR, false);
         } else {
             Component missingTitle = Component.translatable("gui.ae2enhanced.unformed.missing");
-            graphics.drawString(this.font, missingTitle, 26, missingTitleY, GuiColors.TEXT_WARN, false);
+            graphics.drawString(this.font, missingTitle, GuiConstants.UNFORMED_MISSING_TITLE_X, missingTitleY, GuiColors.TEXT_WARN, false);
 
-            graphics.drawString(this.font, Component.translatable("gui.ae2enhanced.unformed.header.material"), 36, headerY, 0xFF88aabb, false);
-            graphics.drawString(this.font, Component.translatable("gui.ae2enhanced.unformed.header.quantity"), this.imageWidth - 90, headerY, 0xFF88aabb, false);
-            graphics.fill(30, headerDividerY, this.imageWidth - 30, headerDividerY + 1, GuiColors.BORDER_DIM);
+            graphics.drawString(this.font, Component.translatable("gui.ae2enhanced.unformed.header.material"), GuiConstants.UNFORMED_MATERIAL_HEADER_X, headerY, GuiConstants.HEADER_TEXT_COLOR, false);
+            graphics.drawString(this.font, Component.translatable("gui.ae2enhanced.unformed.header.quantity"), this.imageWidth - GuiConstants.UNFORMED_QUANTITY_HEADER_RIGHT_OFFSET, headerY, GuiConstants.HEADER_TEXT_COLOR, false);
+            graphics.fill(GuiConstants.UNFORMED_HEADER_DIVIDER_LEFT_MARGIN, headerDividerY, this.imageWidth - GuiConstants.UNFORMED_HEADER_DIVIDER_LEFT_MARGIN, headerDividerY + 1, GuiColors.BORDER_DIM);
 
             int y = missingListStartY;
             for (Map.Entry<Block, Integer> entry : missingMap.entrySet()) {
@@ -168,10 +169,10 @@ public abstract class StructureUnformedScreen<T extends StructureUnformedMenu> e
                 ItemStack stack = new ItemStack(block, 1);
                 Component name = stack.getHoverName();
 
-                graphics.drawString(this.font, name, 36, y, GuiColors.TEXT_MAIN, false);
+                graphics.drawString(this.font, name, GuiConstants.UNFORMED_MISSING_ITEM_NAME_X, y, GuiColors.TEXT_MAIN, false);
                 String countStr = "x" + count;
-                graphics.drawString(this.font, countStr, this.imageWidth - 36 - this.font.width(countStr), y, GuiColors.TEXT_ERROR, false);
-                y += 16;
+                graphics.drawString(this.font, countStr, this.imageWidth - GuiConstants.UNFORMED_MISSING_ITEM_COUNT_RIGHT_MARGIN - this.font.width(countStr), y, GuiColors.TEXT_ERROR, false);
+                y += GuiConstants.UNFORMED_LIST_ITEM_SPACING;
             }
         }
 
@@ -185,7 +186,7 @@ public abstract class StructureUnformedScreen<T extends StructureUnformedMenu> e
             graphics.drawString(this.font, status, (this.imageWidth - sw) / 2, statusYOffset, GuiColors.TEXT_ERROR, false);
         }
 
-        graphics.fill(16, inventoryDividerYOffset, this.imageWidth - 16, inventoryDividerYOffset + 1, GuiColors.ACCENT_SOFT);
+        graphics.fill(GuiConstants.UNFORMED_OUTER_DIVIDER_LEFT_MARGIN, inventoryDividerYOffset, this.imageWidth - GuiConstants.UNFORMED_OUTER_DIVIDER_LEFT_MARGIN, inventoryDividerYOffset + 1, GuiColors.ACCENT_SOFT);
     }
 
     @Override
@@ -195,7 +196,7 @@ public abstract class StructureUnformedScreen<T extends StructureUnformedMenu> e
             Minecraft.getInstance().player.closeContainer();
             return;
         }
-        if (++refreshTicks >= 20) {
+        if (++refreshTicks >= GuiConstants.UNFORMED_REFRESH_INTERVAL_TICKS) {
             refreshTicks = 0;
             refreshMissingMap();
             updateButtonState();

@@ -92,7 +92,7 @@ public abstract class MultiblockControllerBlock extends Block implements EntityB
     /**
      * 获取当前控制器对应的多方块结构定义。
      */
-    protected abstract IMultiblockStructure getStructure();
+    public abstract IMultiblockStructure getStructure();
 
     @Override
     public void appendHoverText(ItemStack stack, @Nullable BlockGetter level, List<Component> tooltip,

@@ -12,5 +12,5 @@ import org.spongepowered.asm.mixin.gen.Invoker;
 @Mixin(value = CraftingCPUCluster.class, remap = false)
 public interface CraftingCPUClusterInvoker {
     @Invoker("addBlockEntity")
-    void addBlockEntity(CraftingBlockEntity entity);
+    void invokeAddBlockEntity(CraftingBlockEntity entity);
 }

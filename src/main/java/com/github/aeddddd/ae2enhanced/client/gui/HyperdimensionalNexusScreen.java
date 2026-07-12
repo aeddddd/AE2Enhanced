@@ -1,5 +1,7 @@
 package com.github.aeddddd.ae2enhanced.client.gui;
 
+import com.github.aeddddd.ae2enhanced.common.menu.HyperdimensionalNexusMenu;
+
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.network.chat.Component;
@@ -18,12 +20,10 @@ public class HyperdimensionalNexusScreen extends AbstractContainerScreen<Hyperdi
     private static final ResourceLocation TEXTURE =
             new ResourceLocation(AE2Enhanced.MOD_ID, "textures/gui/2.png");
 
-    private static final int TEXT_DARK = 0xFF222222;
-
     public HyperdimensionalNexusScreen(HyperdimensionalNexusMenu menu, Inventory inv, Component title) {
         super(menu, inv, title);
-        this.imageWidth = 176;
-        this.imageHeight = 190;
+        this.imageWidth = GuiConstants.DEFAULT_IMAGE_WIDTH;
+        this.imageHeight = GuiConstants.NEXUS_IMAGE_HEIGHT;
     }
 
     @Override
@@ -47,55 +47,58 @@ public class HyperdimensionalNexusScreen extends AbstractContainerScreen<Hyperdi
     @Override
     protected void renderLabels(GuiGraphics graphics, int mouseX, int mouseY) {
         graphics.pose().pushPose();
-        graphics.pose().scale(0.85F, 0.85F, 1.0F);
-        float invScale = 1.0F / 0.85F;
+        graphics.pose().scale(GuiConstants.DEFAULT_INV_SCALE, GuiConstants.DEFAULT_INV_SCALE, 1.0F);
+        float invScale = GuiConstants.DEFAULT_INV_SCALE_INVERSE;
 
         Component title = Component.translatable("gui.ae2enhanced.nexus.title");
         int titleWidth = this.font.width(title);
-        graphics.drawString(this.font, title, (int) ((this.imageWidth - titleWidth) * invScale / 2), 10, TEXT_DARK, false);
+        graphics.drawString(this.font, title, (int) ((this.imageWidth - titleWidth) * invScale / 2), GuiConstants.NEXUS_TITLE_Y, GuiConstants.DARK_TEXT_COLOR, false);
 
-        int sepY = (int) (22 * invScale);
-        graphics.fill(16, sepY, this.imageWidth - 16, sepY + 1, GuiColors.ACCENT_SOFT);
+        int sepY = (int) (GuiConstants.NEXUS_SEPARATOR_Y * invScale);
+        graphics.fill(GuiConstants.NEXUS_SEPARATOR_LEFT_MARGIN, sepY,
+                this.imageWidth - GuiConstants.NEXUS_SEPARATOR_LEFT_MARGIN, sepY + 1, GuiColors.ACCENT_SOFT);
 
         HyperdimensionalControllerBlockEntity controller = this.menu.getController();
         if (controller != null && controller.isSafeMode()) {
-            int bannerY = (int) (26 * invScale);
-            graphics.fill(10, bannerY, this.imageWidth - 10, bannerY + 10, 0x55ff0000);
+            int bannerY = (int) (GuiConstants.NEXUS_SAFE_MODE_BANNER_Y * invScale);
+            graphics.fill(GuiConstants.NEXUS_SAFE_MODE_BANNER_LEFT_MARGIN, bannerY,
+                    this.imageWidth - GuiConstants.NEXUS_SAFE_MODE_BANNER_LEFT_MARGIN,
+                    bannerY + GuiConstants.NEXUS_SAFE_MODE_BANNER_HEIGHT, GuiConstants.SAFE_MODE_BANNER_COLOR);
             Component warn = Component.translatable("gui.ae2enhanced.nexus.safe_mode");
             int warnW = this.font.width(warn);
-            graphics.drawString(this.font, warn, (int) ((this.imageWidth - warnW) * invScale / 2), bannerY + 1, 0xFFffaaaa, false);
+            graphics.drawString(this.font, warn, (int) ((this.imageWidth - warnW) * invScale / 2), bannerY + 1, GuiConstants.SAFE_MODE_TEXT_COLOR, false);
         }
 
         if (controller == null) {
             Component unavailable = Component.translatable("gui.ae2enhanced.nexus.tile_unavailable");
-            graphics.drawString(this.font, unavailable, (int) (20 * invScale), (int) (34 * invScale), GuiColors.TEXT_ERROR, false);
+            graphics.drawString(this.font, unavailable, (int) (GuiConstants.NEXUS_CONTENT_START_X * invScale), (int) (GuiConstants.NEXUS_CONTENT_START_Y * invScale), GuiColors.TEXT_ERROR, false);
             graphics.pose().popPose();
             return;
         }
 
-        int x = (int) (20 * invScale);
-        int y = (int) (34 * invScale);
+        int x = (int) (GuiConstants.NEXUS_CONTENT_START_X * invScale);
+        int y = (int) (GuiConstants.NEXUS_CONTENT_START_Y * invScale);
         if (controller.isSafeMode()) {
-            y += (int) (12 * invScale);
+            y += (int) (GuiConstants.NEXUS_SAFE_MODE_BANNER_OFFSET * invScale);
         }
-        int lineHeight = (int) (11 * invScale);
+        int lineHeight = (int) (GuiConstants.NEXUS_LINE_HEIGHT * invScale);
 
         Component formedStr = controller.isFormed()
                 ? Component.translatable("gui.ae2enhanced.nexus.structure.formed")
                 : Component.translatable("gui.ae2enhanced.nexus.structure.unformed");
-        graphics.drawString(this.font, Component.translatable("gui.ae2enhanced.nexus.label.structure", formedStr), x, y, TEXT_DARK, false);
+        graphics.drawString(this.font, Component.translatable("gui.ae2enhanced.nexus.label.structure", formedStr), x, y, GuiConstants.DARK_TEXT_COLOR, false);
         y += lineHeight;
 
         Component networkStr = controller.isNetworkActive()
                 ? Component.translatable("gui.ae2enhanced.nexus.network.online")
                 : Component.translatable("gui.ae2enhanced.nexus.network.offline");
-        graphics.drawString(this.font, Component.translatable("gui.ae2enhanced.nexus.label.network", networkStr), x, y, TEXT_DARK, false);
+        graphics.drawString(this.font, Component.translatable("gui.ae2enhanced.nexus.label.network", networkStr), x, y, GuiConstants.DARK_TEXT_COLOR, false);
         y += lineHeight;
 
         Component powerStr = controller.isNetworkPowered()
                 ? Component.translatable("gui.ae2enhanced.nexus.power.ok")
                 : Component.translatable("gui.ae2enhanced.nexus.power.none");
-        graphics.drawString(this.font, Component.translatable("gui.ae2enhanced.nexus.label.power", powerStr), x, y, TEXT_DARK, false);
+        graphics.drawString(this.font, Component.translatable("gui.ae2enhanced.nexus.label.power", powerStr), x, y, GuiConstants.DARK_TEXT_COLOR, false);
         y += lineHeight;
 
         Component nexusLabel;
@@ -106,7 +109,7 @@ public class HyperdimensionalNexusScreen extends AbstractContainerScreen<Hyperdi
             nexusLabel = Component.translatable("gui.ae2enhanced.nexus.label.nexus_id",
                     Component.translatable("gui.ae2enhanced.nexus.nexus_id.none"));
         }
-        graphics.drawString(this.font, nexusLabel, x, y, TEXT_DARK, false);
+        graphics.drawString(this.font, nexusLabel, x, y, GuiConstants.DARK_TEXT_COLOR, false);
         y += lineHeight;
 
         boolean shift = hasShiftDown();
@@ -116,11 +119,11 @@ public class HyperdimensionalNexusScreen extends AbstractContainerScreen<Hyperdi
             total = toScientificNotation(controller.getStorageTotal());
         }
         if (types > 0) {
-            graphics.drawString(this.font, Component.translatable("gui.ae2enhanced.nexus.label.storage_types", types), x, y, TEXT_DARK, false);
+            graphics.drawString(this.font, Component.translatable("gui.ae2enhanced.nexus.label.storage_types", types), x, y, GuiConstants.DARK_TEXT_COLOR, false);
             y += lineHeight;
-            graphics.drawString(this.font, Component.translatable("gui.ae2enhanced.nexus.label.storage_total", total), x, y, TEXT_DARK, false);
+            graphics.drawString(this.font, Component.translatable("gui.ae2enhanced.nexus.label.storage_total", total), x, y, GuiConstants.DARK_TEXT_COLOR, false);
         } else {
-            graphics.drawString(this.font, Component.translatable("gui.ae2enhanced.nexus.storage.empty"), x, y, TEXT_DARK, false);
+            graphics.drawString(this.font, Component.translatable("gui.ae2enhanced.nexus.storage.empty"), x, y, GuiConstants.DARK_TEXT_COLOR, false);
         }
 
         graphics.pose().popPose();
@@ -135,12 +138,12 @@ public class HyperdimensionalNexusScreen extends AbstractContainerScreen<Hyperdi
             return;
         }
 
-        int x = 20;
-        int y = 34;
+        int x = GuiConstants.NEXUS_TOOLTIP_START_X;
+        int y = GuiConstants.NEXUS_TOOLTIP_START_Y;
         if (controller.isSafeMode()) {
-            y += 12;
+            y += GuiConstants.NEXUS_SAFE_MODE_BANNER_OFFSET;
         }
-        int lineHeight = 11;
+        int lineHeight = GuiConstants.NEXUS_LINE_HEIGHT;
         int storageYStart = y + lineHeight * 4;
         int storageYEnd;
         int types = controller.getStorageTypes();
@@ -150,7 +153,7 @@ public class HyperdimensionalNexusScreen extends AbstractContainerScreen<Hyperdi
             storageYEnd = storageYStart + lineHeight;
         }
 
-        if (mouseX >= this.leftPos + x && mouseX <= this.leftPos + this.imageWidth - 20
+        if (mouseX >= this.leftPos + x && mouseX <= this.leftPos + this.imageWidth - GuiConstants.NEXUS_CONTENT_START_X
                 && mouseY >= this.topPos + storageYStart && mouseY <= this.topPos + storageYEnd) {
             String display = hasShiftDown() ? toScientificNotation(controller.getStorageTotal()) : controller.getStorageTotalRaw();
             graphics.renderTooltip(this.font, Component.literal(display), mouseX, mouseY);

@@ -3,6 +3,8 @@ package com.github.aeddddd.ae2enhanced.multiblock;
 import java.util.HashSet;
 import java.util.Set;
 
+import javax.annotation.Nullable;
+
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
@@ -12,7 +14,9 @@ import net.minecraft.world.level.block.state.BlockState;
 
 import appeng.api.networking.security.IActionSource;
 
+import com.github.aeddddd.ae2enhanced.block.MultiblockControllerBlock;
 import com.github.aeddddd.ae2enhanced.blockentity.AE2EBaseBlockEntity;
+import com.github.aeddddd.ae2enhanced.structure.IMultiblockStructure;
 import com.github.aeddddd.ae2enhanced.util.BlockEntityRemovalHelper;
 
 /**
@@ -59,6 +63,7 @@ public abstract class MultiblockControllerBlockEntity extends AE2EBaseBlockEntit
      * <p>外部代码应优先使用 {@link #assemble()} / {@link #disassemble()}，
      * 以便统一调用 {@link #onAssemble()} / {@link #onDisassemble()} 钩子。</p>
      */
+    @Override
     public void setFormed(boolean formed) {
         if (this.formed != formed) {
             this.formed = formed;
@@ -70,6 +75,7 @@ public abstract class MultiblockControllerBlockEntity extends AE2EBaseBlockEntit
     /**
      * 装配结构：先调用子类钩子，再置为成形，最后刷新接口服务。
      */
+    @Override
     public void assemble() {
         if (isFormed()) {
             return;
@@ -82,6 +88,7 @@ public abstract class MultiblockControllerBlockEntity extends AE2EBaseBlockEntit
     /**
      * 拆解结构：先调用子类钩子，再置为未成形，最后刷新接口服务。
      */
+    @Override
     public void disassemble() {
         if (!isFormed()) {
             return;
@@ -94,6 +101,22 @@ public abstract class MultiblockControllerBlockEntity extends AE2EBaseBlockEntit
     @Override
     public BlockPos getControllerPos() {
         return worldPosition;
+    }
+
+    /**
+     * 获取当前控制器对应的多方块结构定义。
+     */
+    @Override
+    @Nullable
+    public IMultiblockStructure getStructure() {
+        if (level == null) {
+            return null;
+        }
+        BlockState state = level.getBlockState(worldPosition);
+        if (state.getBlock() instanceof MultiblockControllerBlock controllerBlock) {
+            return controllerBlock.getStructure();
+        }
+        return null;
     }
 
     @Override

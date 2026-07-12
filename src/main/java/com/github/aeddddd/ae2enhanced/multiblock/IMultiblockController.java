@@ -2,6 +2,10 @@ package com.github.aeddddd.ae2enhanced.multiblock;
 
 import net.minecraft.core.BlockPos;
 
+import javax.annotation.Nullable;
+
+import com.github.aeddddd.ae2enhanced.structure.IMultiblockStructure;
+
 import appeng.api.networking.security.IActionSource;
 
 /**
@@ -39,6 +43,27 @@ public interface IMultiblockController {
      * 切换结构投影显示状态。
      */
     void toggleStructureProjection();
+
+    /**
+     * 获取当前控制器对应的多方块结构定义。
+     */
+    @Nullable
+    IMultiblockStructure getStructure();
+
+    /**
+     * 装配结构：触发 {@link #onAssemble()} 并将成形状态置为 true。
+     */
+    void assemble();
+
+    /**
+     * 拆解结构：触发 {@link #onDisassemble()} 并将成形状态置为 false。
+     */
+    void disassemble();
+
+    /**
+     * 设置成形状态。
+     */
+    void setFormed(boolean formed);
 
     /**
      * 结构装配成功、状态即将置为成形时调用。
