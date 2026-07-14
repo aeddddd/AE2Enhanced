@@ -303,7 +303,7 @@ public final class RenderHelper {
     public static void drawAccretionDisk(VertexConsumer consumer, PoseStack poseStack,
             float innerRadius, float outerRadius, int colorId, int segments) {
         Matrix4f matrix = poseStack.last().pose();
-        int[] c = unpackColor(colorId, 0.0f);
+        int[] c = unpackColor(colorId, 1.0f);
 
         for (int i = 0; i < segments; i++) {
             float a0 = (float) (2 * Math.PI * i / segments);
@@ -349,7 +349,7 @@ public final class RenderHelper {
     public static void drawRelativisticJet(VertexConsumer consumer, PoseStack poseStack,
             float baseRadius, float height, int colorId, int segments) {
         Matrix4f matrix = poseStack.last().pose();
-        int[] c = unpackColor(colorId, 0.0f);
+        int[] c = unpackColor(colorId, 1.0f);
 
         for (int i = 0; i < segments; i++) {
             float a0 = (float) (2 * Math.PI * i / segments);

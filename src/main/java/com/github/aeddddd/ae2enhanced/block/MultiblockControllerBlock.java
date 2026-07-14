@@ -29,6 +29,7 @@ import net.minecraft.ChatFormatting;
 
 import com.github.aeddddd.ae2enhanced.multiblock.MultiblockControllerBlockEntity;
 import com.github.aeddddd.ae2enhanced.structure.IMultiblockStructure;
+import com.github.aeddddd.ae2enhanced.util.BlockEntityRemovalHelper;
 
 /**
  * 多方块控制器方块的通用基类。
@@ -81,6 +82,7 @@ public abstract class MultiblockControllerBlock extends Block implements EntityB
     @Override
     public void onRemove(BlockState state, Level level, BlockPos pos, BlockState newState, boolean isMoving) {
         if (!level.isClientSide() && state.getBlock() != newState.getBlock()) {
+            BlockEntityRemovalHelper.markForBreak(level.getBlockEntity(pos));
             disassembleStructure(level, pos);
             if (level instanceof ServerLevel serverLevel) {
                 removeFromIndex(serverLevel, pos);

@@ -14,6 +14,7 @@ import net.minecraft.client.renderer.blockentity.BlockEntityRendererProvider;
 import net.minecraft.core.Direction;
 
 import com.mojang.blaze3d.shaders.Uniform;
+import com.mojang.blaze3d.systems.RenderSystem;
 
 import net.minecraft.util.Mth;
 import net.minecraft.world.phys.Vec3;
@@ -30,10 +31,7 @@ import com.github.aeddddd.ae2enhanced.structure.AssemblyStructure;
  */
 public class AssemblyHubRenderer extends AbstractMultiblockRenderer<AssemblyControllerBlockEntity> {
 
-    // 旧结构近似半径，用于参数缩放基准
-    private static final double OLD_STRUCTURE_RADIUS = 7.0;
-
-    // 旧版黑洞渲染参数（来自 1.12 主分支）
+    // 旧版黑洞渲染参数（来自 1.12 主分支），保持固定尺寸
     private static final double EVENT_HORIZON_RADIUS_BASE = 2.5;
     private static final double INNER_HALO_BASE = 3.2;
     private static final double MID_HALO_BASE = 4.6;
@@ -86,6 +84,13 @@ public class AssemblyHubRenderer extends AbstractMultiblockRenderer<AssemblyCont
     @Override
     protected void renderEffect(AssemblyControllerBlockEntity be, float partialTicks, PoseStack poseStack,
             MultiBufferSource bufferSource, int packedLight, int packedOverlay) {
+        // 启用后处理时，由 AE2EnhancedPostProcessor 在屏幕空间统一渲染黑洞
+        if (AE2EnhancedConfig.CLIENT.enableAssemblyPostProcessing.get()
+                && !AE2EnhancedConfig.CLIENT.forceCompatibilityMode.get()
+                && AE2EnhancedShaders.isAssemblyBlackHolePostLoaded()) {
+            return;
+        }
+
         Direction facing = getFacing(be);
         float[] bounds = getBounds(facing);
         double scale = getScaleFactor(bounds);
@@ -134,7 +139,8 @@ public class AssemblyHubRenderer extends AbstractMultiblockRenderer<AssemblyCont
 
         ShaderInstance shader = AE2EnhancedShaders.getAssemblyBlackHole();
         if (shader != null) {
-            applyUniforms(shader, time, intensity);
+            applyUniforms(shader, time, intensity, (float) scale);
+            RenderSystem.setShader(() -> shader);
         }
 
         // 事件视界 + 吸积盘（translucent）
@@ -151,17 +157,21 @@ public class AssemblyHubRenderer extends AbstractMultiblockRenderer<AssemblyCont
     }
 
     /**
-     * 设置 shader 时间/强度 uniform。
-     * <p>值会在 {@link ShaderInstance#apply()} 时被上传。</p>
+     * 设置 shader 时间/强度/缩放 uniform。
+     * <p>由 RenderSystem.setShader 负责实际绑定与上传；此处仅设置 uniform 值。</p>
      */
-    private static void applyUniforms(ShaderInstance shader, float time, float intensity) {
+    private static void applyUniforms(ShaderInstance shader, float time, float intensity, float scale) {
         Uniform uTime = shader.getUniform("uTime");
         Uniform uIntensity = shader.getUniform("uIntensity");
+        Uniform uScale = shader.getUniform("uScale");
         if (uTime != null) {
             uTime.set(time);
         }
         if (uIntensity != null) {
             uIntensity.set(intensity);
+        }
+        if (uScale != null) {
+            uScale.set(scale);
         }
     }
 
@@ -220,9 +230,12 @@ public class AssemblyHubRenderer extends AbstractMultiblockRenderer<AssemblyCont
         poseStack.popPose();
     }
 
+    /**
+     * 获取黑洞渲染的缩放系数。
+     * <p>原 1.12 实现中黑洞事件视界与光晕为固定尺寸，不随多方块结构大小变化；
+     * 1.20.1 移植也保持固定缩放，避免新结构尺寸过大导致黑洞视觉效果变成几十格。</p>
+     */
     private static double getScaleFactor(float[] bounds) {
-        double maxDim = Math.max(bounds[3] - bounds[0], Math.max(bounds[4] - bounds[1], bounds[5] - bounds[2]));
-        double newRadius = maxDim * 0.5;
-        return newRadius / OLD_STRUCTURE_RADIUS;
+        return 1.0;
     }
 }

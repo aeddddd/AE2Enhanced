@@ -1,5 +1,6 @@
 package com.github.aeddddd.ae2enhanced.block;
 
+import com.github.aeddddd.ae2enhanced.util.BlockEntityRemovalHelper;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
@@ -40,8 +41,9 @@ public abstract class AE2EBaseEntityBlock extends Block implements EntityBlock {
 
     @Override
     public void onRemove(BlockState state, Level level, BlockPos pos, BlockState newState, boolean isMoving) {
-        // 交由 Minecraft 标准方块替换逻辑处理 BlockEntity 生命周期；
-        // 不手动调用 level.removeBlockEntity，避免重复移除或跳过 setRemoved 回调。
+        if (!level.isClientSide() && state.getBlock() != newState.getBlock()) {
+            BlockEntityRemovalHelper.markForBreak(level.getBlockEntity(pos));
+        }
         super.onRemove(state, level, pos, newState, isMoving);
     }
 

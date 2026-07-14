@@ -1,0 +1,25 @@
+{
+    "blend": {
+        "func": "add",
+        "srcrgb": "srcalpha",
+        "dstrgb": "1-srcalpha"
+    },
+    "vertex": "ae2enhanced:assembly_black_hole_post",
+    "fragment": "ae2enhanced:assembly_black_hole_post",
+    "attributes": [ "Position" ],
+    "samplers": [
+        { "name": "Sampler0" }
+    ],
+    "uniforms": [
+        { "name": "ModelViewMat", "type": "matrix4x4", "count": 16, "values": [ 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0 ] },
+        { "name": "ProjMat", "type": "matrix4x4", "count": 16, "values": [ 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0 ] },
+        { "name": "u_time", "type": "float", "count": 1, "values": [ 0.0 ] },
+        { "name": "u_resolution", "type": "float", "count": 2, "values": [ 1.0, 1.0 ] },
+        { "name": "u_intensity", "type": "float", "count": 1, "values": [ 1.0 ] },
+        { "name": "u_size", "type": "float", "count": 1, "values": [ 1.2 ] },
+        { "name": "u_fov", "type": "float", "count": 1, "values": [ 70.0 ] },
+        { "name": "u_targetScreen", "type": "float", "count": 2, "values": [ 0.5, 0.5 ] },
+        { "name": "eye", "type": "float", "count": 3, "values": [ 0.0, 0.0, 0.0 ] },
+        { "name": "target", "type": "float", "count": 3, "values": [ 0.0, 0.0, 0.0 ] }
+    ]
+}

@@ -2,9 +2,7 @@
     "blend": {
         "func": "add",
         "srcrgb": "srcalpha",
-        "dstrgb": "1-srcalpha",
-        "srcalpha": "srcalpha",
-        "dstalpha": "1-srcalpha"
+        "dstrgb": "1-srcalpha"
     },
     "vertex": "ae2enhanced:assembly_black_hole",
     "fragment": "ae2enhanced:assembly_black_hole",
@@ -15,6 +13,7 @@
         { "name": "ProjMat", "type": "matrix4x4", "count": 16, "values": [ 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0 ] },
         { "name": "ColorModulator", "type": "float", "count": 4, "values": [ 1.0, 1.0, 1.0, 1.0 ] },
         { "name": "uTime", "type": "float", "count": 1, "values": [ 0.0 ] },
-        { "name": "uIntensity", "type": "float", "count": 1, "values": [ 1.0 ] }
+        { "name": "uIntensity", "type": "float", "count": 1, "values": [ 1.0 ] },
+        { "name": "uScale", "type": "float", "count": 1, "values": [ 1.0 ] }
     ]
 }

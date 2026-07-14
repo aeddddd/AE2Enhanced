@@ -15,6 +15,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.LevelAccessor;
 import net.minecraft.world.level.block.Block;
@@ -134,9 +135,12 @@ public class StructureEventHandler {
             return;
         }
 
+        ChunkPos loadedChunk = event.getChunk().getPos();
         for (Function<ServerLevel, Set<BlockPos>> provider : INDEX_PROVIDERS.values()) {
             for (BlockPos controllerPos : provider.apply(level)) {
-                if (areAllChunksLoadedForController(level, controllerPos)) {
+                // 只调度刚刚加载的区块内的控制器，避免在世界加载过程中
+                // 访问未加载控制器时触发同步区块加载导致死锁。
+                if (loadedChunk.equals(new ChunkPos(controllerPos))) {
                     scheduleCheck(level, controllerPos);
                 }
             }
@@ -150,12 +154,12 @@ public class StructureEventHandler {
 
     /**
      * 检查指定控制器对应的所有结构方块是否都已加载。
-     * 未完全加载时返回 false，防止 validate 误判导致解体。
+     * 未完全加载或控制器区块尚未加载时返回 false，防止 validate 误判或触发同步区块加载。
      */
     private static boolean areAllChunksLoadedForController(Level level, BlockPos controllerPos) {
         IMultiblockStructure structure = getStructureForController(level, controllerPos);
         if (structure == null) {
-            return true;
+            return false;
         }
         Direction rotation = structure.getRotation(level, controllerPos);
         for (BlockPos rel : structure.getAllPositions()) {
@@ -214,6 +218,11 @@ public class StructureEventHandler {
     }
 
     private static IMultiblockStructure getStructureForController(Level level, BlockPos controllerPos) {
+        // 在世界加载 / 区块加载事件路径上，先确认控制器区块已加载，避免调用
+        // getBlockState 触发同步区块加载导致死锁。
+        if (!level.isLoaded(controllerPos)) {
+            return null;
+        }
         BlockState state = level.getBlockState(controllerPos);
         Supplier<IMultiblockStructure> supplier = STRUCTURES.get(state.getBlock().getClass());
         return supplier != null ? supplier.get() : null;
