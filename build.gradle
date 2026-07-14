@@ -1,60 +1,115 @@
-buildscript {
-    repositories {
-        maven { url = 'https://maven.minecraftforge.net' }
-    }
-    dependencies {
-        classpath 'net.minecraftforge:ForgeAutoRenamingTool:1.1.2:all'
-        classpath 'com.google.code.gson:gson:2.10.1'
-    }
-}
-
 plugins {
-    id 'java-library'
     id 'idea'
+    id 'java-library'
     id 'maven-publish'
-    id 'net.neoforged.gradle.userdev' version '7.0.145'
+    id 'net.neoforged.moddev.legacyforge' version '2.0.91'
 }
 
-version = project.mod_version
-group = 'com.github.aeddddd'
+tasks.named('wrapper', Wrapper).configure {
+    // Define wrapper values here so as to not have to always do so when updating gradlew.properties.
+    // Switching this to Wrapper.DistributionType.ALL will download the full gradle sources that comes with
+    // documentation attached on cursor hover of gradle classes and methods. However, this comes with increased
+    // file size for Gradle. If you do switch this to ALL, run the Gradle wrapper task twice afterwards.
+    // (Verify by checking gradle/wrapper/gradle-wrapper.properties to see if distributionUrl now points to `-all`)
+    distributionType = Wrapper.DistributionType.BIN
+}
+
+version = mod_version
+group = mod_group_id
 
 base {
-    archivesName = 'AE2Enhanced'
+    archivesName = mod_id
 }
 
-java.toolchain.languageVersion = JavaLanguageVersion.of(project.java_version.toInteger())
+// Mojang ships Java 17 to end users in 1.20.1, so mods should target Java 17.
+java.toolchain.languageVersion = JavaLanguageVersion.of(17)
 
-runs {
-    configureEach {
-        workingDirectory project.file('run')
-        modSource project.sourceSets.main
-        systemProperty 'forge.logging.markers', 'REGISTRIES'
-        systemProperty 'forge.logging.console.level', 'debug'
-        jvmArgument '-Dmixin.env.remapRefMap=true'
-        jvmArgument '-Dmixin.env.refMapRemappingFile=' + layout.buildDirectory.file('reobf/srg_to_official.tsrg').get().asFile.absolutePath
-        programArgument '-mixin.config=mixins.ae2enhanced.json'
-        systemProperty 'ae2enhanced.devCompat', 'true'
+legacyForge {
+    // Specify the version of NeoForge to use for 1.20.1.
+    enable {
+        neoForgeVersion = project.minecraft_version + '-' + project.forge_version
+        // Allow test sources to access Minecraft classes.
+        enabledSourceSets.add sourceSets.test
     }
-    client {
-        systemProperty 'forge.enabledGameTestNamespaces', project.mod_id
+
+    // Validate AT files and raise errors when they have invalid targets
+    // This option is false by default, but turning it on is recommended.
+    // Disabled for this project because the existing AT file contains legacy entries that do not match the current mappings.
+    validateAccessTransformers = false
+
+    parchment {
+        mappingsVersion = project.parchment_mappings_version
+        minecraftVersion = project.parchment_minecraft_version
     }
-    server {
-        systemProperty 'forge.enabledGameTestNamespaces', project.mod_id
-        programArgument '--nogui'
+
+    // Default run configurations.
+    // These can be tweaked, removed, or duplicated as needed.
+    runs {
+        client {
+            client()
+            // Comma-separated list of namespaces to load gametests from. Empty = all namespaces.
+            systemProperty 'forge.enabledGameTestNamespaces', project.mod_id
+        }
+        server {
+            server()
+            programArgument '--nogui'
+            systemProperty 'forge.enabledGameTestNamespaces', project.mod_id
+        }
+        // This run config launches GameTestServer and runs all registered gametests, then exits.
+        // By default, the server will crash when no gametests are provided.
+        // The gametest system is also enabled by default for other run configs under the /test command.
+        gameTestServer {
+            type = "gameTestServer"
+            systemProperty 'forge.enabledGameTestNamespaces', project.mod_id
+        }
+        data {
+            data()
+            // Specify the modid for data generation, where to output the resulting resource, and where to look for existing resources.
+            programArguments.addAll '--mod', project.mod_id, '--all', '--output',
+                    file('src/generated/resources/').getAbsolutePath(), '--existing',
+                    file('src/main/resources/').getAbsolutePath()
+        }
+        // applies to all the run configs above
+        configureEach {
+            // Recommended logging data for a userdev environment
+            // The markers can be added/remove as needed separated by commas.
+            // "SCAN": For mods scan.
+            // "REGISTRIES": For firing of registry events.
+            // "REGISTRYDUMP": For getting the contents of all registries.
+            systemProperty 'forge.logging.markers', 'REGISTRIES'
+            // Recommended logging level for the console
+            // You can set various levels here.
+            // Please read: https://stackoverflow.com/questions/2031163/when-to-use-the-different-log-levels
+            logLevel = org.slf4j.event.Level.DEBUG
+            // Project-specific compatibility flag used by the mod runtime.
+            systemProperty 'ae2enhanced.devCompat', 'true'
+        }
     }
-    data {
-        programArguments.addAll '--mod', project.mod_id, '--all', '--output',
-                file('src/generated/resources/').getAbsolutePath(), '--existing',
-                file('src/main/resources/').getAbsolutePath()
+
+    mods {
+        // define mod <-> source bindings
+        // these are used to tell the game which sources are for which mod
+        // mostly optional in a single mod project
+        // but multi mod projects should define one per mod
+        "${mod_id}" {
+            sourceSet(sourceSets.main)
+        }
     }
 }
 
-tasks.withType(net.neoforged.gradle.common.runs.tasks.RunExec).configureEach {
-    dependsOn tasks.generateReobfMapping
+// Include resources generated by data generators.
+sourceSets.main.resources { srcDir 'src/generated/resources' }
+
+// Sets up a dependency configuration called 'localRuntime' and a deobfuscating one called 'modLocalRuntime'
+// These configurations should be used instead of 'runtimeOnly' to declare
+// a dependency that will be present for runtime testing but that is
+// "optional", meaning it will not be pulled by dependents of this mod.
+configurations {
+    runtimeClasspath.extendsFrom localRuntime
 }
 
-if (file('src/generated/resources').exists()) {
-    sourceSets.main.resources { srcDir 'src/generated/resources' }
+obfuscation {
+    createRemappingConfiguration(configurations.localRuntime)
 }
 
 repositories {
@@ -64,183 +119,94 @@ repositories {
     maven { url = 'https://repo.spongepowered.org/maven' }
     maven { url = 'https://www.cursemaven.com' }
     maven { url = 'https://maven.blamejared.com' }
+    flatDir {
+        name = 'local_libs'
+        dir 'libs'
+    }
 }
 
 dependencies {
-    implementation "net.neoforged:forge:${project.neo_version}"
-    // AE2 发布 jar 为 SRG，在官方映射开发环境下需要反混淆后 runtime。
-    compileOnly 'appeng:appliedenergistics2-forge:15.3.4'
-    runtimeOnly files({ tasks.deobfAe2Jar.outputs.files.singleFile })
-    compileOnly 'org.spongepowered:mixin:0.8.7'
+    // Mixin annotation processor for refmap generation.
     annotationProcessor 'org.spongepowered:mixin:0.8.7:processor'
-    
-    // MixinExtras：编译期注解与注解处理器
+
+    // JetBrains annotations used in source code.
+    compileOnly 'org.jetbrains:annotations:24.0.1'
+
+    // MixinExtras: compile-time annotations and annotation processor.
     compileOnly 'io.github.llamalad7:mixinextras-common:0.4.1'
     annotationProcessor 'io.github.llamalad7:mixinextras-common:0.4.1'
-    // MixinExtras：通过 jarJar 打包到 mod jar，避免生产环境缺失
-    jarJar(group: 'io.github.llamalad7', name: 'mixinextras-forge', version: '0.4.1') {
-        jarJar.ranged(it, '[0.4.1,0.5)')
-    }
+    // MixinExtras: embed via jarJar so it is available in production.
+    jarJar(group: 'io.github.llamalad7', name: 'mixinextras-forge', version: '[0.4.1,0.5)')
+
+    // AE2: published with SRG mappings, so declare it on a mod* configuration to remap to official mappings.
+    // The actual jar is expected at libs/appliedenergistics2-forge-15.3.4.jar
+    modImplementation "blank:appliedenergistics2-forge-15.3.4"
 
     testImplementation 'org.junit.jupiter:junit-jupiter:5.10.0'
 }
 
-tasks.named('jarJar', net.neoforged.gradle.common.tasks.JarJar) {
-    // 依赖声明已自动加入 jarJar 配置；此处无需额外 configuration(...) 调用
+mixin {
+    add sourceSets.main, 'mixins.ae2enhanced.refmap.json'
+    config 'mixins.ae2enhanced.json'
 }
 
-tasks.withType(ProcessResources).configureEach {
+// Make the jarJar output part of the main jar so MixinExtras is embedded in the production artifact.
+tasks.jar {
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    manifest {
+        attributes(
+                "MixinConfigs": "mixins.ae2enhanced.json"
+        )
+    }
+    from(tasks.named('jarJar').map { it.outputDirectory })
+}
+
+// This block of code expands all declared replace properties in the specified resource targets.
+// A missing property will result in an error. Properties are expanded using ${} Groovy notation.
+var generateModMetadata = tasks.register("generateModMetadata", ProcessResources) {
     var replaceProperties = [
-            version: version,
-            mod_id: project.mod_id,
-            mod_name: project.mod_name
+            minecraft_version        : minecraft_version,
+            minecraft_version_range  : minecraft_version_range,
+            forge_version            : forge_version,
+            forge_version_range      : forge_version_range,
+            loader_version_range     : loader_version_range,
+            mod_id                   : mod_id,
+            mod_name                 : mod_name,
+            mod_license              : mod_license,
+            mod_version              : mod_version,
+            mod_authors              : mod_authors,
+            mod_description          : mod_description
     ]
     inputs.properties replaceProperties
+    expand replaceProperties
+    from "src/main/templates"
+    into "build/generated/sources/modMetadata"
+}
+// Include the output of "generateModMetadata" as an input directory for the build
+// this works with both building through Gradle and the IDE.
+sourceSets.main.resources.srcDir generateModMetadata
+// To avoid having to run "generateModMetadata" manually, make it run on every project reload
+legacyForge.ideSyncTask generateModMetadata
 
-    filesMatching(['META-INF/neoforge.mods.toml', 'META-INF/mods.toml']) {
-        expand replaceProperties
+// Example configuration to allow publishing using the maven-publish plugin
+publishing {
+    publications {
+        register('mavenJava', MavenPublication) {
+            from components.java
+        }
+    }
+    repositories {
+        maven {
+            url "file://${project.projectDir}/repo"
+        }
     }
 }
 
 tasks.withType(JavaCompile).configureEach {
-    options.encoding = 'UTF-8'
-    options.compilerArgs += [
-            '-AoutRefMapFile=' + file("${project.buildDir}/classes/java/main/mixins.ae2enhanced.refmap.json").absolutePath
-    ]
+    options.encoding = 'UTF-8' // Use the UTF-8 charset for Java compilation
 }
 
-tasks.register('copyMixinRefmap', Copy) {
-    group = 'build'
-    from("${project.buildDir}/classes/java/main/mixins.ae2enhanced.refmap.json")
-    into("${project.buildDir}/resources/main")
-    dependsOn(tasks.compileJava)
-}
-
-tasks.compileTestJava.dependsOn(tasks.named('copyMixinRefmap'))
-
-tasks.jar {
-    archiveClassifier = 'dev'
-    dependsOn(tasks.copyMixinRefmap)
-    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
-
-    manifest {
-        attributes(
-                'MixinConfigs': 'mixins.ae2enhanced.json'
-        )
-    }
-}
-
-def clientMappingsFile = file("${System.getProperty('user.home')}/.gradle/caches/minecraft/versions/1.20.1/client.txt")
-
-tasks.register('generateReobfMapping') {
-    dependsOn(tasks.neoFormMergeMappings)
-    def mappingFile = layout.buildDirectory.file('reobf/official_to_srg.tsrg')
-    outputs.file(mappingFile)
-
-    doLast {
-        mappingFile.get().asFile.parentFile.mkdirs()
-        javaexec {
-            classpath = files('buildSrc/build/classes/java/main') + buildscript.configurations.classpath
-            mainClass = 'com.github.aeddddd.ae2enhanced.build.ComposeOfficialSrg'
-            args = [
-                    clientMappingsFile,
-                    tasks.neoFormMergeMappings.output.get().asFile,
-                    mappingFile.get().asFile
-            ]
-        }
-    }
-}
-
-tasks.register('generateSrgToOfficialMapping') {
-    dependsOn(tasks.generateReobfMapping)
-    def input = tasks.generateReobfMapping.outputs.files.singleFile
-    def mappingFile = layout.buildDirectory.file('reobf/srg_to_official.tsrg')
-    def forgeUniversal = project.file(".gradle/repositories/ng_dummy_ng/net/neoforged/forge/${project.neo_version}/forge-${project.neo_version}.jar")
-    outputs.file(mappingFile)
-
-    doLast {
-        mappingFile.get().asFile.parentFile.mkdirs()
-        javaexec {
-            classpath = files('buildSrc/build/classes/java/main') + buildscript.configurations.classpath
-            mainClass = 'com.github.aeddddd.ae2enhanced.build.ComposeSrgToOfficial'
-            args = [
-                    input,
-                    mappingFile.get().asFile,
-                    "${clientMappingsFile.parentFile}/client.jar",
-                    "${clientMappingsFile.parentFile}/server.jar",
-                    forgeUniversal
-            ]
-        }
-    }
-}
-
-// 反混淆 AE2 jar（类 + refmap）供开发环境运行使用。
-tasks.register('deobfAe2Jar', JavaExec) {
-    dependsOn tasks.generateSrgToOfficialMapping
-    def ae2Jar = file('libs/appliedenergistics2-forge-15.3.4.jar')
-    def mappingFile = tasks.generateSrgToOfficialMapping.outputs.files.singleFile
-    def outputJar = layout.buildDirectory.file('reobf/ae2-deobf.jar')
-
-    inputs.file ae2Jar
-    inputs.file mappingFile
-    outputs.file outputJar
-
-    classpath = files('buildSrc/build/classes/java/main') + buildscript.configurations.classpath
-    mainClass = 'com.github.aeddddd.ae2enhanced.build.Ae2Deobfuscator'
-    args = [ae2Jar, mappingFile, outputJar.get().asFile]
-}
-
-tasks.test.dependsOn(tasks.named('deobfAe2Jar'))
-
-// 仅对 AE2 mixin refmap 做补丁（备用）。
-tasks.register('fixAe2Refmap', JavaExec) {
-    dependsOn tasks.generateSrgToOfficialMapping
-    def ae2Jar = file('libs/appliedenergistics2-forge-15.3.4.jar')
-    def mappingFile = tasks.generateSrgToOfficialMapping.outputs.files.singleFile
-    def outputJar = layout.buildDirectory.file('reobf/ae2-refmap-fixed.jar')
-
-    inputs.file ae2Jar
-    inputs.file mappingFile
-    outputs.file outputJar
-
-    classpath = files('buildSrc/build/classes/java/main') + buildscript.configurations.classpath
-    mainClass = 'com.github.aeddddd.ae2enhanced.build.FixAe2Refmap'
-    args = [ae2Jar, mappingFile, outputJar.get().asFile]
-}
-
-// 使用 FART 对 jarJar 输出（含 META-INF/jarjar）进行 official->SRG 重混淆。
-// 需要 ComposeOfficialSrg 生成带字段描述符的 TSRG2，否则 BlockEntity.level 等字段无法正确映射。
-tasks.register('reobfJar', Exec) {
-    dependsOn(tasks.generateReobfMapping)
-    dependsOn(tasks.jarJar)
-    dependsOn(tasks.deobfAe2Jar)
-
-    def fartJar = project.configurations.detachedConfiguration(
-            project.dependencies.create('net.minecraftforge:ForgeAutoRenamingTool:1.1.2:all')
-    ).files.find { it.name.endsWith('-all.jar') }
-    def mappingFile = tasks.generateReobfMapping.outputs.files.singleFile
-    def inputJar = tasks.jarJar.archiveFile
-    def outputJar = layout.buildDirectory.file("libs/${tasks.jar.archiveBaseName.get()}-${tasks.jar.archiveVersion.get()}.jar")
-    def ae2DeobfJar = tasks.deobfAe2Jar.outputs.files.singleFile
-
-    def libsArgs = []
-    sourceSets.main.runtimeClasspath.files.each { libsArgs += ['--lib', it.absolutePath] }
-    libsArgs += ['--lib', ae2DeobfJar.absolutePath]
-
-    commandLine('java', '-jar', fartJar,
-            '--input', inputJar.get().asFile,
-            '--output', outputJar.get().asFile,
-            '--map', mappingFile,
-            *libsArgs,
-            '--ann-fix', '--ids-fix', '--src-fix', '--record-fix')
-}
-
-tasks.jar.finalizedBy('reobfJar')
-
-tasks.named('jarJar', net.neoforged.gradle.common.tasks.JarJar) {
-    archiveClassifier = 'jarjar'
-}
-
+// IDEA no longer automatically downloads sources/javadoc jars for dependencies, so we need to explicitly enable the behavior.
 idea {
     module {
         downloadSources = true

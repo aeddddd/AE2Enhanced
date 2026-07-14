@@ -38,6 +38,11 @@ for %%i in ("%APP_HOME%") do set APP_HOME=%%~fi
 @rem Add default JVM options here. You can also use JAVA_OPTS and GRADLE_OPTS to pass JVM options to this script.
 set DEFAULT_JVM_OPTS="-Xmx64m" "-Xms64m"
 
+@rem Prefer Zulu 21 as the launcher JVM when it is available to work around IPv6/SSL issues on this network.
+if exist "C:\Program Files\Zulu\zulu-21\bin\java.exe" (
+    set "JAVA_HOME=C:\Program Files\Zulu\zulu-21"
+)
+
 @rem Find java.exe
 if defined JAVA_HOME goto findJavaFromJavaHome
 
