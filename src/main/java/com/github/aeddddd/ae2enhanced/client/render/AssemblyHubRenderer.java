@@ -14,7 +14,6 @@ import net.minecraft.client.renderer.blockentity.BlockEntityRendererProvider;
 import net.minecraft.core.Direction;
 
 import com.mojang.blaze3d.shaders.Uniform;
-import com.mojang.blaze3d.systems.RenderSystem;
 
 import net.minecraft.util.Mth;
 import net.minecraft.world.phys.Vec3;
@@ -31,8 +30,12 @@ import com.github.aeddddd.ae2enhanced.structure.AssemblyStructure;
  */
 public class AssemblyHubRenderer extends AbstractMultiblockRenderer<AssemblyControllerBlockEntity> {
 
-    // 旧版黑洞渲染参数（来自 1.12 主分支），保持固定尺寸
+    // 黑洞渲染尺寸（方块单位），与 1.12 主分支一致；黑洞本体为对象空间球体，
+    // 后处理光线步进只负责 GTCEu 原始比例的吸积盘与辉光
     private static final double EVENT_HORIZON_RADIUS_BASE = 2.5;
+    private static final double DISK_INNER_BASE = 3.0;
+    private static final double DISK_OUTER_BASE = 7.8;
+    private static final double SHELL_RADIUS_BASE = 5.6;
     private static final double INNER_HALO_BASE = 3.2;
     private static final double MID_HALO_BASE = 4.6;
     private static final double OUTER_HALO_BASE = 6.0;
@@ -84,13 +87,8 @@ public class AssemblyHubRenderer extends AbstractMultiblockRenderer<AssemblyCont
     @Override
     protected void renderEffect(AssemblyControllerBlockEntity be, float partialTicks, PoseStack poseStack,
             MultiBufferSource bufferSource, int packedLight, int packedOverlay) {
-        // 启用后处理时，由 AE2EnhancedPostProcessor 在屏幕空间统一渲染黑洞
-        if (AE2EnhancedConfig.CLIENT.enableAssemblyPostProcessing.get()
-                && !AE2EnhancedConfig.CLIENT.forceCompatibilityMode.get()
-                && AE2EnhancedShaders.isAssemblyBlackHolePostLoaded()) {
-            return;
-        }
-
+        // 对象空间渲染始终执行，作为后处理的 fallback 与视觉参照。
+        // 后处理在同一阶段之后叠加，两者不会互斥。
         Direction facing = getFacing(be);
         float[] bounds = getBounds(facing);
         double scale = getScaleFactor(bounds);
@@ -128,6 +126,9 @@ public class AssemblyHubRenderer extends AbstractMultiblockRenderer<AssemblyCont
 
     /**
      * 使用自定义 shader 渲染黑洞主体与发光喷流。
+     * <p>事件视界（黑洞本体）始终绘制并写入深度，后处理光线步进在其周围叠加
+     * GTCEu 原始比例的吸积盘与辉光，且会被球体正确遮挡；
+     * 后处理关闭时额外绘制对象空间吸积盘与喷流。约束壳始终叠加。</p>
      */
     private void renderShaderEffect(AssemblyControllerBlockEntity be, float partialTicks, PoseStack poseStack,
             MultiBufferSource bufferSource, double scale, double dist) {
@@ -137,33 +138,68 @@ public class AssemblyHubRenderer extends AbstractMultiblockRenderer<AssemblyCont
         float time = (be.getLevel().getGameTime() + partialTicks) * 0.05f;
         float intensity = AE2EnhancedConfig.CLIENT.dynamicRenderIntensity.get().floatValue();
 
-        ShaderInstance shader = AE2EnhancedShaders.getAssemblyBlackHole();
-        if (shader != null) {
-            applyUniforms(shader, time, intensity, (float) scale);
-            RenderSystem.setShader(() -> shader);
-        }
+        // 顶点缓冲中的 Position 已是相机空间坐标（CPU 侧乘过 pose 平移），
+        // 上传相机空间的特效中心，供顶点着色器还原黑洞局部坐标
+        Vec3 cameraPos = context.getBlockEntityRenderDispatcher().camera.getPosition();
+        Vec3 centerCam = getEffectCenterWorld(be).subtract(cameraPos);
 
-        // 事件视界 + 吸积盘（translucent）
+        // RenderType 的 ShaderStateShard 会在实际绘制时绑定 shader 并上传 uniform
+        ShaderInstance shader = AE2EnhancedShaders.getAssemblyBlackHole();
+        applyUniforms(shader, time, intensity, (float) scale, centerCam);
+
+        // 事件视界：黑洞本体（translucent，写深度供后处理遮挡判定）
         VertexConsumer main = bufferSource.getBuffer(RenderHelper.ASSEMBLY_BLACK_HOLE);
         RenderHelper.drawSphere(main, poseStack, (float) (EVENT_HORIZON_RADIUS_BASE * scale),
                 EVENT_HORIZON_PART_ID, 1.0f, lodLat, lodLon);
-        RenderHelper.drawAccretionDisk(main, poseStack, (float) (EVENT_HORIZON_RADIUS_BASE * scale * 1.2f),
-                (float) (OUTER_HALO_BASE * scale * 1.3f), ACCRETION_DISK_PART_ID, 64);
 
-        // 相对论性喷流（additive）
-        VertexConsumer glow = bufferSource.getBuffer(RenderHelper.ASSEMBLY_BLACK_HOLE_GLOW);
-        RenderHelper.drawRelativisticJet(glow, poseStack, (float) (1.0f * scale),
-                (float) (8.0f * scale), RELATIVISTIC_JET_PART_ID, 32);
+        if (!AE2EnhancedPostProcessor.isPostActive()) {
+            // 后处理关闭时才绘制对象空间吸积盘与喷流；激活时由光线步进承担，避免双重渲染
+            RenderHelper.drawAccretionDisk(main, poseStack, (float) (DISK_INNER_BASE * scale),
+                    (float) (DISK_OUTER_BASE * scale), ACCRETION_DISK_PART_ID, 64);
+
+            VertexConsumer glow = bufferSource.getBuffer(RenderHelper.ASSEMBLY_BLACK_HOLE_GLOW);
+            RenderHelper.drawRelativisticJet(glow, poseStack, (float) (1.0f * scale),
+                    (float) (8.0f * scale), RELATIVISTIC_JET_PART_ID, 32);
+        }
+
+        renderContainmentShell(poseStack, bufferSource, time, scale, lodLat, lodLon);
     }
 
     /**
-     * 设置 shader 时间/强度/缩放 uniform。
-     * <p>由 RenderSystem.setShader 负责实际绑定与上传；此处仅设置 uniform 值。</p>
+     * 受控约束壳：两层反向缓慢旋转的能量壳，呼吸明暗，表征黑洞处于受控状态。
+     * <p>使用 additive 混合且不写深度，不会遮挡后处理光线步进的吸积盘。</p>
      */
-    private static void applyUniforms(ShaderInstance shader, float time, float intensity, float scale) {
+    private static void renderContainmentShell(PoseStack poseStack, MultiBufferSource bufferSource, float time,
+            double scale, int lodLat, int lodLon) {
+        float breath = 0.5f + 0.5f * (float) Math.sin(time * 0.9);
+        float alpha = 0.10f + 0.18f * breath;
+
+        VertexConsumer shell = bufferSource.getBuffer(RenderHelper.TESR_ADDITIVE);
+        poseStack.pushPose();
+        poseStack.mulPose(Axis.YP.rotationDegrees(time * 6.0f));
+        poseStack.mulPose(Axis.XP.rotationDegrees(8.0f));
+        RenderHelper.drawSphere(shell, poseStack, (float) (SHELL_RADIUS_BASE * scale), 0x2FA8FF, alpha, lodLat,
+                lodLon);
+        poseStack.popPose();
+
+        poseStack.pushPose();
+        poseStack.mulPose(Axis.YP.rotationDegrees(-time * 4.0f));
+        poseStack.mulPose(Axis.ZP.rotationDegrees(12.0f));
+        RenderHelper.drawSphere(shell, poseStack, (float) (SHELL_RADIUS_BASE * 0.94 * scale), 0x7FD4FF,
+                alpha * 0.6f, lodLat, lodLon);
+        poseStack.popPose();
+    }
+
+    /**
+     * 设置 shader 时间/强度/缩放/中心 uniform。
+     * <p>由 RenderType 的 ShaderStateShard 在实际绘制时负责绑定与上传；此处仅设置 uniform 值。</p>
+     */
+    private static void applyUniforms(ShaderInstance shader, float time, float intensity, float scale,
+            Vec3 centerCam) {
         Uniform uTime = shader.getUniform("uTime");
         Uniform uIntensity = shader.getUniform("uIntensity");
         Uniform uScale = shader.getUniform("uScale");
+        Uniform uCenter = shader.getUniform("uCenter");
         if (uTime != null) {
             uTime.set(time);
         }
@@ -172,6 +208,9 @@ public class AssemblyHubRenderer extends AbstractMultiblockRenderer<AssemblyCont
         }
         if (uScale != null) {
             uScale.set(scale);
+        }
+        if (uCenter != null) {
+            uCenter.set((float) centerCam.x, (float) centerCam.y, (float) centerCam.z);
         }
     }
 

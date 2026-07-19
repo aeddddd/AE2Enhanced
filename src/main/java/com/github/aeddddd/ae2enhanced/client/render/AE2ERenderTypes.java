@@ -105,8 +105,8 @@ public class AE2ERenderTypes extends RenderType {
 
     /**
      * 装配枢纽黑洞主体 RenderType（事件视界 + 吸积盘），使用自定义 shader。
-     * <p>关闭深度写入，使吸积盘能叠在不透明的事件视界球体上；仍保留深度测试，
-     * 确保被方块等环境几何正确遮挡。</p>
+     * <p>写入深度：事件视界作为黑洞本体需要被后处理光线步进与后续几何正确遮挡；
+     * 吸积盘在同一缓冲内后绘制（LEQUAL），与球体的前后关系由深度测试自然处理。</p>
      */
     public static final RenderType ASSEMBLY_BLACK_HOLE = create(
             "ae2enhanced_assembly_black_hole",
@@ -119,7 +119,7 @@ public class AE2ERenderTypes extends RenderType {
                     .setShaderState(ASSEMBLY_BLACK_HOLE_SHADER)
                     .setLayeringState(VIEW_OFFSET_Z_LAYERING)
                     .setTransparencyState(TRANSLUCENT_TRANSPARENCY)
-                    .setWriteMaskState(COLOR_WRITE)
+                    .setWriteMaskState(COLOR_DEPTH_WRITE)
                     .setCullState(NO_CULL)
                     .setDepthTestState(LEQUAL_DEPTH_TEST)
                     .createCompositeState(false));

@@ -10,8 +10,8 @@ uniform vec4 ColorModulator;
 
 out vec4 fragColor;
 
-// 由于 getScaleFactor 已固定为 1.0，shader 内使用硬编码缩放，避免 uniform 未上传时效果异常
-const float SCALE = 1.0;
+// 缩放由 Java 端每帧通过 uniform 上传（当前 getScaleFactor 固定返回 1.0）
+#define SCALE uScale
 
 float hash(float n) {
     return fract(sin(n) * 43758.5453123);
@@ -49,12 +49,13 @@ void main() {
 
     if (part == 0) {
         // 事件视界：纯黑实心，外侧带极细暗红色边缘，使其在亮背景下也能被辨认
+        // 边缘半径与 Java 端 EVENT_HORIZON_RADIUS_BASE = 2.5 对应
         float r = length(vPos);
         float edge = 1.0 - smoothstep(SCALE * 2.45, SCALE * 2.55, r);
         vec3 edgeCol = vec3(0.4, 0.05, 0.05) * edge * 0.4 * intensity;
         fragColor = vec4(edgeCol, 1.0);
     } else if (part == 1) {
-        // 吸积盘：赤道面旋转环，使用硬编码 SCALE 保证缩放稳定
+        // 吸积盘：赤道面旋转环，径向渐变范围与 Java 端 DISK_INNER/OUTER_BASE (3.0 ~ 7.8) 对应
         float r = length(vPos.xz);
         float y = vPos.y;
         float diskH = 0.10 * SCALE * intensity;
@@ -65,8 +66,7 @@ void main() {
             discard;
         }
 
-        float outerR = 8.0 * SCALE;
-        float t = clamp(r / outerR, 0.0, 1.0);
+        float t = clamp((r - 3.0 * SCALE) / (4.8 * SCALE), 0.0, 1.0);
         float angle = atan(vPos.z, vPos.x);
         float rot = angle + uTime * 0.6;
 

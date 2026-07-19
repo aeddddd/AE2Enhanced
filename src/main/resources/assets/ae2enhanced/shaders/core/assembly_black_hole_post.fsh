@@ -3,16 +3,22 @@
 #define AA 1
 #define _Speed 3.0
 #define _Steps  12.
+#define _Size 0.3
 
+// 坐标约定：黑洞中心为世界原点。
+// eye = 相机位置 - 黑洞中心；target = eye + 相机视线方向；u_up = 相机上向量。
+// u_fov 为游戏实际视场角（由投影矩阵推导）；u_invProj 为投影矩阵的逆，用于深度重建。
+// 吸积盘体渲染保持 GTCEu 原始比例（_Size 基准），黑洞本体由对象空间球体承担。
 uniform float u_time;
 uniform vec2 u_resolution;
 uniform float u_intensity;
-uniform float u_size;
 uniform float u_fov;
-uniform vec2 u_targetScreen;
+uniform mat4 u_invProj;
 uniform vec3 eye;
 uniform vec3 target;
+uniform vec3 u_up;
 uniform sampler2D Sampler0;
+uniform sampler2D Sampler1;
 
 out vec4 fragColor;
 
@@ -31,24 +37,23 @@ float value(vec2 p, float f) {
     return mix(b, t, fr.y);
 }
 
-vec3 background(vec2 fragCoord, float r) {
-    // 以黑洞在屏幕上的投影位置 u_targetScreen 为透镜中心，避免固定为屏幕中心导致的漂移
-    vec2 centered = fragCoord - u_targetScreen;
-    vec2 uv = fragCoord / u_resolution.xy;
-    vec2 targetUv = u_targetScreen / u_resolution.xy;
-    // 将距离归一化到 x 分辨率，避免窗口比例导致的不对称扭曲
-    float dist = length(centered) / u_resolution.x;
-    float factor = 20. * r / max(dist - r, 0.001);
-    factor = clamp(factor, -2.0, 2.0);
-    vec2 texC = mix(uv, targetUv, factor);
-    texC = clamp(texC, 0.0, 1.0);
-    return texture(Sampler0, texC).rgb;
+// 场景直通采样：受控黑洞不扭曲周围环境
+vec3 background(vec2 fragCoord) {
+    return texture(Sampler0, fragCoord / u_resolution).rgb;
+}
+
+// 由深度缓冲重建当前像素场景几何到相机的距离，用于方块遮挡剔除
+float sceneDistance(vec2 fragCoord) {
+    vec2 uv = fragCoord / u_resolution;
+    float depth = texture(Sampler1, uv).r;
+    vec4 viewPos = u_invProj * vec4(uv * 2.0 - 1.0, depth * 2.0 - 1.0, 1.0);
+    return length(viewPos.xyz / viewPos.w);
 }
 
 vec4 raymarchDisk(vec3 ray, vec3 zeroPos) {
     vec3 position = zeroPos;
     float lengthPos = length(position.xz);
-    float dist = min(1., lengthPos * (1. / u_size) * 0.5) * u_size * 0.4 * (1. / _Steps) / (abs(ray.y));
+    float dist = min(1., lengthPos * (1. / _Size) * 0.5) * _Size * 0.4 * (1. / _Steps) / (abs(ray.y));
     position += dist * _Steps * ray * 0.5;
 
     vec2 deltaPos;
@@ -61,7 +66,7 @@ vec4 raymarchDisk(vec3 ray, vec3 zeroPos) {
     float redShift = parallel + 0.3;
     redShift *= redShift;
     redShift = clamp(redShift, 0., 1.);
-    float disMix = clamp((lengthPos - u_size * 1.5) * (1. / u_size) * 0.24, 0., 1.);
+    float disMix = clamp((lengthPos - _Size * 2.) * (1. / _Size) * 0.24, 0., 1.);
     vec3 insideCol = mix(vec3(1.0, 0.8, 0.0), vec3(0.5, 0.13, 0.02) * 0.2, disMix);
     insideCol *= mix(vec3(0.4, 0.2, 0.1), vec3(1.6, 2.4, 4.0), redShift);
     insideCol *= 1.25;
@@ -74,10 +79,10 @@ vec4 raymarchDisk(vec3 ray, vec3 zeroPos) {
         float intensity = clamp(1. - abs((i - 0.8) * (1. / _Steps) * 2.), 0., 1.);
         float lengthPos = length(position.xz);
         float distMult = 1.;
-        distMult *= clamp((lengthPos - u_size * 0.55) * (1. / u_size) * 1.5, 0., 1.);
-        distMult *= clamp((u_size * 3. - lengthPos) * (1. / u_size) * 0.20, 0., 1.);
+        distMult *= clamp((lengthPos - _Size * 0.75) * (1. / _Size) * 1.5, 0., 1.);
+        distMult *= clamp((_Size * 10. - lengthPos) * (1. / _Size) * 0.20, 0., 1.);
         distMult *= distMult;
-        float u = lengthPos + u_time * u_size * 0.3 + intensity * u_size * 0.2;
+        float u = lengthPos + u_time * _Size * 0.3 + intensity * _Size * 0.2;
         vec2 xy;
         float rot = mod(u_time * _Speed, 8192.);
         xy.x = -position.z * sin(rot) + position.x * cos(rot);
@@ -85,13 +90,13 @@ vec4 raymarchDisk(vec3 ray, vec3 zeroPos) {
         float x = abs(xy.x / (xy.y));
         float angle = 0.02 * atan(x);
         const float f = 70.;
-        float noise = value(vec2(angle, u * (1. / u_size) * 0.05), f);
-        noise = noise * 0.66 + 0.33 * value(vec2(angle, u * (1. / u_size) * 0.05), f * 2.);
+        float noise = value(vec2(angle, u * (1. / _Size) * 0.05), f);
+        noise = noise * 0.66 + 0.33 * value(vec2(angle, u * (1. / _Size) * 0.05), f * 2.);
         float extraWidth = noise * 1. * (1. - clamp(i * (1. / _Steps) * 2. - 1., 0., 1.));
-        float alpha = clamp(noise * (intensity + extraWidth) * ((1. / u_size) * 10. + 0.01) * dist * distMult, 0., 1.);
+        float alpha = clamp(noise * (intensity + extraWidth) * ((1. / _Size) * 10. + 0.01) * dist * distMult, 0., 1.);
         vec3 col = 2. * mix(vec3(0.3, 0.2, 0.15) * insideCol, insideCol, min(1., intensity * 2.));
         o = clamp(vec4(col * alpha + o.rgb * (1. - alpha), o.a * (1. - alpha) + alpha), vec4(0.), vec4(1.));
-        lengthPos *= (1. / u_size);
+        lengthPos *= (1. / _Size);
         o.rgb += redShift * (intensity * 1. + 0.5) * (1. / _Steps) * 100. * distMult / (lengthPos * lengthPos);
     }
     o.rgb = clamp(o.rgb - 0.005, 0., 1.);
@@ -117,25 +122,16 @@ vec3 rayDirection(float fieldOfView, vec2 size, vec2 fragCoord) {
 }
 
 void main() {
-    vec2 uv = gl_FragCoord.xy / u_resolution.xy;
-    // 限制后处理影响范围为 u_targetScreen 附近的圆形区域，避免远离像素被错误扭曲
-    float screenDist = length(gl_FragCoord.xy - u_targetScreen) / u_resolution.x;
-    float maxRadius = 0.35;
-    if (screenDist > maxRadius) {
-        fragColor = texture(Sampler0, uv);
-        return;
-    }
-
     fragColor = vec4(0.);
+    float intensity = clamp(u_intensity, 0.0, 2.0);
+    float sceneDist = sceneDistance(gl_FragCoord.xy);
 
     for (int j = 0; j < AA; j++)
     for (int i = 0; i < AA; i++) {
-        // 以 u_targetScreen 为虚拟屏幕中心计算方向，保证黑洞固定在其屏幕投影位置
-        vec3 viewDir = rayDirection(u_fov, u_resolution.xy, gl_FragCoord.xy - u_targetScreen + u_resolution.xy * 0.5);
-        // 坐标系平移到以黑洞 target 为中心，否则引力计算会把世界原点当成黑洞中心
-        vec3 pos = eye - target;
-        float r = length(pos);
-        mat4 viewToWorld = viewMatrix(pos, vec3(0.0, 0.0, 0.0), vec3(0.0, 1.0, 0.0));
+        // 使用游戏实际 FOV 与相机朝向逐像素构建视线，保证效果与场景对齐
+        vec3 viewDir = rayDirection(u_fov, u_resolution.xy, gl_FragCoord.xy);
+        vec3 pos = eye;
+        mat4 viewToWorld = viewMatrix(pos, target, u_up);
         vec3 ray = (viewToWorld * vec4(viewDir, 0.0)).xyz;
         vec4 col = vec4(0.);
         vec4 glow = vec4(0.);
@@ -148,26 +144,33 @@ void main() {
                 float centDist = dotpos * invDist;
                 float stepDist = 0.92 * abs(pos.y / (ray.y));
                 float farLimit = centDist * 0.5;
-                float closeLimit = centDist * 0.1 + 0.05 * centDist * centDist * (1. / u_size);
+                float closeLimit = centDist * 0.1 + 0.05 * centDist * centDist * (1. / _Size);
                 stepDist = min(stepDist, min(farLimit, closeLimit));
                 float invDistSqr = invDist * invDist;
-                float bendForce = stepDist * invDistSqr * u_size * 0.625;
+                float bendForce = stepDist * invDistSqr * _Size * 0.625;
                 ray = normalize(ray - (bendForce * invDist) * pos);
                 pos += stepDist * ray;
-                glow += vec4(1.2, 1.1, 1, 1.0) * (0.01 * stepDist * invDistSqr * invDistSqr * clamp(centDist * (2.) - 1.2, 0., 1.));
+                glow += vec4(1.2, 1.1, 1, 1.0) * (0.01 * stepDist * invDistSqr * invDistSqr * clamp(centDist * (2.) - 1.2, 0., 1.)) * intensity;
             }
-            float dist2 = length(pos);
-            if (dist2 < u_size * 0.5) {
-                outCol = vec4(col.rgb * col.a + glow.rgb * (1. - col.a), 1.);
-                break;
-            } else if (dist2 > u_size * 1000.) {
-                vec3 bg = background(gl_FragCoord.xy, 1. / r);
+            // 遮挡剔除：光线行进距离超过场景几何 → 被方块挡住，直接输出场景
+            if (length(pos - eye) > sceneDist) {
+                vec3 bg = background(gl_FragCoord.xy);
                 outCol = vec4(col.rgb * col.a + bg.rgb * (1. - col.a) + glow.rgb * (1. - col.a), 1.);
                 break;
-            } else if (abs(pos.y) <= u_size * 0.002) {
+            }
+            float dist2 = length(pos);
+            if (dist2 < _Size * 0.1) {
+                outCol = vec4(col.rgb * col.a + glow.rgb * (1. - col.a), 1.);
+                break;
+            } else if (dist2 > _Size * 1000.) {
+                vec3 bg = background(gl_FragCoord.xy);
+                outCol = vec4(col.rgb * col.a + bg.rgb * (1. - col.a) + glow.rgb * (1. - col.a), 1.);
+                break;
+            } else if (abs(pos.y) <= _Size * 0.002) {
                 vec4 diskCol = raymarchDisk(ray, pos);
+                diskCol *= intensity;
                 pos.y = 0.;
-                pos += abs(u_size * 0.001 / ray.y) * ray;
+                pos += abs(_Size * 0.001 / ray.y) * ray;
                 col = vec4(diskCol.rgb * (1. - col.a) + col.rgb, col.a + diskCol.a * (1. - col.a));
             }
         }
