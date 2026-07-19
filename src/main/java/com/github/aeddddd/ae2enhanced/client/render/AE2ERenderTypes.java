@@ -61,6 +61,8 @@ public class AE2ERenderTypes extends RenderType {
 
     /**
      * Additive 混合 RenderType，用于自发光层。
+     * <p>使用 lightning shader：entity_translucent 会乘光照贴图颜色，
+     * 而 POSITION_COLOR 格式缺少 UV2 属性时采样为黑色，additive 混合下完全不可见。</p>
      */
     public static final RenderType TESR_ADDITIVE = create(
             "ae2enhanced_tesr_additive",
@@ -70,7 +72,7 @@ public class AE2ERenderTypes extends RenderType {
             false,
             true,
             CompositeState.builder()
-                    .setShaderState(RENDERTYPE_ENTITY_TRANSLUCENT_SHADER)
+                    .setShaderState(RENDERTYPE_LIGHTNING_SHADER)
                     .setLayeringState(VIEW_OFFSET_Z_LAYERING)
                     .setTransparencyState(ADDITIVE_TRANSPARENCY)
                     .setWriteMaskState(COLOR_WRITE)

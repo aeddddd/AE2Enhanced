@@ -172,7 +172,7 @@ public class AE2EnhancedPostProcessor {
         float[] bounds = AbstractMultiblockRenderer.computeBounds(AssemblyStructure.getAllSet(), facing);
         Vec3 centerOffset = AbstractMultiblockRenderer.computeCenterOffset(bounds);
         Vec3 worldPos = new Vec3(pos.getX() + centerOffset.x, pos.getY() + centerOffset.y, pos.getZ() + centerOffset.z);
-        return new TargetInfo(worldPos, 2.5f, facing);
+        return new TargetInfo(worldPos, 3.5f, facing);
     }
 
     /**

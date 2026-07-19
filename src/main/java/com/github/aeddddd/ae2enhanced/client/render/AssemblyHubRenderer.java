@@ -167,12 +167,13 @@ public class AssemblyHubRenderer extends AbstractMultiblockRenderer<AssemblyCont
 
     /**
      * 受控约束壳：两层反向缓慢旋转的能量壳，呼吸明暗，表征黑洞处于受控状态。
-     * <p>使用 additive 混合且不写深度，不会遮挡后处理光线步进的吸积盘。</p>
+     * <p>使用 additive 混合且不写深度，不会遮挡后处理光线步进的吸积盘；
+     * additive 混合无光照衰减，颜色经顶点色直接叠加。</p>
      */
     private static void renderContainmentShell(PoseStack poseStack, MultiBufferSource bufferSource, float time,
             double scale, int lodLat, int lodLon) {
         float breath = 0.5f + 0.5f * (float) Math.sin(time * 0.9);
-        float alpha = 0.10f + 0.18f * breath;
+        float alpha = 0.14f + 0.20f * breath;
 
         VertexConsumer shell = bufferSource.getBuffer(RenderHelper.TESR_ADDITIVE);
         poseStack.pushPose();

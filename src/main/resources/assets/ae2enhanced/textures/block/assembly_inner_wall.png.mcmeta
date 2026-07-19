@@ -3,7 +3,7 @@
         "ctm_version": 1,
         "type": "ctm",
         "textures": [
-            "ae2enhanced:block/assembly_casing_2_ctm"
+            "ae2enhanced:block/assembly_inner_wall_ctm"
         ]
     },
     "animation": {

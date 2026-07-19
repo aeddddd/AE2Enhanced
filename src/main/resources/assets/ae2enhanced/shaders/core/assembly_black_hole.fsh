@@ -66,7 +66,7 @@ void main() {
             discard;
         }
 
-        float t = clamp((r - 3.0 * SCALE) / (4.8 * SCALE), 0.0, 1.0);
+        float t = clamp((r - 4.2 * SCALE) / (6.7 * SCALE), 0.0, 1.0);
         float angle = atan(vPos.z, vPos.x);
         float rot = angle + uTime * 0.6;
 

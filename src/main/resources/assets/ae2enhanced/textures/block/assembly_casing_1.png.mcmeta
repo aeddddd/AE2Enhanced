@@ -5,5 +5,9 @@
         "textures": [
             "ae2enhanced:block/assembly_casing_1_ctm"
         ]
+    },
+    "animation": {
+        "frametime": 3,
+        "interpolate": true
     }
 }

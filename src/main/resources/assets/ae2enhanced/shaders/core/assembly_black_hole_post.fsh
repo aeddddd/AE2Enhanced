@@ -3,12 +3,13 @@
 #define AA 1
 #define _Speed 3.0
 #define _Steps  12.
-#define _Size 0.3
+#define _Size 0.42
 
 // 坐标约定：黑洞中心为世界原点。
 // eye = 相机位置 - 黑洞中心；target = eye + 相机视线方向；u_up = 相机上向量。
 // u_fov 为游戏实际视场角（由投影矩阵推导）；u_invProj 为投影矩阵的逆，用于深度重建。
-// 吸积盘体渲染保持 GTCEu 原始比例（_Size 基准），黑洞本体由对象空间球体承担。
+// 吸积盘体渲染以 GTCEu 比例为基准、随黑洞本体同步放大
+// （_Size 0.42 与 Java 端对象空间球体半径 EVENT_HORIZON_RADIUS_BASE = 3.5 保持原始 2.5 : 0.3 比例）。
 uniform float u_time;
 uniform vec2 u_resolution;
 uniform float u_intensity;
@@ -48,6 +49,15 @@ float sceneDistance(vec2 fragCoord) {
     float depth = texture(Sampler1, uv).r;
     vec4 viewPos = u_invProj * vec4(uv * 2.0 - 1.0, depth * 2.0 - 1.0, 1.0);
     return length(viewPos.xyz / viewPos.w);
+}
+
+// 特效与场景合成：伽马提亮只作用于黑洞特效本体，背景场景直通保持原色，避免整个画面泛白
+vec4 compose(vec4 col, vec4 glow, vec2 fragCoord) {
+    float cov = clamp(col.a, 0.0, 1.0);
+    vec3 effect = col.rgb * cov + glow.rgb * (1.0 - cov);
+    effect = pow(max(effect, vec3(0.0)), vec3(0.6));
+    vec3 bg = background(fragCoord);
+    return vec4(effect + bg * (1.0 - cov), 1.0);
 }
 
 vec4 raymarchDisk(vec3 ray, vec3 zeroPos) {
@@ -117,7 +127,8 @@ mat4 viewMatrix(vec3 eye, vec3 center, vec3 up) {
 
 vec3 rayDirection(float fieldOfView, vec2 size, vec2 fragCoord) {
     vec2 xy = fragCoord - size / 2.0;
-    float z = size.y / tan(radians(fieldOfView) / 2.0);
+    // 半屏高度对应 tan(fov/2)，缺少因子 2 会使视线偏窄，导致特效随视角旋转相对场景径向偏移
+    float z = size.y / (2.0 * tan(radians(fieldOfView) / 2.0));
     return normalize(vec3(xy, -z));
 }
 
@@ -154,17 +165,15 @@ void main() {
             }
             // 遮挡剔除：光线行进距离超过场景几何 → 被方块挡住，直接输出场景
             if (length(pos - eye) > sceneDist) {
-                vec3 bg = background(gl_FragCoord.xy);
-                outCol = vec4(col.rgb * col.a + bg.rgb * (1. - col.a) + glow.rgb * (1. - col.a), 1.);
+                outCol = compose(col, glow, gl_FragCoord.xy);
                 break;
             }
             float dist2 = length(pos);
             if (dist2 < _Size * 0.1) {
-                outCol = vec4(col.rgb * col.a + glow.rgb * (1. - col.a), 1.);
+                outCol = compose(col, glow, gl_FragCoord.xy);
                 break;
             } else if (dist2 > _Size * 1000.) {
-                vec3 bg = background(gl_FragCoord.xy);
-                outCol = vec4(col.rgb * col.a + bg.rgb * (1. - col.a) + glow.rgb * (1. - col.a), 1.);
+                outCol = compose(col, glow, gl_FragCoord.xy);
                 break;
             } else if (abs(pos.y) <= _Size * 0.002) {
                 vec4 diskCol = raymarchDisk(ray, pos);
@@ -176,9 +185,8 @@ void main() {
         }
 
         if (outCol.r == 100.)
-            outCol = vec4(col.rgb + glow.rgb * (col.a + glow.a), 1.);
+            outCol = compose(col, glow, gl_FragCoord.xy);
         col = outCol;
-        col.rgb = pow(col.rgb, vec3(0.6));
         fragColor += col / float(AA * AA);
     }
 }
