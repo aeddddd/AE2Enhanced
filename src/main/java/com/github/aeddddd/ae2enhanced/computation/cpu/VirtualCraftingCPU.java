@@ -29,9 +29,19 @@ public class VirtualCraftingCPU {
         this.interfaceNode = interfaceNode;
         this.cluster = new CraftingCPUCluster(pos, pos);
 
-        VirtualCraftingUnitBlockEntity fakeUnit = new VirtualCraftingUnitBlockEntity(level,
-                pos, AEBlocks.CRAFTING_UNIT.block().defaultBlockState(), interfaceNode, parallel);
-        ((CraftingCPUClusterInvoker) (Object) cluster).invokeAddBlockEntity(fakeUnit);
+        // AE2 限制单个合成单元协处理器线程数不超过 16（addBlockEntity 超限抛异常），
+        // 因此将并行上限拆分为多个虚假单元注册；存储容量只计在首个单元上，防止累加溢出。
+        int remainingThreads = Math.max(1, parallel);
+        boolean first = true;
+        while (remainingThreads > 0) {
+            int threads = Math.min(remainingThreads, 16);
+            VirtualCraftingUnitBlockEntity fakeUnit = new VirtualCraftingUnitBlockEntity(level,
+                    pos, AEBlocks.CRAFTING_UNIT.block().defaultBlockState(), interfaceNode, threads,
+                    first ? Long.MAX_VALUE : 0);
+            ((CraftingCPUClusterInvoker) (Object) cluster).invokeAddBlockEntity(fakeUnit);
+            first = false;
+            remainingThreads -= threads;
+        }
 
         try {
             ((IVirtualCraftingCPU) (Object) cluster).ae2enhanced$setHost(host);

@@ -18,13 +18,20 @@ public class VirtualCraftingUnitBlockEntity extends CraftingBlockEntity {
 
     private final IManagedGridNode interfaceNode;
     private final int parallel;
+    private final long storageBytes;
 
     public VirtualCraftingUnitBlockEntity(Level level, BlockPos pos, BlockState state,
             IManagedGridNode interfaceNode, int parallel) {
+        this(level, pos, state, interfaceNode, parallel, Long.MAX_VALUE);
+    }
+
+    public VirtualCraftingUnitBlockEntity(Level level, BlockPos pos, BlockState state,
+            IManagedGridNode interfaceNode, int parallel, long storageBytes) {
         super(AEBlockEntities.CRAFTING_UNIT, pos, state);
+        this.setLevel(level);
         this.interfaceNode = interfaceNode;
         this.parallel = parallel;
-        setLevel(level);
+        this.storageBytes = storageBytes;
     }
 
     @Override
@@ -32,9 +39,16 @@ public class VirtualCraftingUnitBlockEntity extends CraftingBlockEntity {
         return interfaceNode.getNode();
     }
 
+    /**
+     * 虚拟 CPU 的存储容量（字节），默认为 Long.MAX_VALUE（无限）。
+     * AE2 15.3.4 的字节格式化 bug（Tooltips.BYTE_NUMS 第 4 项错误）已由
+     * MixinTooltips 修复并扩展档位，任意 long 值均可安全显示。
+     * <p>注意：同一集群加入多个单元时存储会累加，多单元场景除首个单元外应传 0，
+     * 防止累加溢出（见 {@link VirtualCraftingCPU}）。</p>
+     */
     @Override
     public long getStorageBytes() {
-        return Long.MAX_VALUE;
+        return storageBytes;
     }
 
     @Override

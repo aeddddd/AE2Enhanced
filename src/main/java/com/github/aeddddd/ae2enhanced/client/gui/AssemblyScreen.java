@@ -68,7 +68,7 @@ public class AssemblyScreen extends AbstractContainerScreen<AssemblyMenu> {
         } else {
             parallelText = Component.translatable("gui.ae2enhanced.formed.parallel", parallelCap);
         }
-        graphics.drawString(this.font, parallelText, GuiConstants.PARALLEL_TEXT_X, GuiConstants.PARALLEL_TEXT_Y, GuiColors.TEXT_DIM, false);
+        graphics.drawString(this.font, parallelText, GuiConstants.PARALLEL_TEXT_X, GuiConstants.PARALLEL_TEXT_Y, GuiConstants.ASSEMBLY_INFO_COLOR, false);
 
         Component netStatus;
         int netColor;
@@ -76,19 +76,19 @@ public class AssemblyScreen extends AbstractContainerScreen<AssemblyMenu> {
         boolean powered = controller != null && controller.isNetworkPowered();
         if (active) {
             netStatus = Component.translatable("gui.ae2enhanced.formed.network.active");
-            netColor = GuiColors.TEXT_SUCCESS;
+            netColor = GuiConstants.ASSEMBLY_STATUS_ACTIVE_COLOR;
         } else if (powered) {
             netStatus = Component.translatable("gui.ae2enhanced.formed.network.booting");
-            netColor = GuiColors.TEXT_WARN;
+            netColor = GuiConstants.ASSEMBLY_STATUS_BOOTING_COLOR;
         } else {
             netStatus = Component.translatable("gui.ae2enhanced.formed.network.offline");
-            netColor = GuiColors.TEXT_ERROR;
+            netColor = GuiConstants.ASSEMBLY_STATUS_OFFLINE_COLOR;
         }
         int nw = this.font.width(netStatus);
         graphics.drawString(this.font, netStatus, this.imageWidth - GuiConstants.NETWORK_STATUS_RIGHT_MARGIN - nw, GuiConstants.NETWORK_STATUS_Y, netColor, false);
 
         int jobs = controller != null ? controller.getJobCount() : 0;
-        graphics.drawString(this.font, Component.translatable("gui.ae2enhanced.formed.jobs", jobs), GuiConstants.JOBS_TEXT_X, GuiConstants.JOBS_TEXT_Y, GuiColors.TEXT_DIM, false);
+        graphics.drawString(this.font, Component.translatable("gui.ae2enhanced.formed.jobs", jobs), GuiConstants.JOBS_TEXT_X, GuiConstants.JOBS_TEXT_Y, GuiConstants.ASSEMBLY_INFO_COLOR, false);
     }
 
     @Override

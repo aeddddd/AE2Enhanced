@@ -4,6 +4,7 @@ import com.mojang.blaze3d.pipeline.RenderTarget;
 import com.mojang.blaze3d.pipeline.TextureTarget;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.BufferBuilder;
+import com.mojang.blaze3d.vertex.BufferUploader;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.Tesselator;
@@ -11,6 +12,7 @@ import com.mojang.blaze3d.vertex.VertexFormat;
 import com.mojang.blaze3d.vertex.VertexSorting;
 import com.mojang.blaze3d.shaders.Uniform;
 
+import org.jetbrains.annotations.Nullable;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL30;
 
@@ -158,6 +160,10 @@ public class AE2EnhancedPostProcessor {
         Vec3 up = new Vec3(upVec.x(), upVec.y(), upVec.z());
 
         renderBlackHole(shader, eyeRel, targetRel, up, fov, invProj, time, intensity, width, height, intermediate);
+
+        // 约束壳必须在光线步进之后叠加：事件视界阴影不合成背景，
+        // 壳若在方块实体阶段绘制（不写深度）会被阴影整体覆盖
+        renderShellOverlay(nearest, camera, event.getPoseStack(), time, intensity);
     }
 
     private static TargetInfo buildTargetInfo(AssemblyControllerBlockEntity controller, Level level) {
@@ -172,7 +178,7 @@ public class AE2EnhancedPostProcessor {
         float[] bounds = AbstractMultiblockRenderer.computeBounds(AssemblyStructure.getAllSet(), facing);
         Vec3 centerOffset = AbstractMultiblockRenderer.computeCenterOffset(bounds);
         Vec3 worldPos = new Vec3(pos.getX() + centerOffset.x, pos.getY() + centerOffset.y, pos.getZ() + centerOffset.z);
-        return new TargetInfo(worldPos, 3.5f, facing);
+        return new TargetInfo(worldPos, 1.8f, facing);
     }
 
     /**
@@ -227,6 +233,137 @@ public class AE2EnhancedPostProcessor {
         float x = (clip.x * invW + 1.0f) * 0.5f * width;
         float y = (clip.y * invW + 1.0f) * 0.5f * height;
         return new Vector3f(x, y, 0.0f);
+    }
+
+    // 事件视界深度遮挡球半径（方块）：光线步进捕获半径 _ShadowR×_Scale = 1.8，
+    // 加上引力透镜暗区外扩，取 2.6 与屏幕上的黑色区域对齐
+    private static final float EVENT_HORIZON_OCCLUDER_RADIUS = 2.6f;
+
+    /**
+     * 遮挡球专用 builder（仅渲染线程访问）。初始容量 64KB，可容纳
+     * 24x24 段球体（3456 顶点 × 16B = ~54KB），begin() 每帧重置并复用底层内存。
+     */
+    @Nullable
+    private static BufferBuilder occluderBuilder;
+
+    private static BufferBuilder getOccluderBuilder() {
+        if (occluderBuilder == null) {
+            occluderBuilder = new BufferBuilder(1 << 16);
+        }
+        return occluderBuilder;
+    }
+
+    /**
+     * 约束壳叠加绘制：在全屏光线步进之后执行，保证壳线不被事件视界阴影覆盖。
+     * <p>顶点经事件 pose（相机旋转）+ 相对平移变换到相机空间，与对象空间路径的
+     * 坐标约定一致；additive 混合、不写深度，保留深度测试使壳仍被结构方块正确遮挡。</p>
+     * <p>光线步进本身不写深度，直接画壳会让黑洞后方的壳线叠在黑洞之上；
+     * 因此先以纯深度方式绘制事件视界遮挡球，后方壳线由深度测试正确剔除。</p>
+     */
+    private static void renderShellOverlay(TargetInfo target, Camera camera, PoseStack eventPose, float time,
+            float intensity) {
+        ShaderInstance shader = AE2EnhancedShaders.getAssemblyBlackHole();
+        if (shader == null) {
+            return;
+        }
+
+        Vec3 rel = target.worldPos.subtract(camera.getPosition());
+        // 动画时间与对象空间路径一致（gameTime + partialTick 后乘 0.05）
+        float animTime = time * 0.05f;
+
+        Uniform uTime = shader.getUniform("uTime");
+        Uniform uIntensity = shader.getUniform("uIntensity");
+        Uniform uScale = shader.getUniform("uScale");
+        Uniform uCenter = shader.getUniform("uCenter");
+        if (uTime != null) {
+            uTime.set(animTime);
+        }
+        if (uIntensity != null) {
+            uIntensity.set(intensity);
+        }
+        if (uScale != null) {
+            // 对象空间路径 getScaleFactor 固定返回 1.0，此处保持一致
+            uScale.set(1.0f);
+        }
+        if (uCenter != null) {
+            uCenter.set((float) rel.x, (float) rel.y, (float) rel.z);
+        }
+
+        // 事件 pose 只含相机旋转、不含平移，补上相对平移后顶点即为相机空间坐标
+        PoseStack pose = new PoseStack();
+        pose.last().pose().mul(eventPose.last().pose());
+        pose.translate(rel.x, rel.y, rel.z);
+
+        // 事件视界遮挡球使用独立 BufferBuilder：Tesselator 只有一个内部 builder，
+        // 复用会导致 begin() 在未 end() 的 builder 上重复调用（Already building! 崩溃）。
+        // 该 builder 静态复用：每帧新建会让 24x24 球体把 direct buffer 撑到 ~2MB 后丢弃，
+        // 原生内存仅靠 GC+Cleaner 回收，高帧率下耗尽直接内存（OOM: Failed to resize buffer）
+        BufferBuilder occluder = getOccluderBuilder();
+        occluder.begin(VertexFormat.Mode.TRIANGLES, DefaultVertexFormat.POSITION_COLOR);
+        RenderHelper.drawSphere(occluder, pose, EVENT_HORIZON_OCCLUDER_RADIUS, 0x000000, 1.0f, 24, 24);
+
+        Tesselator tesselator = Tesselator.getInstance();
+        BufferBuilder builder = tesselator.getBuilder();
+        builder.begin(VertexFormat.Mode.TRIANGLES, DefaultVertexFormat.POSITION_COLOR);
+        AssemblyHubRenderer.appendContainmentShellGeometry(builder, pose, animTime, 1.0, 24, 24);
+
+        // 保存 GL 状态，绘制后恢复（同 renderBlackHole 的状态保护策略）
+        boolean depthTest = GL11.glIsEnabled(GL11.GL_DEPTH_TEST);
+        boolean depthMask = GL11.glGetBoolean(GL11.GL_DEPTH_WRITEMASK);
+        boolean blend = GL11.glIsEnabled(GL11.GL_BLEND);
+        boolean cull = GL11.glIsEnabled(GL11.GL_CULL_FACE);
+        int[] blendSrc = new int[1];
+        int[] blendDst = new int[1];
+        GL11.glGetIntegerv(GL11.GL_BLEND_SRC, blendSrc);
+        GL11.glGetIntegerv(GL11.GL_BLEND_DST, blendDst);
+
+        // shader 顶点已是相机空间，ModelViewMat 必须为单位矩阵
+        PoseStack modelView = RenderSystem.getModelViewStack();
+        modelView.pushPose();
+        modelView.setIdentity();
+        RenderSystem.applyModelViewMatrix();
+
+        try {
+            RenderSystem.setShader(() -> shader);
+            RenderSystem.enableDepthTest();
+            RenderSystem.enableBlend();
+            RenderSystem.blendFuncSeparate(GL11.GL_SRC_ALPHA, GL11.GL_ONE, GL11.GL_ONE,
+                    GL11.GL_ONE_MINUS_SRC_ALPHA);
+            RenderSystem.disableCull();
+
+            // 先画遮挡球：关闭颜色写入、开启深度写入，将事件视界写入深度缓冲
+            RenderSystem.colorMask(false, false, false, false);
+            RenderSystem.depthMask(true);
+            RenderSystem.disableBlend();
+            BufferUploader.drawWithShader(occluder.end());
+
+            // 再画约束壳：恢复颜色写入，壳线不写深度，后方壳线被遮挡球剔除
+            RenderSystem.colorMask(true, true, true, true);
+            RenderSystem.depthMask(false);
+            RenderSystem.enableBlend();
+            BufferUploader.drawWithShader(builder.end());
+        } finally {
+            RenderSystem.colorMask(true, true, true, true);
+            if (depthTest) {
+                RenderSystem.enableDepthTest();
+            } else {
+                RenderSystem.disableDepthTest();
+            }
+            RenderSystem.depthMask(depthMask);
+            if (blend) {
+                RenderSystem.enableBlend();
+                RenderSystem.blendFunc(blendSrc[0], blendDst[0]);
+            } else {
+                RenderSystem.disableBlend();
+            }
+            if (cull) {
+                RenderSystem.enableCull();
+            } else {
+                RenderSystem.disableCull();
+            }
+            modelView.popPose();
+            RenderSystem.applyModelViewMatrix();
+        }
     }
 
     private static void renderBlackHole(ShaderInstance shader, Vec3 eye, Vec3 target, Vec3 up, float fov,

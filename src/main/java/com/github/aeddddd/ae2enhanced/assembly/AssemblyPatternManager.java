@@ -123,6 +123,27 @@ public class AssemblyPatternManager {
         }
     }
 
+    /**
+     * 方块实体加入世界后（level 可用）从 SavedData 恢复升级卡与样板。
+     * <p>区块 NBT 加载（{@link net.minecraft.world.level.block.entity.BlockEntity#load}）阶段
+     * level 为 null，无法访问 SavedData；而 {@code serializeNBT} 按设计只把数据写入 SavedData、
+     * 方块实体 NBT 中为空，因此必须在 level 可用后补一次恢复，否则重进世界丢失全部内容。</p>
+     */
+    public void reloadFromSavedData() {
+        Level level = controller.getLevel();
+        if (level == null || level.isClientSide()) {
+            return;
+        }
+        AssemblyPatternSavedData savedData = AssemblyPatternSavedData.get(level);
+        if (savedData == null) {
+            return;
+        }
+        CompoundTag saved = savedData.getPatterns(controller.getBlockPos());
+        if (!saved.isEmpty()) {
+            itemHandler.deserializeNBT(saved);
+        }
+    }
+
     public void save(CompoundTag data) {
         data.put("items", itemHandler.serializeNBT());
     }

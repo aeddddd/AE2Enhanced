@@ -28,6 +28,8 @@
   "block.ae2enhanced.constant_spinor_field_casing": "Constant Spinor Field Casing",
   "block.ae2enhanced.causal_anchor_core": "Causal Anchor Core",
   "block.ae2enhanced.computation_core": "Supercausal Computation Core",
+  "block.ae2enhanced.test_crafting_cpu": "Test Crafting CPU (Dev Only)",
+  "tooltip.ae2enhanced.test_crafting_cpu": "Dev only: single-block virtual crafting CPU, standing in for the temporarily disabled Computation Core",
   "gui.ae2enhanced.assembly": "Assembly Hub",
   "gui.ae2enhanced.assembly.page": "Page %s/%s",
   "gui.ae2enhanced.assembly.upgrades": "Upgrades",

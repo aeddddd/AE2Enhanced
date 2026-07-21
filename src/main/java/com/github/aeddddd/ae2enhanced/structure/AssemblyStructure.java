@@ -72,7 +72,11 @@ public class AssemblyStructure {
                 if (!BLOCK_REGISTRY_MAP.containsKey(name)) {
                     continue;
                 }
-                RAW_POSITIONS.computeIfAbsent(name, k -> new HashSet<>()).add(new BlockPos(x, y, z));
+                // 源 JSON 的规范朝向为 EAST（结构自控制器向 -X 延伸），
+                // 而旋转体系（StructureUtils.rotate）以 NORTH 为基准且设计要求
+                // "结构向面朝方向的反方向延伸"，因此加载时统一做 -90° 旋转
+                // (x,y,z) -> (z,y,-x)，使 NORTH 基准下结构向 +Z（控制器背面）延伸。
+                RAW_POSITIONS.computeIfAbsent(name, k -> new HashSet<>()).add(new BlockPos(z, y, -x));
             }
         } catch (Exception ex) {
             AE2Enhanced.LOGGER.error("[AE2E] Failed to load assembly_new.json", ex);

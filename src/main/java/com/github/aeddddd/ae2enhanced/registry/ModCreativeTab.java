@@ -8,6 +8,7 @@ import net.minecraftforge.registries.DeferredRegister;
 import net.minecraftforge.registries.RegistryObject;
 
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
+import com.github.aeddddd.ae2enhanced.util.DevEnvironment;
 
 /**
  * 创造模式物品栏注册中心。
@@ -46,11 +47,13 @@ public final class ModCreativeTab {
                         output.accept(new ItemStack(ModItems.ASSEMBLY_CAPACITY_UPGRADE.get()));
                         output.accept(new ItemStack(ModItems.ASSEMBLY_AUTO_UPLOAD_UPGRADE.get()));
 
-                        // Supercausal Computation Core
-                        output.accept(new ItemStack(ModItems.COMPUTATION_CONTROLLER.get()));
-                        output.accept(new ItemStack(ModItems.CONSTANT_TENSOR_FIELD_CASING.get()));
-                        output.accept(new ItemStack(ModItems.CONSTANT_SPINOR_FIELD_CASING.get()));
-                        output.accept(new ItemStack(ModItems.CAUSAL_ANCHOR_CORE.get()));
+                        // Supercausal Computation Core —— 多方块功能异常，已临时下线并隐藏结构方块
+                        // （保留注册以兼容既有存档，仅不出现在创造栏）
+
+                        // 【仅开发环境】测试用单方块合成 CPU
+                        if (DevEnvironment.isDev() && ModItems.TEST_CRAFTING_CPU != null) {
+                            output.accept(new ItemStack(ModItems.TEST_CRAFTING_CPU.get()));
+                        }
                     })
                     .build());
 

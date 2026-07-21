@@ -1,6 +1,7 @@
 {
-  "parent": "block/cube_all",
+  "loader": "ae2enhanced:connected",
   "textures": {
-    "all": "ae2enhanced:block/assembly_casing_4"
+    "particle": "ae2enhanced:block/assembly_casing_4",
+    "texture": "ae2enhanced:block/assembly_casing_4_ctm"
   }
 }

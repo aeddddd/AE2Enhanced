@@ -1,23 +1,17 @@
 package com.github.aeddddd.ae2enhanced.assembly;
 
 import java.util.ArrayList;
-import java.util.BitSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 
 import javax.annotation.Nullable;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
-import net.minecraft.core.NonNullList;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
-import net.minecraft.world.inventory.TransientCraftingContainer;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.crafting.CraftingRecipe;
-import net.minecraft.world.item.crafting.RecipeType;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
@@ -27,12 +21,10 @@ import appeng.api.crafting.IPatternDetails;
 import appeng.api.networking.IManagedGridNode;
 import appeng.api.networking.security.IActionSource;
 import appeng.api.networking.storage.IStorageService;
-import appeng.api.stacks.AEItemKey;
 import appeng.api.stacks.AEKey;
 import appeng.api.stacks.GenericStack;
 import appeng.api.stacks.KeyCounter;
 import appeng.api.storage.MEStorage;
-import appeng.crafting.inv.ListCraftingInventory;
 
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
 import com.github.aeddddd.ae2enhanced.assembly.block.AssemblyControllerBlock;
@@ -58,16 +50,17 @@ public class AssemblyCraftingProcessor {
     private int blackHoleTick = 0;
     private boolean batchBusy = false;
 
+    /**
+     * 批量冷却计数（tick）。每次批量处理后重置为 {@link AssemblyUpgradeManager#getCraftingTicks()}，
+     * 速度升级卡可缩短该冷却，与主分支 1.12 的节奏控制一致。
+     */
+    private int batchCooldown = 0;
+
     @Nullable
     private IActionSource currentActionSource = null;
 
     /**
-     * 缓存样板是否为纯虚拟合成（无剩余物品）。用于 Mixin 在批量处理前选择虚拟/真实轨道。
-     */
-    private final Map<IPatternDetails, Boolean> patternVirtualCache = new HashMap<>();
-
-    /**
-     * 真实合成 batch 信息缓存：配方、催化剂槽位、槽位物品模板。
+     * 样板批量信息缓存：虚拟/真实轨道分类，基于 {@link IPatternDetails.IInput#getRemainingKey(AEKey)} 判定。
      */
     private final Map<IPatternDetails, AssemblyControllerBlockEntity.PatternBatchInfo> patternBatchInfoCache = new HashMap<>();
 
@@ -101,10 +94,11 @@ public class AssemblyCraftingProcessor {
     }
 
     /**
-     * 当前 tick 是否还能接受新的 batch。batchBusy 会在每个 tick 的服务器端刷新。
+     * 当前 tick 是否还能接受新的 batch。batchBusy 每个服务器 tick 刷新，
+     * batchCooldown 按速度升级卡决定的周期间隔批量。
      */
     public boolean canBatch() {
-        return !batchBusy;
+        return !batchBusy && batchCooldown <= 0;
     }
 
     /**
@@ -114,16 +108,11 @@ public class AssemblyCraftingProcessor {
         this.batchBusy = busy;
     }
 
-    public void resetBatchCooldown() {
-        this.batchBusy = true;
-    }
-
     /**
-     * 供 Mixin 调用：检查指定样板是否已被缓存为纯虚拟合成(无剩余物品或加工样板)。
+     * 批量处理成功后重置冷却，冷却期间不再接受新的批量（复刻主分支速度卡节奏）。
      */
-    public boolean isVirtualPattern(IPatternDetails details) {
-        Boolean cached = patternVirtualCache.get(details);
-        return cached != null && cached;
+    public void resetBatchCooldown() {
+        this.batchCooldown = upgradeManager.getCraftingTicks();
     }
 
     /**
@@ -161,109 +150,39 @@ public class AssemblyCraftingProcessor {
     }
 
     /**
-     * 供 Mixin 调用：获取或创建 PatternBatchInfo(含催化剂识别)。
-     * 首次调用时从 CPU 本地库存 SIMULATE 提取 1 份原料构造 CraftingInput，
-     * 执行 getRemainingItems() 识别催化剂槽位。
+     * 供 Mixin 调用：获取或创建样板的批量信息（虚拟/真实轨道分类）。
+     * <p>分类完全基于 AE2 官方 API {@link IPatternDetails.IInput#getRemainingKey(AEKey)}：
+     * 任一输入槽存在剩余物（容器物、催化剂、耐久转换）即判定为真实轨道，
+     * 否则（普通合成、处理样板）为虚拟轨道。不再重建 3×3 合成容器反查配方——
+     * {@code getInputs()} 返回的是压缩合并输入，按索引填充几乎必然匹配失败。</p>
      */
-    public AssemblyControllerBlockEntity.PatternBatchInfo getPatternBatchInfo(IPatternDetails details, ListCraftingInventory meInv,
-            IActionSource source) {
+    public AssemblyControllerBlockEntity.PatternBatchInfo getPatternBatchInfo(IPatternDetails details) {
         AssemblyControllerBlockEntity.PatternBatchInfo cached = patternBatchInfoCache.get(details);
         if (cached != null) {
             return cached;
         }
 
-        IPatternDetails.IInput[] inputs = details.getInputs();
-        if (inputs == null) {
-            return null;
-        }
-
         AssemblyControllerBlockEntity.PatternBatchInfo info = new AssemblyControllerBlockEntity.PatternBatchInfo();
-        info.slotTemplates = new AEKey[inputs.length];
-
-        NonNullList<ItemStack> items = NonNullList.withSize(9, ItemStack.EMPTY);
-
-        // SIMULATE 提取 1 份原料填充 CraftingInput
-        for (int i = 0; i < inputs.length && i < 9; i++) {
-            if (inputs[i] == null) {
-                continue;
-            }
-            GenericStack[] possible = inputs[i].getPossibleInputs();
-            if (possible.length == 0) {
-                continue;
-            }
-            AEKey key = possible[0].what();
-            long extracted = meInv.extract(key, 1, Actionable.SIMULATE);
-            if (extracted >= 1) {
-                info.slotTemplates[i] = key;
-                if (key instanceof AEItemKey itemKey) {
-                    items.set(i, itemKey.toStack());
+        IPatternDetails.IInput[] inputs = details.getInputs();
+        if (inputs != null) {
+            for (IPatternDetails.IInput input : inputs) {
+                if (input == null) {
+                    continue;
                 }
-            }
-        }
-
-        Level level = controller.getLevel();
-        if (level == null) {
-            patternVirtualCache.put(details, true);
-            patternBatchInfoCache.put(details, info);
-            return info;
-        }
-
-        TransientCraftingContainer container = new TransientCraftingContainer(null, 3, 3);
-        for (int i = 0; i < items.size() && i < 9; i++) {
-            container.setItem(i, items.get(i));
-        }
-        Optional<CraftingRecipe> optional = level.getRecipeManager()
-                .getRecipeFor(RecipeType.CRAFTING, container, level);
-        if (optional.isEmpty()) {
-            patternVirtualCache.put(details, true);
-            patternBatchInfoCache.put(details, info); // 缓存 null recipe 避免重复查找
-            return info;
-        }
-        info.recipe = optional.get();
-
-        NonNullList<ItemStack> remaining = info.recipe.getRemainingItems(container);
-        patternVirtualCache.put(details, remaining.stream().allMatch(ItemStack::isEmpty));
-        info.catalystSlots = new BitSet(inputs.length);
-        info.transformSlots = new BitSet(inputs.length);
-        for (int i = 0; i < items.size(); i++) {
-            ItemStack inputStack = items.get(i);
-            ItemStack rem = i < remaining.size() ? remaining.get(i) : ItemStack.EMPTY;
-            if (rem.isEmpty()) {
-                continue;
-            }
-            if (ItemStack.isSameItem(inputStack, rem)) {
-                if (areNbtEquivalent(inputStack.getTag(), rem.getTag())) {
-                    info.catalystSlots.set(i);
-                } else if (!inputStack.isDamageableItem()) {
-                    // 不可损坏物品但 NBT 有差异：视为催化剂
-                    info.catalystSlots.set(i);
-                } else if (inputStack.getItem().hasCraftingRemainingItem(inputStack)
-                        && ItemStack.isSameItemSameTags(inputStack.getCraftingRemainingItem(), rem)) {
-                    info.catalystSlots.set(i);
-                } else {
-                    info.transformSlots.set(i);
+                for (GenericStack possible : input.getPossibleInputs()) {
+                    if (input.getRemainingKey(possible.what()) != null) {
+                        info.virtual = false;
+                        break;
+                    }
+                }
+                if (!info.virtual) {
+                    break;
                 }
             }
         }
 
         patternBatchInfoCache.put(details, info);
         return info;
-    }
-
-    /**
-     * 宽松比较两个 NBT：null 与空 tag 视为等价。
-     */
-    private static boolean areNbtEquivalent(@Nullable CompoundTag a, @Nullable CompoundTag b) {
-        if (a == b) {
-            return true;
-        }
-        if (a == null) {
-            return b == null || b.isEmpty();
-        }
-        if (b == null) {
-            return a.isEmpty();
-        }
-        return a.equals(b);
     }
 
     public int getJobCount() {
@@ -281,6 +200,10 @@ public class AssemblyCraftingProcessor {
         jobTimers.clear();
         jobTimers.addAll(nextTimers);
 
+        // 批量冷却按速度升级卡周期递减
+        if (batchCooldown > 0) {
+            batchCooldown--;
+        }
         // 每 tick 重置 batchBusy，允许下一 tick 继续接收 pushPattern
         this.batchBusy = false;
     }
@@ -359,12 +282,15 @@ public class AssemblyCraftingProcessor {
             AEKey key = entry.getKey();
             long count = entry.getValue();
             while (count > 0) {
-                long remainder = storage.insert(key, count, Actionable.MODULATE, source);
-                if (remainder >= count) {
-                    leftovers.add(new GenericStack(key, count));
+                // 注意：MEStorage.insert 返回的是【已插入】数量，而非剩余数量
+                long inserted = storage.insert(key, count, Actionable.MODULATE, source);
+                count -= inserted;
+                if (inserted <= 0) {
                     break;
                 }
-                count = remainder;
+            }
+            if (count > 0) {
+                leftovers.add(new GenericStack(key, count));
             }
         }
 
@@ -482,8 +408,10 @@ public class AssemblyCraftingProcessor {
                     continue;
                 }
                 if (remaining.equals(key) && storage != null) {
-                    // 催化剂：尝试直接返还网络，剩余部分回退到缓冲
-                    long notInserted = storage.insert(remaining, remainingAmount, Actionable.MODULATE, source);
+                    // 催化剂：尝试直接返还网络，未插入部分回退到缓冲
+                    // 注意：MEStorage.insert 返回的是【已插入】数量，而非剩余数量
+                    long inserted = storage.insert(remaining, remainingAmount, Actionable.MODULATE, source);
+                    long notInserted = remainingAmount - inserted;
                     if (notInserted > 0) {
                         addPendingOutput(new GenericStack(remaining, notInserted));
                     }
@@ -507,8 +435,9 @@ public class AssemblyCraftingProcessor {
     public void clearState() {
         pendingOutputs.clear();
         jobTimers.clear();
-        patternVirtualCache.clear();
         patternBatchInfoCache.clear();
+        batchCooldown = 0;
+        batchBusy = false;
     }
 
     public void load(CompoundTag data) {

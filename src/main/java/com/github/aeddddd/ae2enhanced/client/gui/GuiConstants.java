@@ -80,6 +80,12 @@ public final class GuiConstants {
     public static final int HINT_COLOR = 0xFF88aaaa;
     public static final int HEADER_TEXT_COLOR = 0xFF88aabb;
 
+    // 装配枢纽已成形界面：浅色背景上的深色信息文字
+    public static final int ASSEMBLY_INFO_COLOR = 0xFF2f3b47;
+    public static final int ASSEMBLY_STATUS_ACTIVE_COLOR = 0xFF1e7d46;
+    public static final int ASSEMBLY_STATUS_BOOTING_COLOR = 0xFF9a6200;
+    public static final int ASSEMBLY_STATUS_OFFLINE_COLOR = 0xFFb32626;
+
     public static final int SAFE_MODE_BANNER_COLOR = 0x55ff0000;
     public static final int SAFE_MODE_TEXT_COLOR = 0xFFffaaaa;
 

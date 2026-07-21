@@ -5,6 +5,7 @@ import java.io.IOException;
 import net.minecraft.client.gui.screens.MenuScreens;
 import net.minecraft.client.renderer.blockentity.BlockEntityRenderers;
 import net.minecraftforge.api.distmarker.Dist;
+import net.minecraftforge.client.event.ModelEvent;
 import net.minecraftforge.client.event.RegisterShadersEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
@@ -18,6 +19,7 @@ import com.github.aeddddd.ae2enhanced.client.gui.ComputationCoreScreen;
 import com.github.aeddddd.ae2enhanced.client.gui.ComputationUnformedScreen;
 import com.github.aeddddd.ae2enhanced.client.gui.HyperdimensionalNexusScreen;
 import com.github.aeddddd.ae2enhanced.client.gui.HyperdimensionalUnformedScreen;
+import com.github.aeddddd.ae2enhanced.client.model.ConnectedTextureModel;
 import com.github.aeddddd.ae2enhanced.client.render.AE2EnhancedShaders;
 import com.github.aeddddd.ae2enhanced.client.render.AssemblyHubRenderer;
 import com.github.aeddddd.ae2enhanced.client.render.HyperdimensionalControllerRenderer;
@@ -50,6 +52,11 @@ public final class ClientSetup {
     @SubscribeEvent
     public static void registerShaders(RegisterShadersEvent event) throws IOException {
         AE2EnhancedShaders.registerShaders(event);
+    }
+
+    @SubscribeEvent
+    public static void registerGeometryLoaders(ModelEvent.RegisterGeometryLoaders event) {
+        event.register("connected", new ConnectedTextureModel.Loader());
     }
 
     private ClientSetup() {

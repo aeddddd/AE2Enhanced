@@ -1,6 +1,8 @@
 package com.github.aeddddd.ae2enhanced.mixin;
 
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 import appeng.api.config.Actionable;
@@ -9,7 +11,6 @@ import appeng.api.networking.crafting.ICraftingProvider;
 import appeng.api.networking.energy.IEnergyService;
 import appeng.api.stacks.AEItemKey;
 import appeng.api.stacks.AEKey;
-import appeng.api.stacks.AEKeyType;
 import appeng.api.stacks.GenericStack;
 import appeng.crafting.execution.CraftingCpuLogic;
 import appeng.crafting.execution.ElapsedTimeTracker;
@@ -17,17 +18,14 @@ import appeng.crafting.execution.ExecutingCraftingJob;
 import appeng.crafting.inv.ListCraftingInventory;
 import appeng.me.cluster.implementations.CraftingCPUCluster;
 import appeng.me.service.CraftingService;
-import net.minecraft.core.NonNullList;
-import net.minecraft.world.inventory.TransientCraftingContainer;
-import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
 import com.github.aeddddd.ae2enhanced.assembly.blockentity.AssemblyControllerBlockEntity;
 import com.github.aeddddd.ae2enhanced.client.gui.GuiConstants;
 import com.github.aeddddd.ae2enhanced.mixin.accessor.CraftingCpuLogicAccessor;
-import com.github.aeddddd.ae2enhanced.mixin.accessor.ExecutingCraftingJobAccessor;
 import com.github.aeddddd.ae2enhanced.mixin.accessor.ElapsedTimeTrackerAccessor;
+import com.github.aeddddd.ae2enhanced.mixin.accessor.ExecutingCraftingJobAccessor;
 import com.github.aeddddd.ae2enhanced.mixin.accessor.TaskProgressAccessor;
 import com.github.aeddddd.ae2enhanced.multiblock.MultiblockMeInterfaceBlockEntity;
 import com.github.aeddddd.ae2enhanced.util.MathUtils;
@@ -39,10 +37,14 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 /**
- * 在 {@link CraftingCpuLogic#executeCrafting} 头部注入批量处理逻辑，
- * 完整复刻主分支对装配枢纽任务的虚拟/真实合成分批处理。
- * <p>处理完成后，原方法继续执行；已完成的装配枢纽任务 value 已被扣减至 0，
- * 原方法会跳过这些任务，从而避免重复处理。</p>
+ * 在 {@link CraftingCpuLogic#executeCrafting} 头部注入装配枢纽的批量合成处理，
+ * 复刻主分支 1.12 对装配枢纽任务的虚拟/真实轨道分批处理。
+ * <p>记账方式严格对齐 AE2 1.20.1 原生语义：凡是经网络回流的产物（最终产物、容器物）
+ * 都先登记进 {@code job.waitingFor}，再由控制器注入 ME 网络，经 CraftingService 路由回
+ * {@link CraftingCpuLogic#insert} 完成 waitingFor 核销、remainingAmount 扣减与 finishJob；
+ * 立即可用的中间产物与返还的催化剂直接放入 CPU 库存并同步 timeTracker。
+ * 只有订单完成路径走通，CPU 才不会永久卡死。</p>
+ * <p>批量失败（原料不足等）时不设置 batchBusy，让原生逐份路径自然回退。</p>
  */
 @Mixin(value = CraftingCpuLogic.class, remap = false)
 public class MixinCraftingCpuLogic {
@@ -64,6 +66,7 @@ public class MixinCraftingCpuLogic {
             ListCraftingInventory inventory = logic.getInventory();
             ListCraftingInventory waitingFor = jobAccessor.getWaitingFor();
             ElapsedTimeTracker timeTracker = jobAccessor.getTimeTracker();
+            GenericStack finalOutput = jobAccessor.getFinalOutput();
 
             boolean changed;
             int iterations = 0;
@@ -107,35 +110,21 @@ public class MixinCraftingCpuLogic {
 
                         hub.setCurrentActionSource(cluster.getSrc());
                         try {
-                            AssemblyControllerBlockEntity.PatternBatchInfo info = hub.getPatternBatchInfo(details, inventory, cluster.getSrc());
-                            if (info == null) {
-                                continue;
-                            }
-                            boolean isVirtual = info.recipe == null || hub.isVirtualPattern(details);
-
-                            if (isVirtual) {
-                                if (ae2e$processVirtualBatch(logic, cluster, hub, details, inventory, waitingFor, timeTracker, progress, remaining, batchSize)) {
-                                    changed = true;
-                                }
+                            AssemblyControllerBlockEntity.PatternBatchInfo info = hub.getPatternBatchInfo(details);
+                            boolean done;
+                            if (info.virtual) {
+                                done = ae2e$processVirtualBatch(cluster, hub, details, inventory, waitingFor,
+                                        timeTracker, finalOutput, progress, remaining, batchSize, level);
                             } else {
-                                if (info.transformSlots != null && info.transformSlots.cardinality() > 0) {
-                                    batchSize = 1;
-                                }
-                                int estimatedStacks = 1;
-                                for (int i = 0; i < info.slotTemplates.length; i++) {
-                                    if (info.slotTemplates[i] != null && (info.catalystSlots == null || !info.catalystSlots.get(i))) {
-                                        estimatedStacks++;
-                                    }
-                                }
-                                if (!hub.canAcceptRealBatch(estimatedStacks)) {
-                                    continue;
-                                }
-                                if (ae2e$processRealBatch(logic, cluster, hub, details, inventory, waitingFor, timeTracker, info, progress, remaining, batchSize, level)) {
-                                    changed = true;
-                                }
+                                done = ae2e$processRealBatch(cluster, hub, details, inventory, waitingFor,
+                                        timeTracker, progress, remaining, batchSize, level);
                             }
-                            hub.setBatchBusy(true);
-                            hub.resetBatchCooldown();
+                            if (done) {
+                                changed = true;
+                                hub.setBatchBusy(true);
+                                hub.resetBatchCooldown();
+                            }
+                            // 批量失败不设置 batchBusy，让原生逐份 pushPattern 路径自然回退
                         } finally {
                             hub.setCurrentActionSource(null);
                         }
@@ -149,66 +138,104 @@ public class MixinCraftingCpuLogic {
         }
     }
 
+    /**
+     * 虚拟轨道：无剩余物的样板（普通合成、处理样板）。
+     * <p>原料从 CPU 库存批量扣除；最终产物登记 waitingFor 后放入枢纽缓冲，
+     * 由控制器注入网络完成原生记账；中间产物直接放入 CPU 库存供嵌套配方使用。</p>
+     */
     @Unique
-    private boolean ae2e$processVirtualBatch(CraftingCpuLogic logic, CraftingCPUCluster cluster,
-            AssemblyControllerBlockEntity hub, IPatternDetails details, ListCraftingInventory inventory,
-            ListCraftingInventory waitingFor, ElapsedTimeTracker timeTracker, Object progress, long remaining,
-            long batchSize) {
+    private boolean ae2e$processVirtualBatch(CraftingCPUCluster cluster, AssemblyControllerBlockEntity hub,
+            IPatternDetails details, ListCraftingInventory inventory, ListCraftingInventory waitingFor,
+            ElapsedTimeTracker timeTracker, GenericStack finalOutput, Object progress, long remaining,
+            long batchSize, Level level) {
         try {
             IPatternDetails.IInput[] inputs = details.getInputs();
             if (inputs == null) {
                 return false;
             }
-            for (IPatternDetails.IInput input : inputs) {
-                if (input == null) {
+
+            // 1) 逐槽匹配实际可用的模板 key（与原生 getValidItemTemplates 相同的模糊匹配）
+            AEKey[] keys = new AEKey[inputs.length];
+            long[] fixed = new long[inputs.length];
+            long[] per = new long[inputs.length];
+            for (int i = 0; i < inputs.length; i++) {
+                if (inputs[i] == null) {
                     continue;
                 }
-                GenericStack[] possible = input.getPossibleInputs();
-                if (possible.length == 0) {
-                    continue;
-                }
-                AEKey key = possible[0].what();
-                long perCraft = possible[0].amount();
-                long totalNeed = MathUtils.safeMultiply(perCraft, batchSize);
-                if (totalNeed <= 0) {
+                GenericStack template = ae2e$matchTemplate(inventory, inputs[i], level);
+                if (template == null || template.amount() <= 0) {
                     return false;
                 }
-                long available = inventory.extract(key, totalNeed, Actionable.SIMULATE);
-                if (available < totalNeed) {
+                keys[i] = template.what();
+                per[i] = MathUtils.safeMultiply(template.amount(), inputs[i].getMultiplier());
+                if (per[i] <= 0) {
                     return false;
                 }
-            }
-            for (IPatternDetails.IInput input : inputs) {
-                if (input == null) {
-                    continue;
-                }
-                GenericStack[] possible = input.getPossibleInputs();
-                if (possible.length == 0) {
-                    continue;
-                }
-                AEKey key = possible[0].what();
-                long perCraft = possible[0].amount();
-                long totalNeed = MathUtils.safeMultiply(perCraft, batchSize);
-                inventory.extract(key, totalNeed, Actionable.MODULATE);
             }
 
-            long totalOutputItems = 0;
+            // 2) 预估网络缓冲占用（仅最终产物走缓冲）
+            int networkStacks = 0;
+            for (GenericStack output : details.getOutputs()) {
+                if (output != null && output.amount() > 0 && finalOutput != null && output.what().matches(finalOutput)) {
+                    networkStacks++;
+                }
+            }
+            if (networkStacks > 0 && !hub.canAcceptRealBatch(networkStacks)) {
+                return false;
+            }
+
+            // 3) 同 key 合并校验可用量，不足则缩减批量（避免同 key 多槽重复计数）
+            long actual = ae2e$shrinkToAvailable(inventory, keys, fixed, per, batchSize);
+            if (actual <= 0) {
+                return false;
+            }
+
+            // 4) 一次性扣料
+            ae2e$extractMerged(inventory, keys, fixed, per, actual);
+
+            // 5) 产物交付
+            // 递归合成（产物同时是原料，如 A+2B=2A）时，先计算本批次消耗的该 key 数量：
+            // 等量产物回留 CPU 库存作为下一批次的种子，只有净产出才经网络回流记账，
+            // 否则第一批后 CPU 库存耗尽，后续批次将永远缺料卡死。
+            long consumedSelf = 0;
+            if (finalOutput != null) {
+                for (int i = 0; i < keys.length; i++) {
+                    if (keys[i] != null && keys[i].equals(finalOutput.what())) {
+                        consumedSelf += per[i] * actual;
+                    }
+                }
+            }
             for (GenericStack output : details.getOutputs()) {
                 if (output == null || output.amount() <= 0) {
                     continue;
                 }
-                long totalCount = MathUtils.safeMultiply(output.amount(), batchSize);
-                if (totalCount <= 0) {
+                long total = MathUtils.safeMultiply(output.amount(), actual);
+                if (total <= 0) {
                     continue;
                 }
-                totalOutputItems += totalCount;
-                inventory.insert(output.what(), totalCount, Actionable.MODULATE);
-                waitingFor.extract(output.what(), totalCount, Actionable.MODULATE);
-                ae2e$decrementItems(timeTracker, totalCount, output.what().getType());
+                if (finalOutput != null && output.what().matches(finalOutput)) {
+                    // 仅当本样板还有后续批次时才回留种子；最后一批全部经网络回流，
+                    // 种子随净产出一并自动返回网络，避免残留在 CPU 库存中
+                    boolean moreRuns = remaining - actual > 0;
+                    long retain = moreRuns ? Math.min(consumedSelf, total) : 0;
+                    long net = total - retain;
+                    if (retain > 0) {
+                        // 种子回留 CPU 库存，维持递归合成链
+                        inventory.insert(output.what(), retain, Actionable.MODULATE);
+                    }
+                    if (net > 0) {
+                        // 净产出：登记 waitingFor，注入网络时由 CraftingCpuLogic.insert 核销并完成订单
+                        waitingFor.insert(output.what(), net, Actionable.MODULATE);
+                        hub.addPendingOutput(new GenericStack(output.what(), net));
+                    }
+                } else {
+                    // 中间产物：直接进入 CPU 库存，嵌套配方立即可用
+                    inventory.insert(output.what(), total, Actionable.MODULATE);
+                    ae2e$decrementItems(timeTracker, total, output.what().getType());
+                }
             }
 
-            ae2e$setTaskValue(progress, remaining - batchSize);
-            ae2e$decrementRemainingAmount(details, totalOutputItems);
+            ae2e$setTaskValue(progress, remaining - actual);
             cluster.markDirty();
             return true;
         } catch (Exception e) {
@@ -217,116 +244,139 @@ public class MixinCraftingCpuLogic {
         }
     }
 
+    /**
+     * 真实轨道：存在剩余物的合成样板（容器物、催化剂、耐久转换）。
+     * <p>剩余物按实际提取的 key 逐项判定：真催化剂（剩余物与输入完全一致）借用 1 份并立即
+     * 返还 CPU 库存；消耗性转换（同物品不同 NBT，如耐久损耗）强制逐份处理；普通容器物
+     * 按批量产出。产物与容器物一律登记 waitingFor 后经网络回流完成原生记账。</p>
+     */
     @Unique
-    private boolean ae2e$processRealBatch(CraftingCpuLogic logic, CraftingCPUCluster cluster,
-            AssemblyControllerBlockEntity hub, IPatternDetails details, ListCraftingInventory inventory,
-            ListCraftingInventory waitingFor, ElapsedTimeTracker timeTracker,
-            AssemblyControllerBlockEntity.PatternBatchInfo info, Object progress, long remaining, long batchSize,
-            Level level) {
+    private boolean ae2e$processRealBatch(CraftingCPUCluster cluster, AssemblyControllerBlockEntity hub,
+            IPatternDetails details, ListCraftingInventory inventory, ListCraftingInventory waitingFor,
+            ElapsedTimeTracker timeTracker, Object progress, long remaining, long batchSize, Level level) {
         try {
             IPatternDetails.IInput[] inputs = details.getInputs();
-            if (inputs == null || info.slotTemplates == null) {
+            if (inputs == null) {
                 return false;
             }
 
-            long actualBatchSize = batchSize;
-
+            // 1) 逐槽匹配模板并按实际 key 分类剩余物
+            AEKey[] keys = new AEKey[inputs.length];
+            AEKey[] remainders = new AEKey[inputs.length];
+            long[] containersPerCraft = new long[inputs.length];
+            boolean[] catalyst = new boolean[inputs.length];
+            boolean[] transform = new boolean[inputs.length];
+            boolean hasTransform = false;
             for (int i = 0; i < inputs.length; i++) {
-                if (inputs[i] == null || info.slotTemplates[i] == null) {
+                if (inputs[i] == null) {
                     continue;
                 }
-                AEKey key = info.slotTemplates[i];
-                long perCraft = inputs[i].getPossibleInputs()[0].amount();
-                long needCount = (info.catalystSlots != null && info.catalystSlots.get(i)) || (info.transformSlots != null && info.transformSlots.get(i))
-                        ? 1
-                        : MathUtils.safeMultiply(perCraft, actualBatchSize);
-                long available = inventory.extract(key, needCount, Actionable.SIMULATE);
-                if (available < needCount) {
-                    if (actualBatchSize > 1) {
-                        long maxBatch = available / perCraft;
-                        if (maxBatch <= 0) {
-                            return false;
-                        }
-                        actualBatchSize = maxBatch;
-                    } else {
+                GenericStack template = ae2e$matchTemplate(inventory, inputs[i], level);
+                if (template == null || template.amount() <= 0) {
+                    return false;
+                }
+                AEKey key = template.what();
+                keys[i] = key;
+                containersPerCraft[i] = inputs[i].getMultiplier();
+                AEKey rem = inputs[i].getRemainingKey(key);
+                remainders[i] = rem;
+                if (rem != null) {
+                    if (rem.equals(key)) {
+                        // 真催化剂：不消耗，仅借用 1 份
+                        catalyst[i] = true;
+                    } else if (rem instanceof AEItemKey remItem && key instanceof AEItemKey inItem
+                            && remItem.getItem() == inItem.getItem()) {
+                        // 消耗性转换（如耐久损耗）：同物品不同 NBT，禁止批量
+                        transform[i] = true;
+                        hasTransform = true;
+                    }
+                }
+            }
+            if (hasTransform) {
+                batchSize = 1;
+            }
+
+            // 2) 计算每槽需求量：催化剂/转换槽固定 1 份，其余按批量
+            long[] fixed = new long[inputs.length];
+            long[] per = new long[inputs.length];
+            for (int i = 0; i < inputs.length; i++) {
+                if (keys[i] == null) {
+                    continue;
+                }
+                if (catalyst[i] || transform[i]) {
+                    fixed[i] = 1;
+                } else {
+                    GenericStack template = ae2e$matchTemplate(inventory, inputs[i], level);
+                    if (template == null) {
+                        return false;
+                    }
+                    per[i] = MathUtils.safeMultiply(template.amount(), inputs[i].getMultiplier());
+                    if (per[i] <= 0) {
                         return false;
                     }
                 }
             }
-            if (actualBatchSize <= 0) {
+
+            // 3) 预估缓冲占用：产物 + 经网络回流的剩余物（催化剂直返库存不占缓冲）
+            int stacks = 0;
+            for (GenericStack output : details.getOutputs()) {
+                if (output != null && output.amount() > 0) {
+                    stacks++;
+                }
+            }
+            for (int i = 0; i < inputs.length; i++) {
+                if (remainders[i] != null && !catalyst[i]) {
+                    stacks++;
+                }
+            }
+            if (!hub.canAcceptRealBatch(stacks)) {
                 return false;
             }
 
+            // 4) 缩减并扣料
+            long actual = ae2e$shrinkToAvailable(inventory, keys, fixed, per, batchSize);
+            if (actual <= 0) {
+                return false;
+            }
+            ae2e$extractMerged(inventory, keys, fixed, per, actual);
+
+            // 5) 产物：登记 waitingFor 后进缓冲，注入网络时由 CPU insert 核销并完成订单
+            for (GenericStack output : details.getOutputs()) {
+                if (output == null || output.amount() <= 0) {
+                    continue;
+                }
+                long total = MathUtils.safeMultiply(output.amount(), actual);
+                if (total <= 0) {
+                    continue;
+                }
+                waitingFor.insert(output.what(), total, Actionable.MODULATE);
+                hub.addPendingOutput(new GenericStack(output.what(), total));
+            }
+
+            // 6) 剩余物
             for (int i = 0; i < inputs.length; i++) {
-                if (inputs[i] == null || info.slotTemplates[i] == null) {
+                if (remainders[i] == null || keys[i] == null) {
                     continue;
                 }
-                AEKey key = info.slotTemplates[i];
-                long perCraft = inputs[i].getPossibleInputs()[0].amount();
-                long needCount = (info.catalystSlots != null && info.catalystSlots.get(i)) || (info.transformSlots != null && info.transformSlots.get(i))
-                        ? 1
-                        : MathUtils.safeMultiply(perCraft, actualBatchSize);
-                inventory.extract(key, needCount, Actionable.MODULATE);
-            }
-
-            NonNullList<ItemStack> craftItems = NonNullList.withSize(9, ItemStack.EMPTY);
-            for (int i = 0; i < info.slotTemplates.length && i < 9; i++) {
-                if (info.slotTemplates[i] instanceof AEItemKey itemKey) {
-                    craftItems.set(i, itemKey.toStack());
-                }
-            }
-            TransientCraftingContainer container = new TransientCraftingContainer(null, 3, 3);
-            for (int i = 0; i < craftItems.size(); i++) {
-                container.setItem(i, craftItems.get(i));
-            }
-            ItemStack output = info.recipe.assemble(container, level.registryAccess());
-            NonNullList<ItemStack> remainingItems = info.recipe.getRemainingItems(container);
-
-            long totalOutputItems = 0;
-            if (!output.isEmpty()) {
-                ItemStack batchOutput = output.copy();
-                long count = MathUtils.safeMultiply(output.getCount(), actualBatchSize);
-                if (count > Integer.MAX_VALUE) {
-                    count = Integer.MAX_VALUE;
-                }
-                batchOutput.setCount((int) count);
-                hub.addPendingOutput(batchOutput);
-                AEKey outputKey = AEItemKey.of(batchOutput);
-                if (outputKey != null) {
-                    waitingFor.extract(outputKey, count, Actionable.MODULATE);
-                    ae2e$decrementItems(timeTracker, count, outputKey.getType());
-                }
-                totalOutputItems += count;
-            }
-            for (int i = 0; i < remainingItems.size(); i++) {
-                ItemStack rem = remainingItems.get(i);
-                if (rem.isEmpty()) {
-                    continue;
-                }
-                if (info.catalystSlots != null && info.catalystSlots.get(i)) {
-                    AEKey key = info.slotTemplates[i];
-                    if (key != null) {
-                        inventory.insert(key, 1, Actionable.MODULATE);
-                    }
+                if (catalyst[i]) {
+                    // 真催化剂：借用后立即返还 CPU 库存
+                    inventory.insert(keys[i], 1, Actionable.MODULATE);
+                    ae2e$decrementItems(timeTracker, 1, keys[i].getType());
+                } else if (transform[i]) {
+                    // 消耗性转换：逐份产出转换后物品（actual 已被强制为 1）
+                    waitingFor.insert(remainders[i], 1, Actionable.MODULATE);
+                    hub.addPendingOutput(new GenericStack(remainders[i], 1));
                 } else {
-                    long count = MathUtils.safeMultiply(rem.getCount(), actualBatchSize);
-                    if (count > Integer.MAX_VALUE) {
-                        count = Integer.MAX_VALUE;
+                    // 普通容器物：每份输入模板留下 1 个，按批量产出
+                    long total = MathUtils.safeMultiply(containersPerCraft[i], actual);
+                    if (total > 0) {
+                        waitingFor.insert(remainders[i], total, Actionable.MODULATE);
+                        hub.addPendingOutput(new GenericStack(remainders[i], total));
                     }
-                    ItemStack batchRem = rem.copy();
-                    batchRem.setCount((int) count);
-                    hub.addPendingOutput(batchRem);
-                    AEKey remKey = AEItemKey.of(batchRem);
-                    if (remKey != null) {
-                        waitingFor.extract(remKey, count, Actionable.MODULATE);
-                        ae2e$decrementItems(timeTracker, count, remKey.getType());
-                    }
-                    totalOutputItems += count;
                 }
             }
 
-            ae2e$setTaskValue(progress, remaining - actualBatchSize);
-            ae2e$decrementRemainingAmount(details, totalOutputItems);
+            ae2e$setTaskValue(progress, remaining - actual);
             cluster.markDirty();
             return true;
         } catch (Exception e) {
@@ -335,34 +385,89 @@ public class MixinCraftingCpuLogic {
         }
     }
 
+    /**
+     * 为输入槽匹配实际可用的模板：遍历候选物品，按 IGNORE_ALL 模糊匹配 CPU 库存中
+     * 实际存在的 key（与原生 {@code CraftingCpuHelper#getValidItemTemplates} 一致）。
+     * 返回的 GenericStack 数量为该候选模板的单份数量（actualKey + possibleAmount）。
+     */
     @Unique
-    private void ae2e$decrementRemainingAmount(IPatternDetails details, long amount) {
-        CraftingCpuLogic logic = (CraftingCpuLogic) (Object) this;
-        CraftingCpuLogicAccessor logicAccessor = (CraftingCpuLogicAccessor) logic;
-        ExecutingCraftingJob job = logicAccessor.getJob();
-        if (job == null) {
-            return;
+    private static GenericStack ae2e$matchTemplate(ListCraftingInventory inventory, IPatternDetails.IInput input,
+            Level level) {
+        for (GenericStack possible : input.getPossibleInputs()) {
+            for (AEKey fuzz : inventory.findFuzzyTemplates(possible.what())) {
+                if (input.isValid(fuzz, level)) {
+                    return new GenericStack(fuzz, possible.amount());
+                }
+            }
         }
-        ExecutingCraftingJobAccessor jobAccessor = (ExecutingCraftingJobAccessor) job;
-        GenericStack finalOutput = jobAccessor.getFinalOutput();
-        if (finalOutput == null) {
-            return;
-        }
-        for (GenericStack output : details.getOutputs()) {
-            if (output == null || output.amount() <= 0) {
+        return null;
+    }
+
+    /**
+     * 同 key 合并需求后校验 CPU 库存，返回可执行的最大批量。
+     * fixed 为不随批量变化的需求（催化剂/转换槽），per 为单份批量需求。
+     */
+    @Unique
+    private static long ae2e$shrinkToAvailable(ListCraftingInventory inventory, AEKey[] keys, long[] fixed,
+            long[] per, long batchSize) {
+        Map<AEKey, long[]> merged = new HashMap<>();
+        for (int i = 0; i < keys.length; i++) {
+            if (keys[i] == null) {
                 continue;
             }
-            if (output.what().equals(finalOutput.what())) {
-                long current = jobAccessor.getRemainingAmount();
-                long decrement = Math.min(amount, current);
-                jobAccessor.setRemainingAmount(current - decrement);
-                break;
+            long[] acc = merged.computeIfAbsent(keys[i], k -> new long[2]);
+            acc[0] += fixed[i];
+            acc[1] += per[i];
+        }
+        long actual = batchSize;
+        for (Map.Entry<AEKey, long[]> e : merged.entrySet()) {
+            long f = e.getValue()[0];
+            long p = e.getValue()[1];
+            long need = ae2e$safeAdd(f, MathUtils.safeMultiply(p, actual));
+            long available = inventory.extract(e.getKey(), need, Actionable.SIMULATE);
+            if (available < need) {
+                if (p <= 0) {
+                    return 0;
+                }
+                long max = (available - f) / p;
+                if (max <= 0) {
+                    return 0;
+                }
+                actual = Math.min(actual, max);
             }
+        }
+        return actual;
+    }
+
+    /**
+     * 按合并后的需求一次性从 CPU 库存扣料。
+     */
+    @Unique
+    private static void ae2e$extractMerged(ListCraftingInventory inventory, AEKey[] keys, long[] fixed, long[] per,
+            long batchSize) {
+        Map<AEKey, Long> merged = new LinkedHashMap<>();
+        for (int i = 0; i < keys.length; i++) {
+            if (keys[i] == null) {
+                continue;
+            }
+            long need = ae2e$safeAdd(fixed[i], MathUtils.safeMultiply(per[i], batchSize));
+            merged.merge(keys[i], need, Long::sum);
+        }
+        for (Map.Entry<AEKey, Long> e : merged.entrySet()) {
+            inventory.extract(e.getKey(), e.getValue(), Actionable.MODULATE);
         }
     }
 
     @Unique
-    private static void ae2e$decrementItems(ElapsedTimeTracker tracker, long amount, AEKeyType type) {
+    private static long ae2e$safeAdd(long a, long b) {
+        if (a >= Long.MAX_VALUE - b) {
+            return Long.MAX_VALUE;
+        }
+        return a + b;
+    }
+
+    @Unique
+    private static void ae2e$decrementItems(ElapsedTimeTracker tracker, long amount, appeng.api.stacks.AEKeyType type) {
         ((ElapsedTimeTrackerAccessor) tracker).invokeDecrementItems(amount, type);
     }
 

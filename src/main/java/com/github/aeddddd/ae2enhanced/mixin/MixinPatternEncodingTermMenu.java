@@ -83,6 +83,8 @@ public class MixinPatternEncodingTermMenu {
             }
             if (handler.getStackInSlot(slot).isEmpty()) {
                 handler.setStackInSlot(slot, encoded.copy());
+                // 上传成功后清空终端输出槽，避免样板在枢纽与终端中各出现一份（重复）
+                encodedPatternSlot.set(ItemStack.EMPTY);
                 return;
             }
         }

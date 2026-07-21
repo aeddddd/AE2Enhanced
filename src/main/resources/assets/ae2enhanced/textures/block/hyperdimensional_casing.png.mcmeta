@@ -1,9 +1,0 @@
-{
-    "ctm": {
-        "ctm_version": 1,
-        "type": "ctm",
-        "textures": [
-            "ae2enhanced:block/hyperdimensional_casing_ctm"
-        ]
-    }
-}

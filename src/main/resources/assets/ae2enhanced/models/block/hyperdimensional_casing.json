@@ -1,6 +1,7 @@
 {
-  "parent": "block/cube_all",
+  "loader": "ae2enhanced:connected",
   "textures": {
-    "all": "ae2enhanced:block/hyperdimensional_casing"
+    "particle": "ae2enhanced:block/hyperdimensional_casing",
+    "texture": "ae2enhanced:block/hyperdimensional_casing_ctm"
   }
 }

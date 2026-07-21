@@ -6,6 +6,7 @@ import net.minecraftforge.network.simple.SimpleChannel;
 
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
 import com.github.aeddddd.ae2enhanced.network.packet.AssemblyPagePacket;
+import com.github.aeddddd.ae2enhanced.network.packet.CraftAmountLongPacket;
 import com.github.aeddddd.ae2enhanced.network.packet.RequestAssemblyPacket;
 
 /**
@@ -35,6 +36,12 @@ public final class ModNetwork {
                 .encoder(AssemblyPagePacket::encode)
                 .decoder(AssemblyPagePacket::decode)
                 .consumerMainThread(AssemblyPagePacket::handle)
+                .add();
+
+        CHANNEL.messageBuilder(CraftAmountLongPacket.class, nextId())
+                .encoder(CraftAmountLongPacket::encode)
+                .decoder(CraftAmountLongPacket::decode)
+                .consumerMainThread(CraftAmountLongPacket::handle)
                 .add();
     }
 

@@ -9,15 +9,29 @@
     "MixinCraftingService",
     "MixinCraftingCPUCluster",
     "MixinCraftingCpuLogic",
+    "MixinCraftingCalculation",
+    "MixinCraftingTreeNode",
+    "MixinTooltips",
+    "MixinCraftAmountMenu",
+    "MixinCraftConfirmMenu",
+    "MixinCreativeEnergyCell",
+    "MixinCreativeCellInventory",
     "MixinPatternEncodingTermMenu",
     "AppEngBaseMixin",
     "accessor.CraftingCpuLogicAccessor",
     "accessor.ExecutingCraftingJobAccessor",
     "accessor.TaskProgressAccessor",
     "accessor.ElapsedTimeTrackerAccessor",
-    "accessor.CraftingCPUClusterInvoker"
+    "accessor.CraftingCPUClusterInvoker",
+    "accessor.CraftingCalculationAccessor",
+    "accessor.AEBaseMenuAccessor",
+    "accessor.CraftingTreeNodeAccessor",
+    "accessor.CraftingTreeProcessAccessor"
   ],
-  "client": [],
+  "client": [
+    "client.MixinCraftAmountScreen",
+    "client.MixinCPUSelectionList"
+  ],
   "injectors": {
     "defaultRequire": 1
   }

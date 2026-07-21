@@ -30,15 +30,17 @@ import com.github.aeddddd.ae2enhanced.structure.AssemblyStructure;
  */
 public class AssemblyHubRenderer extends AbstractMultiblockRenderer<AssemblyControllerBlockEntity> {
 
-    // 黑洞渲染尺寸（方块单位），与 1.12 主分支一致；黑洞本体为对象空间球体，
-    // 后处理光线步进只负责 GTCEu 原始比例的吸积盘与辉光
-    private static final double EVENT_HORIZON_RADIUS_BASE = 2.5;
-    private static final double DISK_INNER_BASE = 3.0;
-    private static final double DISK_OUTER_BASE = 7.8;
-    private static final double SHELL_RADIUS_BASE = 5.6;
-    private static final double INNER_HALO_BASE = 3.2;
-    private static final double MID_HALO_BASE = 4.6;
-    private static final double OUTER_HALO_BASE = 6.0;
+    // 黑洞渲染尺寸（方块单位），在 1.12 主分支基础上放大；后处理激活时黑洞由光线步进
+    // 完整呈现（事件视界阴影 4.0 = _ShadowR 1.0 × _Scale 4.0），以下对象空间几何仅在后处理
+    // 不可用时作为回退绘制
+    private static final double EVENT_HORIZON_RADIUS_BASE = 4.0;
+    private static final double DISK_INNER_BASE = 4.6;
+    private static final double DISK_OUTER_BASE = 12.0;
+    // 约束壳半径：结构中心到最近方块约 8.08 格，取 7.6 保证球体不被结构切断
+    private static final double SHELL_RADIUS_BASE = 7.6;
+    private static final double INNER_HALO_BASE = 5.1;
+    private static final double MID_HALO_BASE = 7.3;
+    private static final double OUTER_HALO_BASE = 9.6;
 
     private static final int LATITUDE_SEGMENTS = 24;
     private static final int LONGITUDE_SEGMENTS = 24;
@@ -50,6 +52,7 @@ public class AssemblyHubRenderer extends AbstractMultiblockRenderer<AssemblyCont
     private static final int EVENT_HORIZON_PART_ID = 0x000000;
     private static final int ACCRETION_DISK_PART_ID = 0x010000;
     private static final int RELATIVISTIC_JET_PART_ID = 0x020000;
+    private static final int CONTAINMENT_SHELL_PART_ID = 0x030000;
 
     // 按朝向缓存的结构包围盒，首次使用时计算
     private static final Map<Direction, float[]> BOUNDS_CACHE = new EnumMap<>(Direction.class);
@@ -125,10 +128,10 @@ public class AssemblyHubRenderer extends AbstractMultiblockRenderer<AssemblyCont
     }
 
     /**
-     * 使用自定义 shader 渲染黑洞主体与发光喷流。
-     * <p>事件视界（黑洞本体）始终绘制并写入深度，后处理光线步进在其周围叠加
-     * GTCEu 原始比例的吸积盘与辉光，且会被球体正确遮挡；
-     * 后处理关闭时额外绘制对象空间吸积盘与喷流。约束壳始终叠加。</p>
+     * 使用自定义 shader 渲染黑洞与约束壳。
+     * <p>后处理激活时：黑洞（事件视界阴影、吸积盘、辉光）完全由全屏光线步进呈现，
+     * 不再绘制对象空间占位球体，约束壳也由后处理器在光线步进之后叠加；
+     * 后处理不可用时回退为对象空间事件视界球体、吸积盘、相对论性喷流与约束壳。</p>
      */
     private void renderShaderEffect(AssemblyControllerBlockEntity be, float partialTicks, PoseStack poseStack,
             MultiBufferSource bufferSource, double scale, double dist) {
@@ -147,47 +150,55 @@ public class AssemblyHubRenderer extends AbstractMultiblockRenderer<AssemblyCont
         ShaderInstance shader = AE2EnhancedShaders.getAssemblyBlackHole();
         applyUniforms(shader, time, intensity, (float) scale, centerCam);
 
-        // 事件视界：黑洞本体（translucent，写深度供后处理遮挡判定）
-        VertexConsumer main = bufferSource.getBuffer(RenderHelper.ASSEMBLY_BLACK_HOLE);
-        RenderHelper.drawSphere(main, poseStack, (float) (EVENT_HORIZON_RADIUS_BASE * scale),
-                EVENT_HORIZON_PART_ID, 1.0f, lodLat, lodLon);
-
         if (!AE2EnhancedPostProcessor.isPostActive()) {
-            // 后处理关闭时才绘制对象空间吸积盘与喷流；激活时由光线步进承担，避免双重渲染
+            // 后处理不可用时才绘制对象空间黑洞几何；激活时由光线步进承担，避免双重渲染
+            VertexConsumer main = bufferSource.getBuffer(RenderHelper.ASSEMBLY_BLACK_HOLE);
+            RenderHelper.drawSphere(main, poseStack, (float) (EVENT_HORIZON_RADIUS_BASE * scale),
+                    EVENT_HORIZON_PART_ID, 1.0f, lodLat, lodLon);
             RenderHelper.drawAccretionDisk(main, poseStack, (float) (DISK_INNER_BASE * scale),
                     (float) (DISK_OUTER_BASE * scale), ACCRETION_DISK_PART_ID, 64);
 
             VertexConsumer glow = bufferSource.getBuffer(RenderHelper.ASSEMBLY_BLACK_HOLE_GLOW);
-            RenderHelper.drawRelativisticJet(glow, poseStack, (float) (1.0f * scale),
-                    (float) (8.0f * scale), RELATIVISTIC_JET_PART_ID, 32);
-        }
+            RenderHelper.drawRelativisticJet(glow, poseStack, (float) (1.6f * scale),
+                    (float) (12.8f * scale), RELATIVISTIC_JET_PART_ID, 32);
 
-        renderContainmentShell(poseStack, bufferSource, time, scale, lodLat, lodLon);
+            // 后处理激活时约束壳由后处理器在光线步进之后叠加绘制：
+            // 事件视界阴影不合成背景，壳若在方块实体阶段绘制（不写深度）会被整体覆盖
+            renderContainmentShell(poseStack, bufferSource, time, scale, lodLat, lodLon);
+        }
     }
 
     /**
-     * 受控约束壳：两层反向缓慢旋转的能量壳，呼吸明暗，表征黑洞处于受控状态。
-     * <p>使用 additive 混合且不写深度，不会遮挡后处理光线步进的吸积盘；
-     * additive 混合无光照衰减，颜色经顶点色直接叠加。</p>
+     * 受控约束壳（对象空间路径）：两层反向缓慢旋转的六边形框架复合球体，呼吸明暗。
      */
     private static void renderContainmentShell(PoseStack poseStack, MultiBufferSource bufferSource, float time,
             double scale, int lodLat, int lodLon) {
-        float breath = 0.5f + 0.5f * (float) Math.sin(time * 0.9);
-        float alpha = 0.14f + 0.20f * breath;
+        appendContainmentShellGeometry(bufferSource.getBuffer(RenderHelper.ASSEMBLY_BLACK_HOLE_GLOW),
+                poseStack, time, scale, lodLat, lodLon);
+    }
 
-        VertexConsumer shell = bufferSource.getBuffer(RenderHelper.TESR_ADDITIVE);
+    /**
+     * 约束壳几何：两层反向缓慢旋转的六边形框架复合球体，呼吸明暗，表征黑洞处于受控状态。
+     * <p>供对象空间（BER）与后处理叠加两条路径共用：写入任意 POSITION_COLOR 顶点缓冲，
+     * 胞格边界发光线与逐胞脉冲由 assembly_black_hole shader 的部件 3 程序化生成。</p>
+     */
+    public static void appendContainmentShellGeometry(VertexConsumer shell, PoseStack poseStack, float time,
+            double scale, int lodLat, int lodLon) {
+        float breath = 0.5f + 0.5f * (float) Math.sin(time * 0.9);
+        float alpha = 0.32f + 0.30f * breath;
+
         poseStack.pushPose();
         poseStack.mulPose(Axis.YP.rotationDegrees(time * 6.0f));
         poseStack.mulPose(Axis.XP.rotationDegrees(8.0f));
-        RenderHelper.drawSphere(shell, poseStack, (float) (SHELL_RADIUS_BASE * scale), 0x2FA8FF, alpha, lodLat,
-                lodLon);
+        RenderHelper.drawSphere(shell, poseStack, (float) (SHELL_RADIUS_BASE * scale),
+                CONTAINMENT_SHELL_PART_ID, alpha, lodLat, lodLon);
         poseStack.popPose();
 
         poseStack.pushPose();
         poseStack.mulPose(Axis.YP.rotationDegrees(-time * 4.0f));
         poseStack.mulPose(Axis.ZP.rotationDegrees(12.0f));
-        RenderHelper.drawSphere(shell, poseStack, (float) (SHELL_RADIUS_BASE * 0.94 * scale), 0x7FD4FF,
-                alpha * 0.6f, lodLat, lodLon);
+        RenderHelper.drawSphere(shell, poseStack, (float) (SHELL_RADIUS_BASE * 0.93 * scale),
+                CONTAINMENT_SHELL_PART_ID, alpha * 0.5f, lodLat, lodLon);
         poseStack.popPose();
     }
 

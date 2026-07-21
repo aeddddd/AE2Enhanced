@@ -137,10 +137,19 @@ dependencies {
     annotationProcessor 'io.github.llamalad7:mixinextras-common:0.4.1'
     // MixinExtras: embed via jarJar so it is available in production.
     jarJar(group: 'io.github.llamalad7', name: 'mixinextras-forge', version: '[0.4.1,0.5)')
+    // MixinExtras: required on the runtime classpath for dev runs (runClient/runServer).
+    runtimeOnly 'io.github.llamalad7:mixinextras-forge:0.4.1'
 
     // AE2: published with SRG mappings, so declare it on a mod* configuration to remap to official mappings.
     // The actual jar is expected at libs/appliedenergistics2-forge-15.3.4.jar
     modImplementation "blank:appliedenergistics2-forge-15.3.4"
+
+    // 开发环境联调用的第三方 mod（JEI / 神秘农业），必须走 modLocalRuntime 让 Gradle 做
+    // SRG -> 官方名重映射；直接丢进 run/mods 会以 SRG 名加载并报 NoSuchFieldError/NoSuchMethodError。
+    modLocalRuntime "mezz.jei:jei-1.20.1-forge:15.20.0.132"
+    modLocalRuntime "curse.maven:mystical-agriculture-246640:8034376" // MysticalAgriculture-1.20.1-7.0.24
+    modLocalRuntime "curse.maven:mystical-agradditions-256247:7180729" // MysticalAgradditions-1.20.1-7.0.12
+    modLocalRuntime "curse.maven:cucumber-272335:7180783" // Cucumber-1.20.1-7.0.16
 
     testImplementation 'org.junit.jupiter:junit-jupiter:5.10.0'
 }

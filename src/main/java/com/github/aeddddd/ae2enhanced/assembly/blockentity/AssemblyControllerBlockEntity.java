@@ -1,6 +1,5 @@
 package com.github.aeddddd.ae2enhanced.assembly.blockentity;
 
-import java.util.BitSet;
 import java.util.List;
 
 import javax.annotation.Nullable;
@@ -11,7 +10,6 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.crafting.CraftingRecipe;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
@@ -27,7 +25,6 @@ import appeng.helpers.patternprovider.PatternContainer;
 import appeng.api.networking.energy.IEnergyService;
 import appeng.api.networking.security.IActionSource;
 import appeng.api.stacks.AEItemKey;
-import appeng.api.stacks.AEKey;
 import appeng.api.stacks.GenericStack;
 import appeng.api.stacks.KeyCounter;
 import appeng.api.util.AECableType;
@@ -78,14 +75,13 @@ public class AssemblyControllerBlockEntity extends AENetworkBlockEntity
     private boolean showingStructureProjection = false;
 
     /**
-     * 真实合成 batch 信息缓存：配方、催化剂槽位、槽位物品模板。
-     * <p>保留在此类中作为公开 API 供 Mixin 使用。</p>
+     * 样板批量信息：虚拟/真实轨道分类。
+     * <p>虚拟轨道 = 所有输入均无剩余物（普通合成、处理样板），产物直接交付；
+     * 真实轨道 = 存在容器物/催化剂/耐久转换（{@link appeng.api.crafting.IPatternDetails.IInput#getRemainingKey} 非空），
+     * 剩余物的逐项处理由 Mixin 在实际提取时按真实 key 判定。</p>
      */
     public static class PatternBatchInfo {
-        public CraftingRecipe recipe;
-        public BitSet catalystSlots; // 真催化剂：remaining 与 input 完全一致(NBT 不变)
-        public BitSet transformSlots; // 消耗性转换：remaining 与 input 同一物品但 NBT 不同
-        public AEKey[] slotTemplates; // 每个槽位实际提取的物品模板
+        public boolean virtual = true;
     }
 
     public AssemblyControllerBlockEntity(BlockPos pos, BlockState state) {
@@ -166,13 +162,6 @@ public class AssemblyControllerBlockEntity extends AENetworkBlockEntity
     // ---- Pattern Batch Info (real vs virtual crafting) ----
 
     /**
-     * 供 Mixin 调用：检查指定样板是否已被缓存为纯虚拟合成(无剩余物品或加工样板)。
-     */
-    public boolean isVirtualPattern(IPatternDetails details) {
-        return this.craftingProcessor.isVirtualPattern(details);
-    }
-
-    /**
      * 供 Mixin 调用：检查 pendingOutputs 是否还能接受指定数量的 stack。
      */
     public boolean canAcceptRealBatch(int stackCount) {
@@ -194,11 +183,10 @@ public class AssemblyControllerBlockEntity extends AENetworkBlockEntity
     }
 
     /**
-     * 供 Mixin 调用：获取或创建 PatternBatchInfo(含催化剂识别)。
+     * 供 Mixin 调用：获取或创建样板的批量信息（虚拟/真实轨道分类）。
      */
-    public PatternBatchInfo getPatternBatchInfo(IPatternDetails details, ListCraftingInventory meInv,
-            IActionSource source) {
-        return this.craftingProcessor.getPatternBatchInfo(details, meInv, source);
+    public PatternBatchInfo getPatternBatchInfo(IPatternDetails details) {
+        return this.craftingProcessor.getPatternBatchInfo(details);
     }
 
     @Override
@@ -407,6 +395,15 @@ public class AssemblyControllerBlockEntity extends AENetworkBlockEntity
         super.onReady();
         if (level != null && !level.isClientSide() && isFormed()) {
             refreshInterfaceServices();
+        }
+    }
+
+    @Override
+    public void onLoad() {
+        super.onLoad();
+        // 区块 NBT 加载阶段 level 为 null 读不到 SavedData，延迟到此处恢复升级卡与样板
+        if (level != null && !level.isClientSide()) {
+            patternManager.reloadFromSavedData();
         }
     }
 

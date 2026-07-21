@@ -29,13 +29,4 @@ public interface ExecutingCraftingJobAccessor {
 
     @Accessor("finalOutput")
     GenericStack getFinalOutput();
-
-    @Accessor("finalOutput")
-    void setFinalOutput(GenericStack finalOutput);
-
-    @Accessor("remainingAmount")
-    long getRemainingAmount();
-
-    @Accessor("remainingAmount")
-    void setRemainingAmount(long remainingAmount);
 }

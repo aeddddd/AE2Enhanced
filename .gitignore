@@ -71,7 +71,8 @@ xml/
 zone/
 *.txt
 *.gz
-
+*.ps1
+*tmp*/
 ### Bytecode / Decompiled classes ###
 *.class
 

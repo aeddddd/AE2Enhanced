@@ -1,13 +1,6 @@
 {
-    "ctm": {
-        "ctm_version": 1,
-        "type": "ctm",
-        "textures": [
-            "ae2enhanced:block/assembly_stabilizer_ctm"
-        ]
-    },
     "animation": {
-        "frametime": 3,
+        "frametime": 8,
         "interpolate": true
     }
 }

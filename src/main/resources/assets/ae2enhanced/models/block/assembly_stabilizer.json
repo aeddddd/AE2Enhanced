@@ -1,6 +1,7 @@
 {
-  "parent": "block/cube_all",
+  "loader": "ae2enhanced:connected",
   "textures": {
-    "all": "ae2enhanced:block/assembly_stabilizer"
+    "particle": "ae2enhanced:block/assembly_stabilizer",
+    "texture": "ae2enhanced:block/assembly_stabilizer_ctm"
   }
 }
