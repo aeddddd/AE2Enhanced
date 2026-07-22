@@ -6,7 +6,7 @@ import net.minecraft.client.gui.components.Button;
 import net.minecraft.network.chat.Component;
 
 /**
- * 科技风格按钮。
+ * 科技风格按钮.
  */
 public class TechButton extends Button {
 

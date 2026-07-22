@@ -19,8 +19,8 @@ import com.github.aeddddd.ae2enhanced.client.gui.GuiConstants;
 import com.github.aeddddd.ae2enhanced.registry.ModMenus;
 
 /**
- * 装配枢纽控制器成形状态菜单。
- * <p>包含 6 个升级卡槽与玩家背包。</p>
+ * 装配枢纽控制器成形状态菜单.
+ * <p>包含 6 个升级卡槽与玩家背包.</p>
  */
 public class AssemblyMenu extends AbstractContainerMenu {
 

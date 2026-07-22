@@ -14,7 +14,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * {@link ControllerIndex} 单元测试。
+ * {@link ControllerIndex} 单元测试.
  */
 class ControllerIndexTest {
 
@@ -115,7 +115,7 @@ class ControllerIndexTest {
     void testLoadFromEmptyTag() {
         ControllerIndex index = new ControllerIndex();
         index.add(new BlockPos(1, 2, 3));
-        // 空标签不含 controllers 列表，加载后应为空
+        // 空标签不含 controllers 列表,加载后应为空
         index.load(new CompoundTag());
         assertTrue(index.getAll().isEmpty());
     }

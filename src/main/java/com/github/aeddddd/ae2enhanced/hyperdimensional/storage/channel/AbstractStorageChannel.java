@@ -15,9 +15,9 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * 通用存储通道实现，作为 {@link StorageChannel} 的适配器支持 facade。
- * <p>所有核心逻辑均委托给 {@link AbstractStorageAdapter}，本子类仅负责暴露
- * 适配器能力并保留 NBT 序列化接口（用于兼容旧版 WorldSavedData 调用）。</p>
+ * 通用存储通道实现,作为 {@link StorageChannel} 的适配器支持 facade.
+ * <p>所有核心逻辑均委托给 {@link AbstractStorageAdapter},本子类仅负责暴露
+ * 适配器能力并保留 NBT 序列化接口（用于兼容旧版 WorldSavedData 调用）.</p>
  *
  * @param <T> 该通道使用的具体 AE key 类型
  * @param <D> 该通道使用的描述符类型
@@ -35,7 +35,7 @@ public abstract class AbstractStorageChannel<T extends AEKey, D extends Descript
     }
 
     /**
-     * 获取底层存储适配器。
+     * 获取底层存储适配器.
      */
     public AbstractStorageAdapter<T, D> getAdapter() {
         return adapter;
@@ -67,7 +67,7 @@ public abstract class AbstractStorageChannel<T extends AEKey, D extends Descript
     }
 
     /**
-     * 直接设置指定 key 的数量（用于迁移/初始化）。
+     * 直接设置指定 key 的数量（用于迁移/初始化）.
      */
     public void set(AEKey key, BigInteger amount) {
         T typedKey = adapter.cast(key);
@@ -83,14 +83,14 @@ public abstract class AbstractStorageChannel<T extends AEKey, D extends Descript
     }
 
     /**
-     * 从二进制文件加载通道内容。
+     * 从二进制文件加载通道内容.
      */
     public void loadFromFile(HyperdimensionalStorageFile file) {
         adapter.loadFromFile(file);
     }
 
     /**
-     * 将通道内容保存到二进制文件。
+     * 将通道内容保存到二进制文件.
      */
     public void saveToFile(HyperdimensionalStorageFile file) {
         adapter.saveToFile(file);

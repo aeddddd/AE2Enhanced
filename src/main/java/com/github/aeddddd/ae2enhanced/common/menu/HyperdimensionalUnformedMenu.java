@@ -14,7 +14,7 @@ import com.github.aeddddd.ae2enhanced.registry.ModMenus;
 import com.github.aeddddd.ae2enhanced.structure.HyperdimensionalStructure;
 
 /**
- * 超维度仓储未成形状态菜单。
+ * 超维度仓储未成形状态菜单.
  */
 public class HyperdimensionalUnformedMenu extends StructureUnformedMenu {
 

@@ -10,7 +10,7 @@ import com.github.aeddddd.ae2enhanced.network.packet.CraftAmountLongPacket;
 import com.github.aeddddd.ae2enhanced.network.packet.RequestAssemblyPacket;
 
 /**
- * 网络包注册中心（Forge 1.20.1 SimpleChannel）。
+ * 网络包注册中心（Forge 1.20.1 SimpleChannel）.
  */
 public final class ModNetwork {
     private static final String PROTOCOL_VERSION = "1";

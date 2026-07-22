@@ -22,7 +22,7 @@ import com.github.aeddddd.ae2enhanced.crafting.singularity.SingularityRecipe;
 import com.github.aeddddd.ae2enhanced.crafting.singularity.SingularityRecipeRegistry;
 
 /**
- * 配方与配方序列化器注册中心。
+ * 配方与配方序列化器注册中心.
  */
 public final class ModRecipes {
 
@@ -44,8 +44,8 @@ public final class ModRecipes {
             });
 
     /**
-     * 注册代码级配方：微型奇点仪式。
-     * 应在 FMLCommonSetupEvent 中调用，确保 AE2 物品/方块已注册。
+     * 注册代码级配方：微型奇点仪式.
+     * 应在 FMLCommonSetupEvent 中调用,确保 AE2 物品/方块已注册.
      */
     public static void init() {
         registerSingularityRecipes();
@@ -65,7 +65,7 @@ public final class ModRecipes {
                     controller,
                     6000));
         } else {
-            AE2Enhanced.LOGGER.warn("无法获取 AE2 奇点或控制器方块，微型奇点仪式配方未注册");
+            AE2Enhanced.LOGGER.warn("无法获取 AE2 奇点或控制器方块,微型奇点仪式配方未注册");
         }
         SingularityRecipeRegistry.applyPendingRemovals();
     }

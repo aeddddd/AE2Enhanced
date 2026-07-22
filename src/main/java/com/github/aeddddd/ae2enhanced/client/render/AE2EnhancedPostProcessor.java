@@ -49,9 +49,9 @@ import com.github.aeddddd.ae2enhanced.config.AE2EnhancedConfig;
 import com.github.aeddddd.ae2enhanced.structure.AssemblyStructure;
 
 /**
- * 装配枢纽黑洞后处理渲染器。
- * <p>以结构几何中心为黑洞原点做全屏光线步进：事件视界、吸积盘体渲染与外部辉光。
- * 场景直通采样（受控黑洞，不扭曲结构），并通过深度缓冲重建实现方块遮挡。</p>
+ * 装配枢纽黑洞后处理渲染器.
+ * <p>以结构几何中心为黑洞原点做全屏光线步进：事件视界、吸积盘体渲染与外部辉光.
+ * 场景直通采样（受控黑洞,不扭曲结构）,并通过深度缓冲重建实现方块遮挡.</p>
  */
 @Mod.EventBusSubscriber(modid = AE2Enhanced.MOD_ID, bus = Mod.EventBusSubscriber.Bus.FORGE, value = Dist.CLIENT)
 public class AE2EnhancedPostProcessor {
@@ -65,8 +65,8 @@ public class AE2EnhancedPostProcessor {
     }
 
     /**
-     * 后处理是否处于激活状态（配置 + 环境 + shader 加载）。
-     * <p>对象空间渲染器据此跳过黑洞本体，保证任意配置组合下只渲染一个黑洞。</p>
+     * 后处理是否处于激活状态（配置 + 环境 + shader 加载）.
+     * <p>对象空间渲染器据此跳过黑洞本体,保证任意配置组合下只渲染一个黑洞.</p>
      */
     public static boolean isPostActive() {
         return AE2EnhancedConfig.CLIENT.enableAssemblyPostProcessing.get()
@@ -98,7 +98,7 @@ public class AE2EnhancedPostProcessor {
         int chunkRadius = (int) Math.ceil(renderDist / 16.0);
         ChunkPos playerChunk = player.chunkPosition();
 
-        // 只取距离最近的一个已成形枢纽：每个目标都要跑一遍全屏光线步进，多个叠加会拖垮 GPU
+        // 只取距离最近的一个已成形枢纽：每个目标都要跑一遍全屏光线步进,多个叠加会拖垮 GPU
         TargetInfo nearest = null;
         double nearestDistSqr = renderDist * renderDist;
         for (int dx = -chunkRadius; dx <= chunkRadius; dx++) {
@@ -133,8 +133,8 @@ public class AE2EnhancedPostProcessor {
 
         float time = level.getGameTime() + event.getPartialTick();
         float intensity = Mth.clamp(AE2EnhancedConfig.CLIENT.dynamicRenderIntensity.get().floatValue(), 0.0f, 2.0f);
-        // 尺寸以主渲染目标为准（framebuffer 像素），与 gl_FragCoord/u_resolution 坐标系严格一致；
-        // 不能用窗口尺寸——DPI 缩放下两者可能不一致，会导致拷贝越界静默失败
+        // 尺寸以主渲染目标为准（framebuffer 像素）,与 gl_FragCoord/u_resolution 坐标系严格一致；
+        // 不能用窗口尺寸——DPI 缩放下两者可能不一致,会导致拷贝越界静默失败
         RenderTarget mainTarget = mc.getMainRenderTarget();
         int width = mainTarget.width;
         int height = mainTarget.height;
@@ -145,14 +145,14 @@ public class AE2EnhancedPostProcessor {
             return;
         }
 
-        // 直接从当前投影矩阵推导 FOV 与逆投影矩阵：与游戏实际渲染严格一致，
-        // 不依赖配置项或事件缓存，保证视线重建与深度重建对齐
+        // 直接从当前投影矩阵推导 FOV 与逆投影矩阵：与游戏实际渲染严格一致,
+        // 不依赖配置项或事件缓存,保证视线重建与深度重建对齐
         Matrix4f proj = new Matrix4f(RenderSystem.getProjectionMatrix());
         float fov = (float) Math.toDegrees(2.0 * Math.atan(1.0 / proj.m11()));
         Matrix4f invProj = proj.invert();
 
         // shader 以黑洞中心为世界原点：eye 上传相对坐标；
-        // target = eye + 相机视线方向，使 viewMatrix 重建的视线与游戏相机完全一致
+        // target = eye + 相机视线方向,使 viewMatrix 重建的视线与游戏相机完全一致
         Vec3 eyeRel = eye.subtract(nearest.worldPos);
         Vector3f look = camera.getLookVector();
         Vector3f upVec = camera.getUpVector();
@@ -161,7 +161,7 @@ public class AE2EnhancedPostProcessor {
 
         renderBlackHole(shader, eyeRel, targetRel, up, fov, invProj, time, intensity, width, height, intermediate);
 
-        // 约束壳必须在光线步进之后叠加：事件视界阴影不合成背景，
+        // 约束壳必须在光线步进之后叠加：事件视界阴影不合成背景,
         // 壳若在方块实体阶段绘制（不写深度）会被阴影整体覆盖
         renderShellOverlay(nearest, camera, event.getPoseStack(), time, intensity);
     }
@@ -174,7 +174,7 @@ public class AE2EnhancedPostProcessor {
             facing = state.getValue(MultiblockControllerBlock.FACING);
         }
 
-        // 使用与对象空间渲染器完全相同的包围盒/中心计算，保证黑洞锚点一致
+        // 使用与对象空间渲染器完全相同的包围盒/中心计算,保证黑洞锚点一致
         float[] bounds = AbstractMultiblockRenderer.computeBounds(AssemblyStructure.getAllSet(), facing);
         Vec3 centerOffset = AbstractMultiblockRenderer.computeCenterOffset(bounds);
         Vec3 worldPos = new Vec3(pos.getX() + centerOffset.x, pos.getY() + centerOffset.y, pos.getZ() + centerOffset.z);
@@ -182,9 +182,9 @@ public class AE2EnhancedPostProcessor {
     }
 
     /**
-     * 将主渲染目标颜色与深度复制到中间渲染目标，避免 shader 同时读写同一纹理产生 feedback loop / 撕裂。
-     * <p>注意 {@link RenderTarget#bindRead()} 只绑定颜色纹理、并不绑定任何帧缓冲（命名有误导性），
-     * 必须用原始 GL 调用显式指定 READ/DRAW 帧缓冲，blit 才能从主渲染目标拷到中间纹理。</p>
+     * 将主渲染目标颜色与深度复制到中间渲染目标,避免 shader 同时读写同一纹理产生 feedback loop / 撕裂.
+     * <p>注意 {@link RenderTarget#bindRead()} 只绑定颜色纹理、并不绑定任何帧缓冲（命名有误导性）,
+     * 必须用原始 GL 调用显式指定 READ/DRAW 帧缓冲,blit 才能从主渲染目标拷到中间纹理.</p>
      */
     private static TextureTarget copyMainToIntermediate(RenderTarget mainTarget, int width, int height) {
         if (intermediateTarget == null || intermediateTarget.width != width || intermediateTarget.height != height) {
@@ -202,16 +202,16 @@ public class AE2EnhancedPostProcessor {
         GL30.glBlitFramebuffer(0, 0, width, height, 0, 0, width, height,
                 GL11.GL_COLOR_BUFFER_BIT | GL11.GL_DEPTH_BUFFER_BIT, GL11.GL_NEAREST);
 
-        // 恢复：主渲染目标绑定为当前帧缓冲（读写），与渲染管线后续阶段状态一致
+        // 恢复：主渲染目标绑定为当前帧缓冲（读写）,与渲染管线后续阶段状态一致
         mainTarget.bindWrite(false);
 
         return intermediateTarget;
     }
 
     /**
-     * 将世界坐标投影到屏幕像素坐标（gl_FragCoord 同一坐标系，左下原点），仅用于相机背面剔除。
-     * <p>事件阶段提供的 pose 只含相机旋转、不含平移，需先减去相机位置补全视图变换；
-     * 只剔除会导致透视除零的退化情况（目标位于相机背后）。</p>
+     * 将世界坐标投影到屏幕像素坐标（gl_FragCoord 同一坐标系,左下原点）,仅用于相机背面剔除.
+     * <p>事件阶段提供的 pose 只含相机旋转、不含平移,需先减去相机位置补全视图变换；
+     * 只剔除会导致透视除零的退化情况（目标位于相机背后）.</p>
      */
     private static Vector3f project(Vec3 worldPos, Vec3 cameraPos, Matrix4fc modelViewMatrix, int width,
             int height) {
@@ -235,13 +235,13 @@ public class AE2EnhancedPostProcessor {
         return new Vector3f(x, y, 0.0f);
     }
 
-    // 事件视界深度遮挡球半径（方块）：光线步进捕获半径 _ShadowR×_Scale = 1.8，
-    // 加上引力透镜暗区外扩，取 2.6 与屏幕上的黑色区域对齐
+    // 事件视界深度遮挡球半径（方块）：光线步进捕获半径 _ShadowR×_Scale = 1.8,
+    // 加上引力透镜暗区外扩,取 2.6 与屏幕上的黑色区域对齐
     private static final float EVENT_HORIZON_OCCLUDER_RADIUS = 2.6f;
 
     /**
-     * 遮挡球专用 builder（仅渲染线程访问）。初始容量 64KB，可容纳
-     * 24x24 段球体（3456 顶点 × 16B = ~54KB），begin() 每帧重置并复用底层内存。
+     * 遮挡球专用 builder（仅渲染线程访问）.初始容量 64KB,可容纳
+     * 24x24 段球体（3456 顶点 × 16B = ~54KB）,begin() 每帧重置并复用底层内存.
      */
     @Nullable
     private static BufferBuilder occluderBuilder;
@@ -254,11 +254,11 @@ public class AE2EnhancedPostProcessor {
     }
 
     /**
-     * 约束壳叠加绘制：在全屏光线步进之后执行，保证壳线不被事件视界阴影覆盖。
-     * <p>顶点经事件 pose（相机旋转）+ 相对平移变换到相机空间，与对象空间路径的
-     * 坐标约定一致；additive 混合、不写深度，保留深度测试使壳仍被结构方块正确遮挡。</p>
-     * <p>光线步进本身不写深度，直接画壳会让黑洞后方的壳线叠在黑洞之上；
-     * 因此先以纯深度方式绘制事件视界遮挡球，后方壳线由深度测试正确剔除。</p>
+     * 约束壳叠加绘制：在全屏光线步进之后执行,保证壳线不被事件视界阴影覆盖.
+     * <p>顶点经事件 pose（相机旋转）+ 相对平移变换到相机空间,与对象空间路径的
+     * 坐标约定一致；additive 混合、不写深度,保留深度测试使壳仍被结构方块正确遮挡.</p>
+     * <p>光线步进本身不写深度,直接画壳会让黑洞后方的壳线叠在黑洞之上；
+     * 因此先以纯深度方式绘制事件视界遮挡球,后方壳线由深度测试正确剔除.</p>
      */
     private static void renderShellOverlay(TargetInfo target, Camera camera, PoseStack eventPose, float time,
             float intensity) {
@@ -282,22 +282,22 @@ public class AE2EnhancedPostProcessor {
             uIntensity.set(intensity);
         }
         if (uScale != null) {
-            // 对象空间路径 getScaleFactor 固定返回 1.0，此处保持一致
+            // 对象空间路径 getScaleFactor 固定返回 1.0,此处保持一致
             uScale.set(1.0f);
         }
         if (uCenter != null) {
             uCenter.set((float) rel.x, (float) rel.y, (float) rel.z);
         }
 
-        // 事件 pose 只含相机旋转、不含平移，补上相对平移后顶点即为相机空间坐标
+        // 事件 pose 只含相机旋转、不含平移,补上相对平移后顶点即为相机空间坐标
         PoseStack pose = new PoseStack();
         pose.last().pose().mul(eventPose.last().pose());
         pose.translate(rel.x, rel.y, rel.z);
 
-        // 事件视界遮挡球使用独立 BufferBuilder：Tesselator 只有一个内部 builder，
-        // 复用会导致 begin() 在未 end() 的 builder 上重复调用（Already building! 崩溃）。
-        // 该 builder 静态复用：每帧新建会让 24x24 球体把 direct buffer 撑到 ~2MB 后丢弃，
-        // 原生内存仅靠 GC+Cleaner 回收，高帧率下耗尽直接内存（OOM: Failed to resize buffer）
+        // 事件视界遮挡球使用独立 BufferBuilder：Tesselator 只有一个内部 builder,
+        // 复用会导致 begin() 在未 end() 的 builder 上重复调用（Already building! 崩溃）.
+        // 该 builder 静态复用：每帧新建会让 24x24 球体把 direct buffer 撑到 ~2MB 后丢弃,
+        // 原生内存仅靠 GC+Cleaner 回收,高帧率下耗尽直接内存（OOM: Failed to resize buffer）
         BufferBuilder occluder = getOccluderBuilder();
         occluder.begin(VertexFormat.Mode.TRIANGLES, DefaultVertexFormat.POSITION_COLOR);
         RenderHelper.drawSphere(occluder, pose, EVENT_HORIZON_OCCLUDER_RADIUS, 0x000000, 1.0f, 24, 24);
@@ -307,7 +307,7 @@ public class AE2EnhancedPostProcessor {
         builder.begin(VertexFormat.Mode.TRIANGLES, DefaultVertexFormat.POSITION_COLOR);
         AssemblyHubRenderer.appendContainmentShellGeometry(builder, pose, animTime, 1.0, 24, 24);
 
-        // 保存 GL 状态，绘制后恢复（同 renderBlackHole 的状态保护策略）
+        // 保存 GL 状态,绘制后恢复（同 renderBlackHole 的状态保护策略）
         boolean depthTest = GL11.glIsEnabled(GL11.GL_DEPTH_TEST);
         boolean depthMask = GL11.glGetBoolean(GL11.GL_DEPTH_WRITEMASK);
         boolean blend = GL11.glIsEnabled(GL11.GL_BLEND);
@@ -317,7 +317,7 @@ public class AE2EnhancedPostProcessor {
         GL11.glGetIntegerv(GL11.GL_BLEND_SRC, blendSrc);
         GL11.glGetIntegerv(GL11.GL_BLEND_DST, blendDst);
 
-        // shader 顶点已是相机空间，ModelViewMat 必须为单位矩阵
+        // shader 顶点已是相机空间,ModelViewMat 必须为单位矩阵
         PoseStack modelView = RenderSystem.getModelViewStack();
         modelView.pushPose();
         modelView.setIdentity();
@@ -331,13 +331,13 @@ public class AE2EnhancedPostProcessor {
                     GL11.GL_ONE_MINUS_SRC_ALPHA);
             RenderSystem.disableCull();
 
-            // 先画遮挡球：关闭颜色写入、开启深度写入，将事件视界写入深度缓冲
+            // 先画遮挡球：关闭颜色写入、开启深度写入,将事件视界写入深度缓冲
             RenderSystem.colorMask(false, false, false, false);
             RenderSystem.depthMask(true);
             RenderSystem.disableBlend();
             BufferUploader.drawWithShader(occluder.end());
 
-            // 再画约束壳：恢复颜色写入，壳线不写深度，后方壳线被遮挡球剔除
+            // 再画约束壳：恢复颜色写入,壳线不写深度,后方壳线被遮挡球剔除
             RenderSystem.colorMask(true, true, true, true);
             RenderSystem.depthMask(false);
             RenderSystem.enableBlend();
@@ -370,7 +370,7 @@ public class AE2EnhancedPostProcessor {
             Matrix4f invProj, float time, float intensity, int width, int height, TextureTarget intermediate) {
         Minecraft mc = Minecraft.getInstance();
 
-        // 保存当前 FBO 与 viewport，绘制后恢复
+        // 保存当前 FBO 与 viewport,绘制后恢复
         int[] savedFbo = new int[1];
         int[] savedViewport = new int[4];
         GL30.glGetIntegerv(GL30.GL_FRAMEBUFFER_BINDING, savedFbo);
@@ -389,7 +389,7 @@ public class AE2EnhancedPostProcessor {
         poseStack.setIdentity();
         RenderSystem.applyModelViewMatrix();
 
-        // 保存当前 GL 状态，绘制后恢复，避免状态泄漏导致后续渲染阶段撕裂/深度失效
+        // 保存当前 GL 状态,绘制后恢复,避免状态泄漏导致后续渲染阶段撕裂/深度失效
         boolean depthTest = GL11.glIsEnabled(GL11.GL_DEPTH_TEST);
         boolean depthMask = GL11.glGetBoolean(GL11.GL_DEPTH_WRITEMASK);
         boolean blend = GL11.glIsEnabled(GL11.GL_BLEND);
@@ -439,7 +439,7 @@ public class AE2EnhancedPostProcessor {
                 upUniform.set((float) up.x, (float) up.y, (float) up.z);
             }
 
-            // 确保绘制到 Minecraft 主渲染目标，而不是默认 FBO，否则后续 mainTarget blit 会覆盖输出
+            // 确保绘制到 Minecraft 主渲染目标,而不是默认 FBO,否则后续 mainTarget blit 会覆盖输出
             mc.getMainRenderTarget().bindWrite(false);
 
             Tesselator tesselator = Tesselator.getInstance();

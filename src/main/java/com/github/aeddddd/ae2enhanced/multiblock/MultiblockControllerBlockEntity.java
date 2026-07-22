@@ -20,8 +20,8 @@ import com.github.aeddddd.ae2enhanced.structure.IMultiblockStructure;
 import com.github.aeddddd.ae2enhanced.util.BlockEntityRemovalHelper;
 
 /**
- * 多方块控制器方块实体基类。
- * <p>维护成形状态与所属接口位置列表，本身不作为 AE2 网络节点。</p>
+ * 多方块控制器方块实体基类.
+ * <p>维护成形状态与所属接口位置列表,本身不作为 AE2 网络节点.</p>
  */
 public abstract class MultiblockControllerBlockEntity extends AE2EBaseBlockEntity implements IMultiblockController {
 
@@ -39,14 +39,14 @@ public abstract class MultiblockControllerBlockEntity extends AE2EBaseBlockEntit
     }
 
     /**
-     * 是否正在显示结构投影。
+     * 是否正在显示结构投影.
      */
     public boolean isShowingStructureProjection() {
         return showingStructureProjection;
     }
 
     /**
-     * 切换结构投影显示状态。仅在未成形时有效。
+     * 切换结构投影显示状态.仅在未成形时有效.
      */
     public void toggleStructureProjection() {
         if (formed) {
@@ -59,9 +59,9 @@ public abstract class MultiblockControllerBlockEntity extends AE2EBaseBlockEntit
     }
 
     /**
-     * 直接设置成形状态并触发方块更新。
-     * <p>外部代码应优先使用 {@link #assemble()} / {@link #disassemble()}，
-     * 以便统一调用 {@link #onAssemble()} / {@link #onDisassemble()} 钩子。</p>
+     * 直接设置成形状态并触发方块更新.
+     * <p>外部代码应优先使用 {@link #assemble()} / {@link #disassemble()},
+     * 以便统一调用 {@link #onAssemble()} / {@link #onDisassemble()} 钩子.</p>
      */
     @Override
     public void setFormed(boolean formed) {
@@ -73,7 +73,7 @@ public abstract class MultiblockControllerBlockEntity extends AE2EBaseBlockEntit
     }
 
     /**
-     * 装配结构：先调用子类钩子，再置为成形，最后刷新接口服务。
+     * 装配结构：先调用子类钩子,再置为成形,最后刷新接口服务.
      */
     @Override
     public void assemble() {
@@ -86,7 +86,7 @@ public abstract class MultiblockControllerBlockEntity extends AE2EBaseBlockEntit
     }
 
     /**
-     * 拆解结构：先调用子类钩子，再置为未成形，最后刷新接口服务。
+     * 拆解结构：先调用子类钩子,再置为未成形,最后刷新接口服务.
      */
     @Override
     public void disassemble() {
@@ -104,7 +104,7 @@ public abstract class MultiblockControllerBlockEntity extends AE2EBaseBlockEntit
     }
 
     /**
-     * 获取当前控制器对应的多方块结构定义。
+     * 获取当前控制器对应的多方块结构定义.
      */
     @Override
     @Nullable
@@ -153,7 +153,7 @@ public abstract class MultiblockControllerBlockEntity extends AE2EBaseBlockEntit
     }
 
     /**
-     * 通知所有已记录的接口节点刷新网络服务。
+     * 通知所有已记录的接口节点刷新网络服务.
      */
     protected void refreshInterfaceServices() {
         if (level == null || level.isClientSide()) {
@@ -169,7 +169,7 @@ public abstract class MultiblockControllerBlockEntity extends AE2EBaseBlockEntit
     @Override
     public void onLoad() {
         super.onLoad();
-        // 服务端加载后，若已成形则安排一次服务刷新，确保网络能重新发现控制器。
+        // 服务端加载后,若已成形则安排一次服务刷新,确保网络能重新发现控制器.
         if (level != null && !level.isClientSide() && isFormed()) {
             refreshInterfaceServices();
         }
@@ -180,7 +180,7 @@ public abstract class MultiblockControllerBlockEntity extends AE2EBaseBlockEntit
         if (level != null && !level.isClientSide() && isFormed()
                 && BlockEntityRemovalHelper.isBlockBeingBroken(this)) {
             // 仅在控制器方块真正被破坏时解散；
-            // 区块卸载或关服时触发 setRemoved 不应执行完整拆解，避免额外 IO 与状态异常。
+            // 区块卸载或关服时触发 setRemoved 不应执行完整拆解,避免额外 IO 与状态异常.
             disassemble();
         }
         super.setRemoved();
@@ -189,11 +189,11 @@ public abstract class MultiblockControllerBlockEntity extends AE2EBaseBlockEntit
     @Override
     public void onChunkUnloaded() {
         super.onChunkUnloaded();
-        // 子类可覆写以在区块卸载时释放临时资源，但不应执行完整拆解。
+        // 子类可覆写以在区块卸载时释放临时资源,但不应执行完整拆解.
     }
 
     /**
-     * 服务端每 tick 调用入口。子类覆写以处理验证、保存等逻辑。
+     * 服务端每 tick 调用入口.子类覆写以处理验证、保存等逻辑.
      */
     public void serverTick() {
     }

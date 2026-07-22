@@ -21,7 +21,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * {@link StructureDefinition} 单元测试。
+ * {@link StructureDefinition} 单元测试.
  */
 class StructureDefinitionTest {
 

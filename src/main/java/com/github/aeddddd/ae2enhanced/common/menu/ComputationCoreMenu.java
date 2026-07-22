@@ -16,8 +16,8 @@ import com.github.aeddddd.ae2enhanced.computation.blockentity.ComputationCoreBlo
 import com.github.aeddddd.ae2enhanced.registry.ModMenus;
 
 /**
- * 超因果计算核心成形状态菜单。
- * <p>纯展示面板，无物品槽，避免服务端下发背包数据导致客户端物品栏错位。</p>
+ * 超因果计算核心成形状态菜单.
+ * <p>纯展示面板,无物品槽,避免服务端下发背包数据导致客户端物品栏错位.</p>
  */
 public class ComputationCoreMenu extends AbstractContainerMenu {
 

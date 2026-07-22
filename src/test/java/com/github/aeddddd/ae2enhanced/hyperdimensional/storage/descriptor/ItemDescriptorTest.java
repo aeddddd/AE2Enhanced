@@ -18,7 +18,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 
 /**
- * {@link ItemDescriptor} 单元测试。
+ * {@link ItemDescriptor} 单元测试.
  */
 class ItemDescriptorTest {
 

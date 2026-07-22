@@ -13,9 +13,9 @@ import net.minecraft.client.renderer.RenderType;
 import net.minecraft.util.Mth;
 
 /**
- * AE2Enhanced 渲染工具类，提供通用几何绘制与自定义 RenderType。
- * <p>所有方法均使用 1.20.1 NeoForge 的 PoseStack + VertexConsumer 管线，
- * 不直接操作 GL11 全局状态。</p>
+ * AE2Enhanced 渲染工具类,提供通用几何绘制与自定义 RenderType.
+ * <p>所有方法均使用 1.20.1 NeoForge 的 PoseStack + VertexConsumer 管线,
+ * 不直接操作 GL11 全局状态.</p>
  */
 public final class RenderHelper {
 
@@ -23,37 +23,37 @@ public final class RenderHelper {
     }
 
     /**
-     * 粗线框 RenderType，用于结构线框、光环。
+     * 粗线框 RenderType,用于结构线框、光环.
      */
     public static final RenderType TESR_LINES = AE2ERenderTypes.TESR_LINES;
 
     /**
-     * 半透明 RenderType，用于光晕、能量壳等发光效果。
+     * 半透明 RenderType,用于光晕、能量壳等发光效果.
      */
     public static final RenderType TESR_TRANSLUCENT = AE2ERenderTypes.TESR_TRANSLUCENT;
 
     /**
-     * Additive 混合 RenderType，用于自发光层。
+     * Additive 混合 RenderType,用于自发光层.
      */
     public static final RenderType TESR_ADDITIVE = AE2ERenderTypes.TESR_ADDITIVE;
 
     /**
-     * 自定义不透明 RenderType，用于黑色事件视界等实心体。
+     * 自定义不透明 RenderType,用于黑色事件视界等实心体.
      */
     public static final RenderType TESR_SOLID = AE2ERenderTypes.TESR_SOLID;
 
     /**
-     * 装配枢纽黑洞主体 RenderType（事件视界 + 吸积盘）。
+     * 装配枢纽黑洞主体 RenderType（事件视界 + 吸积盘）.
      */
     public static final RenderType ASSEMBLY_BLACK_HOLE = AE2ERenderTypes.ASSEMBLY_BLACK_HOLE;
 
     /**
-     * 装配枢纽黑洞发光 RenderType（相对论性喷流）。
+     * 装配枢纽黑洞发光 RenderType（相对论性喷流）.
      */
     public static final RenderType ASSEMBLY_BLACK_HOLE_GLOW = AE2ERenderTypes.ASSEMBLY_BLACK_HOLE_GLOW;
 
     /**
-     * 将 0xRRGGBB 整数颜色拆分为顶点颜色分量。
+     * 将 0xRRGGBB 整数颜色拆分为顶点颜色分量.
      *
      * @param color 整数颜色
      * @param alpha 透明度 0.0 ~ 1.0
@@ -69,7 +69,7 @@ public final class RenderHelper {
     }
 
     /**
-     * 绘制两点之间的线段。
+     * 绘制两点之间的线段.
      */
     public static void drawLine(VertexConsumer consumer, Matrix4f matrix,
             float x1, float y1, float z1, float x2, float y2, float z2,
@@ -80,7 +80,7 @@ public final class RenderHelper {
     }
 
     /**
-     * 绘制实心球体（使用三角面片）。
+     * 绘制实心球体（使用三角面片）.
      *
      * @param consumer 顶点消费者
      * @param poseStack 姿态矩阵栈
@@ -130,7 +130,7 @@ public final class RenderHelper {
     }
 
     /**
-     * 绘制线框球体。
+     * 绘制线框球体.
      */
     public static void drawWireframeSphere(VertexConsumer consumer, PoseStack poseStack,
             float radius, int color, float alpha, int latSegments, int lonSegments) {
@@ -184,7 +184,7 @@ public final class RenderHelper {
     }
 
     /**
-     * 绘制立方体线框。
+     * 绘制立方体线框.
      *
      * @param halfSize 半边长
      */
@@ -205,7 +205,7 @@ public final class RenderHelper {
                 { -halfSize, halfSize, halfSize }
         };
 
-        // 12 条边，每条边两个索引
+        // 12 条边,每条边两个索引
         int[][] edges = {
                 { 0, 1 }, { 1, 2 }, { 2, 3 }, { 3, 0 }, // 底面
                 { 4, 5 }, { 5, 6 }, { 6, 7 }, { 7, 4 }, // 顶面
@@ -221,7 +221,7 @@ public final class RenderHelper {
     }
 
     /**
-     * 绘制实心立方体（6 个面，12 个三角形）。
+     * 绘制实心立方体（6 个面,12 个三角形）.
      *
      * @param halfSize 半边长
      */
@@ -242,7 +242,7 @@ public final class RenderHelper {
                 { -halfSize, halfSize, halfSize }
         };
 
-        // 6 个面，每个面 2 个三角形，顶点按逆时针顺序
+        // 6 个面,每个面 2 个三角形,顶点按逆时针顺序
         // 底面 (y = -halfSize): 0, 4, 5, 1
         drawTriangle(consumer, matrix, v[0], v[4], v[5], c);
         drawTriangle(consumer, matrix, v[0], v[5], v[1], c);
@@ -264,7 +264,7 @@ public final class RenderHelper {
     }
 
     /**
-     * 绘制实心八面体，用于超立方体核心。
+     * 绘制实心八面体,用于超立方体核心.
      */
     public static void drawOctahedron(VertexConsumer consumer, PoseStack poseStack,
             float radius, int color, float alpha) {
@@ -290,8 +290,8 @@ public final class RenderHelper {
     }
 
     /**
-     * 绘制吸积盘（扁平填充圆环）。
-     * <p>顶点颜色 R 通道作为 shader 部件 ID（建议传 0x010000）。</p>
+     * 绘制吸积盘（扁平填充圆环）.
+     * <p>顶点颜色 R 通道作为 shader 部件 ID（建议传 0x010000）.</p>
      *
      * @param consumer 顶点消费者
      * @param poseStack 姿态矩阵栈
@@ -336,8 +336,8 @@ public final class RenderHelper {
     }
 
     /**
-     * 绘制相对论性喷流（上下双锥）。
-     * <p>顶点颜色 R 通道作为 shader 部件 ID（建议传 0x020000）。</p>
+     * 绘制相对论性喷流（上下双锥）.
+     * <p>顶点颜色 R 通道作为 shader 部件 ID（建议传 0x020000）.</p>
      *
      * @param consumer 顶点消费者
      * @param poseStack 姿态矩阵栈
@@ -373,7 +373,7 @@ public final class RenderHelper {
     }
 
     /**
-     * 绘制水平环。
+     * 绘制水平环.
      */
     public static void drawRing(VertexConsumer consumer, PoseStack poseStack,
             float radius, int color, float alpha, int segments) {
@@ -393,7 +393,7 @@ public final class RenderHelper {
     }
 
     /**
-     * 立即结束当前批次，用于确保 translucent 渲染正确。
+     * 立即结束当前批次,用于确保 translucent 渲染正确.
      */
     public static void endBatch(MultiBufferSource bufferSource) {
         if (bufferSource instanceof MultiBufferSource.BufferSource src) {

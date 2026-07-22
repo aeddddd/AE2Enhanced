@@ -39,11 +39,11 @@ import com.github.aeddddd.ae2enhanced.structure.ValidationResult;
 import com.github.aeddddd.ae2enhanced.util.StructureUtils;
 
 /**
- * 多方块结构全局事件驱动验证器。
- * <p>负责在方块变化、chunk 加载等事件后延迟验证结构完整性，并自动组装/解体。
- * 具体 Block 到 {@link IMultiblockStructure} 的映射由 {@link #STRUCTURES} 集中管理。</p>
- * <p>该类不在 {@code @Mod.EventBusSubscriber} 中自动注册，而是延迟到
- * {@code FMLCommonSetupEvent} 中手动注册，以避免在方块注册完成前加载结构类。</p>
+ * 多方块结构全局事件驱动验证器.
+ * <p>负责在方块变化、chunk 加载等事件后延迟验证结构完整性,并自动组装/解体.
+ * 具体 Block 到 {@link IMultiblockStructure} 的映射由 {@link #STRUCTURES} 集中管理.</p>
+ * <p>该类不在 {@code @Mod.EventBusSubscriber} 中自动注册,而是延迟到
+ * {@code FMLCommonSetupEvent} 中手动注册,以避免在方块注册完成前加载结构类.</p>
  */
 public class StructureEventHandler {
 
@@ -138,8 +138,8 @@ public class StructureEventHandler {
         ChunkPos loadedChunk = event.getChunk().getPos();
         for (Function<ServerLevel, Set<BlockPos>> provider : INDEX_PROVIDERS.values()) {
             for (BlockPos controllerPos : provider.apply(level)) {
-                // 只调度刚刚加载的区块内的控制器，避免在世界加载过程中
-                // 访问未加载控制器时触发同步区块加载导致死锁。
+                // 只调度刚刚加载的区块内的控制器,避免在世界加载过程中
+                // 访问未加载控制器时触发同步区块加载导致死锁.
                 if (loadedChunk.equals(new ChunkPos(controllerPos))) {
                     scheduleCheck(level, controllerPos);
                 }
@@ -153,8 +153,8 @@ public class StructureEventHandler {
     }
 
     /**
-     * 检查指定控制器对应的所有结构方块是否都已加载。
-     * 未完全加载或控制器区块尚未加载时返回 false，防止 validate 误判或触发同步区块加载。
+     * 检查指定控制器对应的所有结构方块是否都已加载.
+     * 未完全加载或控制器区块尚未加载时返回 false,防止 validate 误判或触发同步区块加载.
      */
     private static boolean areAllChunksLoadedForController(Level level, BlockPos controllerPos) {
         IMultiblockStructure structure = getStructureForController(level, controllerPos);
@@ -196,7 +196,7 @@ public class StructureEventHandler {
     }
 
     private static void validateAndUpdate(ServerLevel level, BlockPos controllerPos) {
-        // 双重保护：若 chunk 未全部加载则重新安排，避免误判
+        // 双重保护：若 chunk 未全部加载则重新安排,避免误判
         if (!areAllChunksLoadedForController(level, controllerPos)) {
             scheduleCheck(level, controllerPos);
             return;
@@ -218,8 +218,8 @@ public class StructureEventHandler {
     }
 
     private static IMultiblockStructure getStructureForController(Level level, BlockPos controllerPos) {
-        // 在世界加载 / 区块加载事件路径上，先确认控制器区块已加载，避免调用
-        // getBlockState 触发同步区块加载导致死锁。
+        // 在世界加载 / 区块加载事件路径上,先确认控制器区块已加载,避免调用
+        // getBlockState 触发同步区块加载导致死锁.
         if (!level.isLoaded(controllerPos)) {
             return null;
         }

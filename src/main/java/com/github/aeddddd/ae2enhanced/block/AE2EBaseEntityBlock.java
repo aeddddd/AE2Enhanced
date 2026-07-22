@@ -15,7 +15,7 @@ import net.minecraft.world.level.block.state.properties.BooleanProperty;
 import net.minecraft.world.phys.BlockHitResult;
 
 /**
- * AE2Enhanced 实体方块基类，提供 FORMED 方块状态属性与基本的交互/破坏行为。
+ * AE2Enhanced 实体方块基类,提供 FORMED 方块状态属性与基本的交互/破坏行为.
  */
 public abstract class AE2EBaseEntityBlock extends Block implements EntityBlock {
 

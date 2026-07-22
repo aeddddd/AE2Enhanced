@@ -13,7 +13,7 @@ import com.github.aeddddd.ae2enhanced.network.ModNetwork;
 import com.github.aeddddd.ae2enhanced.network.packet.AssemblyPagePacket;
 
 /**
- * 装配枢纽样板分页 GUI。
+ * 装配枢纽样板分页 GUI.
  */
 public class AssemblyPatternScreen extends AbstractContainerScreen<AssemblyPatternMenu> {
 

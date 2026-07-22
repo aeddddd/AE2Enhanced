@@ -19,9 +19,9 @@ import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
- * 突破单次下单 int 上限（客户端部分）。
+ * 突破单次下单 int 上限（客户端部分）.
  * <p>将数量输入框上限从 {@link Integer#MAX_VALUE} 提高到 {@link Long#MAX_VALUE}（9.2E）；
- * 数量超出 int 范围时改走本模组的 {@link CraftAmountLongPacket} 通道，int 范围内保持原生流程。</p>
+ * 数量超出 int 范围时改走本模组的 {@link CraftAmountLongPacket} 通道,int 范围内保持原生流程.</p>
  */
 @Mixin(value = CraftAmountScreen.class, remap = false)
 public class MixinCraftAmountScreen {
@@ -51,9 +51,9 @@ public class MixinCraftAmountScreen {
     }
 
     /**
-     * 原生 updateBeforeRender 用 getIntValue() 判断"下一步"按钮可用性，
-     * 数量超过 int 上限时返回 empty 导致按钮被禁用。此处统一改为 long 感知：
-     * 超出 int 时返回 1（仅用于 >0 判断），int 范围内保持原值。
+     * 原生 updateBeforeRender 用 getIntValue() 判断"下一步"按钮可用性,
+     * 数量超过 int 上限时返回 empty 导致按钮被禁用.此处统一改为 long 感知：
+     * 超出 int 时返回 1（仅用于 >0 判断）,int 范围内保持原值.
      */
     @Redirect(method = { "updateBeforeRender", "confirm" },
             at = @At(value = "INVOKE",

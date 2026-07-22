@@ -20,9 +20,9 @@ import com.github.aeddddd.ae2enhanced.config.AE2EnhancedConfig;
 import com.github.aeddddd.ae2enhanced.util.StructureUtils;
 
 /**
- * 超维度仓储中枢渲染器：实现“维度填充”全息效果。
- * <p>动态表现完全基于存储量（storageTotal）与物品种类数（storageTypes），
- * 不使用颜色变化，而是通过尺寸、旋转、几何层数、透明度、粒子密度等维度表达。</p>
+ * 超维度仓储中枢渲染器：实现“维度填充”全息效果.
+ * <p>动态表现完全基于存储量（storageTotal）与物品种类数（storageTypes）,
+ * 不使用颜色变化,而是通过尺寸、旋转、几何层数、透明度、粒子密度等维度表达.</p>
  */
 public class HyperdimensionalControllerRenderer extends AbstractMultiblockRenderer<HyperdimensionalControllerBlockEntity> {
 
@@ -36,7 +36,7 @@ public class HyperdimensionalControllerRenderer extends AbstractMultiblockRender
     private static final float RING_BASE_RADIUS = 2.2f;
     // 最大日志数量级
     private static final float MAX_MAGNITUDE = 15.0f;
-    // 结构中心相对控制器原点的偏移：结构中心 (0,0,2)，再抬高 2.5
+    // 结构中心相对控制器原点的偏移：结构中心 (0,0,2),再抬高 2.5
     private static final Vec3 LOCAL_CENTER = new Vec3(0.0, 2.5, 2.0);
 
     private final Random random = new Random();
@@ -147,7 +147,7 @@ public class HyperdimensionalControllerRenderer extends AbstractMultiblockRender
             return;
         }
 
-        // 细分：在立方体 8 个角放置小立方体，象征物品种类
+        // 细分：在立方体 8 个角放置小立方体,象征物品种类
         float step = INNER_CUBE_HALF * 2.0f / (subdivision + 1);
         float start = -INNER_CUBE_HALF + step;
         int count = 0;

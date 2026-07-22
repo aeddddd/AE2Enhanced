@@ -11,9 +11,9 @@ import appeng.blockentity.grid.AENetworkBlockEntity;
 import com.github.aeddddd.ae2enhanced.registry.ModBlockEntities;
 
 /**
- * 装配枢纽外壳方块实体。
- * <p>本身不提供 AE2 服务，仅作为网格节点让任意外壳方块都能连接 ME 网络。
- * 成形后通过相邻节点与装配控制器共享同一网络。</p>
+ * 装配枢纽外壳方块实体.
+ * <p>本身不提供 AE2 服务,仅作为网格节点让任意外壳方块都能连接 ME 网络.
+ * 成形后通过相邻节点与装配控制器共享同一网络.</p>
  */
 public class AssemblyCasingBlockEntity extends AENetworkBlockEntity {
 

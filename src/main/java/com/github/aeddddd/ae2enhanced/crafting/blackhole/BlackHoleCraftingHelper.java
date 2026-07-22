@@ -21,14 +21,14 @@ import com.github.aeddddd.ae2enhanced.config.AE2EnhancedConfig;
 import com.github.aeddddd.ae2enhanced.registry.ModRecipes;
 
 /**
- * 黑洞合成辅助类。
- * 扫描黑洞中心周围 3×3×3 区域内的物品实体，累加匹配配方后消耗/产出。
+ * 黑洞合成辅助类.
+ * 扫描黑洞中心周围 3×3×3 区域内的物品实体,累加匹配配方后消耗/产出.
  */
 public class BlackHoleCraftingHelper {
 
     /**
-     * 尝试执行一次黑洞合成。
-     * 产物生成在扫描范围外（y+2），默认行为：配方不匹配时销毁所有物品。
+     * 尝试执行一次黑洞合成.
+     * 产物生成在扫描范围外（y+2）,默认行为：配方不匹配时销毁所有物品.
      *
      * @return 是否成功匹配并执行了至少一个配方
      */
@@ -37,14 +37,14 @@ public class BlackHoleCraftingHelper {
     }
 
     /**
-     * 尝试执行一次黑洞合成。
+     * 尝试执行一次黑洞合成.
      *
      * @param level 世界
      * @param pos 扫描中心坐标
      * @param outputPos 产物掉落坐标
-     * @param destroyOnMismatch 配方不匹配时是否销毁区域内的所有物品。
+     * @param destroyOnMismatch 配方不匹配时是否销毁区域内的所有物品.
      *                          正式黑洞自动吸入时应为 true；
-     *                          微型奇点玩家主动触发时应为 false，避免误销毁未配齐的材料。
+     *                          微型奇点玩家主动触发时应为 false,避免误销毁未配齐的材料.
      * @return 是否成功匹配并执行了至少一个配方
      */
     public static boolean tryCraft(Level level, BlockPos pos, BlockPos outputPos, boolean destroyOnMismatch) {
@@ -104,15 +104,15 @@ public class BlackHoleCraftingHelper {
                 itemEntity.discard();
             }
         }
-        // 若 destroyOnMismatch == false 且配方不匹配，保留所有物品，什么都不做
+        // 若 destroyOnMismatch == false 且配方不匹配,保留所有物品,什么都不做
         return false;
     }
 
     /**
-     * 循环执行黑洞合成，直到区域内的物品不再匹配任何配方。
-     * 用于微型奇点右键时一次性处理所有可合成配方。
+     * 循环执行黑洞合成,直到区域内的物品不再匹配任何配方.
+     * 用于微型奇点右键时一次性处理所有可合成配方.
      *
-     * @param maxIterations 最大循环次数，防止意外死循环
+     * @param maxIterations 最大循环次数,防止意外死循环
      */
     public static void tryCraftAll(Level level, BlockPos pos, BlockPos outputPos, boolean destroyOnMismatch,
             int maxIterations) {
@@ -124,7 +124,7 @@ public class BlackHoleCraftingHelper {
     }
 
     /**
-     * 装配枢纽黑洞：吸入 5×5×5 范围内的物品实体。
+     * 装配枢纽黑洞：吸入 5×5×5 范围内的物品实体.
      */
     public static void suckItems(Level level, BlockPos center) {
         AABB area = new AABB(
@@ -140,7 +140,7 @@ public class BlackHoleCraftingHelper {
     }
 
     /**
-     * 装配枢纽黑洞：击杀 5×5×5 范围内的生物。
+     * 装配枢纽黑洞：击杀 5×5×5 范围内的生物.
      */
     public static void killLivingEntities(Level level, BlockPos center) {
         AABB area = new AABB(
@@ -159,7 +159,7 @@ public class BlackHoleCraftingHelper {
     }
 
     /**
-     * 装配枢纽黑洞：过载爆炸效果。
+     * 装配枢纽黑洞：过载爆炸效果.
      */
     public static void explode(Level level, BlockPos center) {
         if (level.isClientSide()) {
@@ -171,7 +171,7 @@ public class BlackHoleCraftingHelper {
     }
 
     /**
-     * 在配方管理器中查找第一个匹配的配方。
+     * 在配方管理器中查找第一个匹配的配方.
      */
     private static BlackHoleRecipe findMatching(Level level, Map<String, Integer> found) {
         var recipes = level.getRecipeManager().getAllRecipesFor(ModRecipes.BLACK_HOLE_TYPE.get());

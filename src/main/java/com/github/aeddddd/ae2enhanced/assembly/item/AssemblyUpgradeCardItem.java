@@ -11,8 +11,8 @@ import net.minecraft.world.level.Level;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * 装配枢纽升级卡物品。
- * <p>在 tooltip 中明确提示该升级卡仅可用于装配枢纽。</p>
+ * 装配枢纽升级卡物品.
+ * <p>在 tooltip 中明确提示该升级卡仅可用于装配枢纽.</p>
  */
 public class AssemblyUpgradeCardItem extends Item {
 

@@ -9,7 +9,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 /**
  * 将创造能源元件的储电显示上限从 Long.MAX_VALUE / 10000（约 9.2e14）
- * 提升到完整的 Long.MAX_VALUE（9.2E）。
+ * 提升到完整的 Long.MAX_VALUE（9.2E）.
  */
 @Mixin(value = CreativeEnergyCellBlockEntity.class, remap = false)
 public class MixinCreativeEnergyCell {

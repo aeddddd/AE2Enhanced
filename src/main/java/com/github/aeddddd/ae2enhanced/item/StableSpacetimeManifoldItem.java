@@ -11,7 +11,7 @@ import net.minecraft.world.level.Level;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * 稳态时空流形 — 黑洞退火产物，T1 材料。
+ * 稳态时空流形 — 黑洞退火产物,T1 材料.
  */
 public class StableSpacetimeManifoldItem extends Item {
 

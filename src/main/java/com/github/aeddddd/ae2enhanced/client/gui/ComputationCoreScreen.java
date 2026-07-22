@@ -11,8 +11,8 @@ import com.github.aeddddd.ae2enhanced.computation.blockentity.ComputationCoreBlo
 import com.github.aeddddd.ae2enhanced.config.AE2EnhancedConfig;
 
 /**
- * 超因果计算核心成形状态 GUI。
- * <p>纯展示面板，无物品槽，无背包渲染。</p>
+ * 超因果计算核心成形状态 GUI.
+ * <p>纯展示面板,无物品槽,无背包渲染.</p>
  */
 public class ComputationCoreScreen extends AbstractContainerScreen<ComputationCoreMenu> {
 

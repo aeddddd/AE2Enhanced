@@ -23,9 +23,9 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
- * 在样板编码终端完成编码后，自动将已编码样板上传到最近的装配枢纽。
+ * 在样板编码终端完成编码后,自动将已编码样板上传到最近的装配枢纽.
  * <p>仅当存在已成型且安装了“样板自动上传升级”的装配枢纽时生效；
- * 上传目标为距离玩家最近的装配枢纽，并插入其第一个空闲样板槽位。</p>
+ * 上传目标为距离玩家最近的装配枢纽,并插入其第一个空闲样板槽位.</p>
  */
 @Mixin(value = PatternEncodingTermMenu.class, remap = false)
 public class MixinPatternEncodingTermMenu {
@@ -83,7 +83,7 @@ public class MixinPatternEncodingTermMenu {
             }
             if (handler.getStackInSlot(slot).isEmpty()) {
                 handler.setStackInSlot(slot, encoded.copy());
-                // 上传成功后清空终端输出槽，避免样板在枢纽与终端中各出现一份（重复）
+                // 上传成功后清空终端输出槽,避免样板在枢纽与终端中各出现一份（重复）
                 encodedPatternSlot.set(ItemStack.EMPTY);
                 return;
             }

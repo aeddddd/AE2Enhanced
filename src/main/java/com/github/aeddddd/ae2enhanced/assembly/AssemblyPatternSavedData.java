@@ -9,9 +9,9 @@ import net.minecraft.world.level.saveddata.SavedData;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * 将装配枢纽的样板数据存储在维度级别的 SavedData 中，而非方块实体 NBT。
- * <p>避免 100 页（10200 槽）的样板数据直接写入区块 NBT，降低单区块 NBT 过大导致
- * 保存/加载异常的风险。</p>
+ * 将装配枢纽的样板数据存储在维度级别的 SavedData 中,而非方块实体 NBT.
+ * <p>避免 100 页（10200 槽）的样板数据直接写入区块 NBT,降低单区块 NBT 过大导致
+ * 保存/加载异常的风险.</p>
  */
 public class AssemblyPatternSavedData extends SavedData {
 
@@ -52,7 +52,7 @@ public class AssemblyPatternSavedData extends SavedData {
     }
 
     /**
-     * 读取指定控制器位置的样板数据。
+     * 读取指定控制器位置的样板数据.
      */
     public CompoundTag getPatterns(BlockPos pos) {
         String key = key(pos);
@@ -62,7 +62,7 @@ public class AssemblyPatternSavedData extends SavedData {
     }
 
     /**
-     * 保存指定控制器位置的样板数据。
+     * 保存指定控制器位置的样板数据.
      */
     public void setPatterns(BlockPos pos, CompoundTag patterns) {
         data.put(key(pos), patterns.copy());
@@ -70,7 +70,7 @@ public class AssemblyPatternSavedData extends SavedData {
     }
 
     /**
-     * 移除指定控制器位置的样板数据。方块被破坏时调用。
+     * 移除指定控制器位置的样板数据.方块被破坏时调用.
      */
     public void removePatterns(BlockPos pos) {
         data.remove(key(pos));

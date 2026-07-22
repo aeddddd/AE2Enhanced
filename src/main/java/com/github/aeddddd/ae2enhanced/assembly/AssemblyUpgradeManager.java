@@ -7,7 +7,7 @@ import com.github.aeddddd.ae2enhanced.assembly.blockentity.AssemblyControllerBlo
 import com.github.aeddddd.ae2enhanced.registry.ModItems;
 
 /**
- * 负责读取装配枢纽的升级卡并计算有效属性。
+ * 负责读取装配枢纽的升级卡并计算有效属性.
  */
 public class AssemblyUpgradeManager {
 
@@ -22,7 +22,7 @@ public class AssemblyUpgradeManager {
     }
 
     /**
-     * 当前并行上限。0 张并行升级卡 = 64，每多 1 张 ×32，5 张 = Long.MAX_VALUE。
+     * 当前并行上限.0 张并行升级卡 = 64,每多 1 张 ×32,5 张 = Long.MAX_VALUE.
      */
     public long getParallelCap() {
         ItemStackHandler handler = getItemHandler();
@@ -51,7 +51,7 @@ public class AssemblyUpgradeManager {
     }
 
     /**
-     * 当前合成延迟 tick 数。0 张速度升级卡 = 20，每张减半，最低 1 tick。
+     * 当前合成延迟 tick 数.0 张速度升级卡 = 20,每张减半,最低 1 tick.
      */
     public int getCraftingTicks() {
         ItemStackHandler handler = getItemHandler();
@@ -74,7 +74,7 @@ public class AssemblyUpgradeManager {
     }
 
     /**
-     * 当前可用样板页数。基础 5 页，每张扩容升级卡 +10 页，10 张即可达到上限 100 页。
+     * 当前可用样板页数.基础 5 页,每张扩容升级卡 +10 页,10 张即可达到上限 100 页.
      */
     public int getPatternPages() {
         ItemStackHandler handler = getItemHandler();
@@ -91,7 +91,7 @@ public class AssemblyUpgradeManager {
     }
 
     /**
-     * 检查是否安装了样板自动上传模块升级（槽位 4）。
+     * 检查是否安装了样板自动上传模块升级（槽位 4）.
      */
     public boolean hasAutoUploadUpgrade() {
         ItemStackHandler handler = getItemHandler();

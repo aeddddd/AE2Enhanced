@@ -8,8 +8,8 @@ import javax.annotation.Nullable;
 import java.util.Objects;
 
 /**
- * 物品描述符，用于在内存中作为存储 Map 的 Key。
- * 基于物品注册项与 NBT 内容做 equals/hashCode，不依赖 CompoundTag 引用相等。
+ * 物品描述符,用于在内存中作为存储 Map 的 Key.
+ * 基于物品注册项与 NBT 内容做 equals/hashCode,不依赖 CompoundTag 引用相等.
  */
 public final class ItemDescriptor implements Descriptor {
 
@@ -35,7 +35,7 @@ public final class ItemDescriptor implements Descriptor {
     }
 
     /**
-     * 供自定义二进制 Codec 使用的工厂方法。
+     * 供自定义二进制 Codec 使用的工厂方法.
      */
     public static ItemDescriptor fromRaw(AEItemKey key, @Nullable CompoundTag nbt) {
         return new ItemDescriptor(key, nbt);

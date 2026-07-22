@@ -42,13 +42,13 @@ import net.minecraftforge.client.model.geometry.IUnbakedGeometry;
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
 
 /**
- * 内置的连接纹理模型（不依赖 CTM/OptiFine，类似 AE2 合成存储器的做法）。
+ * 内置的连接纹理模型（不依赖 CTM/OptiFine,类似 AE2 合成存储器的做法）.
  * <p>
- * 纹理为 16x16 = 256 格的 CTM 表（每格 16x16，动画时为多帧 256x256 帧），
+ * 纹理为 16x16 = 256 格的 CTM 表（每格 16x16,动画时为多帧 256x256 帧）,
  * 格索引即该面 8 邻接位掩码（与生成工具约定一致）：
  * <ul>
- * <li>bit0 = 上边，bit1 = 下边，bit2 = 左边，bit3 = 右边</li>
- * <li>bit4 = 左上对角，bit5 = 右上对角，bit6 = 左下对角，bit7 = 右下对角</li>
+ * <li>bit0 = 上边,bit1 = 下边,bit2 = 左边,bit3 = 右边</li>
+ * <li>bit4 = 左上对角,bit5 = 右上对角,bit6 = 左下对角,bit7 = 右下对角</li>
  * <li>对角位仅在相邻两边均连接时才有意义（否则恒为 0）</li>
  * </ul>
  * 模型 JSON 格式：
@@ -56,7 +56,7 @@ import com.github.aeddddd.ae2enhanced.AE2Enhanced;
  * <pre>{@code
  * {
  *     "loader": "ae2enhanced:connected",
- *     "connect": "class",          // 可选："class"（同类方块，默认）或 "block"（仅同种方块）
+ *     "connect": "class",          // 可选："class"（同类方块,默认）或 "block"（仅同种方块）
  *     "textures": {
  *         "texture": "<命名空间:block/xxx_ctm>",
  *         "particle": "<命名空间:block/xxx>"
@@ -94,12 +94,12 @@ public final class ConnectedTextureModel {
     }
 
     public static final class Baked implements IDynamicBakedModel {
-        /** 每个面 8 bit（4 边 + 4 对角），6 个面共 48 bit */
+        /** 每个面 8 bit（4 边 + 4 对角）,6 个面共 48 bit */
         public static final ModelProperty<Long> CONNECTIONS = new ModelProperty<>();
 
         /**
-         * 各面纹理平面内的 4 个相邻方向：{上, 下, 左, 右}，与原版 cube 纹理朝向一致
-         * （侧面 上=UP；顶面 上=NORTH；底面 上=SOUTH）。按 Direction.get3DDataValue() 索引。
+         * 各面纹理平面内的 4 个相邻方向：{上, 下, 左, 右},与原版 cube 纹理朝向一致
+         * （侧面 上=UP；顶面 上=NORTH；底面 上=SOUTH）.按 Direction.get3DDataValue() 索引.
          */
         private static final Direction[][] FACE_EDGES = {
                 { Direction.SOUTH, Direction.NORTH, Direction.WEST, Direction.EAST }, // DOWN

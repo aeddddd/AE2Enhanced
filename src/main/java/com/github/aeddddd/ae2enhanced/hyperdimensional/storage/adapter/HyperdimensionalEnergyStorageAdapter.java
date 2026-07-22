@@ -10,8 +10,8 @@ import javax.annotation.Nullable;
 import java.math.BigInteger;
 
 /**
- * 超维度仓储枢纽的能量存储适配器，继承 {@link AbstractStorageAdapter}。
- * 内部使用 BigInteger 维护数量，突破 long 上限。
+ * 超维度仓储枢纽的能量存储适配器,继承 {@link AbstractStorageAdapter}.
+ * 内部使用 BigInteger 维护数量,突破 long 上限.
  */
 public class HyperdimensionalEnergyStorageAdapter extends AbstractStorageAdapter<EnergyKey, EnergyDescriptor> {
 

@@ -21,7 +21,7 @@ import com.github.aeddddd.ae2enhanced.client.gui.GuiConstants;
 import com.github.aeddddd.ae2enhanced.registry.ModMenus;
 
 /**
- * 装配枢纽样板存储分页菜单。
+ * 装配枢纽样板存储分页菜单.
  */
 public class AssemblyPatternMenu extends AbstractContainerMenu {
 

@@ -22,18 +22,18 @@ import appeng.init.internal.InitStorageCells;
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
 
 /**
- * AE2 开发环境兼容性事件处理器。
+ * AE2 开发环境兼容性事件处理器.
  *
- * <p>在官方映射开发环境下，AE2 的 {@code AppEngBase} 构造阶段会过早触发
- * {@code AEItems} 的静态初始化，而彼时 {@code BuiltInRegistries.ITEM} 已经冻结。
+ * <p>在官方映射开发环境下,AE2 的 {@code AppEngBase} 构造阶段会过早触发
+ * {@code AEItems} 的静态初始化,而彼时 {@code BuiltInRegistries.ITEM} 已经冻结.
  * 通过 Mixin 将 {@link InitGridLinkables#init()}、{@link InitStorageCells#init()}
- * 与 {@link HotkeyActions#init()} 延迟到 {@code RegisterEvent} 之后，再在这里补调用，
- * 确保 AE2 物品已构造并注册。
+ * 与 {@link HotkeyActions#init()} 延迟到 {@code RegisterEvent} 之后,再在这里补调用,
+ * 确保 AE2 物品已构造并注册.
  *
- * <p>此外，由于 {@code NewRegistryEvent} 触发时 {@code BuiltInRegistries.CHUNK_GENERATOR}
- * 已冻结，AE2 的 {@code registerRegistries} 方法会被取消；本处理器取而代之创建
- * AE2 的 {@code keytypes} 注册表，并在 {@code RegisterEvent} 阶段补执行 AE2 的
- * {@link AppEngBootstrap#runEarlyStartup()}，确保 {@code AEConfig} 已加载、注册表已解冻。
+ * <p>此外,由于 {@code NewRegistryEvent} 触发时 {@code BuiltInRegistries.CHUNK_GENERATOR}
+ * 已冻结,AE2 的 {@code registerRegistries} 方法会被取消；本处理器取而代之创建
+ * AE2 的 {@code keytypes} 注册表,并在 {@code RegisterEvent} 阶段补执行 AE2 的
+ * {@link AppEngBootstrap#runEarlyStartup()},确保 {@code AEConfig} 已加载、注册表已解冻.
  */
 @Mod.EventBusSubscriber(modid = AE2Enhanced.MOD_ID, bus = Mod.EventBusSubscriber.Bus.MOD)
 public class AE2CompatEventHandler {
@@ -65,9 +65,9 @@ public class AE2CompatEventHandler {
         }
         registerEventInitialized = true;
 
-        // 在反混淆开发环境下，AE2 的 EarlyStartupMixin 可能未能成功注入 Bootstrap，
-        // 导致 runEarlyStartup()（加载配置、解冻注册表）未被调用。这里补调用一次，
-        // 其内部的 bootstrapped 标记保证只会实际执行一次。
+        // 在反混淆开发环境下,AE2 的 EarlyStartupMixin 可能未能成功注入 Bootstrap,
+        // 导致 runEarlyStartup()（加载配置、解冻注册表）未被调用.这里补调用一次,
+        // 其内部的 bootstrapped 标记保证只会实际执行一次.
         AppEngBootstrap.runEarlyStartup();
 
         InitGridLinkables.init();

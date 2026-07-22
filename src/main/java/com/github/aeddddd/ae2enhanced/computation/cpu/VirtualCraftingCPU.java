@@ -13,9 +13,9 @@ import com.github.aeddddd.ae2enhanced.computation.blockentity.ComputationCoreBlo
 import com.github.aeddddd.ae2enhanced.mixin.accessor.CraftingCPUClusterInvoker;
 
 /**
- * 超因果计算核心提供的虚拟 AE2 Crafting CPU。
- * <p>内部包装一个真正的 {@link CraftingCPUCluster}，通过虚假合成单元方块实体
- * 把集群的节点指向通用 ME 接口，从而完整参与 AE2 自动合成调度。</p>
+ * 超因果计算核心提供的虚拟 AE2 Crafting CPU.
+ * <p>内部包装一个真正的 {@link CraftingCPUCluster},通过虚假合成单元方块实体
+ * 把集群的节点指向通用 ME 接口,从而完整参与 AE2 自动合成调度.</p>
  */
 public class VirtualCraftingCPU {
 
@@ -29,8 +29,8 @@ public class VirtualCraftingCPU {
         this.interfaceNode = interfaceNode;
         this.cluster = new CraftingCPUCluster(pos, pos);
 
-        // AE2 限制单个合成单元协处理器线程数不超过 16（addBlockEntity 超限抛异常），
-        // 因此将并行上限拆分为多个虚假单元注册；存储容量只计在首个单元上，防止累加溢出。
+        // AE2 限制单个合成单元协处理器线程数不超过 16（addBlockEntity 超限抛异常）,
+        // 因此将并行上限拆分为多个虚假单元注册；存储容量只计在首个单元上,防止累加溢出.
         int remainingThreads = Math.max(1, parallel);
         boolean first = true;
         while (remainingThreads > 0) {
@@ -46,7 +46,7 @@ public class VirtualCraftingCPU {
         try {
             ((IVirtualCraftingCPU) (Object) cluster).ae2enhanced$setHost(host);
         } catch (ClassCastException e) {
-            AE2Enhanced.LOGGER.warn("MixinCraftingCPUCluster 未加载，虚拟 CPU 将完全依赖虚假方块实体。");
+            AE2Enhanced.LOGGER.warn("MixinCraftingCPUCluster 未加载,虚拟 CPU 将完全依赖虚假方块实体.");
         }
     }
 

@@ -36,7 +36,7 @@ import com.github.aeddddd.ae2enhanced.structure.AssemblyStructure;
 import com.github.aeddddd.ae2enhanced.util.MathUtils;
 
 /**
- * 负责装配枢纽的批量合成执行、黑洞事件、产物缓冲与 Mixin 缓存。
+ * 负责装配枢纽的批量合成执行、黑洞事件、产物缓冲与 Mixin 缓存.
  */
 public class AssemblyCraftingProcessor {
 
@@ -51,8 +51,8 @@ public class AssemblyCraftingProcessor {
     private boolean batchBusy = false;
 
     /**
-     * 批量冷却计数（tick）。每次批量处理后重置为 {@link AssemblyUpgradeManager#getCraftingTicks()}，
-     * 速度升级卡可缩短该冷却，与主分支 1.12 的节奏控制一致。
+     * 批量冷却计数（tick）.每次批量处理后重置为 {@link AssemblyUpgradeManager#getCraftingTicks()},
+     * 速度升级卡可缩短该冷却,与主分支 1.12 的节奏控制一致.
      */
     private int batchCooldown = 0;
 
@@ -60,7 +60,7 @@ public class AssemblyCraftingProcessor {
     private IActionSource currentActionSource = null;
 
     /**
-     * 样板批量信息缓存：虚拟/真实轨道分类，基于 {@link IPatternDetails.IInput#getRemainingKey(AEKey)} 判定。
+     * 样板批量信息缓存：虚拟/真实轨道分类,基于 {@link IPatternDetails.IInput#getRemainingKey(AEKey)} 判定.
      */
     private final Map<IPatternDetails, AssemblyControllerBlockEntity.PatternBatchInfo> patternBatchInfoCache = new HashMap<>();
 
@@ -73,57 +73,57 @@ public class AssemblyCraftingProcessor {
     }
 
     /**
-     * 产物缓冲上限，从配置动态读取。
+     * 产物缓冲上限,从配置动态读取.
      */
     private static int getMaxPendingOutputs() {
         return AE2EnhancedConfig.COMMON.assemblyMaxPendingOutputs.get();
     }
 
     /**
-     * 设置当前执行样板的动作来源。由 Mixin 在批量处理前设置，确保 AE2 网络操作归因正确。
+     * 设置当前执行样板的动作来源.由 Mixin 在批量处理前设置,确保 AE2 网络操作归因正确.
      */
     public void setCurrentActionSource(@Nullable IActionSource source) {
         this.currentActionSource = source;
     }
 
     /**
-     * 获取实际应使用的动作来源。优先使用 Mixin 设置的临时来源，否则回退到机器源。
+     * 获取实际应使用的动作来源.优先使用 Mixin 设置的临时来源,否则回退到机器源.
      */
     public IActionSource getEffectiveActionSource() {
         return currentActionSource != null ? currentActionSource : controller.getActionSource();
     }
 
     /**
-     * 当前 tick 是否还能接受新的 batch。batchBusy 每个服务器 tick 刷新，
-     * batchCooldown 按速度升级卡决定的周期间隔批量。
+     * 当前 tick 是否还能接受新的 batch.batchBusy 每个服务器 tick 刷新,
+     * batchCooldown 按速度升级卡决定的周期间隔批量.
      */
     public boolean canBatch() {
         return !batchBusy && batchCooldown <= 0;
     }
 
     /**
-     * 标记 batch 忙碌状态。由 Mixin 在批量处理前后调用。
+     * 标记 batch 忙碌状态.由 Mixin 在批量处理前后调用.
      */
     public void setBatchBusy(boolean busy) {
         this.batchBusy = busy;
     }
 
     /**
-     * 批量处理成功后重置冷却，冷却期间不再接受新的批量（复刻主分支速度卡节奏）。
+     * 批量处理成功后重置冷却,冷却期间不再接受新的批量（复刻主分支速度卡节奏）.
      */
     public void resetBatchCooldown() {
         this.batchCooldown = upgradeManager.getCraftingTicks();
     }
 
     /**
-     * 供 Mixin 调用：检查 pendingOutputs 是否还能接受指定数量的 stack。
+     * 供 Mixin 调用：检查 pendingOutputs 是否还能接受指定数量的 stack.
      */
     public boolean canAcceptRealBatch(int stackCount) {
         return pendingOutputs.size() + stackCount <= getMaxPendingOutputs();
     }
 
     /**
-     * 供 Mixin 调用：安全地将产物加入 pendingOutputs。
+     * 供 Mixin 调用：安全地将产物加入 pendingOutputs.
      */
     public void addPendingOutput(ItemStack stack) {
         if (stack == null || stack.isEmpty()) {
@@ -136,7 +136,7 @@ public class AssemblyCraftingProcessor {
     }
 
     /**
-     * 安全地将 GenericStack 产物加入 pendingOutputs。
+     * 安全地将 GenericStack 产物加入 pendingOutputs.
      */
     public void addPendingOutput(GenericStack stack) {
         if (stack == null || stack.amount() <= 0) {
@@ -150,11 +150,11 @@ public class AssemblyCraftingProcessor {
     }
 
     /**
-     * 供 Mixin 调用：获取或创建样板的批量信息（虚拟/真实轨道分类）。
+     * 供 Mixin 调用：获取或创建样板的批量信息（虚拟/真实轨道分类）.
      * <p>分类完全基于 AE2 官方 API {@link IPatternDetails.IInput#getRemainingKey(AEKey)}：
-     * 任一输入槽存在剩余物（容器物、催化剂、耐久转换）即判定为真实轨道，
-     * 否则（普通合成、处理样板）为虚拟轨道。不再重建 3×3 合成容器反查配方——
-     * {@code getInputs()} 返回的是压缩合并输入，按索引填充几乎必然匹配失败。</p>
+     * 任一输入槽存在剩余物（容器物、催化剂、耐久转换）即判定为真实轨道,
+     * 否则（普通合成、处理样板）为虚拟轨道.不再重建 3×3 合成容器反查配方——
+     * {@code getInputs()} 返回的是压缩合并输入,按索引填充几乎必然匹配失败.</p>
      */
     public AssemblyControllerBlockEntity.PatternBatchInfo getPatternBatchInfo(IPatternDetails details) {
         AssemblyControllerBlockEntity.PatternBatchInfo cached = patternBatchInfoCache.get(details);
@@ -204,7 +204,7 @@ public class AssemblyCraftingProcessor {
         if (batchCooldown > 0) {
             batchCooldown--;
         }
-        // 每 tick 重置 batchBusy，允许下一 tick 继续接收 pushPattern
+        // 每 tick 重置 batchBusy,允许下一 tick 继续接收 pushPattern
         this.batchBusy = false;
     }
 
@@ -282,7 +282,7 @@ public class AssemblyCraftingProcessor {
             AEKey key = entry.getKey();
             long count = entry.getValue();
             while (count > 0) {
-                // 注意：MEStorage.insert 返回的是【已插入】数量，而非剩余数量
+                // 注意：MEStorage.insert 返回的是【已插入】数量,而非剩余数量
                 long inserted = storage.insert(key, count, Actionable.MODULATE, source);
                 count -= inserted;
                 if (inserted <= 0) {
@@ -317,9 +317,9 @@ public class AssemblyCraftingProcessor {
     }
 
     /**
-     * 批量执行样板任务，一次性处理 {@code batchSize} 个副本。
-     * <p>作为 AE2 调用 pushPattern 时的回退处理路径，负责将产物与剩余物加入缓冲，
-     * 并在可能的情况下将催化剂直接返回网络，避免催化剂被错误地延迟注入。</p>
+     * 批量执行样板任务,一次性处理 {@code batchSize} 个副本.
+     * <p>作为 AE2 调用 pushPattern 时的回退处理路径,负责将产物与剩余物加入缓冲,
+     * 并在可能的情况下将催化剂直接返回网络,避免催化剂被错误地延迟注入.</p>
      *
      * @param pattern   原始样板（未缩放）
      * @param inputs    单副本输入
@@ -339,7 +339,7 @@ public class AssemblyCraftingProcessor {
             return false;
         }
 
-        // 确保至少能连上网络，用于后续注入产物与返还催化剂
+        // 确保至少能连上网络,用于后续注入产物与返还催化剂
         IManagedGridNode targetNode = controller.resolveNode(node);
         if (targetNode == null || targetNode.getGrid() == null) {
             return false;
@@ -353,7 +353,7 @@ public class AssemblyCraftingProcessor {
             patternInputs = new IPatternDetails.IInput[0];
         }
 
-        // 估算产物与剩余物堆叠数，防止 pendingOutputs 溢出
+        // 估算产物与剩余物堆叠数,防止 pendingOutputs 溢出
         int estimatedStacks = 0;
         for (GenericStack output : pattern.getOutputs()) {
             if (output != null && output.amount() > 0) {
@@ -386,7 +386,7 @@ public class AssemblyCraftingProcessor {
             }
         }
 
-        // 处理剩余物：催化剂立即返回网络，其它剩余物加入缓冲
+        // 处理剩余物：催化剂立即返回网络,其它剩余物加入缓冲
         for (int i = 0; i < inputs.length && i < patternInputs.length; i++) {
             IPatternDetails.IInput input = patternInputs[i];
             if (input == null) {
@@ -408,8 +408,8 @@ public class AssemblyCraftingProcessor {
                     continue;
                 }
                 if (remaining.equals(key) && storage != null) {
-                    // 催化剂：尝试直接返还网络，未插入部分回退到缓冲
-                    // 注意：MEStorage.insert 返回的是【已插入】数量，而非剩余数量
+                    // 催化剂：尝试直接返还网络,未插入部分回退到缓冲
+                    // 注意：MEStorage.insert 返回的是【已插入】数量,而非剩余数量
                     long inserted = storage.insert(remaining, remainingAmount, Actionable.MODULATE, source);
                     long notInserted = remainingAmount - inserted;
                     if (notInserted > 0) {

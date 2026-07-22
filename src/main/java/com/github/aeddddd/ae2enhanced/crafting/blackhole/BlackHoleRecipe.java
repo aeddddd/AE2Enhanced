@@ -16,8 +16,8 @@ import net.minecraft.world.level.Level;
 import com.github.aeddddd.ae2enhanced.registry.ModRecipes;
 
 /**
- * 黑洞事件视界配方。
- * <p>以物品注册名 + NBT 字符串为输入键，匹配成功后产出指定物品。</p>
+ * 黑洞事件视界配方.
+ * <p>以物品注册名 + NBT 字符串为输入键,匹配成功后产出指定物品.</p>
  */
 public class BlackHoleRecipe implements Recipe<Container> {
 
@@ -32,7 +32,7 @@ public class BlackHoleRecipe implements Recipe<Container> {
     }
 
     /**
-     * 获取配方字符串 ID（用于代码级注册表）。
+     * 获取配方字符串 ID（用于代码级注册表）.
      */
     public String getStringId() {
         return id.toString();
@@ -47,7 +47,7 @@ public class BlackHoleRecipe implements Recipe<Container> {
     }
 
     /**
-     * 检查当前区域内的物品是否满足本配方输入。
+     * 检查当前区域内的物品是否满足本配方输入.
      */
     public boolean matches(Map<String, Integer> found) {
         for (Map.Entry<String, Integer> entry : inputs.entrySet()) {
@@ -60,7 +60,7 @@ public class BlackHoleRecipe implements Recipe<Container> {
     }
 
     /**
-     * 生成 ItemStack 的物品键：注册名 + NBT 字符串（若存在）。
+     * 生成 ItemStack 的物品键：注册名 + NBT 字符串（若存在）.
      */
     public static String keyOf(ItemStack stack) {
         ResourceLocation key = BuiltInRegistries.ITEM.getKey(stack.getItem());

@@ -19,10 +19,10 @@ import com.github.aeddddd.ae2enhanced.blackhole.blockentity.MicroSingularityBloc
 import com.github.aeddddd.ae2enhanced.registry.ModBlocks;
 
 /**
- * 微型奇点仪式配方。
- * 以目标方块为中心，扫描周围 5×5×5 区域内的物品实体，累加数量后匹配输入。
- * 输入支持三类：丢在世界中的物品、右键手持物品、右键目标方块。
- * 输出为微型奇点方块，可配置存在时间。
+ * 微型奇点仪式配方.
+ * 以目标方块为中心,扫描周围 5×5×5 区域内的物品实体,累加数量后匹配输入.
+ * 输入支持三类：丢在世界中的物品、右键手持物品、右键目标方块.
+ * 输出为微型奇点方块,可配置存在时间.
  */
 public class SingularityRecipe {
 
@@ -74,7 +74,7 @@ public class SingularityRecipe {
     }
 
     /**
-     * 检测是否匹配：先检查目标方块和手持物品，再检查 droppedInputs。
+     * 检测是否匹配：先检查目标方块和手持物品,再检查 droppedInputs.
      */
     public boolean matches(Level level, BlockPos center, ItemStack held) {
         // 检查目标方块
@@ -85,7 +85,7 @@ public class SingularityRecipe {
             }
         }
 
-        // 检查手持物品（忽略数量，只要类型匹配且数量>=1）
+        // 检查手持物品（忽略数量,只要类型匹配且数量>=1）
         if (!heldItem.isEmpty()) {
             if (held == null || held.isEmpty()) {
                 return false;
@@ -116,7 +116,7 @@ public class SingularityRecipe {
     }
 
     /**
-     * 执行仪式：消耗区域内材料，在中心位置生成微型奇点方块。
+     * 执行仪式：消耗区域内材料,在中心位置生成微型奇点方块.
      */
     public void craft(Level level, BlockPos center, ItemStack held) {
         // 消耗 droppedInputs

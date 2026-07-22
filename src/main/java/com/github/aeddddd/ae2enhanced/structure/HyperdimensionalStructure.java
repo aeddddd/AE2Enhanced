@@ -17,9 +17,9 @@ import com.github.aeddddd.ae2enhanced.registry.ModBlocks;
 import com.github.aeddddd.ae2enhanced.util.StructureUtils;
 
 /**
- * 超维度仓储中枢结构验证与一键装配逻辑。
- * <p>坐标系以控制器为原点，默认朝向北方（Z 轴正方向伸出），根据控制器朝向旋转。</p>
- * <p>结构定义延迟到 {@link #init()} 中完成，避免在方块注册前访问 {@link ModBlocks}。</p>
+ * 超维度仓储中枢结构验证与一键装配逻辑.
+ * <p>坐标系以控制器为原点,默认朝向北方（Z 轴正方向伸出）,根据控制器朝向旋转.</p>
+ * <p>结构定义延迟到 {@link #init()} 中完成,避免在方块注册前访问 {@link ModBlocks}.</p>
  */
 public final class HyperdimensionalStructure {
 
@@ -75,7 +75,7 @@ public final class HyperdimensionalStructure {
     }
 
     /**
-     * 在方块注册完成后初始化 {@link AbstractMultiblockStructure} 实例。
+     * 在方块注册完成后初始化 {@link AbstractMultiblockStructure} 实例.
      */
     public static void init() {
         if (initialized) {

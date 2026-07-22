@@ -13,7 +13,7 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * {@link EnergyDescriptor} 单元测试。
+ * {@link EnergyDescriptor} 单元测试.
  */
 class EnergyDescriptorTest {
 
@@ -43,7 +43,7 @@ class EnergyDescriptorTest {
 
     @Test
     void testToNBTIsEmpty() {
-        // 能量描述符无状态，序列化为空标签
+        // 能量描述符无状态,序列化为空标签
         assertTrue(EnergyDescriptor.INSTANCE.toNBT().isEmpty());
     }
 

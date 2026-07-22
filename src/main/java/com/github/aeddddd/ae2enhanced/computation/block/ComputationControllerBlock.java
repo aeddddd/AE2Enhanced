@@ -23,7 +23,7 @@ import com.github.aeddddd.ae2enhanced.structure.IMultiblockStructure;
 import com.github.aeddddd.ae2enhanced.structure.SupercausalStructure;
 
 /**
- * 超因果计算核心控制器方块。
+ * 超因果计算核心控制器方块.
  */
 public class ComputationControllerBlock extends MultiblockControllerBlock {
 

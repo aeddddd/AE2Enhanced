@@ -28,12 +28,12 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * 递归类合成支持（计算层，第二部分）。
+ * 递归类合成支持（计算层,第二部分）.
  * <p>对"唯一候选样板为净产出自引用样板"（如 A+2B=2A）的节点整体接管：
- * 抽取库存时预留种子，随后用"贷款法"一次性模拟全部合成——先向模拟库存
- * 借入 (份数-1)×单次种子 的请求物，使 {@code pro.request(inv, crafts)} 可以
- * 整批通过，产出后立即归还借入量并取走净产出、保留种子。相比逐份迭代，
- * 计算耗时从 O(份数) 降为 O(1) 次样板模拟。其余场景完全走原生逻辑。</p>
+ * 抽取库存时预留种子,随后用"贷款法"一次性模拟全部合成——先向模拟库存
+ * 借入 (份数-1)×单次种子 的请求物,使 {@code pro.request(inv, crafts)} 可以
+ * 整批通过,产出后立即归还借入量并取走净产出、保留种子.相比逐份迭代,
+ * 计算耗时从 O(份数) 降为 O(1) 次样板模拟.其余场景完全走原生逻辑.</p>
  */
 @Mixin(value = CraftingTreeNode.class, remap = false)
 public class MixinCraftingTreeNode {
@@ -77,13 +77,13 @@ public class MixinCraftingTreeNode {
     }
 
     /**
-     * 催化剂（同 key 返还）配方的计算加速——单分支循环（源码先出现的调用点）。
-     * <p>原生对 limitQty 过程强制逐份模拟（每次 1 份），对含催化剂的配方是 O(份数) 的开销。
-     * 当过程的自输入全部为"同 key 催化剂"（输出中存在与输入完全相等的 key 且 out >= in）时，
-     * 用与递归合成相同的贷款法一次性模拟全部份数。
-     * 含 NBT 变化（耐久损耗等 key 不相等）的自引用不接管，保持原生逐份。
-     * 注意：禁止使用 MixinExtras @Local 捕获局部变量（曾导致目标类字节码校验失败、无法加载），
-     * 一律通过 @Redirect 附加宿主方法参数获取所需上下文。</p>
+     * 催化剂（同 key 返还）配方的计算加速——单分支循环（源码先出现的调用点）.
+     * <p>原生对 limitQty 过程强制逐份模拟（每次 1 份）,对含催化剂的配方是 O(份数) 的开销.
+     * 当过程的自输入全部为"同 key 催化剂"（输出中存在与输入完全相等的 key 且 out >= in）时,
+     * 用与递归合成相同的贷款法一次性模拟全部份数.
+     * 含 NBT 变化（耐久损耗等 key 不相等）的自引用不接管,保持原生逐份.
+     * 注意：禁止使用 MixinExtras @Local 捕获局部变量（曾导致目标类字节码校验失败、无法加载）,
+     * 一律通过 @Redirect 附加宿主方法参数获取所需上下文.</p>
      */
     @Redirect(method = "request", remap = false, require = 0,
             at = @At(value = "INVOKE",
@@ -96,7 +96,7 @@ public class MixinCraftingTreeNode {
     }
 
     /**
-     * 催化剂批量——多分支循环（{@code pro.request(child, 1)} 调用点）。
+     * 催化剂批量——多分支循环（{@code pro.request(child, 1)} 调用点）.
      */
     @Redirect(method = "request", remap = false, require = 0,
             at = @At(value = "INVOKE",
@@ -125,7 +125,7 @@ public class MixinCraftingTreeNode {
             return;
         }
 
-        // 校验所有自输入均为同 key 催化剂，并计算每种催化剂的单次占用量
+        // 校验所有自输入均为同 key 催化剂,并计算每种催化剂的单次占用量
         Map<AEKey, Long> catalystInPer = new HashMap<>();
         for (var input : details.getInputs()) {
             var primary = input.getPossibleInputs()[0];
@@ -190,7 +190,7 @@ public class MixinCraftingTreeNode {
         job.invokeHandlePausing();
         inv.addStackBytes(what, acc.getAmount(), requestedAmount);
 
-        // 1) 从库存抽取（与原生一致，但预留 inPer 个种子在模拟库存中）
+        // 1) 从库存抽取（与原生一致,但预留 inPer 个种子在模拟库存中）
         for (var template : acc.invokeGetValidItemTemplates(inv)) {
             if (requestedAmount <= 0) {
                 break;
@@ -222,13 +222,13 @@ public class MixinCraftingTreeNode {
 
         long crafts = (totalRequestedItems + gain - 1) / gain;
         if (crafts <= 0 || crafts > Long.MAX_VALUE / inPer) {
-            // 天文数字订单（贷款量将溢出）时不做接管式计算，按缺料处理
+            // 天文数字订单（贷款量将溢出）时不做接管式计算,按缺料处理
             ae2e$failShortage(acc, job, what, totalRequestedItems);
             return;
         }
 
-        // 3) 贷款法：借入 (crafts-1)×inPer 使整批 request 通过，产出后立即归还。
-        // 归还后库存 = 种子 + crafts×gain，取走 totalRequestedItems 并保留种子。
+        // 3) 贷款法：借入 (crafts-1)×inPer 使整批 request 通过,产出后立即归还.
+        // 归还后库存 = 种子 + crafts×gain,取走 totalRequestedItems 并保留种子.
         long loan = inPer * (crafts - 1);
         if (loan > 0) {
             inv.insert(what, loan, Actionable.MODULATE);

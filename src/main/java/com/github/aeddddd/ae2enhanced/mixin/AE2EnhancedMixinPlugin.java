@@ -10,11 +10,11 @@ import org.spongepowered.asm.mixin.extensibility.IMixinConfigPlugin;
 import org.spongepowered.asm.mixin.extensibility.IMixinInfo;
 
 /**
- * Mixin 配置插件，用于将开发环境兼容性 Mixin 限制在开发环境内。
+ * Mixin 配置插件,用于将开发环境兼容性 Mixin 限制在开发环境内.
  *
  * <p>AE2 的官方映射开发环境兼容性 Mixin（{@link AppEngBaseMixin}）会修改 AE2 的
- * 初始化时机。该修改只应在 NeoGradle 反混淆开发环境下启用；在生产环境（SRG 运行）
- * 中必须跳过，否则会导致 AE2 初始化被错误延迟。</p>
+ * 初始化时机.该修改只应在 NeoGradle 反混淆开发环境下启用；在生产环境（SRG 运行）
+ * 中必须跳过,否则会导致 AE2 初始化被错误延迟.</p>
  */
 public class AE2EnhancedMixinPlugin implements IMixinConfigPlugin {
 

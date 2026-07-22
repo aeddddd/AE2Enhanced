@@ -20,8 +20,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * {@link GenericKeyDescriptor} 单元测试。
- * <p>NBT 往返依赖 AE2 key type 注册表，需先执行 {@link AE2KeyTypeTestBootstrap}。</p>
+ * {@link GenericKeyDescriptor} 单元测试.
+ * <p>NBT 往返依赖 AE2 key type 注册表,需先执行 {@link AE2KeyTypeTestBootstrap}.</p>
  */
 class GenericKeyDescriptorTest {
 

@@ -22,7 +22,7 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * {@link HyperdimensionalEnergyStorageAdapter} 单元测试。
+ * {@link HyperdimensionalEnergyStorageAdapter} 单元测试.
  */
 class HyperdimensionalEnergyStorageAdapterTest {
 
@@ -35,7 +35,7 @@ class HyperdimensionalEnergyStorageAdapterTest {
 
     @Test
     void testCreateDescriptorReturnsSingleton() {
-        // 能量只有一种类型，描述符始终为单例
+        // 能量只有一种类型,描述符始终为单例
         assertSame(EnergyDescriptor.INSTANCE, adapter.createDescriptor(EnergyKey.INSTANCE));
     }
 
@@ -72,7 +72,7 @@ class HyperdimensionalEnergyStorageAdapterTest {
 
     @Test
     void testInsertBeyondLongMax() {
-        // 内部使用 BigInteger 存储，允许分多次累计超过 Long.MAX_VALUE 的总量
+        // 内部使用 BigInteger 存储,允许分多次累计超过 Long.MAX_VALUE 的总量
         adapter.set(EnergyKey.INSTANCE, BigInteger.valueOf(Long.MAX_VALUE));
         assertEquals(1L, adapter.insert(EnergyKey.INSTANCE, 1L, Actionable.MODULATE));
         assertEquals(BigInteger.valueOf(Long.MAX_VALUE).add(BigInteger.ONE),

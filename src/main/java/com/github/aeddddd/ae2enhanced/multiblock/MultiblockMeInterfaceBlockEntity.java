@@ -27,9 +27,9 @@ import com.github.aeddddd.ae2enhanced.registry.ModItems;
 import com.github.aeddddd.ae2enhanced.util.BlockEntityRemovalHelper;
 
 /**
- * 通用多方块 ME 接口方块实体。
- * <p>作为 grid node 宿主，向 AE2 网络提供 IStorageProvider、ICraftingProvider
- * 与 IVirtualCpuProvider 服务，并委托给背后的控制器。</p>
+ * 通用多方块 ME 接口方块实体.
+ * <p>作为 grid node 宿主,向 AE2 网络提供 IStorageProvider、ICraftingProvider
+ * 与 IVirtualCpuProvider 服务,并委托给背后的控制器.</p>
  */
 public class MultiblockMeInterfaceBlockEntity extends AENetworkBlockEntity
         implements IStorageProvider, ICraftingProvider, IVirtualCpuProvider {
@@ -108,7 +108,7 @@ public class MultiblockMeInterfaceBlockEntity extends AENetworkBlockEntity
     }
 
     /**
-     * 尝试使用定位器恢复控制器坐标。
+     * 尝试使用定位器恢复控制器坐标.
      */
     public void recoverController() {
         if (level == null || level.isClientSide() || controllerPos != null) {
@@ -132,14 +132,14 @@ public class MultiblockMeInterfaceBlockEntity extends AENetworkBlockEntity
 
     @Override
     public void onReady() {
-        // 节点始终 ready；由控制器是否成形决定实际提供哪些服务。
+        // 节点始终 ready；由控制器是否成形决定实际提供哪些服务.
         super.onReady();
     }
 
     @Override
     public void onLoad() {
         super.onLoad();
-        // 服务端加载后若控制器坐标丢失但方块状态显示成形，尝试容错恢复。
+        // 服务端加载后若控制器坐标丢失但方块状态显示成形,尝试容错恢复.
         if (level != null && !level.isClientSide() && controllerPos == null) {
             recoverController();
         }
@@ -236,7 +236,7 @@ public class MultiblockMeInterfaceBlockEntity extends AENetworkBlockEntity
                     ? BlockPos.of(posTag.getLong(TAG_CONTROLLER_POS_VALUE))
                     : null;
         } else if (data.contains("controllerPos", Tag.TAG_LONG)) {
-            // 旧版兼容：无法区分 BlockPos(0,0,0) 与 null，这里保留原语义
+            // 旧版兼容：无法区分 BlockPos(0,0,0) 与 null,这里保留原语义
             long encoded = data.getLong("controllerPos");
             controllerPos = encoded != 0 ? BlockPos.of(encoded) : null;
         } else {

@@ -16,7 +16,7 @@ import com.github.aeddddd.ae2enhanced.common.menu.HyperdimensionalNexusMenu;
 import com.github.aeddddd.ae2enhanced.common.menu.HyperdimensionalUnformedMenu;
 
 /**
- * 菜单类型注册中心。
+ * 菜单类型注册中心.
  */
 public final class ModMenus {
     public static final DeferredRegister<MenuType<?>> DR = DeferredRegister.create(Registries.MENU, AE2Enhanced.MOD_ID);

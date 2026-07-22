@@ -12,14 +12,14 @@ import com.github.aeddddd.ae2enhanced.structure.SupercausalStructure;
 import com.github.aeddddd.ae2enhanced.util.StructureUtils;
 
 /**
- * 控制器定位器。
- * <p>当通用 ME 接口丢失控制器坐标时，按三种结构的相对坐标扫描可能的控制器位置，
- * 用于 chunk 加载顺序不同或 NBT 异常时的容错恢复。</p>
+ * 控制器定位器.
+ * <p>当通用 ME 接口丢失控制器坐标时,按三种结构的相对坐标扫描可能的控制器位置,
+ * 用于 chunk 加载顺序不同或 NBT 异常时的容错恢复.</p>
  */
 public interface IControllerLocator {
 
     /**
-     * 根据接口位置尝试定位所属控制器。
+     * 根据接口位置尝试定位所属控制器.
      *
      * @param level        世界
      * @param interfacePos 通用 ME 接口位置
@@ -29,7 +29,7 @@ public interface IControllerLocator {
     BlockPos locateController(Level level, BlockPos interfacePos);
 
     /**
-     * 默认实现：扫描三种结构在所有水平朝向下对应的控制器位置，并验证结构完整性。
+     * 默认实现：扫描三种结构在所有水平朝向下对应的控制器位置,并验证结构完整性.
      */
     static IControllerLocator defaultLocator() {
         return (level, interfacePos) -> {
@@ -44,7 +44,7 @@ public interface IControllerLocator {
                     }
                 }
 
-                // 装配枢纽：已不再使用通用 ME 接口，定位器不再扫描旧结构。
+                // 装配枢纽：已不再使用通用 ME 接口,定位器不再扫描旧结构.
 
                 // 超因果计算核心：接口相对控制器坐标由结构定义给出
                 BlockPos scRel = SupercausalStructure.getInstance().getInterfaceRelativePos();

@@ -5,7 +5,7 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
- * {@link MathUtils} 单元测试。
+ * {@link MathUtils} 单元测试.
  */
 class MathUtilsTest {
 

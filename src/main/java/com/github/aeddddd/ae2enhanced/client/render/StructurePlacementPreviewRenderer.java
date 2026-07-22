@@ -33,8 +33,8 @@ import com.github.aeddddd.ae2enhanced.structure.HyperdimensionalStructure;
 import com.github.aeddddd.ae2enhanced.structure.IMultiblockStructure;
 
 /**
- * 结构放置投影渲染器：当玩家对未成形主方块 Shift+右键 开启投影后，
- * 在对应缺失位置渲染半透明幽灵方块。
+ * 结构放置投影渲染器：当玩家对未成形主方块 Shift+右键 开启投影后,
+ * 在对应缺失位置渲染半透明幽灵方块.
  */
 @Mod.EventBusSubscriber(modid = AE2Enhanced.MOD_ID, bus = Mod.EventBusSubscriber.Bus.FORGE, value = Dist.CLIENT)
 public class StructurePlacementPreviewRenderer {

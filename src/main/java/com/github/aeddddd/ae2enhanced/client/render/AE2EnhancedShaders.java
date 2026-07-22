@@ -10,9 +10,9 @@ import net.minecraftforge.client.event.RegisterShadersEvent;
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
 
 /**
- * AE2Enhanced 自定义 Shader 管理器。
- * <p>在 {@link RegisterShadersEvent} 中注册模组 shader 资源，
- * 渲染器通过 {@link #getAssemblyBlackHole()} 获取实例。</p>
+ * AE2Enhanced 自定义 Shader 管理器.
+ * <p>在 {@link RegisterShadersEvent} 中注册模组 shader 资源,
+ * 渲染器通过 {@link #getAssemblyBlackHole()} 获取实例.</p>
  */
 public final class AE2EnhancedShaders {
 

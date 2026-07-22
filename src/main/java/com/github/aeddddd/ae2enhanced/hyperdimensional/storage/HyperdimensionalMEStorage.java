@@ -12,8 +12,8 @@ import net.minecraft.network.chat.Component;
 import com.github.aeddddd.ae2enhanced.hyperdimensional.storage.channel.StorageChannel;
 
 /**
- * 把内部 {@link HyperdimensionalStorage} 桥接到 AE2 {@link MEStorage} 的适配器。
- * <p>同时实现 {@link IStorageProvider}，方便直接挂载到 AE2 网络。</p>
+ * 把内部 {@link HyperdimensionalStorage} 桥接到 AE2 {@link MEStorage} 的适配器.
+ * <p>同时实现 {@link IStorageProvider},方便直接挂载到 AE2 网络.</p>
  */
 public class HyperdimensionalMEStorage implements MEStorage, IStorageProvider {
 
@@ -64,7 +64,7 @@ public class HyperdimensionalMEStorage implements MEStorage, IStorageProvider {
 
     @Override
     public void getAvailableStacks(KeyCounter out) {
-        // 通过 HyperdimensionalStorage 的统一接口获取，利用内部缓存避免每次都遍历全量条目
+        // 通过 HyperdimensionalStorage 的统一接口获取,利用内部缓存避免每次都遍历全量条目
         storage.getAvailableStacks(out);
     }
 

@@ -21,8 +21,8 @@ import com.github.aeddddd.ae2enhanced.computation.blockentity.ComputationCoreBlo
 import com.github.aeddddd.ae2enhanced.computation.cpu.IVirtualCraftingCPU;
 
 /**
- * 增强 {@link CraftingCPUCluster}，使由超因果计算核心托管的虚拟集群
- * 将关键操作重定向到宿主控制器，避免访问未放入世界的虚假合成单元。
+ * 增强 {@link CraftingCPUCluster},使由超因果计算核心托管的虚拟集群
+ * 将关键操作重定向到宿主控制器,避免访问未放入世界的虚假合成单元.
  */
 @Mixin(value = CraftingCPUCluster.class, remap = false)
 public class MixinCraftingCPUCluster implements IVirtualCraftingCPU {

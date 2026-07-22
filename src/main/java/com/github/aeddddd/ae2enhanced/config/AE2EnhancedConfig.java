@@ -5,7 +5,7 @@ import net.minecraftforge.fml.ModLoadingContext;
 import net.minecraftforge.fml.config.ModConfig;
 
 /**
- * AE2Enhanced 配置中心。
+ * AE2Enhanced 配置中心.
  */
 public final class AE2EnhancedConfig {
 
@@ -47,7 +47,7 @@ public final class AE2EnhancedConfig {
         CommonConfig(ForgeConfigSpec.Builder builder) {
             builder.push("computation");
             computationMaxParallel = builder
-                    .comment("超因果计算核心每个虚拟 CPU 的并行上限，同时作为 CPU 池最大数量上限")
+                    .comment("超因果计算核心每个虚拟 CPU 的并行上限,同时作为 CPU 池最大数量上限")
                     .defineInRange("maxParallel", 8, 1, 16);
             builder.pop();
 
@@ -68,7 +68,7 @@ public final class AE2EnhancedConfig {
 
             builder.push("blackHole");
             blackHoleDamageMode = builder
-                    .comment("微型奇点事件视界伤害模式：ALL 击杀所有实体，NON_CREATIVE 不击杀创造玩家，NONE 关闭伤害")
+                    .comment("微型奇点事件视界伤害模式：ALL 击杀所有实体,NON_CREATIVE 不击杀创造玩家,NONE 关闭伤害")
                     .defineEnum("damageMode", BlackHoleDamageMode.ALL);
             builder.pop();
 
@@ -108,7 +108,7 @@ public final class AE2EnhancedConfig {
                     .define("enableAssemblyPostProcessing", true);
 
             forceCompatibilityMode = builder
-                    .comment("强制兼容模式：禁用后处理与 shader 渲染，避免与光影包/优化模组冲突")
+                    .comment("强制兼容模式：禁用后处理与 shader 渲染,避免与光影包/优化模组冲突")
                     .define("forceCompatibilityMode", false);
 
             enableHyperdimensionalRenderer = builder

@@ -31,8 +31,8 @@ import com.github.aeddddd.ae2enhanced.registry.ModBlockEntities;
 import com.github.aeddddd.ae2enhanced.structure.IMultiblockStructure;
 
 /**
- * 超维度仓储中枢控制器方块实体。
- * <p>持有 Nexus UUID 与 BigInteger 外部存储，通过通用 ME 接口挂载到 AE2 网络。</p>
+ * 超维度仓储中枢控制器方块实体.
+ * <p>持有 Nexus UUID 与 BigInteger 外部存储,通过通用 ME 接口挂载到 AE2 网络.</p>
  */
 public class HyperdimensionalControllerBlockEntity extends MultiblockControllerBlockEntity
         implements IStorageHost {
@@ -112,7 +112,7 @@ public class HyperdimensionalControllerBlockEntity extends MultiblockControllerB
                 facing = state.getValue(com.github.aeddddd.ae2enhanced.block.MultiblockControllerBlock.FACING);
             }
         }
-        // 特效中心：结构中心 (0,0,2)，抬高 2.5
+        // 特效中心：结构中心 (0,0,2),抬高 2.5
         Vec3 localCenter = new Vec3(0.0, 2.5, 2.0);
         Vec3 rotatedCenter = rotateOffset(localCenter, facing);
         Vec3 worldCenter = new Vec3(pos.getX() + rotatedCenter.x, pos.getY() + rotatedCenter.y,
@@ -163,7 +163,7 @@ public class HyperdimensionalControllerBlockEntity extends MultiblockControllerB
             storage = HyperdimensionalStorageFile.loadOrCreate(server, nexusId, s -> onStorageContentChanged());
         }
         refreshMeStorageSource();
-        // 后续 GUI 可在此注册监听器以实时刷新；网络统计每 20 tick 刷新一次。
+        // 后续 GUI 可在此注册监听器以实时刷新；网络统计每 20 tick 刷新一次.
     }
 
     private void refreshMeStorageSource() {
@@ -177,9 +177,9 @@ public class HyperdimensionalControllerBlockEntity extends MultiblockControllerB
     }
 
     /**
-     * 当内部存储变化时通知 AE2 网络刷新。
-     * <p>为避免高频写入时反复调用 requestNetworkUpdate，这里仅标记 pending；
-     * 由 {@link #serverTick()} 以最低 5 tick 的间隔统一触发一次。</p>
+     * 当内部存储变化时通知 AE2 网络刷新.
+     * <p>为避免高频写入时反复调用 requestNetworkUpdate,这里仅标记 pending；
+     * 由 {@link #serverTick()} 以最低 5 tick 的间隔统一触发一次.</p>
      */
     private void onStorageContentChanged() {
         if (level == null || level.isClientSide()) {
@@ -245,7 +245,7 @@ public class HyperdimensionalControllerBlockEntity extends MultiblockControllerB
     }
 
     /**
-     * 强制刷新接口相邻位置的 AE2 线缆连接，修复线缆连接时序问题。
+     * 强制刷新接口相邻位置的 AE2 线缆连接,修复线缆连接时序问题.
      */
     private void updateCableConnections() {
         if (level == null || level.isClientSide()) {

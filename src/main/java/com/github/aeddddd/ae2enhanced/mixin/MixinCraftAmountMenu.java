@@ -18,8 +18,8 @@ import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
 
 /**
- * 为 {@link CraftAmountMenu} 增加 long 型下单确认入口，突破原生 confirm 的 int 上限。
- * 方法体复刻原生 confirm 的服务端分支，仅数量以 long 运算。
+ * 为 {@link CraftAmountMenu} 增加 long 型下单确认入口,突破原生 confirm 的 int 上限.
+ * 方法体复刻原生 confirm 的服务端分支,仅数量以 long 运算.
  */
 @Mixin(value = CraftAmountMenu.class, remap = false)
 public abstract class MixinCraftAmountMenu implements CraftAmountMenuLongExt {

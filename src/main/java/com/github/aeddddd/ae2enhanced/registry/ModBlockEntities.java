@@ -18,7 +18,7 @@ import com.github.aeddddd.ae2enhanced.multiblock.MultiblockMeInterfaceBlockEntit
 import com.github.aeddddd.ae2enhanced.util.DevEnvironment;
 
 /**
- * 方块实体类型注册中心。
+ * 方块实体类型注册中心.
  */
 public final class ModBlockEntities {
     public static final DeferredRegister<BlockEntityType<?>> DR = DeferredRegister.create(Registries.BLOCK_ENTITY_TYPE,
@@ -55,7 +55,7 @@ public final class ModBlockEntities {
                     () -> BlockEntityType.Builder.of(ComputationCoreBlockEntity::new,
                             ModBlocks.COMPUTATION_CONTROLLER.get()).build(null));
 
-    // 【仅开发环境】测试用单方块合成 CPU，与 ModBlocks.TEST_CRAFTING_CPU 同步条件注册
+    // 【仅开发环境】测试用单方块合成 CPU,与 ModBlocks.TEST_CRAFTING_CPU 同步条件注册
     @Nullable
     public static final RegistryObject<BlockEntityType<TestCraftingCpuBlockEntity>> TEST_CRAFTING_CPU;
 

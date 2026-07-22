@@ -18,8 +18,8 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * {@link BlackHoleRecipeRegistry} 单元测试。
- * <p>注册表为静态状态，每个测试结束后统一清理，避免相互污染。</p>
+ * {@link BlackHoleRecipeRegistry} 单元测试.
+ * <p>注册表为静态状态,每个测试结束后统一清理,避免相互污染.</p>
  */
 class BlackHoleRecipeRegistryTest {
 

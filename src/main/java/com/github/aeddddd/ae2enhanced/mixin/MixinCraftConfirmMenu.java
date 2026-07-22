@@ -16,9 +16,9 @@ import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
 
 /**
- * 为 {@link CraftConfirmMenu} 增加 long 型计划提交入口，突破原生 planJob 的 int 上限。
- * 方法体与原生 {@code planJob} 完全一致，仅数量参数为 long；
- * 原生 int 字段 amount 仅用于返回上级菜单与 CRAFT_LESS 重算，按 int 上限截断不影响本次计算。
+ * 为 {@link CraftConfirmMenu} 增加 long 型计划提交入口,突破原生 planJob 的 int 上限.
+ * 方法体与原生 {@code planJob} 完全一致,仅数量参数为 long；
+ * 原生 int 字段 amount 仅用于返回上级菜单与 CRAFT_LESS 重算,按 int 上限截断不影响本次计算.
  */
 @Mixin(value = CraftConfirmMenu.class, remap = false)
 public abstract class MixinCraftConfirmMenu implements CraftConfirmMenuLongExt {

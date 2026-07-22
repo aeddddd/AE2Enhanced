@@ -9,9 +9,9 @@ import net.minecraft.client.renderer.RenderStateShard;
 import net.minecraft.client.renderer.RenderType;
 
 /**
- * AE2Enhanced 自定义 RenderType 集合。
+ * AE2Enhanced 自定义 RenderType 集合.
  * <p>继承 {@link RenderType} 以访问受保护的 {@link RenderType#create} 与
- * {@link RenderStateShard} 状态常量。</p>
+ * {@link RenderStateShard} 状态常量.</p>
  */
 public class AE2ERenderTypes extends RenderType {
 
@@ -21,7 +21,7 @@ public class AE2ERenderTypes extends RenderType {
     }
 
     /**
-     * 粗线框 RenderType，用于结构线框、光环。
+     * 粗线框 RenderType,用于结构线框、光环.
      */
     public static final RenderType TESR_LINES = create(
             "ae2enhanced_tesr_lines",
@@ -41,7 +41,7 @@ public class AE2ERenderTypes extends RenderType {
                     .createCompositeState(false));
 
     /**
-     * 半透明 RenderType，用于光晕、能量壳。
+     * 半透明 RenderType,用于光晕、能量壳.
      */
     public static final RenderType TESR_TRANSLUCENT = create(
             "ae2enhanced_tesr_translucent",
@@ -60,9 +60,9 @@ public class AE2ERenderTypes extends RenderType {
                     .createCompositeState(false));
 
     /**
-     * Additive 混合 RenderType，用于自发光层。
-     * <p>使用 lightning shader：entity_translucent 会乘光照贴图颜色，
-     * 而 POSITION_COLOR 格式缺少 UV2 属性时采样为黑色，additive 混合下完全不可见。</p>
+     * Additive 混合 RenderType,用于自发光层.
+     * <p>使用 lightning shader：entity_translucent 会乘光照贴图颜色,
+     * 而 POSITION_COLOR 格式缺少 UV2 属性时采样为黑色,additive 混合下完全不可见.</p>
      */
     public static final RenderType TESR_ADDITIVE = create(
             "ae2enhanced_tesr_additive",
@@ -81,7 +81,7 @@ public class AE2ERenderTypes extends RenderType {
                     .createCompositeState(false));
 
     /**
-     * 自定义不透明 RenderType，用于黑色事件视界等实心体。
+     * 自定义不透明 RenderType,用于黑色事件视界等实心体.
      */
     public static final RenderType TESR_SOLID = create(
             "ae2enhanced_tesr_solid",
@@ -100,15 +100,15 @@ public class AE2ERenderTypes extends RenderType {
                     .createCompositeState(false));
 
     /**
-     * 装配枢纽黑洞核心 shader。
+     * 装配枢纽黑洞核心 shader.
      */
     private static final ShaderStateShard ASSEMBLY_BLACK_HOLE_SHADER =
             new ShaderStateShard(AE2EnhancedShaders::getAssemblyBlackHole);
 
     /**
-     * 装配枢纽黑洞主体 RenderType（事件视界 + 吸积盘），使用自定义 shader。
+     * 装配枢纽黑洞主体 RenderType（事件视界 + 吸积盘）,使用自定义 shader.
      * <p>写入深度：事件视界作为黑洞本体需要被后处理光线步进与后续几何正确遮挡；
-     * 吸积盘在同一缓冲内后绘制（LEQUAL），与球体的前后关系由深度测试自然处理。</p>
+     * 吸积盘在同一缓冲内后绘制（LEQUAL）,与球体的前后关系由深度测试自然处理.</p>
      */
     public static final RenderType ASSEMBLY_BLACK_HOLE = create(
             "ae2enhanced_assembly_black_hole",
@@ -127,7 +127,7 @@ public class AE2ERenderTypes extends RenderType {
                     .createCompositeState(false));
 
     /**
-     * 装配枢纽黑洞发光 RenderType（相对论性喷流），使用自定义 shader 与 Additive 混合。
+     * 装配枢纽黑洞发光 RenderType（相对论性喷流）,使用自定义 shader 与 Additive 混合.
      */
     public static final RenderType ASSEMBLY_BLACK_HOLE_GLOW = create(
             "ae2enhanced_assembly_black_hole_glow",

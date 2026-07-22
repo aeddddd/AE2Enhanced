@@ -37,14 +37,14 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 /**
- * 在 {@link CraftingCpuLogic#executeCrafting} 头部注入装配枢纽的批量合成处理，
- * 复刻主分支 1.12 对装配枢纽任务的虚拟/真实轨道分批处理。
+ * 在 {@link CraftingCpuLogic#executeCrafting} 头部注入装配枢纽的批量合成处理,
+ * 复刻主分支 1.12 对装配枢纽任务的虚拟/真实轨道分批处理.
  * <p>记账方式严格对齐 AE2 1.20.1 原生语义：凡是经网络回流的产物（最终产物、容器物）
- * 都先登记进 {@code job.waitingFor}，再由控制器注入 ME 网络，经 CraftingService 路由回
+ * 都先登记进 {@code job.waitingFor},再由控制器注入 ME 网络,经 CraftingService 路由回
  * {@link CraftingCpuLogic#insert} 完成 waitingFor 核销、remainingAmount 扣减与 finishJob；
- * 立即可用的中间产物与返还的催化剂直接放入 CPU 库存并同步 timeTracker。
- * 只有订单完成路径走通，CPU 才不会永久卡死。</p>
- * <p>批量失败（原料不足等）时不设置 batchBusy，让原生逐份路径自然回退。</p>
+ * 立即可用的中间产物与返还的催化剂直接放入 CPU 库存并同步 timeTracker.
+ * 只有订单完成路径走通,CPU 才不会永久卡死.</p>
+ * <p>批量失败（原料不足等）时不设置 batchBusy,让原生逐份路径自然回退.</p>
  */
 @Mixin(value = CraftingCpuLogic.class, remap = false)
 public class MixinCraftingCpuLogic {
@@ -124,7 +124,7 @@ public class MixinCraftingCpuLogic {
                                 hub.setBatchBusy(true);
                                 hub.resetBatchCooldown();
                             }
-                            // 批量失败不设置 batchBusy，让原生逐份 pushPattern 路径自然回退
+                            // 批量失败不设置 batchBusy,让原生逐份 pushPattern 路径自然回退
                         } finally {
                             hub.setCurrentActionSource(null);
                         }
@@ -139,9 +139,9 @@ public class MixinCraftingCpuLogic {
     }
 
     /**
-     * 虚拟轨道：无剩余物的样板（普通合成、处理样板）。
-     * <p>原料从 CPU 库存批量扣除；最终产物登记 waitingFor 后放入枢纽缓冲，
-     * 由控制器注入网络完成原生记账；中间产物直接放入 CPU 库存供嵌套配方使用。</p>
+     * 虚拟轨道：无剩余物的样板（普通合成、处理样板）.
+     * <p>原料从 CPU 库存批量扣除；最终产物登记 waitingFor 后放入枢纽缓冲,
+     * 由控制器注入网络完成原生记账；中间产物直接放入 CPU 库存供嵌套配方使用.</p>
      */
     @Unique
     private boolean ae2e$processVirtualBatch(CraftingCPUCluster cluster, AssemblyControllerBlockEntity hub,
@@ -184,7 +184,7 @@ public class MixinCraftingCpuLogic {
                 return false;
             }
 
-            // 3) 同 key 合并校验可用量，不足则缩减批量（避免同 key 多槽重复计数）
+            // 3) 同 key 合并校验可用量,不足则缩减批量（避免同 key 多槽重复计数）
             long actual = ae2e$shrinkToAvailable(inventory, keys, fixed, per, batchSize);
             if (actual <= 0) {
                 return false;
@@ -194,9 +194,9 @@ public class MixinCraftingCpuLogic {
             ae2e$extractMerged(inventory, keys, fixed, per, actual);
 
             // 5) 产物交付
-            // 递归合成（产物同时是原料，如 A+2B=2A）时，先计算本批次消耗的该 key 数量：
-            // 等量产物回留 CPU 库存作为下一批次的种子，只有净产出才经网络回流记账，
-            // 否则第一批后 CPU 库存耗尽，后续批次将永远缺料卡死。
+            // 递归合成（产物同时是原料,如 A+2B=2A）时,先计算本批次消耗的该 key 数量：
+            // 等量产物回留 CPU 库存作为下一批次的种子,只有净产出才经网络回流记账,
+            // 否则第一批后 CPU 库存耗尽,后续批次将永远缺料卡死.
             long consumedSelf = 0;
             if (finalOutput != null) {
                 for (int i = 0; i < keys.length; i++) {
@@ -214,22 +214,22 @@ public class MixinCraftingCpuLogic {
                     continue;
                 }
                 if (finalOutput != null && output.what().matches(finalOutput)) {
-                    // 仅当本样板还有后续批次时才回留种子；最后一批全部经网络回流，
-                    // 种子随净产出一并自动返回网络，避免残留在 CPU 库存中
+                    // 仅当本样板还有后续批次时才回留种子；最后一批全部经网络回流,
+                    // 种子随净产出一并自动返回网络,避免残留在 CPU 库存中
                     boolean moreRuns = remaining - actual > 0;
                     long retain = moreRuns ? Math.min(consumedSelf, total) : 0;
                     long net = total - retain;
                     if (retain > 0) {
-                        // 种子回留 CPU 库存，维持递归合成链
+                        // 种子回留 CPU 库存,维持递归合成链
                         inventory.insert(output.what(), retain, Actionable.MODULATE);
                     }
                     if (net > 0) {
-                        // 净产出：登记 waitingFor，注入网络时由 CraftingCpuLogic.insert 核销并完成订单
+                        // 净产出：登记 waitingFor,注入网络时由 CraftingCpuLogic.insert 核销并完成订单
                         waitingFor.insert(output.what(), net, Actionable.MODULATE);
                         hub.addPendingOutput(new GenericStack(output.what(), net));
                     }
                 } else {
-                    // 中间产物：直接进入 CPU 库存，嵌套配方立即可用
+                    // 中间产物：直接进入 CPU 库存,嵌套配方立即可用
                     inventory.insert(output.what(), total, Actionable.MODULATE);
                     ae2e$decrementItems(timeTracker, total, output.what().getType());
                 }
@@ -245,10 +245,10 @@ public class MixinCraftingCpuLogic {
     }
 
     /**
-     * 真实轨道：存在剩余物的合成样板（容器物、催化剂、耐久转换）。
+     * 真实轨道：存在剩余物的合成样板（容器物、催化剂、耐久转换）.
      * <p>剩余物按实际提取的 key 逐项判定：真催化剂（剩余物与输入完全一致）借用 1 份并立即
-     * 返还 CPU 库存；消耗性转换（同物品不同 NBT，如耐久损耗）强制逐份处理；普通容器物
-     * 按批量产出。产物与容器物一律登记 waitingFor 后经网络回流完成原生记账。</p>
+     * 返还 CPU 库存；消耗性转换（同物品不同 NBT,如耐久损耗）强制逐份处理；普通容器物
+     * 按批量产出.产物与容器物一律登记 waitingFor 后经网络回流完成原生记账.</p>
      */
     @Unique
     private boolean ae2e$processRealBatch(CraftingCPUCluster cluster, AssemblyControllerBlockEntity hub,
@@ -282,11 +282,11 @@ public class MixinCraftingCpuLogic {
                 remainders[i] = rem;
                 if (rem != null) {
                     if (rem.equals(key)) {
-                        // 真催化剂：不消耗，仅借用 1 份
+                        // 真催化剂：不消耗,仅借用 1 份
                         catalyst[i] = true;
                     } else if (rem instanceof AEItemKey remItem && key instanceof AEItemKey inItem
                             && remItem.getItem() == inItem.getItem()) {
-                        // 消耗性转换（如耐久损耗）：同物品不同 NBT，禁止批量
+                        // 消耗性转换（如耐久损耗）：同物品不同 NBT,禁止批量
                         transform[i] = true;
                         hasTransform = true;
                     }
@@ -296,7 +296,7 @@ public class MixinCraftingCpuLogic {
                 batchSize = 1;
             }
 
-            // 2) 计算每槽需求量：催化剂/转换槽固定 1 份，其余按批量
+            // 2) 计算每槽需求量：催化剂/转换槽固定 1 份,其余按批量
             long[] fixed = new long[inputs.length];
             long[] per = new long[inputs.length];
             for (int i = 0; i < inputs.length; i++) {
@@ -340,7 +340,7 @@ public class MixinCraftingCpuLogic {
             }
             ae2e$extractMerged(inventory, keys, fixed, per, actual);
 
-            // 5) 产物：登记 waitingFor 后进缓冲，注入网络时由 CPU insert 核销并完成订单
+            // 5) 产物：登记 waitingFor 后进缓冲,注入网络时由 CPU insert 核销并完成订单
             for (GenericStack output : details.getOutputs()) {
                 if (output == null || output.amount() <= 0) {
                     continue;
@@ -367,7 +367,7 @@ public class MixinCraftingCpuLogic {
                     waitingFor.insert(remainders[i], 1, Actionable.MODULATE);
                     hub.addPendingOutput(new GenericStack(remainders[i], 1));
                 } else {
-                    // 普通容器物：每份输入模板留下 1 个，按批量产出
+                    // 普通容器物：每份输入模板留下 1 个,按批量产出
                     long total = MathUtils.safeMultiply(containersPerCraft[i], actual);
                     if (total > 0) {
                         waitingFor.insert(remainders[i], total, Actionable.MODULATE);
@@ -386,9 +386,9 @@ public class MixinCraftingCpuLogic {
     }
 
     /**
-     * 为输入槽匹配实际可用的模板：遍历候选物品，按 IGNORE_ALL 模糊匹配 CPU 库存中
-     * 实际存在的 key（与原生 {@code CraftingCpuHelper#getValidItemTemplates} 一致）。
-     * 返回的 GenericStack 数量为该候选模板的单份数量（actualKey + possibleAmount）。
+     * 为输入槽匹配实际可用的模板：遍历候选物品,按 IGNORE_ALL 模糊匹配 CPU 库存中
+     * 实际存在的 key（与原生 {@code CraftingCpuHelper#getValidItemTemplates} 一致）.
+     * 返回的 GenericStack 数量为该候选模板的单份数量（actualKey + possibleAmount）.
      */
     @Unique
     private static GenericStack ae2e$matchTemplate(ListCraftingInventory inventory, IPatternDetails.IInput input,
@@ -404,8 +404,8 @@ public class MixinCraftingCpuLogic {
     }
 
     /**
-     * 同 key 合并需求后校验 CPU 库存，返回可执行的最大批量。
-     * fixed 为不随批量变化的需求（催化剂/转换槽），per 为单份批量需求。
+     * 同 key 合并需求后校验 CPU 库存,返回可执行的最大批量.
+     * fixed 为不随批量变化的需求（催化剂/转换槽）,per 为单份批量需求.
      */
     @Unique
     private static long ae2e$shrinkToAvailable(ListCraftingInventory inventory, AEKey[] keys, long[] fixed,
@@ -440,7 +440,7 @@ public class MixinCraftingCpuLogic {
     }
 
     /**
-     * 按合并后的需求一次性从 CPU 库存扣料。
+     * 按合并后的需求一次性从 CPU 库存扣料.
      */
     @Unique
     private static void ae2e$extractMerged(ListCraftingInventory inventory, AEKey[] keys, long[] fixed, long[] per,

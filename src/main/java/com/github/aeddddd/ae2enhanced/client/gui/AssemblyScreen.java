@@ -14,7 +14,7 @@ import com.github.aeddddd.ae2enhanced.network.ModNetwork;
 import com.github.aeddddd.ae2enhanced.network.packet.AssemblyPagePacket;
 
 /**
- * 装配枢纽成形状态 GUI。
+ * 装配枢纽成形状态 GUI.
  */
 public class AssemblyScreen extends AbstractContainerScreen<AssemblyMenu> {
 

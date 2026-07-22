@@ -9,13 +9,13 @@ import javax.annotation.Nullable;
 import java.math.BigInteger;
 
 /**
- * 通用 AEKeyType 存储适配器。
- * 用于为游戏中所有已注册 AEKeyType（包括第三方模组注册的类型）提供统一的存储支持。
- * 采用 {@link GenericKeyDescriptor} 与 {@link GenericKeyDescriptorCodec} 进行序列化。
+ * 通用 AEKeyType 存储适配器.
+ * 用于为游戏中所有已注册 AEKeyType（包括第三方模组注册的类型）提供统一的存储支持.
+ * 采用 {@link GenericKeyDescriptor} 与 {@link GenericKeyDescriptorCodec} 进行序列化.
  */
 public class GenericStorageAdapter extends AbstractStorageAdapter<AEKey, GenericKeyDescriptor> {
 
-    // 新版 v3 格式不再使用 type byte，保留 0 仅用于 v2 格式校验（实际上不会为第三方类型生成 v2 文件）。
+    // 新版 v3 格式不再使用 type byte,保留 0 仅用于 v2 格式校验（实际上不会为第三方类型生成 v2 文件）.
     private static final byte TYPE_GENERIC = 0;
 
     public GenericStorageAdapter(AEKeyType keyType) {

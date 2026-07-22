@@ -17,8 +17,8 @@ import com.github.aeddddd.ae2enhanced.client.gui.GuiConstants;
 import com.github.aeddddd.ae2enhanced.registry.ModMenus;
 
 /**
- * 超维度仓储 Nexus 成形状态菜单。
- * <p>包含玩家背包与快捷栏，与 2.png 纹理布局匹配。</p>
+ * 超维度仓储 Nexus 成形状态菜单.
+ * <p>包含玩家背包与快捷栏,与 2.png 纹理布局匹配.</p>
  */
 public class HyperdimensionalNexusMenu extends AbstractContainerMenu {
 

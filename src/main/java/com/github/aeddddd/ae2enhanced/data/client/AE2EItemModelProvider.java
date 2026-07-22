@@ -8,8 +8,8 @@ import com.github.aeddddd.ae2enhanced.AE2Enhanced;
 import com.github.aeddddd.ae2enhanced.registry.ModItems;
 
 /**
- * 物品模型数据生成器。
- * <p>为所有注册物品生成默认手持模型。</p>
+ * 物品模型数据生成器.
+ * <p>为所有注册物品生成默认手持模型.</p>
  */
 public class AE2EItemModelProvider extends ItemModelProvider {
 

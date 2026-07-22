@@ -10,8 +10,8 @@ import java.io.DataOutput;
 import java.io.IOException;
 
 /**
- * FluidDescriptor 自定义二进制编解码器。
- * 使用 {@link NbtIo} 读写 AE2 流体 key 的完整 NBT。
+ * FluidDescriptor 自定义二进制编解码器.
+ * 使用 {@link NbtIo} 读写 AE2 流体 key 的完整 NBT.
  */
 public class FluidDescriptorCodec implements DescriptorCodec<FluidDescriptor> {
 

@@ -44,7 +44,7 @@ float fbm(vec2 p) {
     return value;
 }
 
-// 六边形蜂窝铺砌：返回当前位置到胞格边界的距离（0 为边界），cellId 输出胞格索引
+// 六边形蜂窝铺砌：返回当前位置到胞格边界的距离（0 为边界）,cellId 输出胞格索引
 float hexCell(vec2 p, out vec2 cellId) {
     p.x *= 0.57735 * 2.0;
     p.y += mod(floor(p.x), 2.0) * 0.5;
@@ -58,19 +58,19 @@ void main() {
     float intensity = clamp(uIntensity, 0.0, 2.0);
 
     if (part == 0) {
-        // 事件视界：纯黑实心，外侧带极细暗红色边缘，使其在亮背景下也能被辨认
+        // 事件视界：纯黑实心,外侧带极细暗红色边缘,使其在亮背景下也能被辨认
         // 边缘半径与 Java 端 EVENT_HORIZON_RADIUS_BASE = 1.8 对应
         float r = length(vPos);
         float edge = 1.0 - smoothstep(SCALE * 1.75, SCALE * 1.85, r);
         vec3 edgeCol = vec3(0.4, 0.05, 0.05) * edge * 0.4 * intensity;
         fragColor = vec4(edgeCol, 1.0);
     } else if (part == 1) {
-        // 吸积盘：赤道面旋转环，径向渐变范围与 Java 端 DISK_INNER/OUTER_BASE (3.0 ~ 7.8) 对应
+        // 吸积盘：赤道面旋转环,径向渐变范围与 Java 端 DISK_INNER/OUTER_BASE (3.0 ~ 7.8) 对应
         float r = length(vPos.xz);
         float y = vPos.y;
         float diskH = 0.10 * SCALE * intensity;
 
-        // 通过 y 做软裁剪，使扁平几何也有体积厚度感
+        // 通过 y 做软裁剪,使扁平几何也有体积厚度感
         float yFade = 1.0 - smoothstep(0.0, diskH, abs(y));
         if (yFade <= 0.0) {
             discard;
@@ -94,7 +94,7 @@ void main() {
         float alpha = edgeFade * 1.2 * intensity;
         fragColor = vec4(col * alpha * 1.4, alpha) * ColorModulator;
     } else if (part == 2) {
-        // 相对论性喷流：沿 Y 轴锥形，使用硬编码 SCALE
+        // 相对论性喷流：沿 Y 轴锥形,使用硬编码 SCALE
         float r = length(vPos.xz);
         float y = vPos.y;
         float height = 12.8 * SCALE * intensity;
@@ -113,12 +113,12 @@ void main() {
         float alpha = (1.0 - t) * flicker * 1.0 * intensity;
         fragColor = vec4(col * alpha * 1.3, alpha) * ColorModulator;
     } else if (part == 3) {
-        // 约束壳（简约科幻风）：稀疏大胞格六边形框架，单层干净细线，
-        // 微弱逐胞呼吸脉冲 + 极轻菲涅尔轮廓提亮，不叠加次网格与动态波带
+        // 约束壳（简约科幻风）：稀疏大胞格六边形框架,单层干净细线,
+        // 微弱逐胞呼吸脉冲 + 极轻菲涅尔轮廓提亮,不叠加次网格与动态波带
         vec3 n = normalize(vPos);
         float theta = atan(n.z, n.x);
         float phi = asin(clamp(n.y, -1.0, 1.0));
-        // 等距柱状近似：经度按 cos(phi) 收缩，缓解两极胞格拉伸
+        // 等距柱状近似：经度按 cos(phi) 收缩,缓解两极胞格拉伸
         vec2 suv = vec2(theta * cos(phi), phi);
 
         vec2 cellId;
@@ -130,7 +130,7 @@ void main() {
             discard;
         }
 
-        // 呼吸脉冲幅度收敛，避免闪烁感
+        // 呼吸脉冲幅度收敛,避免闪烁感
         float pulse = 0.78 + 0.22 * sin(uTime * 1.2 + hash2(cellId) * 6.2831);
         float poleFade = smoothstep(1.50, 1.15, abs(phi));
 

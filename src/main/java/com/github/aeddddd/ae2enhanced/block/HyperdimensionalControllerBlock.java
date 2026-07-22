@@ -23,7 +23,7 @@ import com.github.aeddddd.ae2enhanced.structure.HyperdimensionalStructure;
 import com.github.aeddddd.ae2enhanced.structure.IMultiblockStructure;
 
 /**
- * 超维度仓储中枢控制器。
+ * 超维度仓储中枢控制器.
  */
 public class HyperdimensionalControllerBlock extends MultiblockControllerBlock {
 

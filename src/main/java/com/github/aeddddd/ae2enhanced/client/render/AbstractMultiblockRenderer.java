@@ -22,7 +22,7 @@ import com.github.aeddddd.ae2enhanced.multiblock.IMultiblockController;
 import com.github.aeddddd.ae2enhanced.util.StructureUtils;
 
 /**
- * 多方块控制器 BlockEntityRenderer 抽象基类。
+ * 多方块控制器 BlockEntityRenderer 抽象基类.
  * <p>统一处理：</p>
  * <ul>
  *   <li>成形状态检查</li>
@@ -72,7 +72,7 @@ public abstract class AbstractMultiblockRenderer<T extends BlockEntity & IMultib
 
     /**
      * 返回用于方块实体 {@link net.minecraft.world.level.block.entity.BlockEntity#getRenderBoundingBox()}
-     * 的渲染包围盒。子类或对应方块实体可调用此方法。
+     * 的渲染包围盒.子类或对应方块实体可调用此方法.
      */
     public AABB getRenderBounds(T be) {
         Vec3 center = getEffectCenterWorld(be);
@@ -81,29 +81,29 @@ public abstract class AbstractMultiblockRenderer<T extends BlockEntity & IMultib
     }
 
     /**
-     * 子类实现具体特效渲染。
+     * 子类实现具体特效渲染.
      */
     protected abstract void renderEffect(T be, float partialTicks, PoseStack poseStack,
             MultiBufferSource bufferSource, int packedLight, int packedOverlay);
 
     /**
-     * 子类声明是否启用本渲染器。
+     * 子类声明是否启用本渲染器.
      */
     protected abstract boolean isRendererEnabled();
 
     /**
-     * 子类返回特效中心相对于控制器原点的偏移（已考虑朝向）。
-     * <p>默认返回结构几何中心。</p>
+     * 子类返回特效中心相对于控制器原点的偏移（已考虑朝向）.
+     * <p>默认返回结构几何中心.</p>
      */
     protected abstract Vec3 getEffectCenterOffset(T be);
 
     /**
-     * 子类返回渲染半径，用于距离裁剪与包围盒。
+     * 子类返回渲染半径,用于距离裁剪与包围盒.
      */
     protected abstract double getRenderRadius();
 
     /**
-     * 获取世界空间中的特效中心位置。
+     * 获取世界空间中的特效中心位置.
      */
     protected Vec3 getEffectCenterWorld(T be) {
         BlockPos pos = be.getBlockPos();
@@ -112,7 +112,7 @@ public abstract class AbstractMultiblockRenderer<T extends BlockEntity & IMultib
     }
 
     /**
-     * 从方块状态读取控制器水平朝向。
+     * 从方块状态读取控制器水平朝向.
      */
     protected Direction getFacing(T be) {
         Level level = be.getLevel();
@@ -127,7 +127,7 @@ public abstract class AbstractMultiblockRenderer<T extends BlockEntity & IMultib
     }
 
     /**
-     * 计算给定相对坐标集合在指定朝向下的包围盒。
+     * 计算给定相对坐标集合在指定朝向下的包围盒.
      *
      * @param relPositions 结构相对坐标集合
      * @param facing 控制器朝向
@@ -151,7 +151,7 @@ public abstract class AbstractMultiblockRenderer<T extends BlockEntity & IMultib
     }
 
     /**
-     * 由结构包围盒计算中心偏移（相对于控制器方块中心 0.5, 0.5, 0.5）。
+     * 由结构包围盒计算中心偏移（相对于控制器方块中心 0.5, 0.5, 0.5）.
      */
     public static Vec3 computeCenterOffset(float[] bounds) {
         return new Vec3(
@@ -161,7 +161,7 @@ public abstract class AbstractMultiblockRenderer<T extends BlockEntity & IMultib
     }
 
     /**
-     * 由结构包围盒计算包围球半径。
+     * 由结构包围盒计算包围球半径.
      */
     public static double computeRadius(float[] bounds) {
         double dx = bounds[3] - bounds[0];
@@ -171,7 +171,7 @@ public abstract class AbstractMultiblockRenderer<T extends BlockEntity & IMultib
     }
 
     /**
-     * 根据与相机的距离计算 LOD 分段数。
+     * 根据与相机的距离计算 LOD 分段数.
      *
      * @param distance 到特效中心的距离
      * @param base 近距离分段数
@@ -194,7 +194,7 @@ public abstract class AbstractMultiblockRenderer<T extends BlockEntity & IMultib
     }
 
     /**
-     * 获取基于总刻数的动画时间。
+     * 获取基于总刻数的动画时间.
      */
     protected float getTime(T be, float partialTicks) {
         Level level = be.getLevel();
@@ -202,7 +202,7 @@ public abstract class AbstractMultiblockRenderer<T extends BlockEntity & IMultib
     }
 
     /**
-     * 辅助：将 0.0~1.0 浮点颜色分量转换为 0~255 整数。
+     * 辅助：将 0.0~1.0 浮点颜色分量转换为 0~255 整数.
      */
     protected static int f2i(float v) {
         return Mth.clamp((int) (v * 255.0f), 0, 255);

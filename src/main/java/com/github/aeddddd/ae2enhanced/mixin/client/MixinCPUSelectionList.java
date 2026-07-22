@@ -10,10 +10,10 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 /**
- * 修复 CPU 选择列表按钮上的存储容量直接显示。
- * <p>原生 {@code formatStorage} 只做 {@code storage / 1024 + "k"}，
+ * 修复 CPU 选择列表按钮上的存储容量直接显示.
+ * <p>原生 {@code formatStorage} 只做 {@code storage / 1024 + "k"},
  * 面对超大虚拟 CPU 存储（如 Long.MAX_VALUE）会显示一整行裸数字；
- * 改为与 tooltip 一致的字节格式化（依赖 MixinTooltips 修正后的 BYTE_NUMS）。</p>
+ * 改为与 tooltip 一致的字节格式化（依赖 MixinTooltips 修正后的 BYTE_NUMS）.</p>
  */
 @Mixin(value = CPUSelectionList.class, remap = false)
 public class MixinCPUSelectionList {

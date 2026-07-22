@@ -8,7 +8,7 @@ import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.Slot;
 
 /**
- * Tech-panel 风格 GUI 抽象基类。
+ * Tech-panel 风格 GUI 抽象基类.
  */
 public abstract class TechPanelScreen<T extends AbstractContainerMenu> extends AbstractContainerScreen<T> {
 

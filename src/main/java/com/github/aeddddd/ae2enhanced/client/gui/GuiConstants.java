@@ -1,8 +1,8 @@
 package com.github.aeddddd.ae2enhanced.client.gui;
 
 /**
- * GUI 相关常量集中定义。
- * <p>注意：本类仅包含基础类型常量，避免引入客户端专属类，因其可能被 common 包引用。</p>
+ * GUI 相关常量集中定义.
+ * <p>注意：本类仅包含基础类型常量,避免引入客户端专属类,因其可能被 common 包引用.</p>
  */
 public final class GuiConstants {
 
@@ -55,14 +55,14 @@ public final class GuiConstants {
     // ==================== 容器交互距离 ====================
 
     /**
-     * 容器 stillValid 最大距离平方，对应 8 格直线距离（与 Minecraft 原容器一致）。
+     * 容器 stillValid 最大距离平方,对应 8 格直线距离（与 Minecraft 原容器一致）.
      */
     public static final double CONTAINER_MAX_DISTANCE_SQR = 64.0;
 
     // ==================== 安全迭代上限与日志前缀 ====================
 
     /**
-     * 装配枢纽批量任务安全迭代上限，防止死循环。
+     * 装配枢纽批量任务安全迭代上限,防止死循环.
      */
     public static final int MAX_BATCH_ITERATIONS = 100000;
 

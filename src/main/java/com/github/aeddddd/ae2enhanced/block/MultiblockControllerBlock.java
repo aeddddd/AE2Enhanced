@@ -32,9 +32,9 @@ import com.github.aeddddd.ae2enhanced.structure.IMultiblockStructure;
 import com.github.aeddddd.ae2enhanced.util.BlockEntityRemovalHelper;
 
 /**
- * 多方块控制器方块的通用基类。
- * <p>统一处理 FACING 属性、放置时加入索引、移除时解散结构、以及服务端 tick 调度。
- * 具体的菜单交互、结构验证与索引类型由子类实现。</p>
+ * 多方块控制器方块的通用基类.
+ * <p>统一处理 FACING 属性、放置时加入索引、移除时解散结构、以及服务端 tick 调度.
+ * 具体的菜单交互、结构验证与索引类型由子类实现.</p>
  */
 public abstract class MultiblockControllerBlock extends Block implements EntityBlock {
 
@@ -92,7 +92,7 @@ public abstract class MultiblockControllerBlock extends Block implements EntityB
     }
 
     /**
-     * 获取当前控制器对应的多方块结构定义。
+     * 获取当前控制器对应的多方块结构定义.
      */
     public abstract IMultiblockStructure getStructure();
 
@@ -120,17 +120,17 @@ public abstract class MultiblockControllerBlock extends Block implements EntityB
     }
 
     /**
-     * 将控制器位置加入维度索引，供 StructureEventHandler 快速查找。
+     * 将控制器位置加入维度索引,供 StructureEventHandler 快速查找.
      */
     protected abstract void addToIndex(ServerLevel level, BlockPos pos);
 
     /**
-     * 从维度索引中移除控制器位置。
+     * 从维度索引中移除控制器位置.
      */
     protected abstract void removeFromIndex(ServerLevel level, BlockPos pos);
 
     /**
-     * 当控制器方块被移除时，解散其对应的多方块结构。
+     * 当控制器方块被移除时,解散其对应的多方块结构.
      */
     protected abstract void disassembleStructure(Level level, BlockPos pos);
 }

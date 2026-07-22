@@ -28,7 +28,7 @@ import com.github.aeddddd.ae2enhanced.multiblock.MultiblockMeInterfaceBlock;
 import com.github.aeddddd.ae2enhanced.util.DevEnvironment;
 
 /**
- * 方块注册中心。
+ * 方块注册中心.
  */
 public final class ModBlocks {
     public static final DeferredRegister<Block> DR = DeferredRegister.create(Registries.BLOCK, AE2Enhanced.MOD_ID);
@@ -87,8 +87,8 @@ public final class ModBlocks {
     public static final RegistryObject<Block> CAUSAL_ANCHOR_CORE = DR.register("causal_anchor_core",
             () -> new CausalAnchorCoreBlock(metalProperties().lightLevel(state -> 8)));
 
-    // 【仅开发环境】测试用单方块合成 CPU：超因果计算核心多方块临时下线期间的替代测试手段。
-    // 生产环境中不注册，使用方必须以 DevEnvironment.isDev() 判空。
+    // 【仅开发环境】测试用单方块合成 CPU：超因果计算核心多方块临时下线期间的替代测试手段.
+    // 生产环境中不注册,使用方必须以 DevEnvironment.isDev() 判空.
     @Nullable
     public static final RegistryObject<Block> TEST_CRAFTING_CPU;
 

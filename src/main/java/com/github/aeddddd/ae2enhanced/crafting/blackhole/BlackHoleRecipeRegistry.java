@@ -7,8 +7,8 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * 黑洞配方代码级注册表。
- * <p>供脚本或动态注册使用，同时支持延迟移除。</p>
+ * 黑洞配方代码级注册表.
+ * <p>供脚本或动态注册使用,同时支持延迟移除.</p>
  */
 public class BlackHoleRecipeRegistry {
 
@@ -20,7 +20,7 @@ public class BlackHoleRecipeRegistry {
     }
 
     /**
-     * 在已注册配方中查找首个匹配当前物品聚合的配方。
+     * 在已注册配方中查找首个匹配当前物品聚合的配方.
      */
     public static BlackHoleRecipe findMatching(Map<String, Integer> found) {
         for (BlackHoleRecipe recipe : RECIPES) {

@@ -17,7 +17,7 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * 超维度仓储中枢的泛型存储适配器基类。
+ * 超维度仓储中枢的泛型存储适配器基类.
  * 统一物品/流体/能量以及第三方 AEKeyType 的公共逻辑：
  * - insert / extract 的 SIMULATE / MODULATE 事务
  * - getAvailableStacks 的遍历与数量转换
@@ -29,8 +29,8 @@ import java.util.Objects;
  * - {@link #createResult(T, BigInteger)}：构造结果 key
  * - {@link #getTypeByte()}：返回二进制文件中的类型标识（仅用于读取旧版格式）
  *
- * @param <T> AE key 类型，如 AEItemKey / AEFluidKey / EnergyKey
- * @param <D> 描述符类型，如 ItemDescriptor / FluidDescriptor / EnergyDescriptor / GenericKeyDescriptor
+ * @param <T> AE key 类型,如 AEItemKey / AEFluidKey / EnergyKey
+ * @param <D> 描述符类型,如 ItemDescriptor / FluidDescriptor / EnergyDescriptor / GenericKeyDescriptor
  */
 public abstract class AbstractStorageAdapter<T extends AEKey, D extends Descriptor> {
 
@@ -44,47 +44,47 @@ public abstract class AbstractStorageAdapter<T extends AEKey, D extends Descript
     }
 
     /**
-     * 从输入 AE key 构造描述符，用于 Map 的 Key。
+     * 从输入 AE key 构造描述符,用于 Map 的 Key.
      */
     public abstract D createDescriptor(T input);
 
     /**
-     * 将通用 AE key 转换为本适配器处理的具体类型。
+     * 将通用 AE key 转换为本适配器处理的具体类型.
      *
      * @param key 输入 key
-     * @return 若类型匹配则返回转换后的 key，否则返回 null
+     * @return 若类型匹配则返回转换后的 key,否则返回 null
      */
     @Nullable
     public abstract T cast(AEKey key);
 
     /**
-     * 从请求 key 和实际数量构造结果 key。
-     * 在 AE2 1.20.1 中 key 不携带数量，通常直接返回请求 key。
+     * 从请求 key 和实际数量构造结果 key.
+     * 在 AE2 1.20.1 中 key 不携带数量,通常直接返回请求 key.
      */
     public abstract T createResult(T request, BigInteger amount);
 
     /**
-     * 返回旧版二进制文件中的类型标识字节（仅用于 v2 格式校验）。
-     * 新版 v3 通用格式不再依赖该字节。
+     * 返回旧版二进制文件中的类型标识字节（仅用于 v2 格式校验）.
+     * 新版 v3 通用格式不再依赖该字节.
      */
     protected abstract byte getTypeByte();
 
     /**
-     * 返回本适配器对应的描述符编解码器。
+     * 返回本适配器对应的描述符编解码器.
      */
     public DescriptorCodec<D> getCodec() {
         return codec;
     }
 
     /**
-     * 返回本适配器对应的 AEKeyType。
+     * 返回本适配器对应的 AEKeyType.
      */
     public AEKeyType getKeyType() {
         return keyType;
     }
 
     /**
-     * 向存储中存入指定数量的 key。
+     * 向存储中存入指定数量的 key.
      *
      * @return 实际存入数量（不超过 {@link Long#MAX_VALUE}）
      */
@@ -121,7 +121,7 @@ public abstract class AbstractStorageAdapter<T extends AEKey, D extends Descript
     }
 
     /**
-     * 从存储中取出指定数量的 key。
+     * 从存储中取出指定数量的 key.
      *
      * @return 实际取出数量（不超过 {@link Long#MAX_VALUE}）
      */
@@ -157,7 +157,7 @@ public abstract class AbstractStorageAdapter<T extends AEKey, D extends Descript
     }
 
     /**
-     * 将当前可用内容写入 AE2 网络统计容器。
+     * 将当前可用内容写入 AE2 网络统计容器.
      */
     public void getAvailableStacks(KeyCounter out) {
         for (Map.Entry<D, BigInteger> entry : storage.entrySet()) {
@@ -170,15 +170,15 @@ public abstract class AbstractStorageAdapter<T extends AEKey, D extends Descript
     }
 
     /**
-     * 返回内部存储 Map 的只读副本。
-     * <p>返回值为 {@code Map<D, BigInteger>}，用于持久化时直接序列化描述符。</p>
+     * 返回内部存储 Map 的只读副本.
+     * <p>返回值为 {@code Map<D, BigInteger>},用于持久化时直接序列化描述符.</p>
      */
     public Map<D, BigInteger> getStorageMap() {
         return Collections.unmodifiableMap(new HashMap<>(storage));
     }
 
     /**
-     * 返回以 AEKey 为键的条目视图。
+     * 返回以 AEKey 为键的条目视图.
      */
     public Map<AEKey, BigInteger> getEntries() {
         Map<AEKey, BigInteger> result = new HashMap<>();
@@ -189,7 +189,7 @@ public abstract class AbstractStorageAdapter<T extends AEKey, D extends Descript
     }
 
     /**
-     * 直接设置指定 key 的数量（用于迁移/初始化）。
+     * 直接设置指定 key 的数量（用于迁移/初始化）.
      */
     public void set(T key, BigInteger amount) {
         if (key == null || amount == null || amount.signum() <= 0
@@ -209,7 +209,7 @@ public abstract class AbstractStorageAdapter<T extends AEKey, D extends Descript
     }
 
     /**
-     * 从 AEKey 到数量的映射加载内容。
+     * 从 AEKey 到数量的映射加载内容.
      */
     public void loadFrom(Map<AEKey, BigInteger> data) {
         storage.clear();
@@ -234,7 +234,7 @@ public abstract class AbstractStorageAdapter<T extends AEKey, D extends Descript
     }
 
     /**
-     * 从描述符到数量的映射加载内容。
+     * 从描述符到数量的映射加载内容.
      */
     public void loadFromDescriptors(Map<D, BigInteger> data) {
         storage.clear();
@@ -253,7 +253,7 @@ public abstract class AbstractStorageAdapter<T extends AEKey, D extends Descript
     }
 
     /**
-     * 从二进制文件加载本适配器的全部条目。
+     * 从二进制文件加载本适配器的全部条目.
      */
     public void loadFromFile(HyperdimensionalStorageFile file) {
         if (file == null || file.isSafeMode()) {
@@ -264,7 +264,7 @@ public abstract class AbstractStorageAdapter<T extends AEKey, D extends Descript
     }
 
     /**
-     * 将本适配器的全部条目异步保存到二进制文件。
+     * 将本适配器的全部条目异步保存到二进制文件.
      */
     public void saveToFile(HyperdimensionalStorageFile file) {
         if (file == null || file.isSafeMode()) {

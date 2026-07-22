@@ -11,7 +11,7 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 
 /**
- * 微型奇点仪式配方注册表。
+ * 微型奇点仪式配方注册表.
  */
 public class SingularityRecipeRegistry {
 
@@ -25,7 +25,7 @@ public class SingularityRecipeRegistry {
     }
 
     /**
-     * 在以 center 为中心，玩家手持 heldItem 的情况下寻找第一个匹配的配方。
+     * 在以 center 为中心,玩家手持 heldItem 的情况下寻找第一个匹配的配方.
      */
     public static SingularityRecipe findMatching(Level level, BlockPos center, ItemStack heldItem) {
         for (SingularityRecipe recipe : RECIPES) {

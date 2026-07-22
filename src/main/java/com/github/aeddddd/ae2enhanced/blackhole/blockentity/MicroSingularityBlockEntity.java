@@ -21,10 +21,10 @@ import com.github.aeddddd.ae2enhanced.crafting.blackhole.BlackHoleCraftingHelper
 import com.github.aeddddd.ae2enhanced.registry.ModBlockEntities;
 
 /**
- * 微型奇点的方块实体。
- * 默认 300 秒（6000 ticks）后自动坍缩消失。
- * 期间对 3×3×3 范围内的生物执行稳定击杀。
- * 黑洞合成由玩家右键方块主动触发。
+ * 微型奇点的方块实体.
+ * 默认 300 秒（6000 ticks）后自动坍缩消失.
+ * 期间对 3×3×3 范围内的生物执行稳定击杀.
+ * 黑洞合成由玩家右键方块主动触发.
  */
 public class MicroSingularityBlockEntity extends BlockEntity {
 
@@ -79,7 +79,7 @@ public class MicroSingularityBlockEntity extends BlockEntity {
     }
 
     /**
-     * 玩家右键微型奇点时调用：主动触发黑洞合成。
+     * 玩家右键微型奇点时调用：主动触发黑洞合成.
      */
     public void activateCrafting() {
         if (level == null || level.isClientSide()) {

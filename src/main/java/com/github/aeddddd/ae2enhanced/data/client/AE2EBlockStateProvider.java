@@ -15,8 +15,8 @@ import com.github.aeddddd.ae2enhanced.client.model.ConnectedTextureModel;
 import com.github.aeddddd.ae2enhanced.registry.ModBlocks;
 
 /**
- * 方块状态数据生成器。
- * <p>为所有注册方块生成默认方块状态与模型引用。</p>
+ * 方块状态数据生成器.
+ * <p>为所有注册方块生成默认方块状态与模型引用.</p>
  */
 public class AE2EBlockStateProvider extends BlockStateProvider {
 
@@ -45,7 +45,7 @@ public class AE2EBlockStateProvider extends BlockStateProvider {
     }
 
     /**
-     * 生成使用 {@code ae2enhanced:connected} 连接纹理模型的方块状态与模型。
+     * 生成使用 {@code ae2enhanced:connected} 连接纹理模型的方块状态与模型.
      */
     private void connectedBlock(Supplier<Block> block) {
         Block b = block.get();

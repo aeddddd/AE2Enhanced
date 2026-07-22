@@ -8,7 +8,7 @@ import net.minecraft.core.Direction;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
- * {@link StructureUtils} 单元测试。
+ * {@link StructureUtils} 单元测试.
  */
 class StructureUtilsTest {
 
@@ -16,13 +16,13 @@ class StructureUtilsTest {
 
     @Test
     void testRotateNorthIsIdentity() {
-        // NORTH 为基准方向，坐标不变
+        // NORTH 为基准方向,坐标不变
         assertEquals(POS, StructureUtils.rotate(POS, Direction.NORTH));
     }
 
     @Test
     void testRotateSouth() {
-        // SOUTH：180° 水平旋转，x/z 同时取反
+        // SOUTH：180° 水平旋转,x/z 同时取反
         assertEquals(new BlockPos(-1, 2, -3), StructureUtils.rotate(POS, Direction.SOUTH));
     }
 
@@ -40,7 +40,7 @@ class StructureUtilsTest {
 
     @Test
     void testRotateVerticalDirectionsReturnOriginal() {
-        // UP/DOWN 不是水平朝向，按原样返回
+        // UP/DOWN 不是水平朝向,按原样返回
         assertEquals(POS, StructureUtils.rotate(POS, Direction.UP));
         assertEquals(POS, StructureUtils.rotate(POS, Direction.DOWN));
     }

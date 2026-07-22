@@ -15,8 +15,8 @@ import net.minecraft.world.level.storage.DimensionDataStorage;
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
 
 /**
- * 记录世界中所有超因果计算核心控制器位置的持久化索引。
- * <p>供 {@link com.github.aeddddd.ae2enhanced.event.StructureEventHandler} 快速定位受结构变化影响的控制器。</p>
+ * 记录世界中所有超因果计算核心控制器位置的持久化索引.
+ * <p>供 {@link com.github.aeddddd.ae2enhanced.event.StructureEventHandler} 快速定位受结构变化影响的控制器.</p>
  */
 public class ComputationCoreIndex extends SavedData {
 

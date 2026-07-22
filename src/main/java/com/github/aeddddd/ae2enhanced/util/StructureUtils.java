@@ -4,7 +4,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 
 /**
- * 多方块结构相关的通用工具方法。
+ * 多方块结构相关的通用工具方法.
  */
 public final class StructureUtils {
 
@@ -12,8 +12,8 @@ public final class StructureUtils {
     }
 
     /**
-     * 将相对坐标按指定水平朝向旋转。
-     * <p>以 NORTH 为基准，向南、东、西旋转时分别做 180°、90°、-90° 水平旋转。</p>
+     * 将相对坐标按指定水平朝向旋转.
+     * <p>以 NORTH 为基准,向南、东、西旋转时分别做 180°、90°、-90° 水平旋转.</p>
      *
      * @param rel    相对坐标
      * @param facing 水平朝向

@@ -48,9 +48,9 @@ import com.github.aeddddd.ae2enhanced.structure.IMultiblockStructure;
 import com.github.aeddddd.ae2enhanced.util.BlockEntityRemovalHelper;
 
 /**
- * 装配枢纽控制器方块实体。
- * <p>自身作为 AE2 网络节点，向网络提供 Long 级别的并行虚拟样板合成，支持升级卡、样板分页与产物缓冲。
- * 核心逻辑已拆分到 {@link AssemblyPatternManager}、{@link AssemblyUpgradeManager} 与 {@link AssemblyCraftingProcessor}。</p>
+ * 装配枢纽控制器方块实体.
+ * <p>自身作为 AE2 网络节点,向网络提供 Long 级别的并行虚拟样板合成,支持升级卡、样板分页与产物缓冲.
+ * 核心逻辑已拆分到 {@link AssemblyPatternManager}、{@link AssemblyUpgradeManager} 与 {@link AssemblyCraftingProcessor}.</p>
  */
 public class AssemblyControllerBlockEntity extends AENetworkBlockEntity
         implements IPatternProviderHost, ICraftingProvider, PatternContainer, IMultiblockController {
@@ -75,10 +75,10 @@ public class AssemblyControllerBlockEntity extends AENetworkBlockEntity
     private boolean showingStructureProjection = false;
 
     /**
-     * 样板批量信息：虚拟/真实轨道分类。
-     * <p>虚拟轨道 = 所有输入均无剩余物（普通合成、处理样板），产物直接交付；
-     * 真实轨道 = 存在容器物/催化剂/耐久转换（{@link appeng.api.crafting.IPatternDetails.IInput#getRemainingKey} 非空），
-     * 剩余物的逐项处理由 Mixin 在实际提取时按真实 key 判定。</p>
+     * 样板批量信息：虚拟/真实轨道分类.
+     * <p>虚拟轨道 = 所有输入均无剩余物（普通合成、处理样板）,产物直接交付；
+     * 真实轨道 = 存在容器物/催化剂/耐久转换（{@link appeng.api.crafting.IPatternDetails.IInput#getRemainingKey} 非空）,
+     * 剩余物的逐项处理由 Mixin 在实际提取时按真实 key 判定.</p>
      */
     public static class PatternBatchInfo {
         public boolean virtual = true;
@@ -100,35 +100,35 @@ public class AssemblyControllerBlockEntity extends AENetworkBlockEntity
     }
 
     /**
-     * 当前并行上限。0 张并行升级卡 = 64，每多 1 张 ×32，5 张 = Long.MAX_VALUE。
+     * 当前并行上限.0 张并行升级卡 = 64,每多 1 张 ×32,5 张 = Long.MAX_VALUE.
      */
     public long getParallelCap() {
         return upgradeManager.getParallelCap();
     }
 
     /**
-     * 设置当前执行样板的动作来源。由 Mixin 在批量处理前设置，确保 AE2 网络操作归因正确。
+     * 设置当前执行样板的动作来源.由 Mixin 在批量处理前设置,确保 AE2 网络操作归因正确.
      */
     public void setCurrentActionSource(@Nullable IActionSource source) {
         this.craftingProcessor.setCurrentActionSource(source);
     }
 
     /**
-     * 获取实际应使用的动作来源。优先使用 Mixin 设置的临时来源，否则回退到机器源。
+     * 获取实际应使用的动作来源.优先使用 Mixin 设置的临时来源,否则回退到机器源.
      */
     public IActionSource getEffectiveActionSource() {
         return this.craftingProcessor.getEffectiveActionSource();
     }
 
     /**
-     * 当前 tick 是否还能接受新的 batch。batchBusy 会在每个 tick 的服务器端刷新。
+     * 当前 tick 是否还能接受新的 batch.batchBusy 会在每个 tick 的服务器端刷新.
      */
     public boolean canBatch() {
         return this.craftingProcessor.canBatch();
     }
 
     /**
-     * 标记 batch 忙碌状态。由 Mixin 在批量处理前后调用。
+     * 标记 batch 忙碌状态.由 Mixin 在批量处理前后调用.
      */
     public void setBatchBusy(boolean busy) {
         this.craftingProcessor.setBatchBusy(busy);
@@ -139,21 +139,21 @@ public class AssemblyControllerBlockEntity extends AENetworkBlockEntity
     }
 
     /**
-     * 当前合成延迟 tick 数。0 张速度升级卡 = 20，每张减半，最低 1 tick。
+     * 当前合成延迟 tick 数.0 张速度升级卡 = 20,每张减半,最低 1 tick.
      */
     public int getCraftingTicks() {
         return upgradeManager.getCraftingTicks();
     }
 
     /**
-     * 当前可用样板页数。基础 5 页，每张扩容升级卡 +5 页，上限 30 页。
+     * 当前可用样板页数.基础 5 页,每张扩容升级卡 +5 页,上限 30 页.
      */
     public int getPatternPages() {
         return upgradeManager.getPatternPages();
     }
 
     /**
-     * 检查是否安装了样板自动上传模块升级（槽位 4）。
+     * 检查是否安装了样板自动上传模块升级（槽位 4）.
      */
     public boolean hasAutoUploadUpgrade() {
         return upgradeManager.hasAutoUploadUpgrade();
@@ -162,28 +162,28 @@ public class AssemblyControllerBlockEntity extends AENetworkBlockEntity
     // ---- Pattern Batch Info (real vs virtual crafting) ----
 
     /**
-     * 供 Mixin 调用：检查 pendingOutputs 是否还能接受指定数量的 stack。
+     * 供 Mixin 调用：检查 pendingOutputs 是否还能接受指定数量的 stack.
      */
     public boolean canAcceptRealBatch(int stackCount) {
         return this.craftingProcessor.canAcceptRealBatch(stackCount);
     }
 
     /**
-     * 供 Mixin 调用：安全地将产物加入 pendingOutputs。
+     * 供 Mixin 调用：安全地将产物加入 pendingOutputs.
      */
     public void addPendingOutput(ItemStack stack) {
         this.craftingProcessor.addPendingOutput(stack);
     }
 
     /**
-     * 安全地将 GenericStack 产物加入 pendingOutputs。
+     * 安全地将 GenericStack 产物加入 pendingOutputs.
      */
     public void addPendingOutput(GenericStack stack) {
         this.craftingProcessor.addPendingOutput(stack);
     }
 
     /**
-     * 供 Mixin 调用：获取或创建样板的批量信息（虚拟/真实轨道分类）。
+     * 供 Mixin 调用：获取或创建样板的批量信息（虚拟/真实轨道分类）.
      */
     public PatternBatchInfo getPatternBatchInfo(IPatternDetails details) {
         return this.craftingProcessor.getPatternBatchInfo(details);
@@ -358,12 +358,12 @@ public class AssemblyControllerBlockEntity extends AENetworkBlockEntity
 
     @Override
     public void attachInterface(BlockPos interfacePos) {
-        // 装配枢纽采用任意结构方块接入网络方案，不依赖通用 ME 接口方块。
+        // 装配枢纽采用任意结构方块接入网络方案,不依赖通用 ME 接口方块.
     }
 
     @Override
     public void detachInterface(BlockPos interfacePos) {
-        // 装配枢纽采用任意结构方块接入网络方案，不依赖通用 ME 接口方块。
+        // 装配枢纽采用任意结构方块接入网络方案,不依赖通用 ME 接口方块.
     }
 
     @Override
@@ -372,8 +372,8 @@ public class AssemblyControllerBlockEntity extends AENetworkBlockEntity
     }
 
     /**
-     * 刷新控制器在 AE2 网络中的样板列表。
-     * <p>采用任意结构方块接入网络的方案，控制器自身即为网络节点，直接请求更新即可。</p>
+     * 刷新控制器在 AE2 网络中的样板列表.
+     * <p>采用任意结构方块接入网络的方案,控制器自身即为网络节点,直接请求更新即可.</p>
      */
     public void refreshInterfaceServices() {
         if (level == null || level.isClientSide()) {
@@ -401,7 +401,7 @@ public class AssemblyControllerBlockEntity extends AENetworkBlockEntity
     @Override
     public void onLoad() {
         super.onLoad();
-        // 区块 NBT 加载阶段 level 为 null 读不到 SavedData，延迟到此处恢复升级卡与样板
+        // 区块 NBT 加载阶段 level 为 null 读不到 SavedData,延迟到此处恢复升级卡与样板
         if (level != null && !level.isClientSide()) {
             patternManager.reloadFromSavedData();
         }
@@ -465,7 +465,7 @@ public class AssemblyControllerBlockEntity extends AENetworkBlockEntity
     }
 
     /**
-     * 批量执行样板任务，一次性处理 {@code batchSize} 个副本。
+     * 批量执行样板任务,一次性处理 {@code batchSize} 个副本.
      */
     public boolean pushPatternBatch(IPatternDetails pattern, KeyCounter[] inputs, @Nullable IManagedGridNode node, long batchSize) {
         return this.craftingProcessor.pushPatternBatch(pattern, inputs, node, batchSize);

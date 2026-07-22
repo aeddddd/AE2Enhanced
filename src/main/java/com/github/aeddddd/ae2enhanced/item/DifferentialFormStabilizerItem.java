@@ -11,7 +11,7 @@ import net.minecraft.world.level.Level;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * 微分形式稳定单元 — 黑洞退火产物，T2 材料。
+ * 微分形式稳定单元 — 黑洞退火产物,T2 材料.
  */
 public class DifferentialFormStabilizerItem extends Item {
 

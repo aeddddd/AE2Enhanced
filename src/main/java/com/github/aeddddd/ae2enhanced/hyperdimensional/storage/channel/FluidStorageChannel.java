@@ -6,7 +6,7 @@ import com.github.aeddddd.ae2enhanced.hyperdimensional.storage.adapter.FluidStor
 import com.github.aeddddd.ae2enhanced.hyperdimensional.storage.descriptor.FluidDescriptor;
 
 /**
- * 流体通道，内部使用 {@link FluidStorageAdapter} 处理 {@link AEFluidKey}。
+ * 流体通道,内部使用 {@link FluidStorageAdapter} 处理 {@link AEFluidKey}.
  */
 public class FluidStorageChannel extends AbstractStorageChannel<AEFluidKey, FluidDescriptor> {
 

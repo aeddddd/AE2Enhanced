@@ -18,7 +18,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 
 /**
- * {@link FluidDescriptor} 单元测试。
+ * {@link FluidDescriptor} 单元测试.
  */
 class FluidDescriptorTest {
 

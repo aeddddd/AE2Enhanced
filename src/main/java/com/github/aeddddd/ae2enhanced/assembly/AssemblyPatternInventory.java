@@ -9,8 +9,8 @@ import appeng.api.inventories.InternalInventory;
 import com.github.aeddddd.ae2enhanced.assembly.blockentity.AssemblyControllerBlockEntity;
 
 /**
- * 将装配枢纽的样板槽区域（升级槽之后）暴露为 AE2 的 {@link InternalInventory}，
- * 供 AE2 样板访问终端（Pattern Access Terminal）直接读取与操作。
+ * 将装配枢纽的样板槽区域（升级槽之后）暴露为 AE2 的 {@link InternalInventory},
+ * 供 AE2 样板访问终端（Pattern Access Terminal）直接读取与操作.
  */
 public class AssemblyPatternInventory implements InternalInventory {
 

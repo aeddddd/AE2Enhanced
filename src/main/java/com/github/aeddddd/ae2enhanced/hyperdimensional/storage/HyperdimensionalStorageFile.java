@@ -52,11 +52,11 @@ import java.util.function.Consumer;
 import java.util.zip.CRC32;
 
 /**
- * 超维度仓储持久化文件管理。
- * <p>每个 Nexus 对应一个独立目录：{@code <world>/ae2enhanced/storage/<nexusId>/}，
+ * 超维度仓储持久化文件管理.
+ * <p>每个 Nexus 对应一个独立目录：{@code <world>/ae2enhanced/storage/<nexusId>/},
  * 其中每个已注册 AEKeyType 分别保存为二进制文件（items.bin、fluids.bin、energy.bin 以及
- * 第三方 key type 对应的 .bin 文件）。旧版单文件 {@code <nexusId>.dat} 在首次加载时自动迁移到
- * 二进制格式并备份为 {@code .backup}。</p>
+ * 第三方 key type 对应的 .bin 文件）.旧版单文件 {@code <nexusId>.dat} 在首次加载时自动迁移到
+ * 二进制格式并备份为 {@code .backup}.</p>
  *
  * <p>二进制格式（版本 3）：</p>
  * <ul>
@@ -68,8 +68,8 @@ import java.util.zip.CRC32;
  *   <li>CRC32: 4 bytes（覆盖 Magic 到 Entries 末尾）</li>
  * </ul>
  *
- * <p>版本 3 条目描述符直接使用 {@link AEKey#toTagGeneric()} 写入完整 NBT，包含类型信息，
- * 不再依赖 1 字节的 type 标识。版本 2 与版本 1 仍可读，但新文件统一以版本 3 写入。</p>
+ * <p>版本 3 条目描述符直接使用 {@link AEKey#toTagGeneric()} 写入完整 NBT,包含类型信息,
+ * 不再依赖 1 字节的 type 标识.版本 2 与版本 1 仍可读,但新文件统一以版本 3 写入.</p>
  */
 public final class HyperdimensionalStorageFile {
 
@@ -98,9 +98,9 @@ public final class HyperdimensionalStorageFile {
     private static final int MAX_ENTRY_COUNT = 1_000_000;
     private static final long MAX_FILE_SIZE = 256L * 1024 * 1024;
 
-    // 异步写入线程，所有 Nexus 共享一个单线程执行器，避免在服务端主线程执行文件 I/O。
-    // 守护线程会在 {@link #shutdown()} 中被安全关闭；若服务器在同一 JVM 内重新启动，
-    // 新的保存请求会自动重新创建执行器。
+    // 异步写入线程,所有 Nexus 共享一个单线程执行器,避免在服务端主线程执行文件 I/O.
+    // 守护线程会在 {@link #shutdown()} 中被安全关闭；若服务器在同一 JVM 内重新启动,
+    // 新的保存请求会自动重新创建执行器.
     private static final Object EXECUTOR_LOCK = new Object();
     private static ExecutorService ASYNC_EXECUTOR = createExecutor();
 
@@ -125,8 +125,8 @@ public final class HyperdimensionalStorageFile {
     private final Path directory;
     private final UUID nexusId;
     private final MinecraftServer server;
-    // 每 section 的脏代际：0 表示干净，>0 表示脏，每次 markDirty 递增。
-    // 异步保存完成后只有在代际未发生变化时才清为干净，防止保存期间的新变更被丢失。
+    // 每 section 的脏代际：0 表示干净,>0 表示脏,每次 markDirty 递增.
+    // 异步保存完成后只有在代际未发生变化时才清为干净,防止保存期间的新变更被丢失.
     private final Map<AEKeyType, Integer> dirtyGenerations = new ConcurrentHashMap<>();
     private volatile boolean safeMode = false;
 
@@ -137,14 +137,14 @@ public final class HyperdimensionalStorageFile {
     }
 
     /**
-     * 创建指定 Nexus 的持久化管理器。
+     * 创建指定 Nexus 的持久化管理器.
      */
     public static HyperdimensionalStorageFile forNexus(MinecraftServer server, UUID nexusId) {
         return new HyperdimensionalStorageFile(getStorageDirectory(server, nexusId), nexusId, server);
     }
 
     /**
-     * 获取新版 Nexus 存储目录。
+     * 获取新版 Nexus 存储目录.
      */
     public static Path getStorageDirectory(MinecraftServer server, UUID nexusId) {
         return server.getWorldPath(LevelResource.ROOT)
@@ -154,7 +154,7 @@ public final class HyperdimensionalStorageFile {
     }
 
     /**
-     * 获取旧版单文件 NBT 路径。
+     * 获取旧版单文件 NBT 路径.
      */
     public static Path getLegacyStoragePath(MinecraftServer server, UUID nexusId) {
         return server.getWorldPath(LevelResource.ROOT)
@@ -164,8 +164,8 @@ public final class HyperdimensionalStorageFile {
     }
 
     /**
-     * 加载或创建指定 Nexus 的存储容器。
-     * <p>若存在旧版 {@code .dat} 文件，会先迁移到二进制格式并备份。</p>
+     * 加载或创建指定 Nexus 的存储容器.
+     * <p>若存在旧版 {@code .dat} 文件,会先迁移到二进制格式并备份.</p>
      */
     public static HyperdimensionalStorage loadOrCreate(MinecraftServer server, UUID nexusId,
             @Nullable Consumer<HyperdimensionalStorage> changeCallback) {
@@ -177,15 +177,15 @@ public final class HyperdimensionalStorageFile {
     }
 
     /**
-     * 保存指定存储容器（兼容旧版静态调用）。
+     * 保存指定存储容器（兼容旧版静态调用）.
      */
     public static void save(MinecraftServer server, HyperdimensionalStorage storage) {
         storage.persist();
     }
 
     /**
-     * 安全关闭所有异步 I/O 线程。
-     * <p>应在服务器停止前调用，确保已提交的写入任务完成。</p>
+     * 安全关闭所有异步 I/O 线程.
+     * <p>应在服务器停止前调用,确保已提交的写入任务完成.</p>
      */
     public static void shutdown() {
         ExecutorService executor;
@@ -207,7 +207,7 @@ public final class HyperdimensionalStorageFile {
     }
 
     /**
-     * 尝试迁移旧版 NBT 文件到二进制文件。
+     * 尝试迁移旧版 NBT 文件到二进制文件.
      */
     public void tryMigrateLegacy() {
         Path legacy = directory.resolveSibling(nexusId + ".dat");
@@ -217,9 +217,9 @@ public final class HyperdimensionalStorageFile {
     }
 
     /**
-     * 加载指定 AEKeyType 的二进制文件，对每个有效条目调用 consumer。
+     * 加载指定 AEKeyType 的二进制文件,对每个有效条目调用 consumer.
      * <p>由 {@link com.github.aeddddd.ae2enhanced.hyperdimensional.storage.adapter.AbstractStorageAdapter}
-     * 在初始化时调用。</p>
+     * 在初始化时调用.</p>
      */
     public <D extends Descriptor> void loadSection(
             AEKeyType type, byte legacyType, DescriptorCodec<D> codec, BiConsumer<D, BigInteger> consumer) {
@@ -239,13 +239,13 @@ public final class HyperdimensionalStorageFile {
     }
 
     /**
-     * 将指定 AEKeyType 的条目异步写入二进制文件。
-     * <p>仅当对应 section 为脏时才会实际提交写入任务；写入成功后，在服务端主线程回调中标记该 section 已保存。</p>
+     * 将指定 AEKeyType 的条目异步写入二进制文件.
+     * <p>仅当对应 section 为脏时才会实际提交写入任务；写入成功后,在服务端主线程回调中标记该 section 已保存.</p>
      *
      * @param type       通道类型
      * @param generation 保存开始时捕获的脏代际
      * @param codec      描述符编解码器
-     * @param entries    待保存条目（方法内部会复制，避免异步写入期间并发修改）
+     * @param entries    待保存条目（方法内部会复制,避免异步写入期间并发修改）
      */
     public <D extends Descriptor> void saveSection(
             AEKeyType type, int generation, DescriptorCodec<D> codec, Map<D, BigInteger> entries) {
@@ -255,7 +255,7 @@ public final class HyperdimensionalStorageFile {
         if (!isDirty(type, generation)) {
             return;
         }
-        // 立即复制快照，避免异步线程遍历期间主线程修改 Map。
+        // 立即复制快照,避免异步线程遍历期间主线程修改 Map.
         Map<D, BigInteger> snapshot = new HashMap<>(entries);
         try {
             ensureDirectory();
@@ -293,7 +293,7 @@ public final class HyperdimensionalStorageFile {
     }
 
     /**
-     * 标记当前 Nexus 的所有 section 已脏（兼容旧的全局调用）。
+     * 标记当前 Nexus 的所有 section 已脏（兼容旧的全局调用）.
      */
     public void markDirty() {
         for (AEKeyType type : dirtyGenerations.keySet()) {
@@ -302,7 +302,7 @@ public final class HyperdimensionalStorageFile {
     }
 
     /**
-     * 标记指定 AEKeyType 已脏。
+     * 标记指定 AEKeyType 已脏.
      */
     public void markDirty(AEKeyType type) {
         if (type == null) {
@@ -324,28 +324,28 @@ public final class HyperdimensionalStorageFile {
     }
 
     /**
-     * 获取指定 section 的当前脏代际。
+     * 获取指定 section 的当前脏代际.
      */
     public int getDirtyGeneration(AEKeyType type) {
         return type == null ? 0 : dirtyGenerations.getOrDefault(type, 0);
     }
 
     /**
-     * 检查指定 section 在捕获的代际下是否为脏。
+     * 检查指定 section 在捕获的代际下是否为脏.
      */
     public boolean isDirty(AEKeyType type, int generation) {
         return type != null && dirtyGenerations.getOrDefault(type, 0) == generation && generation > 0;
     }
 
     /**
-     * 标记当前 Nexus 的所有 section 已保存。
+     * 标记当前 Nexus 的所有 section 已保存.
      */
     public void markClean() {
         dirtyGenerations.clear();
     }
 
     /**
-     * 标记指定 section 已保存，仅在代际未发生变化时生效。
+     * 标记指定 section 已保存,仅在代际未发生变化时生效.
      */
     public void markClean(AEKeyType type, int generation) {
         if (type == null) {
@@ -360,20 +360,20 @@ public final class HyperdimensionalStorageFile {
     }
 
     /**
-     * 触发 flush 钩子。
-     * <p>本类采用异步原子写入，实际写入由异步线程完成；此处仅提供同步入口供紧急调用。</p>
+     * 触发 flush 钩子.
+     * <p>本类采用异步原子写入,实际写入由异步线程完成；此处仅提供同步入口供紧急调用.</p>
      */
     public void flush() {
-        // 已无需额外操作，保存任务已在异步线程中排队执行。
+        // 已无需额外操作,保存任务已在异步线程中排队执行.
     }
 
     /**
-     * 同步等待所有已提交的写入任务完成。
-     * <p>仅应在服务器停止等必须确保数据落盘的场景调用。</p>
+     * 同步等待所有已提交的写入任务完成.
+     * <p>仅应在服务器停止等必须确保数据落盘的场景调用.</p>
      */
     public void awaitPendingWrites() {
-        // 使用一个简单的轮询等待：异步线程是单线程的，因此新提交的任务会顺序执行。
-        // 更严谨的做法是跟踪 Future，但这需要更大的改动；这里作为折中方案。
+        // 使用一个简单的轮询等待：异步线程是单线程的,因此新提交的任务会顺序执行.
+        // 更严谨的做法是跟踪 Future,但这需要更大的改动；这里作为折中方案.
         while (isDirty()) {
             try {
                 Thread.sleep(10);
@@ -392,7 +392,7 @@ public final class HyperdimensionalStorageFile {
     }
 
     /**
-     * 从旧版 NBT 文件迁移数据到二进制文件，并将原文件备份为 {@code .backup}。
+     * 从旧版 NBT 文件迁移数据到二进制文件,并将原文件备份为 {@code .backup}.
      */
     public void migrateFromLegacyNbt(Path legacyPath) {
         if (safeMode) {
@@ -534,7 +534,7 @@ public final class HyperdimensionalStorageFile {
     }
 
     /**
-     * 仅用于旧版迁移：以同步方式写入旧版格式（版本 2），确保迁移立即完成。
+     * 仅用于旧版迁移：以同步方式写入旧版格式（版本 2）,确保迁移立即完成.
      */
     private <D extends Descriptor> void saveSectionLegacy(
             AEKeyType type, byte legacyType, DescriptorCodec<D> codec, Map<D, BigInteger> entries) throws IOException {
@@ -789,7 +789,7 @@ public final class HyperdimensionalStorageFile {
     }
 
     // ===== 文件读写辅助 =====
-    // 注：所有写入均发生在异步线程，不会阻塞服务端主线程。
+    // 注：所有写入均发生在异步线程,不会阻塞服务端主线程.
 
     private static byte[] readFileLocked(Path path) throws IOException {
         try (FileChannel channel = FileChannel.open(path, StandardOpenOption.READ)) {
@@ -818,7 +818,7 @@ public final class HyperdimensionalStorageFile {
                 StandardOpenOption.CREATE,
                 StandardOpenOption.TRUNCATE_EXISTING)) {
             channel.write(ByteBuffer.wrap(data));
-            channel.force(true); // 确保数据落盘，避免崩溃丢失
+            channel.force(true); // 确保数据落盘,避免崩溃丢失
         }
     }
 

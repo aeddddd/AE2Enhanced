@@ -15,7 +15,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * 多方块结构未成型状态 GUI 抽象基类。
+ * 多方块结构未成型状态 GUI 抽象基类.
  */
 public abstract class StructureUnformedScreen<T extends StructureUnformedMenu> extends TechPanelScreen<T> {
 

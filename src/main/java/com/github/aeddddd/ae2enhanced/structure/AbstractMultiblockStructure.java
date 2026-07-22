@@ -24,9 +24,9 @@ import com.github.aeddddd.ae2enhanced.multiblock.MultiblockMeInterfaceBlockEntit
 import com.github.aeddddd.ae2enhanced.util.StructureUtils;
 
 /**
- * 多方块结构的通用抽象实现。
- * <p>提供基于 {@link StructureDefinition} 的验证、装配、拆解、缺失统计与一键放置实现。
- * 子类只需提供结构旋转方向与可能的自定义装配逻辑。</p>
+ * 多方块结构的通用抽象实现.
+ * <p>提供基于 {@link StructureDefinition} 的验证、装配、拆解、缺失统计与一键放置实现.
+ * 子类只需提供结构旋转方向与可能的自定义装配逻辑.</p>
  */
 public abstract class AbstractMultiblockStructure implements IMultiblockStructure {
 
@@ -156,7 +156,7 @@ public abstract class AbstractMultiblockStructure implements IMultiblockStructur
     }
 
     /**
-     * 获取按当前控制器朝向旋转后的期望方块相对坐标集合。
+     * 获取按当前控制器朝向旋转后的期望方块相对坐标集合.
      *
      * @return (旋转后的相对坐标, 方块类型) 集合
      */
@@ -219,7 +219,7 @@ public abstract class AbstractMultiblockStructure implements IMultiblockStructur
     public abstract Direction getRotation(Level level, BlockPos controllerPos);
 
     /**
-     * 辅助方法：获取当前控制器方块的水平朝向。
+     * 辅助方法：获取当前控制器方块的水平朝向.
      */
     protected static Direction getBlockFacing(Level level, BlockPos pos, Block expectedBlock) {
         BlockState state = level.getBlockState(pos);

@@ -15,8 +15,8 @@ import org.spongepowered.asm.mixin.gen.Accessor;
 import org.spongepowered.asm.mixin.gen.Invoker;
 
 /**
- * 访问 {@link CraftingTreeNode} 的内部字段与私有方法，
- * 供递归合成（净产出自引用样板）的计算层接管逻辑使用。
+ * 访问 {@link CraftingTreeNode} 的内部字段与私有方法,
+ * 供递归合成（净产出自引用样板）的计算层接管逻辑使用.
  */
 @Mixin(value = CraftingTreeNode.class, remap = false)
 public interface CraftingTreeNodeAccessor {

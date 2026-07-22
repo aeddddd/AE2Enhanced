@@ -12,15 +12,15 @@ import net.minecraft.world.level.Level;
 import java.util.List;
 
 /**
- * 内部能量 key。AE2 没有原生能量类型，因此本 key 仅用于模组内部存储，
- * 不直接暴露给 AE2 网络（避免未知 key type 导致兼容性问题）。
+ * 内部能量 key.AE2 没有原生能量类型,因此本 key 仅用于模组内部存储,
+ * 不直接暴露给 AE2 网络（避免未知 key type 导致兼容性问题）.
  */
 public class EnergyKey extends AEKey {
 
     public static final ResourceLocation ID = new ResourceLocation("ae2enhanced", "energy");
 
     /**
-     * 能量 key type。由于 AE2 不识别自定义 key type，该类型仅用于内部通道分发。
+     * 能量 key type.由于 AE2 不识别自定义 key type,该类型仅用于内部通道分发.
      */
     public static final AEKeyType ENERGY_KEY_TYPE = new AEKeyType(
             ID,

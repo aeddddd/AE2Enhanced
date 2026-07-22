@@ -13,8 +13,8 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.block.Block;
 
 /**
- * 多方块结构定义：描述结构由哪些方块组成、各位于什么相对坐标。
- * <p>可从 JSON 加载，也可在代码中硬编码构建，用于 {@link AbstractMultiblockStructure}。</p>
+ * 多方块结构定义：描述结构由哪些方块组成、各位于什么相对坐标.
+ * <p>可从 JSON 加载,也可在代码中硬编码构建,用于 {@link AbstractMultiblockStructure}.</p>
  */
 public final class StructureDefinition {
 
@@ -30,10 +30,10 @@ public final class StructureDefinition {
     }
 
     /**
-     * 从 JSON 格式的方块-坐标映射构建定义。
+     * 从 JSON 格式的方块-坐标映射构建定义.
      *
      * @param blockSets 方块 -> 相对坐标集合
-     * @param interfaceRelativePos 通用 ME 接口相对坐标，可为 null
+     * @param interfaceRelativePos 通用 ME 接口相对坐标,可为 null
      */
     public static StructureDefinition of(Map<Block, Set<BlockPos>> blockSets, @Nullable BlockPos interfaceRelativePos) {
         Map<Block, Set<BlockPos>> copied = new LinkedHashMap<>();
@@ -60,7 +60,7 @@ public final class StructureDefinition {
     }
 
     /**
-     * 返回所有期望方块位置及其类型，用于验证与缺失统计。
+     * 返回所有期望方块位置及其类型,用于验证与缺失统计.
      */
     public Set<Map.Entry<BlockPos, Block>> getExpectedBlocks() {
         Set<Map.Entry<BlockPos, Block>> result = new HashSet<>();
@@ -78,7 +78,7 @@ public final class StructureDefinition {
     }
 
     /**
-     * 链式构建器。
+     * 链式构建器.
      */
     public static final class Builder {
         private final Map<Block, Set<BlockPos>> blockSets = new LinkedHashMap<>();

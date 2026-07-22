@@ -27,9 +27,9 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 
 /**
- * 装配枢纽结构定义与验证。
- * <p>为避免在方块注册完成前访问 {@link RegistryObject#get()}，
- * 本类的完整静态初始化被推迟到 {@link #init()}。</p>
+ * 装配枢纽结构定义与验证.
+ * <p>为避免在方块注册完成前访问 {@link RegistryObject#get()},
+ * 本类的完整静态初始化被推迟到 {@link #init()}.</p>
  */
 public class AssemblyStructure {
 
@@ -38,9 +38,9 @@ public class AssemblyStructure {
     private static AbstractMultiblockStructure INSTANCE;
     private static boolean initialized = false;
 
-    // 名称 -> RegistryObject，仅在 init() 中解析为 Block
+    // 名称 -> RegistryObject,仅在 init() 中解析为 Block
     private static final Map<String, RegistryObject<Block>> BLOCK_REGISTRY_MAP = new LinkedHashMap<>();
-    // 名称 -> 相对坐标集合，在静态块中从 JSON 读取
+    // 名称 -> 相对坐标集合,在静态块中从 JSON 读取
     private static final Map<String, Set<BlockPos>> RAW_POSITIONS = new LinkedHashMap<>();
 
     static {
@@ -72,10 +72,10 @@ public class AssemblyStructure {
                 if (!BLOCK_REGISTRY_MAP.containsKey(name)) {
                     continue;
                 }
-                // 源 JSON 的规范朝向为 EAST（结构自控制器向 -X 延伸），
+                // 源 JSON 的规范朝向为 EAST（结构自控制器向 -X 延伸）,
                 // 而旋转体系（StructureUtils.rotate）以 NORTH 为基准且设计要求
-                // "结构向面朝方向的反方向延伸"，因此加载时统一做 -90° 旋转
-                // (x,y,z) -> (z,y,-x)，使 NORTH 基准下结构向 +Z（控制器背面）延伸。
+                // "结构向面朝方向的反方向延伸",因此加载时统一做 -90° 旋转
+                // (x,y,z) -> (z,y,-x),使 NORTH 基准下结构向 +Z（控制器背面）延伸.
                 RAW_POSITIONS.computeIfAbsent(name, k -> new HashSet<>()).add(new BlockPos(z, y, -x));
             }
         } catch (Exception ex) {
@@ -84,8 +84,8 @@ public class AssemblyStructure {
     }
 
     /**
-     * 在方块注册完成后调用，完成结构解析。
-     * <p>通常在 {@code FMLCommonSetupEvent} 中执行。</p>
+     * 在方块注册完成后调用,完成结构解析.
+     * <p>通常在 {@code FMLCommonSetupEvent} 中执行.</p>
      */
     public static void init() {
         if (initialized) {
@@ -124,7 +124,7 @@ public class AssemblyStructure {
     }
 
     public static Set<BlockPos> getAllSet() {
-        // ALL_SET 仅包含坐标，在静态块中已初始化，无需等待 init()
+        // ALL_SET 仅包含坐标,在静态块中已初始化,无需等待 init()
         return ALL_SET;
     }
 
@@ -139,7 +139,7 @@ public class AssemblyStructure {
     }
 
     public static BlockPos getOriginFromController(BlockPos controllerPos, Direction facing) {
-        // 新结构以控制器本身为原点，结构向面朝方向的反方向延伸。
+        // 新结构以控制器本身为原点,结构向面朝方向的反方向延伸.
         return controllerPos;
     }
 

@@ -11,15 +11,20 @@ import javax.annotation.Nullable;
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
 import com.github.aeddddd.ae2enhanced.assembly.item.AssemblyUpgradeCardItem;
 import com.github.aeddddd.ae2enhanced.item.ConformalInvariantChargeItem;
+import com.github.aeddddd.ae2enhanced.item.GuideBookItem;
 import com.github.aeddddd.ae2enhanced.item.DifferentialFormStabilizerItem;
 import com.github.aeddddd.ae2enhanced.item.StableSpacetimeManifoldItem;
 import com.github.aeddddd.ae2enhanced.util.DevEnvironment;
 
 /**
- * 物品注册中心。
+ * 物品注册中心.
  */
 public final class ModItems {
     public static final DeferredRegister<Item> DR = DeferredRegister.create(Registries.ITEM, AE2Enhanced.MOD_ID);
+
+    // 模组指南书
+    public static final RegistryObject<Item> GUIDE = DR.register("guide",
+            () -> new GuideBookItem(new Item.Properties().stacksTo(1)));
 
     // Hyperdimensional Storage
     public static final RegistryObject<Item> HYPERDIMENSIONAL_CONTROLLER = DR.register("hyperdimensional_controller",
@@ -95,7 +100,7 @@ public final class ModItems {
     public static final RegistryObject<Item> CAUSAL_ANCHOR_CORE = DR.register("causal_anchor_core",
             () -> new BlockItem(ModBlocks.CAUSAL_ANCHOR_CORE.get(), new Item.Properties()));
 
-    // 【仅开发环境】测试用单方块合成 CPU，与 ModBlocks.TEST_CRAFTING_CPU 同步条件注册
+    // 【仅开发环境】测试用单方块合成 CPU,与 ModBlocks.TEST_CRAFTING_CPU 同步条件注册
     @Nullable
     public static final RegistryObject<Item> TEST_CRAFTING_CPU;
 

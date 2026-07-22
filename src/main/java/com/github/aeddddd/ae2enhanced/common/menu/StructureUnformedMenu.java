@@ -12,7 +12,7 @@ import java.util.Map;
 import com.github.aeddddd.ae2enhanced.client.gui.GuiConstants;
 
 /**
- * 多方块结构未成形状态菜单抽象基类。
+ * 多方块结构未成形状态菜单抽象基类.
  */
 public abstract class StructureUnformedMenu extends AbstractContainerMenu {
 

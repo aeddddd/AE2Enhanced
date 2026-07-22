@@ -22,8 +22,8 @@ import net.minecraft.world.phys.shapes.VoxelShape;
 import com.github.aeddddd.ae2enhanced.blackhole.blockentity.MicroSingularityBlockEntity;
 
 /**
- * 微型奇点 — 仪式召唤的临时黑洞方块。
- * 不可破坏、发光、无碰撞，右键主动触发黑洞合成。
+ * 微型奇点 — 仪式召唤的临时黑洞方块.
+ * 不可破坏、发光、无碰撞,右键主动触发黑洞合成.
  */
 public class MicroSingularityBlock extends Block implements EntityBlock {
 

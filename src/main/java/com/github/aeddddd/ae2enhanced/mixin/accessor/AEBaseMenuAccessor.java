@@ -7,7 +7,7 @@ import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.gen.Invoker;
 
 /**
- * 访问 {@link AEBaseMenu} 的 protected 成员。
+ * 访问 {@link AEBaseMenu} 的 protected 成员.
  */
 @Mixin(value = AEBaseMenu.class, remap = false)
 public interface AEBaseMenuAccessor {

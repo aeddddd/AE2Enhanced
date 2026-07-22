@@ -8,7 +8,7 @@ import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.gen.Accessor;
 
 /**
- * {@link CraftingCpuLogic} 字段访问器，替代运行时反射。
+ * {@link CraftingCpuLogic} 字段访问器,替代运行时反射.
  */
 @Mixin(value = CraftingCpuLogic.class, remap = false)
 public interface CraftingCpuLogicAccessor {

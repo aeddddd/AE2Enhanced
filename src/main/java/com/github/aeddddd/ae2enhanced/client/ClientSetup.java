@@ -27,7 +27,7 @@ import com.github.aeddddd.ae2enhanced.registry.ModBlockEntities;
 import com.github.aeddddd.ae2enhanced.registry.ModMenus;
 
 /**
- * 客户端专属初始化：注册菜单屏幕等。
+ * 客户端专属初始化：注册菜单屏幕等.
  */
 @Mod.EventBusSubscriber(modid = AE2Enhanced.MOD_ID, bus = Mod.EventBusSubscriber.Bus.MOD, value = Dist.CLIENT)
 public final class ClientSetup {

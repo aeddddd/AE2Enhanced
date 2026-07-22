@@ -28,7 +28,7 @@ import com.github.aeddddd.ae2enhanced.structure.IMultiblockStructure;
 import javax.annotation.Nullable;
 
 /**
- * 装配枢纽控制器方块。
+ * 装配枢纽控制器方块.
  */
 public class AssemblyControllerBlock extends MultiblockControllerBlock {
 

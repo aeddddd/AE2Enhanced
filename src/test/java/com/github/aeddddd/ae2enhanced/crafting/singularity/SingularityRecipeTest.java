@@ -19,8 +19,8 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * {@link SingularityRecipe} 单元测试（构造与取值逻辑）。
- * <p>{@code matches}/{@code craft} 依赖 {@code Level}，属于集成测试范畴，此处不覆盖。</p>
+ * {@link SingularityRecipe} 单元测试（构造与取值逻辑）.
+ * <p>{@code matches}/{@code craft} 依赖 {@code Level},属于集成测试范畴,此处不覆盖.</p>
  */
 class SingularityRecipeTest {
 

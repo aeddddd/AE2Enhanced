@@ -10,8 +10,8 @@ import java.io.DataOutput;
 import java.io.IOException;
 
 /**
- * ItemDescriptor 自定义二进制编解码器。
- * 使用 {@link NbtIo} 读写 AE2 物品 key 的完整 NBT。
+ * ItemDescriptor 自定义二进制编解码器.
+ * 使用 {@link NbtIo} 读写 AE2 物品 key 的完整 NBT.
  */
 public class ItemDescriptorCodec implements DescriptorCodec<ItemDescriptor> {
 

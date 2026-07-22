@@ -12,8 +12,8 @@ import com.github.aeddddd.ae2enhanced.AE2Enhanced;
 import com.github.aeddddd.ae2enhanced.blockentity.HyperdimensionalControllerBlockEntity;
 
 /**
- * 超维度仓储 Nexus 信息面板。
- * <p>使用 2.png 纹理绘制背景，包含玩家背包和快捷栏。</p>
+ * 超维度仓储 Nexus 信息面板.
+ * <p>使用 2.png 纹理绘制背景,包含玩家背包和快捷栏.</p>
  */
 public class HyperdimensionalNexusScreen extends AbstractContainerScreen<HyperdimensionalNexusMenu> {
 

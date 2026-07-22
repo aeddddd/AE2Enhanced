@@ -1,8 +1,8 @@
 package com.github.aeddddd.ae2enhanced.client.gui;
 
 /**
- * 统一 GUI 颜色常量。
- * 所有 tech-panel 风格的 GUI 共享此配色方案。
+ * 统一 GUI 颜色常量.
+ * 所有 tech-panel 风格的 GUI 共享此配色方案.
  */
 public final class GuiColors {
 

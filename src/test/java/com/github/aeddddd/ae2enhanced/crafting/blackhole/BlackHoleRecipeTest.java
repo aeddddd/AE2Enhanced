@@ -19,7 +19,7 @@ import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * {@link BlackHoleRecipe} 单元测试。
+ * {@link BlackHoleRecipe} 单元测试.
  */
 class BlackHoleRecipeTest {
 
@@ -82,7 +82,7 @@ class BlackHoleRecipeTest {
 
     @Test
     void testKeyOfDamageableItemCarriesDamageTag() {
-        // Forge 会为可损坏物品初始化 {Damage:0} 标签，因此其键附带 NBT 后缀
+        // Forge 会为可损坏物品初始化 {Damage:0} 标签,因此其键附带 NBT 后缀
         String key = BlackHoleRecipe.keyOf(new ItemStack(Items.DIAMOND_SWORD));
         assertTrue(key.startsWith("minecraft:diamond_sword#"));
     }
@@ -138,7 +138,7 @@ class BlackHoleRecipeTest {
     @Test
     void testRecipeInterfaceDefaults() {
         BlackHoleRecipe recipe = newRecipe();
-        // 该配方不用于工作台，相关接口返回固定值
+        // 该配方不用于工作台,相关接口返回固定值
         assertTrue(recipe.isSpecial());
         assertFalse(recipe.canCraftInDimensions(3, 3));
         assertFalse(recipe.matches(null, null));

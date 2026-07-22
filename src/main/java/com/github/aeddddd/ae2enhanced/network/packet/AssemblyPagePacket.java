@@ -15,7 +15,7 @@ import com.github.aeddddd.ae2enhanced.common.menu.AssemblyMenu;
 import com.github.aeddddd.ae2enhanced.common.menu.AssemblyPatternMenu;
 
 /**
- * 客户端请求装配枢纽菜单切换到指定样板页的服务端包。
+ * 客户端请求装配枢纽菜单切换到指定样板页的服务端包.
  */
 public class AssemblyPagePacket implements ServerboundPacket {
 

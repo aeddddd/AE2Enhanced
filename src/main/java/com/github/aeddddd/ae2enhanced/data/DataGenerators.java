@@ -18,8 +18,8 @@ import com.github.aeddddd.ae2enhanced.data.client.AE2EBlockStateProvider;
 import com.github.aeddddd.ae2enhanced.data.client.AE2EItemModelProvider;
 
 /**
- * 数据生成入口。
- * <p>集中注册方块状态、物品模型、配方、战利品表等数据生成器。</p>
+ * 数据生成入口.
+ * <p>集中注册方块状态、物品模型、配方、战利品表等数据生成器.</p>
  */
 public class DataGenerators {
 

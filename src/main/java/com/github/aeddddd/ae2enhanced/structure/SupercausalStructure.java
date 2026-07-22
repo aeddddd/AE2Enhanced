@@ -907,7 +907,7 @@ public class SupercausalStructure {
     }
 
     /**
-     * 在方块注册完成后初始化 {@link AbstractMultiblockStructure} 实例。
+     * 在方块注册完成后初始化 {@link AbstractMultiblockStructure} 实例.
      */
     public static void init() {
         if (initialized) {
@@ -978,7 +978,7 @@ public class SupercausalStructure {
     }
 
     /**
-     * 返回每个虚拟 CPU 的并行合成上限（由配置决定）。
+     * 返回每个虚拟 CPU 的并行合成上限（由配置决定）.
      */
     public static int computeParallel() {
         return AE2EnhancedConfig.COMMON.computationMaxParallel.get();
@@ -1014,7 +1014,7 @@ public class SupercausalStructure {
             for (Map.Entry<BlockPos, Block> entry : definition.getExpectedBlocks()) {
                 BlockPos rel = entry.getKey();
                 Block expected = entry.getValue();
-                // 控制器位置由核心方块占用，跳过张量外壳检查
+                // 控制器位置由核心方块占用,跳过张量外壳检查
                 if (rel.equals(CONTROLLER_REL) && expected == ModBlocks.CONSTANT_TENSOR_FIELD_CASING.get()) {
                     continue;
                 }

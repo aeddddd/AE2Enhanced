@@ -7,8 +7,8 @@ import net.minecraft.world.level.block.state.BlockState;
 import appeng.blockentity.AEBaseBlockEntity;
 
 /**
- * AE2Enhanced 非网络方块实体基类。
- * 仅用于不需要 AE2 网格节点的方块（如多方块控制器外壳、核心等）。
+ * AE2Enhanced 非网络方块实体基类.
+ * 仅用于不需要 AE2 网格节点的方块（如多方块控制器外壳、核心等）.
  */
 public class AE2EBaseBlockEntity extends AEBaseBlockEntity {
 

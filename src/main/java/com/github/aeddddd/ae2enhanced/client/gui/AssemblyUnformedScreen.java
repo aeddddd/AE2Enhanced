@@ -6,7 +6,7 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.player.Inventory;
 
 /**
- * 装配枢纽未成形状态 GUI。
+ * 装配枢纽未成形状态 GUI.
  */
 public class AssemblyUnformedScreen extends StructureUnformedScreen<AssemblyUnformedMenu> {
 

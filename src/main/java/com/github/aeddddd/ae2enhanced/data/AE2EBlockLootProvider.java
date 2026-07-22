@@ -10,7 +10,7 @@ import net.minecraftforge.registries.RegistryObject;
 import com.github.aeddddd.ae2enhanced.registry.ModBlocks;
 
 /**
- * 方块战利品表数据生成器。
+ * 方块战利品表数据生成器.
  */
 public class AE2EBlockLootProvider extends BlockLootSubProvider {
 

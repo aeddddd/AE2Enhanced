@@ -22,8 +22,8 @@ import com.github.aeddddd.ae2enhanced.structure.IMultiblockStructure;
 import com.github.aeddddd.ae2enhanced.structure.ValidationResult;
 
 /**
- * 超因果计算核心控制器方块实体。
- * <p>成形后维护一个虚拟 AE2 Crafting CPU 池，并通过 Mixin 注册到 CraftingService。</p>
+ * 超因果计算核心控制器方块实体.
+ * <p>成形后维护一个虚拟 AE2 Crafting CPU 池,并通过 Mixin 注册到 CraftingService.</p>
  */
 public class ComputationCoreBlockEntity extends MultiblockControllerBlockEntity {
 
@@ -56,10 +56,10 @@ public class ComputationCoreBlockEntity extends MultiblockControllerBlockEntity 
     }
 
     /**
-     * 获取虚拟 CPU 挂靠的通用 ME 接口节点。
-     * <p>用于在 Mixin 中把虚拟集群的网格操作重定向到真实控制器。</p>
+     * 获取虚拟 CPU 挂靠的通用 ME 接口节点.
+     * <p>用于在 Mixin 中把虚拟集群的网格操作重定向到真实控制器.</p>
      *
-     * @return 接口节点，若未绑定或接口已失效则返回 null。
+     * @return 接口节点,若未绑定或接口已失效则返回 null.
      */
     @Nullable
     public IGridNode getActionSourceNode() {
@@ -73,10 +73,10 @@ public class ComputationCoreBlockEntity extends MultiblockControllerBlockEntity 
     }
 
     /**
-     * 结构装配成功时调用。
+     * 结构装配成功时调用.
      *
      * @param parallel       每个虚拟 CPU 的并行上限
-     * @param interfacePos   通用 ME 接口位置，虚拟 CPU 将挂靠在该接口节点上
+     * @param interfacePos   通用 ME 接口位置,虚拟 CPU 将挂靠在该接口节点上
      */
     public void assemble(int parallel, BlockPos interfacePos) {
         if (level == null || level.isClientSide() || isFormed()) {
@@ -151,7 +151,7 @@ public class ComputationCoreBlockEntity extends MultiblockControllerBlockEntity 
             return;
         }
 
-        // 重新加载后若已成形但池为空，重新绑定初始 CPU
+        // 重新加载后若已成形但池为空,重新绑定初始 CPU
         if (isFormed() && cpuPool.isEmpty() && interfacePos != null) {
             bindVirtualCpu(interfacePos, parallelLimit);
         }
@@ -176,13 +176,13 @@ public class ComputationCoreBlockEntity extends MultiblockControllerBlockEntity 
 
         int maxPoolSize = AE2EnhancedConfig.COMMON.computationMaxParallel.get();
 
-        // 所有 CPU 都忙碌且未达池上限时，新增一个 CPU
+        // 所有 CPU 都忙碌且未达池上限时,新增一个 CPU
         boolean allBusy = !cpuPool.isEmpty() && cpuPool.stream().allMatch(VirtualCraftingCPU::isBusy);
         if (allBusy && cpuPool.size() < maxPoolSize) {
             addCpuToPool();
         }
 
-        // 清理多余的空闲 CPU，保留至少 1 个空闲 CPU，不销毁忙碌 CPU
+        // 清理多余的空闲 CPU,保留至少 1 个空闲 CPU,不销毁忙碌 CPU
         int idleCount = 0;
         for (VirtualCraftingCPU cpu : cpuPool) {
             if (!cpu.isBusy()) {
@@ -242,7 +242,7 @@ public class ComputationCoreBlockEntity extends MultiblockControllerBlockEntity 
         long encoded = data.getLong(INTERFACE_POS_TAG);
         interfacePos = encoded != 0 ? BlockPos.of(encoded) : null;
         parallelLimit = data.getInt(PARALLEL_LIMIT_TAG);
-        // 池大小仅用于记录，实际 CPU 在加载后由 serverTick 重新创建
+        // 池大小仅用于记录,实际 CPU 在加载后由 serverTick 重新创建
         data.getInt(POOL_SIZE_TAG);
     }
 

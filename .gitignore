@@ -17,7 +17,7 @@ github-wiki/
 *.md
 !README.md
 !README_zh.md
-
+!src/main/resources/assets/ae2enhanced/ae2guide/**/*.md
 ### IntelliJ IDEA ###
 .idea/
 *.iws

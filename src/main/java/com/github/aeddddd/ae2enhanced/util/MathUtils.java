@@ -1,7 +1,7 @@
 package com.github.aeddddd.ae2enhanced.util;
 
 /**
- * 数学相关工具方法。
+ * 数学相关工具方法.
  */
 public final class MathUtils {
 
@@ -9,7 +9,7 @@ public final class MathUtils {
     }
 
     /**
-     * 安全乘法，溢出时返回 {@link Long#MAX_VALUE}。
+     * 安全乘法,溢出时返回 {@link Long#MAX_VALUE}.
      *
      * @param a 被乘数
      * @param b 乘数

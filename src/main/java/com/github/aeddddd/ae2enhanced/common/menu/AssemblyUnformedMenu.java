@@ -14,7 +14,7 @@ import com.github.aeddddd.ae2enhanced.registry.ModMenus;
 import com.github.aeddddd.ae2enhanced.structure.AssemblyStructure;
 
 /**
- * 装配枢纽未成形状态菜单。
+ * 装配枢纽未成形状态菜单.
  */
 public class AssemblyUnformedMenu extends StructureUnformedMenu {
 

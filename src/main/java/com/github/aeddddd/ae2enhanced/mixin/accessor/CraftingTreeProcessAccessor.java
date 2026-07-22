@@ -10,7 +10,7 @@ import org.spongepowered.asm.mixin.gen.Accessor;
 import org.spongepowered.asm.mixin.gen.Invoker;
 
 /**
- * 访问 {@link CraftingTreeProcess} 的样板定义与包私有的 request 方法。
+ * 访问 {@link CraftingTreeProcess} 的样板定义与包私有的 request 方法.
  */
 @Mixin(value = CraftingTreeProcess.class, remap = false)
 public interface CraftingTreeProcessAccessor {

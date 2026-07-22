@@ -6,7 +6,7 @@ import com.github.aeddddd.ae2enhanced.hyperdimensional.storage.adapter.ItemStora
 import com.github.aeddddd.ae2enhanced.hyperdimensional.storage.descriptor.ItemDescriptor;
 
 /**
- * 物品通道，内部使用 {@link ItemStorageAdapter} 处理 {@link AEItemKey}。
+ * 物品通道,内部使用 {@link ItemStorageAdapter} 处理 {@link AEItemKey}.
  */
 public class ItemStorageChannel extends AbstractStorageChannel<AEItemKey, ItemDescriptor> {
 

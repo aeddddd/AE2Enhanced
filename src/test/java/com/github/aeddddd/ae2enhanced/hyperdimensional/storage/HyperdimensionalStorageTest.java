@@ -25,8 +25,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * {@link HyperdimensionalStorage} 单元测试。
- * <p>构造过程会遍历 {@code AEKeyTypes.getAll()}，需先引导 AE2 key type 注册表。</p>
+ * {@link HyperdimensionalStorage} 单元测试.
+ * <p>构造过程会遍历 {@code AEKeyTypes.getAll()},需先引导 AE2 key type 注册表.</p>
  */
 class HyperdimensionalStorageTest {
 
@@ -124,7 +124,7 @@ class HyperdimensionalStorageTest {
         storage.getAvailableStacks(counter);
 
         assertEquals(64L, counter.get(stone));
-        // 能量为内部 key type，不暴露给 AE2 网络
+        // 能量为内部 key type,不暴露给 AE2 网络
         assertEquals(0L, counter.get(EnergyKey.INSTANCE));
     }
 
@@ -221,7 +221,7 @@ class HyperdimensionalStorageTest {
     @Test
     void testSafeModeAndDirtyFlagsWithoutFile() {
         HyperdimensionalStorage storage = newStorage();
-        // 未绑定存储文件时不处于安全模式，也没有脏标记
+        // 未绑定存储文件时不处于安全模式,也没有脏标记
         assertFalse(storage.isSafeMode());
         assertFalse(storage.isDirty());
     }

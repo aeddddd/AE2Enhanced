@@ -18,9 +18,9 @@ import com.github.aeddddd.ae2enhanced.crafting.singularity.SingularityRecipe;
 import com.github.aeddddd.ae2enhanced.crafting.singularity.SingularityRecipeRegistry;
 
 /**
- * 微型奇点仪式触发器。
- * 玩家手持指定物品右键指定目标方块时，扫描周围 5×5×5 区域内的物品实体，
- * 如果匹配仪式配方，则消耗材料并生成微型奇点。
+ * 微型奇点仪式触发器.
+ * 玩家手持指定物品右键指定目标方块时,扫描周围 5×5×5 区域内的物品实体,
+ * 如果匹配仪式配方,则消耗材料并生成微型奇点.
  */
 @Mod.EventBusSubscriber(modid = AE2Enhanced.MOD_ID, bus = Mod.EventBusSubscriber.Bus.FORGE)
 public class SingularityRitualHandler {
@@ -41,7 +41,7 @@ public class SingularityRitualHandler {
             return;
         }
 
-        // 取消默认交互，防止打开其他 GUI
+        // 取消默认交互,防止打开其他 GUI
         event.setCanceled(true);
 
         // 检查手持物品是否需要消耗

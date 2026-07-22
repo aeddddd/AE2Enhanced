@@ -12,7 +12,7 @@ import appeng.api.stacks.AEKey;
 import com.github.aeddddd.ae2enhanced.hyperdimensional.storage.descriptor.GenericKeyDescriptor;
 
 /**
- * 通用 AEKey 描述符编解码器。
+ * 通用 AEKey 描述符编解码器.
  */
 public class GenericKeyDescriptorCodec implements DescriptorCodec<GenericKeyDescriptor> {
 

@@ -21,10 +21,10 @@ import net.minecraft.world.level.block.state.BlockState;
 import com.github.aeddddd.ae2enhanced.computation.blockentity.TestCraftingCpuBlockEntity;
 
 /**
- * 【仅开发环境】测试用单方块合成 CPU。
- * <p>替代临时下线的超因果计算核心多方块：放置并接入 ME 网络后，
- * 作为一个拥有无限存储与 16 协处理器的 AE2 Crafting CPU 参与自动合成调度。
- * 该方块只在开发环境注册（见 {@link com.github.aeddddd.ae2enhanced.util.DevEnvironment}）。</p>
+ * 【仅开发环境】测试用单方块合成 CPU.
+ * <p>替代临时下线的超因果计算核心多方块：放置并接入 ME 网络后,
+ * 作为一个拥有无限存储与 16 协处理器的 AE2 Crafting CPU 参与自动合成调度.
+ * 该方块只在开发环境注册（见 {@link com.github.aeddddd.ae2enhanced.util.DevEnvironment}）.</p>
  */
 public class TestCraftingCpuBlock extends Block implements EntityBlock {
 

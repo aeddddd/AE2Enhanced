@@ -11,11 +11,11 @@ import appeng.menu.me.crafting.CraftAmountMenu;
 import com.github.aeddddd.ae2enhanced.crafting.CraftAmountMenuLongExt;
 
 /**
- * 突破 AE2 int 上限的下单请求包（最大 9.2E / Long.MAX_VALUE）。
+ * 突破 AE2 int 上限的下单请求包（最大 9.2E / Long.MAX_VALUE）.
  * <p>AE2 原生下下单链路（CraftAmountScreen -> ConfirmAutoCraftPacket(int) ->
- * CraftAmountMenu.confirm(int) -> CraftConfirmMenu.planJob(int)）全部为 int，
- * 单次下单上限为 21.4 亿。本包携带 long 数量，由扩展方法
- * {@link CraftAmountMenuLongExt#ae2e$confirmLong} 以 long 语义复刻原生流程。</p>
+ * CraftAmountMenu.confirm(int) -> CraftConfirmMenu.planJob(int)）全部为 int,
+ * 单次下单上限为 21.4 亿.本包携带 long 数量,由扩展方法
+ * {@link CraftAmountMenuLongExt#ae2e$confirmLong} 以 long 语义复刻原生流程.</p>
  */
 public class CraftAmountLongPacket implements ServerboundPacket {
 

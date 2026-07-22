@@ -7,8 +7,8 @@ import java.io.DataOutput;
 import java.io.IOException;
 
 /**
- * EnergyDescriptor 自定义二进制编解码器（单例，无实际字段）。
- * 仅写入一个标记字符串用于格式校验。
+ * EnergyDescriptor 自定义二进制编解码器（单例,无实际字段）.
+ * 仅写入一个标记字符串用于格式校验.
  */
 public class EnergyDescriptorCodec implements DescriptorCodec<EnergyDescriptor> {
 

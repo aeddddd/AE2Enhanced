@@ -7,7 +7,7 @@ import java.util.Map;
 import net.minecraft.world.level.block.Block;
 
 /**
- * 多方块结构验证结果。
+ * 多方块结构验证结果.
  */
 public class ValidationResult {
 

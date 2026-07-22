@@ -18,7 +18,7 @@ import com.github.aeddddd.ae2enhanced.assembly.blockentity.AssemblyControllerBlo
 import com.github.aeddddd.ae2enhanced.registry.ModItems;
 
 /**
- * 负责装配枢纽的样板槽、分页管理与可用样板缓存。
+ * 负责装配枢纽的样板槽、分页管理与可用样板缓存.
  */
 public class AssemblyPatternManager {
 
@@ -32,7 +32,7 @@ public class AssemblyPatternManager {
     public AssemblyPatternManager(AssemblyControllerBlockEntity controller, AssemblyUpgradeManager upgradeManager) {
         this.controller = controller;
         this.upgradeManager = upgradeManager;
-        // 使用最大槽位初始化，避免扩容时重新分配内存；NBT 通过稀疏序列化只保存非空槽。
+        // 使用最大槽位初始化,避免扩容时重新分配内存；NBT 通过稀疏序列化只保存非空槽.
         this.itemHandler = new PatternItemHandler(AssemblyControllerBlockEntity.TOTAL_SLOTS_MAX);
     }
 
@@ -53,7 +53,7 @@ public class AssemblyPatternManager {
     }
 
     /**
-     * 每 tick 刷新样板缓存状态，必要时通知控制器刷新接口样板列表。
+     * 每 tick 刷新样板缓存状态,必要时通知控制器刷新接口样板列表.
      */
     public void tickRefresh() {
         if (patternsDirty) {
@@ -68,7 +68,7 @@ public class AssemblyPatternManager {
     }
 
     /**
-     * 确保当前物品槽容量不低于目标页数所需。
+     * 确保当前物品槽容量不低于目标页数所需.
      */
     public void ensurePatternCapacity() {
         int targetSize = AssemblyControllerBlockEntity.UPGRADE_SLOTS
@@ -124,10 +124,10 @@ public class AssemblyPatternManager {
     }
 
     /**
-     * 方块实体加入世界后（level 可用）从 SavedData 恢复升级卡与样板。
+     * 方块实体加入世界后（level 可用）从 SavedData 恢复升级卡与样板.
      * <p>区块 NBT 加载（{@link net.minecraft.world.level.block.entity.BlockEntity#load}）阶段
-     * level 为 null，无法访问 SavedData；而 {@code serializeNBT} 按设计只把数据写入 SavedData、
-     * 方块实体 NBT 中为空，因此必须在 level 可用后补一次恢复，否则重进世界丢失全部内容。</p>
+     * level 为 null,无法访问 SavedData；而 {@code serializeNBT} 按设计只把数据写入 SavedData、
+     * 方块实体 NBT 中为空,因此必须在 level 可用后补一次恢复,否则重进世界丢失全部内容.</p>
      */
     public void reloadFromSavedData() {
         Level level = controller.getLevel();
@@ -149,7 +149,7 @@ public class AssemblyPatternManager {
     }
 
     /**
-     * 装配枢纽专用动态物品背包：前 6 槽为升级卡，其余为样板槽。
+     * 装配枢纽专用动态物品背包：前 6 槽为升级卡,其余为样板槽.
      */
     private class PatternItemHandler extends ItemStackHandler {
 
@@ -170,14 +170,14 @@ public class AssemblyPatternManager {
             if (slot < AssemblyControllerBlockEntity.UPGRADE_SLOTS) {
                 controller.markForUpdate();
             }
-            // 样板变动时立即写入 SavedData，避免仅依赖区块保存导致崩溃丢失。
+            // 样板变动时立即写入 SavedData,避免仅依赖区块保存导致崩溃丢失.
             if (slot >= AssemblyControllerBlockEntity.UPGRADE_SLOTS) {
                 savePatternsToSavedData();
             }
         }
 
         /**
-         * 将当前样板背包状态写入维度级 SavedData。
+         * 将当前样板背包状态写入维度级 SavedData.
          */
         private void savePatternsToSavedData() {
             Level level = controller.getLevel();
@@ -191,7 +191,7 @@ public class AssemblyPatternManager {
         }
 
         /**
-         * 构建稀疏的样板背包 NBT，只包含非空槽位。
+         * 构建稀疏的样板背包 NBT,只包含非空槽位.
          */
         private CompoundTag buildPatternNbt() {
             CompoundTag nbt = new CompoundTag();
@@ -280,7 +280,7 @@ public class AssemblyPatternManager {
         }
 
         /**
-         * 方块实体保存时，将样板数据写入 SavedData，自身 NBT 返回空，避免区块 NBT 膨胀。
+         * 方块实体保存时,将样板数据写入 SavedData,自身 NBT 返回空,避免区块 NBT 膨胀.
          */
         @Override
         public CompoundTag serializeNBT() {
@@ -289,7 +289,7 @@ public class AssemblyPatternManager {
         }
 
         /**
-         * 从 SavedData 读取样板数据；若 SavedData 为空则回退到传入的 NBT（兼容旧版本）。
+         * 从 SavedData 读取样板数据；若 SavedData 为空则回退到传入的 NBT（兼容旧版本）.
          */
         @Override
         public void deserializeNBT(CompoundTag nbt) {

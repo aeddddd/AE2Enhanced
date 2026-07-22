@@ -18,7 +18,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * {@link ValidationResult} 单元测试。
+ * {@link ValidationResult} 单元测试.
  */
 class ValidationResultTest {
 

@@ -17,7 +17,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 
 /**
- * {@link EnergyDescriptorCodec} 单元测试。
+ * {@link EnergyDescriptorCodec} 单元测试.
  */
 class EnergyDescriptorCodecTest {
 
@@ -34,7 +34,7 @@ class EnergyDescriptorCodecTest {
         EnergyDescriptor restored = EnergyDescriptorCodec.INSTANCE
                 .read(new DataInputStream(new ByteArrayInputStream(buffer.toByteArray())));
 
-        // 能量描述符为单例，解码结果必须是同一实例
+        // 能量描述符为单例,解码结果必须是同一实例
         assertSame(EnergyDescriptor.INSTANCE, restored);
     }
 

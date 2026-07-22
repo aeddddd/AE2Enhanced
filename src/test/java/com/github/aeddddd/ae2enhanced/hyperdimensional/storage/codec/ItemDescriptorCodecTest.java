@@ -23,7 +23,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
- * {@link ItemDescriptorCodec} 单元测试。
+ * {@link ItemDescriptorCodec} 单元测试.
  */
 class ItemDescriptorCodecTest {
 
@@ -33,7 +33,7 @@ class ItemDescriptorCodecTest {
     }
 
     /**
-     * 将描述符编码为字节数组再解码，返回解码结果。
+     * 将描述符编码为字节数组再解码,返回解码结果.
      */
     private static ItemDescriptor roundTrip(ItemDescriptor descriptor) throws IOException {
         ByteArrayOutputStream buffer = new ByteArrayOutputStream();
@@ -88,7 +88,7 @@ class ItemDescriptorCodecTest {
 
     @Test
     void testReadEmptyStreamThrowsEOF() {
-        // NbtIo.read 对空输入抛出 EOFException，codec 不做额外吞没
+        // NbtIo.read 对空输入抛出 EOFException,codec 不做额外吞没
         DataInputStream in = new DataInputStream(new ByteArrayInputStream(new byte[0]));
         assertThrows(java.io.EOFException.class, () -> ItemDescriptorCodec.INSTANCE.read(in));
     }

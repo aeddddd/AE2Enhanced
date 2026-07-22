@@ -7,8 +7,8 @@ import net.minecraft.data.recipes.FinishedRecipe;
 import net.minecraft.data.recipes.RecipeProvider;
 
 /**
- * 配方数据生成器。
- * <p>当前为占位实现，后续可在此添加模组自定义配方。</p>
+ * 配方数据生成器.
+ * <p>当前为占位实现,后续可在此添加模组自定义配方.</p>
  */
 public class AE2ERecipeProvider extends RecipeProvider {
 

@@ -15,7 +15,7 @@ import com.github.aeddddd.ae2enhanced.structure.SupercausalStructure;
 import com.github.aeddddd.ae2enhanced.structure.ValidationResult;
 
 /**
- * 超因果计算核心未成形状态菜单。
+ * 超因果计算核心未成形状态菜单.
  */
 public class ComputationUnformedMenu extends StructureUnformedMenu {
 

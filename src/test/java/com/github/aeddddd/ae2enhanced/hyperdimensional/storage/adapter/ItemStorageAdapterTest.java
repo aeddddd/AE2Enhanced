@@ -25,7 +25,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * {@link ItemStorageAdapter} 单元测试，同时覆盖 {@link AbstractStorageAdapter} 的公共存取逻辑。
+ * {@link ItemStorageAdapter} 单元测试,同时覆盖 {@link AbstractStorageAdapter} 的公共存取逻辑.
  */
 class ItemStorageAdapterTest {
 
@@ -72,7 +72,7 @@ class ItemStorageAdapterTest {
     @Test
     void testInsertRespectsCapacity() {
         adapter.set(stone, StorageChannelConstants.CAPACITY_PER_KEY.subtract(BigInteger.ONE));
-        // 剩余容量仅 1，实际只能存入 1
+        // 剩余容量仅 1,实际只能存入 1
         assertEquals(1L, adapter.insert(stone, 100L, Actionable.MODULATE));
         assertEquals(StorageChannelConstants.CAPACITY_PER_KEY, adapter.getEntries().get(stone));
         // 已满时无法再插入
@@ -146,7 +146,7 @@ class ItemStorageAdapterTest {
     void testSetInvalidAmountRemovesEntry() {
         adapter.set(stone, BigInteger.valueOf(10L));
 
-        // 零、负数、超容量、null 均视为非法，会移除条目
+        // 零、负数、超容量、null 均视为非法,会移除条目
         adapter.set(stone, BigInteger.ZERO);
         assertTrue(adapter.getStorageMap().isEmpty());
 
@@ -232,7 +232,7 @@ class ItemStorageAdapterTest {
 
     @Test
     void testNullKeyOperationsAreSafe() {
-        // cast 对 null 应返回 null，相关操作安全无异常
+        // cast 对 null 应返回 null,相关操作安全无异常
         assertEquals(0L, adapter.insert(null, 1L, Actionable.MODULATE));
         assertEquals(0L, adapter.extract(null, 1L, Actionable.MODULATE));
         adapter.set(null, BigInteger.ONE);

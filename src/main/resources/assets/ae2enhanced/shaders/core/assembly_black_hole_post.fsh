@@ -7,13 +7,13 @@
 #define _Scale 3.0
 #define _ShadowR 0.6
 
-// 坐标约定：黑洞中心为世界原点。
-// eye = 相机位置 - 黑洞中心；target = eye + 相机视线方向；u_up = 相机上向量。
-// u_fov 为游戏实际视场角（由投影矩阵推导）；u_invProj 为投影矩阵的逆，用于深度重建。
-// 光线步进在 GTCEu 原始比例（_Size 0.3）的缩放空间内进行，_Scale 为整体放大系数
-// （缩放空间 1 单位 = _Scale 方块）；_ShadowR 为事件视界捕获半径（缩放空间单位，
-// 0.6 × 3.0 = 1.8 方块），保持 GTCEu “小核心 + 明亮内盘”的比例，被捕获光线直接
-// 输出近黑，黑洞本体不再需要对象空间占位球体。
+// 坐标约定：黑洞中心为世界原点.
+// eye = 相机位置 - 黑洞中心；target = eye + 相机视线方向；u_up = 相机上向量.
+// u_fov 为游戏实际视场角（由投影矩阵推导）；u_invProj 为投影矩阵的逆,用于深度重建.
+// 光线步进在 GTCEu 原始比例（_Size 0.3）的缩放空间内进行,_Scale 为整体放大系数
+// （缩放空间 1 单位 = _Scale 方块）；_ShadowR 为事件视界捕获半径（缩放空间单位,
+// 0.6 × 3.0 = 1.8 方块）,保持 GTCEu “小核心 + 明亮内盘”的比例,被捕获光线直接
+// 输出近黑,黑洞本体不再需要对象空间占位球体.
 uniform float u_time;
 uniform vec2 u_resolution;
 uniform float u_intensity;
@@ -47,7 +47,7 @@ vec3 background(vec2 fragCoord) {
     return texture(Sampler0, fragCoord / u_resolution).rgb;
 }
 
-// 由深度缓冲重建当前像素场景几何到相机的距离，用于方块遮挡剔除
+// 由深度缓冲重建当前像素场景几何到相机的距离,用于方块遮挡剔除
 float sceneDistance(vec2 fragCoord) {
     vec2 uv = fragCoord / u_resolution;
     float depth = texture(Sampler1, uv).r;
@@ -55,7 +55,7 @@ float sceneDistance(vec2 fragCoord) {
     return length(viewPos.xyz / viewPos.w);
 }
 
-// 特效本体着色：伽马提亮只作用于黑洞特效，避免整个画面泛白
+// 特效本体着色：伽马提亮只作用于黑洞特效,避免整个画面泛白
 vec3 shadeEffect(vec4 col, vec4 glow) {
     float cov = clamp(col.a, 0.0, 1.0);
     vec3 effect = col.rgb * cov + glow.rgb * (1.0 - cov);
@@ -69,7 +69,7 @@ vec4 compose(vec4 col, vec4 glow, vec2 fragCoord) {
     return vec4(shadeEffect(col, glow) + bg * (1.0 - cov), 1.0);
 }
 
-// 事件视界阴影：被捕获的光线不合成背景，黑洞本体遮蔽其后方场景
+// 事件视界阴影：被捕获的光线不合成背景,黑洞本体遮蔽其后方场景
 vec4 composeShadow(vec4 col, vec4 glow) {
     return vec4(shadeEffect(col, glow), 1.0);
 }
@@ -141,7 +141,7 @@ mat4 viewMatrix(vec3 eye, vec3 center, vec3 up) {
 
 vec3 rayDirection(float fieldOfView, vec2 size, vec2 fragCoord) {
     vec2 xy = fragCoord - size / 2.0;
-    // 半屏高度对应 tan(fov/2)，缺少因子 2 会使视线偏窄，导致特效随视角旋转相对场景径向偏移
+    // 半屏高度对应 tan(fov/2),缺少因子 2 会使视线偏窄,导致特效随视角旋转相对场景径向偏移
     float z = size.y / (2.0 * tan(radians(fieldOfView) / 2.0));
     return normalize(vec3(xy, -z));
 }
@@ -149,16 +149,16 @@ vec3 rayDirection(float fieldOfView, vec2 size, vec2 fragCoord) {
 void main() {
     fragColor = vec4(0.);
     float intensity = clamp(u_intensity, 0.0, 2.0);
-    // 在缩放空间（1 单位 = _Scale 方块）内步进，GTCEu 原始比例参数无需改动
+    // 在缩放空间（1 单位 = _Scale 方块）内步进,GTCEu 原始比例参数无需改动
     float sceneDist = sceneDistance(gl_FragCoord.xy) / _Scale;
     vec3 eyeS = eye / _Scale;
 
     for (int j = 0; j < AA; j++)
     for (int i = 0; i < AA; i++) {
-        // 使用游戏实际 FOV 与相机朝向逐像素构建视线，保证效果与场景对齐
+        // 使用游戏实际 FOV 与相机朝向逐像素构建视线,保证效果与场景对齐
         vec3 viewDir = rayDirection(u_fov, u_resolution.xy, gl_FragCoord.xy);
         vec3 pos = eyeS;
-        // 视线方向与缩放无关，viewMatrix 必须使用未缩放的 eye/target
+        // 视线方向与缩放无关,viewMatrix 必须使用未缩放的 eye/target
         mat4 viewToWorld = viewMatrix(eye, target, u_up);
         vec3 ray = (viewToWorld * vec4(viewDir, 0.0)).xyz;
         vec4 col = vec4(0.);
@@ -180,14 +180,14 @@ void main() {
                 pos += stepDist * ray;
                 glow += vec4(1.2, 1.1, 1, 1.0) * (0.01 * stepDist * invDistSqr * invDistSqr * clamp(centDist * (2.) - 1.2, 0., 1.)) * intensity;
             }
-            // 遮挡剔除：光线行进距离超过场景几何 → 被方块挡住，直接输出场景
+            // 遮挡剔除：光线行进距离超过场景几何 → 被方块挡住,直接输出场景
             if (length(pos - eyeS) > sceneDist) {
                 outCol = compose(col, glow, gl_FragCoord.xy);
                 break;
             }
             float dist2 = length(pos);
             if (dist2 < _ShadowR) {
-                // 事件视界捕获：输出近黑阴影，遮蔽后方场景
+                // 事件视界捕获：输出近黑阴影,遮蔽后方场景
                 outCol = composeShadow(col, glow);
                 break;
             } else if (dist2 > _Size * 1000.) {

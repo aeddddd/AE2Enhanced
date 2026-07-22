@@ -8,8 +8,8 @@ import javax.annotation.Nullable;
 import java.util.Objects;
 
 /**
- * 流体描述符，用于在内存中作为存储 Map 的 Key。
- * 基于流体注册项与 NBT 内容做 equals/hashCode。
+ * 流体描述符,用于在内存中作为存储 Map 的 Key.
+ * 基于流体注册项与 NBT 内容做 equals/hashCode.
  */
 public final class FluidDescriptor implements Descriptor {
 
@@ -35,7 +35,7 @@ public final class FluidDescriptor implements Descriptor {
     }
 
     /**
-     * 供自定义二进制 Codec 使用的工厂方法。
+     * 供自定义二进制 Codec 使用的工厂方法.
      */
     public static FluidDescriptor fromRaw(AEFluidKey key, @Nullable CompoundTag nbt) {
         return new FluidDescriptor(key, nbt);

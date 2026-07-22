@@ -9,7 +9,7 @@ import org.spongepowered.asm.mixin.gen.Accessor;
 import org.spongepowered.asm.mixin.gen.Invoker;
 
 /**
- * 访问 {@link CraftingCalculation} 的模拟请求者与包私有方法。
+ * 访问 {@link CraftingCalculation} 的模拟请求者与包私有方法.
  */
 @Mixin(value = CraftingCalculation.class, remap = false)
 public interface CraftingCalculationAccessor {

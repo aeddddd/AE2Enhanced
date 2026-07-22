@@ -15,7 +15,7 @@ import net.minecraft.world.item.crafting.RecipeSerializer;
 import net.minecraft.world.item.crafting.ShapedRecipe;
 
 /**
- * 黑洞配方序列化器。
+ * 黑洞配方序列化器.
  */
 public class BlackHoleRecipeSerializer implements RecipeSerializer<BlackHoleRecipe> {
 

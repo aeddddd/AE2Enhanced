@@ -11,7 +11,7 @@ import net.minecraft.world.level.Level;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * 共形不变荷 — 黑洞退火产物，T3 材料。
+ * 共形不变荷 — 黑洞退火产物,T3 材料.
  */
 public class ConformalInvariantChargeItem extends Item {
 

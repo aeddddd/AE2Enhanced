@@ -6,7 +6,7 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.player.Inventory;
 
 /**
- * 超因果计算核心未成形状态 GUI。
+ * 超因果计算核心未成形状态 GUI.
  */
 public class ComputationUnformedScreen extends StructureUnformedScreen<ComputationUnformedMenu> {
 

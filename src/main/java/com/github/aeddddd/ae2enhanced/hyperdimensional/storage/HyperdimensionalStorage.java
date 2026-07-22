@@ -26,10 +26,10 @@ import java.util.UUID;
 import java.util.function.Consumer;
 
 /**
- * 超维度仓储的内部存储容器。
- * <p>以多个 {@link StorageChannel} 管理不同 AE key type：默认支持物品、流体与内部能量，
- * 并动态为游戏中所有已注册的 AEKeyType（包括第三方模组注册的类型）创建通用通道。
- * 实际通道数据通过 {@link HyperdimensionalStorageFile} 持久化为二进制文件，NBT 中不再嵌入完整内容。</p>
+ * 超维度仓储的内部存储容器.
+ * <p>以多个 {@link StorageChannel} 管理不同 AE key type：默认支持物品、流体与内部能量,
+ * 并动态为游戏中所有已注册的 AEKeyType（包括第三方模组注册的类型）创建通用通道.
+ * 实际通道数据通过 {@link HyperdimensionalStorageFile} 持久化为二进制文件,NBT 中不再嵌入完整内容.</p>
  */
 public class HyperdimensionalStorage {
 
@@ -91,7 +91,7 @@ public class HyperdimensionalStorage {
     }
 
     /**
-     * 注册一个新的存储通道。如果该 key type 已存在，将覆盖旧通道。
+     * 注册一个新的存储通道.如果该 key type 已存在,将覆盖旧通道.
      *
      * @param channel 要注册的通道
      */
@@ -102,7 +102,7 @@ public class HyperdimensionalStorage {
 
     /**
      * @param keyType AE key type
-     * @return 对应通道，若未注册则返回 null
+     * @return 对应通道,若未注册则返回 null
      */
     @Nullable
     public StorageChannel<?> getChannel(AEKeyType keyType) {
@@ -117,7 +117,7 @@ public class HyperdimensionalStorage {
     }
 
     /**
-     * 聚合所有通道的内容快照。
+     * 聚合所有通道的内容快照.
      *
      * @return 所有 key 到数量的不可修改映射
      */
@@ -130,7 +130,7 @@ public class HyperdimensionalStorage {
     }
 
     /**
-     * 向对应通道存入 key。
+     * 向对应通道存入 key.
      *
      * @return 实际存入数量
      */
@@ -150,7 +150,7 @@ public class HyperdimensionalStorage {
     }
 
     /**
-     * 从对应通道取出 key。
+     * 从对应通道取出 key.
      *
      * @return 实际取出数量
      */
@@ -170,8 +170,8 @@ public class HyperdimensionalStorage {
     }
 
     /**
-     * 将各通道可用内容写入统计容器。
-     * <p>结果会被内部缓存，避免每次网络同步都遍历全量条目；缓存会在存储变化时自动失效。</p>
+     * 将各通道可用内容写入统计容器.
+     * <p>结果会被内部缓存,避免每次网络同步都遍历全量条目；缓存会在存储变化时自动失效.</p>
      */
     public void getAvailableStacks(KeyCounter out) {
         rebuildCacheIfNeeded();
@@ -181,12 +181,12 @@ public class HyperdimensionalStorage {
     }
 
     /**
-     * 强制重建可用内容缓存。
+     * 强制重建可用内容缓存.
      */
     public void rebuildCache() {
         availableStacksCache = new KeyCounter();
         for (StorageChannel<?> channel : channels.values()) {
-            // 能量为内部自定义 key type，不直接暴露给 AE2 网络
+            // 能量为内部自定义 key type,不直接暴露给 AE2 网络
             if (EnergyKey.ENERGY_KEY_TYPE.equals(channel.getKeyType())) {
                 continue;
             }
@@ -206,11 +206,11 @@ public class HyperdimensionalStorage {
     }
 
     /**
-     * 按查询字符串过滤当前可用内容，返回匹配条目的快照。
-     * <p>查询匹配不区分大小写，支持本地化名称与 ID 字符串。</p>
+     * 按查询字符串过滤当前可用内容,返回匹配条目的快照.
+     * <p>查询匹配不区分大小写,支持本地化名称与 ID 字符串.</p>
      *
-     * @param query 查询字符串（可为 null 或空，表示返回全部）
-     * @return 匹配条目列表，每个条目包含 key 与数量
+     * @param query 查询字符串（可为 null 或空,表示返回全部）
+     * @return 匹配条目列表,每个条目包含 key 与数量
      */
     public List<SearchEntry> searchAvailableStacks(@Nullable String query) {
         rebuildCacheIfNeeded();
@@ -235,7 +235,7 @@ public class HyperdimensionalStorage {
     }
 
     /**
-     * 将当前可用内容按每页固定大小分页返回。
+     * 将当前可用内容按每页固定大小分页返回.
      *
      * @param page     页码（从 0 开始）
      * @param pageSize 每页大小
@@ -255,7 +255,7 @@ public class HyperdimensionalStorage {
     }
 
     /**
-     * 搜索条目记录。
+     * 搜索条目记录.
      *
      * @param key   AE key
      * @param count 数量（上限为 {@link Long#MAX_VALUE}）
@@ -264,7 +264,7 @@ public class HyperdimensionalStorage {
     }
 
     /**
-     * 直接设置指定 key 的数量（用于迁移与初始化）。
+     * 直接设置指定 key 的数量（用于迁移与初始化）.
      */
     public void set(AEKey key, BigInteger amount) {
         if (isSafeMode() || key == null) {
@@ -286,7 +286,7 @@ public class HyperdimensionalStorage {
     }
 
     /**
-     * 从二进制文件加载各通道数据。
+     * 从二进制文件加载各通道数据.
      */
     public void loadFromFile() {
         if (file == null || isSafeMode()) {
@@ -301,9 +301,9 @@ public class HyperdimensionalStorage {
     }
 
     /**
-     * 将各通道数据持久化到二进制文件。
-     * <p>每个 section 的保存由异步线程完成，且仅在成功后才清除对应的脏代际；
-     * 本方法不再在末尾统一调用 {@code markClean()}，避免保存失败时丢失数据。</p>
+     * 将各通道数据持久化到二进制文件.
+     * <p>每个 section 的保存由异步线程完成,且仅在成功后才清除对应的脏代际；
+     * 本方法不再在末尾统一调用 {@code markClean()},避免保存失败时丢失数据.</p>
      */
     public void persist() {
         if (file == null || isSafeMode()) {
@@ -317,11 +317,11 @@ public class HyperdimensionalStorage {
                 }
             }
         }
-        // 注意：不再无条件 markClean()，各 section 的干净状态由 HyperdimensionalStorageFile 在异步保存成功后自行维护。
+        // 注意：不再无条件 markClean(),各 section 的干净状态由 HyperdimensionalStorageFile 在异步保存成功后自行维护.
     }
 
     /**
-     * 若数据已脏，则执行持久化。
+     * 若数据已脏,则执行持久化.
      */
     public void flush() {
         if (isDirty()) {
@@ -340,9 +340,9 @@ public class HyperdimensionalStorage {
     }
 
     /**
-     * 将多通道元数据持久化到 NBT。
-     * <p>实际通道数据由 {@link HyperdimensionalStorageFile} 写入二进制文件，
-     * 本方法仅保留版本等少量元数据，用于兼容 SavedData 调用。</p>
+     * 将多通道元数据持久化到 NBT.
+     * <p>实际通道数据由 {@link HyperdimensionalStorageFile} 写入二进制文件,
+     * 本方法仅保留版本等少量元数据,用于兼容 SavedData 调用.</p>
      *
      * @param tag 输出标签
      */
@@ -351,13 +351,13 @@ public class HyperdimensionalStorage {
     }
 
     /**
-     * 从 NBT 加载多通道元数据。
-     * <p>通道数据已从二进制文件加载，本方法仅做版本校验。</p>
+     * 从 NBT 加载多通道元数据.
+     * <p>通道数据已从二进制文件加载,本方法仅做版本校验.</p>
      *
      * @param tag 输入标签
      */
     public void load(CompoundTag tag) {
-        // 二进制文件负责加载实际数据；NBT 仅保留版本标记。
+        // 二进制文件负责加载实际数据；NBT 仅保留版本标记.
         invalidateCache();
     }
 
@@ -375,7 +375,7 @@ public class HyperdimensionalStorage {
     }
 
     /**
-     * 存储变化监听器。
+     * 存储变化监听器.
      */
     public interface StorageListener {
         void onStorageChanged(HyperdimensionalStorage storage);
