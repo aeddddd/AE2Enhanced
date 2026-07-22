@@ -139,6 +139,23 @@ public class HyperdimensionalControllerBlockEntity extends MultiblockControllerB
     }
 
     @Override
+    public void onLoad() {
+        super.onLoad();
+        // 区块 NBT 反序列化阶段 level 为 null,无法初始化存储;
+        // 延迟到 onLoad 重建 storage/meStorage 运行时对象,避免重进存档后网络识别不到仓储.
+        if (level != null && !level.isClientSide() && isFormed() && nexusId != null) {
+            initStorage();
+        }
+    }
+
+    @Override
+    public void onChunkUnloaded() {
+        // 区块卸载时方块实体被丢弃,先 flush 未持久化的内容,防止重载后从文件读到旧数据.
+        flushStorage();
+        super.onChunkUnloaded();
+    }
+
+    @Override
     public void onDisassemble() {
         flushStorage();
         networkActive = false;
@@ -373,9 +390,6 @@ public class HyperdimensionalControllerBlockEntity extends MultiblockControllerB
         storageTypes = data.getInt(TAG_STORAGE_TYPES);
         storageTotal = data.getLong(TAG_STORAGE_TOTAL);
         safeMode = data.getBoolean(TAG_SAFE_MODE);
-        if (isFormed() && nexusId != null && level != null && !level.isClientSide()) {
-            initStorage();
-        }
     }
 
     @Override
