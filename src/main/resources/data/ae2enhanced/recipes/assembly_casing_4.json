@@ -1,16 +1,18 @@
 {
   "type": "minecraft:crafting_shaped",
   "pattern": [
-    "SSS",
-    "SLS",
-    "SSS"
+    "LEL",
+    "ACA",
+    "LEL"
   ],
   "key": {
-    "S": { "item": "ae2:smooth_sky_stone_block" },
-    "L": { "item": "ae2:logic_processor" }
+    "L": { "item": "ae2:logic_processor" },
+    "E": { "item": "ae2:engineering_processor" },
+    "A": { "item": "ae2:calculation_processor" },
+    "C": { "item": "ae2enhanced:assembly_casing_1" }
   },
   "result": {
     "item": "ae2enhanced:assembly_casing_4",
-    "count": 4
+    "count": 1
   }
 }

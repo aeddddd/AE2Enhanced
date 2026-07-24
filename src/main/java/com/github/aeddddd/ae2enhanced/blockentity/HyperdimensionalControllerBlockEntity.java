@@ -7,6 +7,7 @@ import javax.annotation.Nullable;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.server.MinecraftServer;
@@ -112,12 +113,12 @@ public class HyperdimensionalControllerBlockEntity extends MultiblockControllerB
                 facing = state.getValue(com.github.aeddddd.ae2enhanced.block.MultiblockControllerBlock.FACING);
             }
         }
-        // 特效中心：结构中心 (0,0,2),抬高 2.5
-        Vec3 localCenter = new Vec3(0.0, 2.5, 2.0);
+        // 特效中心：结构中心 (0,0,2) 上方 4.0 格(与渲染器一致,以方块中心为旋转基准)
+        Vec3 localCenter = new Vec3(0.0, 3.5, 2.0);
         Vec3 rotatedCenter = rotateOffset(localCenter, facing);
-        Vec3 worldCenter = new Vec3(pos.getX() + rotatedCenter.x, pos.getY() + rotatedCenter.y,
-                pos.getZ() + rotatedCenter.z);
-        return new AABB(worldCenter, worldCenter).inflate(8.0);
+        Vec3 worldCenter = new Vec3(pos.getX() + 0.5 + rotatedCenter.x, pos.getY() + 0.5 + rotatedCenter.y,
+                pos.getZ() + 0.5 + rotatedCenter.z);
+        return new AABB(worldCenter, worldCenter).inflate(5.5);
     }
 
     private static Vec3 rotateOffset(Vec3 local, Direction facing) {
@@ -259,6 +260,43 @@ public class HyperdimensionalControllerBlockEntity extends MultiblockControllerB
                 }
             }
         }
+    }
+
+    /**
+     * 客户端 tick：移植自 1.12 TileHyperdimensionalController#update 的客户端分支.
+     * <p>成形且网络活跃时,生成向结构中心汇聚的附魔粒子(能量流动效果).</p>
+     */
+    @Override
+    public void clientTick() {
+        if (level == null || !level.isClientSide()) {
+            return;
+        }
+        if (!isFormed() || !networkActive) {
+            return;
+        }
+        if (level.random.nextInt(6) != 0) {
+            return;
+        }
+
+        Direction facing = Direction.NORTH;
+        BlockState state = getBlockState();
+        if (state.hasProperty(com.github.aeddddd.ae2enhanced.block.MultiblockControllerBlock.FACING)) {
+            facing = state.getValue(com.github.aeddddd.ae2enhanced.block.MultiblockControllerBlock.FACING);
+        }
+        Vec3 off = switch (facing) {
+            case SOUTH -> new Vec3(0, 0, -2.0);
+            case EAST -> new Vec3(-2.0, 0, 0);
+            case WEST -> new Vec3(2.0, 0, 0);
+            default -> new Vec3(0, 0, 2.0);
+        };
+        double cx = worldPosition.getX() + 0.5 + off.x;
+        double cy = worldPosition.getY() + 1.5;
+        double cz = worldPosition.getZ() + 0.5 + off.z;
+        double px = cx + (level.random.nextDouble() - 0.5) * 4.0;
+        double py = cy + (level.random.nextDouble() - 0.5) * 2.0;
+        double pz = cz + (level.random.nextDouble() - 0.5) * 4.0;
+        level.addParticle(ParticleTypes.ENCHANT, px, py, pz,
+                (cx - px) * 0.05, (cy - py) * 0.05, (cz - pz) * 0.05);
     }
 
     /**

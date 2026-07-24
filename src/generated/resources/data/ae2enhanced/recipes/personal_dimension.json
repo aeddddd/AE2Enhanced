@@ -1,0 +1,24 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "equipment",
+  "key": {
+    "D": {
+      "item": "minecraft:diamond"
+    },
+    "E": {
+      "item": "minecraft:ender_pearl"
+    },
+    "N": {
+      "item": "minecraft:nether_star"
+    }
+  },
+  "pattern": [
+    "EDE",
+    "DND",
+    "EDE"
+  ],
+  "result": {
+    "item": "ae2enhanced:personal_dimension"
+  },
+  "show_notification": true
+}

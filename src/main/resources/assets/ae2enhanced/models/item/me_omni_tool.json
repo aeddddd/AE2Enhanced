@@ -1,0 +1,26 @@
+{
+  "parent": "minecraft:item/generated",
+  "textures": {
+    "layer0": "ae2enhanced:item/me_omni_tool_basic"
+  },
+  "overrides": [
+    {
+      "predicate": {
+        "ae2enhanced:mode": 1
+      },
+      "model": "ae2enhanced:item/me_omni_tool_mode1"
+    },
+    {
+      "predicate": {
+        "ae2enhanced:mode": 2
+      },
+      "model": "ae2enhanced:item/me_omni_tool_mode2"
+    },
+    {
+      "predicate": {
+        "ae2enhanced:mode": 3
+      },
+      "model": "ae2enhanced:item/me_omni_tool_mode3"
+    }
+  ]
+}

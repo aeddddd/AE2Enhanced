@@ -1,0 +1,7 @@
+{
+  "loader": "ae2enhanced:connected",
+  "textures": {
+    "particle": "ae2enhanced:block/assembly_casing_2",
+    "texture": "ae2enhanced:block/assembly_casing_2_ctm"
+  }
+}

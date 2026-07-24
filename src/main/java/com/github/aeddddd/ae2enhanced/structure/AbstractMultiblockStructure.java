@@ -94,51 +94,51 @@ public abstract class AbstractMultiblockStructure implements IMultiblockStructur
         if (level.isClientSide()) {
             return false;
         }
-        Map<Block, Integer> missing = getMissingMap(level, controllerPos);
-        if (missing.isEmpty()) {
+        if (getMissingMap(level, controllerPos).isEmpty()) {
             assemble(level, controllerPos);
             return true;
         }
 
+        // 部分组装：逐个缺失位置消耗背包中对应方块并放置,
+        // 材料不够的种类跳过,允许玩家多次点击逐步补齐直至完整成型.
         Inventory inv = player.getInventory();
-        Map<Block, Integer> needed = new LinkedHashMap<>(missing);
-
-        for (ItemStack stack : inv.items) {
-            if (stack.isEmpty()) {
+        Direction rotation = getRotation(level, controllerPos);
+        boolean placedAny = false;
+        for (Map.Entry<BlockPos, Block> entry : definition.getExpectedBlocks()) {
+            BlockPos actual = controllerPos.offset(StructureUtils.rotate(entry.getKey(), rotation));
+            if (!level.isLoaded(actual)) {
                 continue;
             }
-            for (Map.Entry<Block, Integer> entry : needed.entrySet()) {
-                if (stack.getItem() == entry.getKey().asItem()) {
-                    int need = entry.getValue();
-                    int have = stack.getCount();
-                    entry.setValue(Math.max(0, need - have));
-                    break;
-                }
+            if (level.getBlockState(actual).getBlock() == entry.getValue()) {
+                continue;
             }
+            if (!consumeOne(inv, entry.getValue().asItem())) {
+                continue;
+            }
+            level.setBlock(actual, entry.getValue().defaultBlockState(), Block.UPDATE_ALL);
+            placedAny = true;
         }
 
-        for (int count : needed.values()) {
-            if (count > 0) {
-                return false;
+        if (getMissingMap(level, controllerPos).isEmpty()) {
+            assemble(level, controllerPos);
+        }
+        return placedAny;
+    }
+
+    /**
+     * 从背包主物品栏消耗一个指定物品.
+     *
+     * @return 是否成功消耗
+     */
+    private static boolean consumeOne(Inventory inv, Item item) {
+        for (int i = 0; i < inv.items.size(); i++) {
+            ItemStack stack = inv.items.get(i);
+            if (!stack.isEmpty() && stack.getItem() == item) {
+                inv.removeItem(i, 1);
+                return true;
             }
         }
-
-        for (Map.Entry<Block, Integer> entry : missing.entrySet()) {
-            Block block = entry.getKey();
-            int remaining = entry.getValue();
-            Item item = block.asItem();
-            for (int i = 0; i < inv.items.size() && remaining > 0; i++) {
-                ItemStack stack = inv.items.get(i);
-                if (stack.getItem() == item) {
-                    int take = Math.min(stack.getCount(), remaining);
-                    int removed = inv.removeItem(i, take).getCount();
-                    remaining -= removed;
-                }
-            }
-        }
-
-        placeMissingBlocks(level, controllerPos, player);
-        return true;
+        return false;
     }
 
     @Override

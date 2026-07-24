@@ -174,9 +174,9 @@ public class AE2EnhancedPostProcessor {
             facing = state.getValue(MultiblockControllerBlock.FACING);
         }
 
-        // 使用与对象空间渲染器完全相同的包围盒/中心计算,保证黑洞锚点一致
+        // 使用与对象空间渲染器完全相同的包围盒/中心计算，保证黑洞锚点一致
         float[] bounds = AbstractMultiblockRenderer.computeBounds(AssemblyStructure.getAllSet(), facing);
-        Vec3 centerOffset = AbstractMultiblockRenderer.computeCenterOffset(bounds);
+        Vec3 centerOffset = AssemblyHubRenderer.getShiftedCenterOffset(bounds);
         Vec3 worldPos = new Vec3(pos.getX() + centerOffset.x, pos.getY() + centerOffset.y, pos.getZ() + centerOffset.z);
         return new TargetInfo(worldPos, 1.8f, facing);
     }

@@ -14,6 +14,7 @@ import com.github.aeddddd.ae2enhanced.block.HyperdimensionalControllerBlock;
 import com.github.aeddddd.ae2enhanced.blockentity.HyperdimensionalControllerBlockEntity;
 import com.github.aeddddd.ae2enhanced.computation.block.ComputationControllerBlock;
 import com.github.aeddddd.ae2enhanced.computation.blockentity.ComputationCoreBlockEntity;
+import com.github.aeddddd.ae2enhanced.multiblock.IMultiblockController;
 import com.github.aeddddd.ae2enhanced.structure.AssemblyStructure;
 import com.github.aeddddd.ae2enhanced.structure.HyperdimensionalStructure;
 import com.github.aeddddd.ae2enhanced.structure.SupercausalStructure;
@@ -57,16 +58,14 @@ public class RequestAssemblyPacket implements ServerboundPacket {
         }
         Level level = player.serverLevel();
         BlockPos pos = controllerPos;
-        boolean success = false;
 
         if (level.getBlockState(pos).getBlock() instanceof AssemblyControllerBlock) {
             if (level.getBlockEntity(pos) instanceof AssemblyControllerBlockEntity tile) {
                 if (!tile.isFormed()) {
                     if (player.getAbilities().instabuild) {
                         AssemblyStructure.placeMissingBlocks(level, pos, player);
-                        success = true;
                     } else {
-                        success = AssemblyStructure.tryConsumeAndPlace(level, pos, player);
+                        AssemblyStructure.tryConsumeAndPlace(level, pos, player);
                     }
                 }
             }
@@ -75,9 +74,8 @@ public class RequestAssemblyPacket implements ServerboundPacket {
                 if (!tile.isFormed()) {
                     if (player.getAbilities().instabuild) {
                         HyperdimensionalStructure.placeMissingBlocks(level, pos, player);
-                        success = true;
                     } else {
-                        success = HyperdimensionalStructure.tryConsumeAndPlace(level, pos, player);
+                        HyperdimensionalStructure.tryConsumeAndPlace(level, pos, player);
                     }
                 }
             }
@@ -86,15 +84,16 @@ public class RequestAssemblyPacket implements ServerboundPacket {
                 if (!tile.isFormed()) {
                     if (player.getAbilities().instabuild) {
                         SupercausalStructure.placeMissingBlocks(level, pos, player);
-                        success = true;
                     } else {
-                        success = SupercausalStructure.tryConsumeAndPlace(level, pos, player);
+                        SupercausalStructure.tryConsumeAndPlace(level, pos, player);
                     }
                 }
             }
         }
 
-        if (success) {
+        // 部分组装模式下 GUI 保持打开,玩家补齐材料后可继续点击;
+        // 仅在完整成型后关闭
+        if (level.getBlockEntity(pos) instanceof IMultiblockController controller && controller.isFormed()) {
             player.closeContainer();
         }
     }

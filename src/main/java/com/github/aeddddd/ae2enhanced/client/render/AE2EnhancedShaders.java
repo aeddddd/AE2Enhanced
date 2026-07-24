@@ -21,9 +21,22 @@ public final class AE2EnhancedShaders {
 
     public static ShaderInstance ASSEMBLY_BLACK_HOLE = null;
     public static ShaderInstance ASSEMBLY_BLACK_HOLE_POST = null;
+    /**
+     * 微型奇点专用实例：与装配枢纽共用同一 vsh/fsh,但 uniform 独立,
+     * 避免同一帧内多个渲染目标互相覆盖 uniform（后写者获胜）.
+     */
+    public static ShaderInstance MICRO_SINGULARITY = null;
 
     public static ShaderInstance getAssemblyBlackHole() {
         return ASSEMBLY_BLACK_HOLE != null ? ASSEMBLY_BLACK_HOLE : GameRenderer.getPositionColorShader();
+    }
+
+    public static ShaderInstance getMicroSingularity() {
+        return MICRO_SINGULARITY != null ? MICRO_SINGULARITY : GameRenderer.getPositionColorShader();
+    }
+
+    public static boolean isMicroSingularityLoaded() {
+        return MICRO_SINGULARITY != null;
     }
 
     public static ShaderInstance getAssemblyBlackHolePost() {
@@ -65,6 +78,20 @@ public final class AE2EnhancedShaders {
                     });
         } catch (Exception e) {
             AE2Enhanced.LOGGER.error("Failed to register assembly black hole post-processing shader", e);
+        }
+
+        try {
+            event.registerShader(
+                    new ShaderInstance(
+                            event.getResourceProvider(),
+                            new ResourceLocation(AE2Enhanced.MOD_ID, "micro_singularity"),
+                            DefaultVertexFormat.POSITION_COLOR),
+                    shader -> {
+                        MICRO_SINGULARITY = shader;
+                        AE2Enhanced.LOGGER.info("Registered micro singularity shader");
+                    });
+        } catch (Exception e) {
+            AE2Enhanced.LOGGER.error("Failed to register micro singularity shader, falling back to position_color", e);
         }
     }
 }

@@ -75,7 +75,25 @@ public class AssemblyHubRenderer extends AbstractMultiblockRenderer<AssemblyCont
     protected Vec3 getEffectCenterOffset(AssemblyControllerBlockEntity be) {
         Direction facing = getFacing(be);
         float[] bounds = getBounds(facing);
-        return computeCenterOffset(bounds);
+        return getShiftedCenterOffset(bounds);
+    }
+
+    /**
+     * 黑洞中心偏移：结构几何中心沿长轴向控制器方块移动一格。
+     * <p>控制器位于相对坐标原点（结构长轴一端），中心偏移绝对值最大的轴即长轴；
+     * 对象空间渲染器与后处理器共用此方法，保证黑洞锚点一致。</p>
+     */
+    public static Vec3 getShiftedCenterOffset(float[] bounds) {
+        Vec3 center = computeCenterOffset(bounds);
+        double ax = Math.abs(center.x);
+        double ay = Math.abs(center.y);
+        double az = Math.abs(center.z);
+        if (ax >= ay && ax >= az) {
+            return center.add(-Math.signum(center.x), 0, 0);
+        } else if (ay >= az) {
+            return center.add(0, -Math.signum(center.y), 0);
+        }
+        return center.add(0, 0, -Math.signum(center.z));
     }
 
     @Override

@@ -38,6 +38,7 @@ public class AE2EBlockStateProvider extends BlockStateProvider {
         simpleBlock(ModBlocks.CONSTANT_TENSOR_FIELD_CASING.get());
         simpleBlock(ModBlocks.CONSTANT_SPINOR_FIELD_CASING.get());
         simpleBlock(ModBlocks.CAUSAL_ANCHOR_CORE.get());
+        simpleBlock(ModBlocks.PERSONAL_DIMENSION_MANAGER.get());
 
         horizontalBlock(ModBlocks.ASSEMBLY_CONTROLLER.get(), models().getExistingFile(modLoc("block/assembly_controller")));
         horizontalBlock(ModBlocks.HYPERDIMENSIONAL_CONTROLLER.get(), models().getExistingFile(modLoc("block/hyperdimensional_controller")));

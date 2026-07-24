@@ -37,9 +37,6 @@ public final class GuiConstants {
     public static final int ASSEMBLY_BUTTON_X = 79;
     public static final int ASSEMBLY_BUTTON_Y = 23;
 
-    public static final int ASSEMBLE_BUTTON_WIDTH = 160;
-    public static final int ASSEMBLE_BUTTON_HEIGHT = 24;
-
     // ==================== 高亮纹理坐标 ====================
 
     public static final int ASSEMBLY_HIGHLIGHT_U = 0;
@@ -76,9 +73,6 @@ public final class GuiConstants {
     public static final int DISABLED_BUTTON_TEXT_COLOR = 0xFF888888;
 
     public static final int DARK_TEXT_COLOR = 0xFF222222;
-    public static final int SUBTITLE_COLOR = 0xFF88ccdd;
-    public static final int HINT_COLOR = 0xFF88aaaa;
-    public static final int HEADER_TEXT_COLOR = 0xFF88aabb;
 
     // 装配枢纽已成形界面：浅色背景上的深色信息文字
     public static final int ASSEMBLY_INFO_COLOR = 0xFF2f3b47;
@@ -144,48 +138,9 @@ public final class GuiConstants {
     public static final int NEXUS_TOOLTIP_START_X = 20;
     public static final int NEXUS_TOOLTIP_START_Y = 34;
 
-    // ==================== 未成形界面布局 ====================
+    // ==================== 未成形界面 ====================
 
-    public static final int UNFORMED_TITLE_Y = 12;
-    public static final int UNFORMED_SUBTITLE_Y = 28;
-    public static final int UNFORMED_HEADER_DIVIDER_Y = 36;
-    public static final int UNFORMED_OUTER_DIVIDER_LEFT_MARGIN = 16;
-    public static final int UNFORMED_MISSING_TITLE_X = 26;
-    public static final int UNFORMED_MATERIAL_HEADER_X = 36;
-    public static final int UNFORMED_QUANTITY_HEADER_RIGHT_OFFSET = 90;
-    public static final int UNFORMED_HEADER_DIVIDER_LEFT_MARGIN = 30;
-    public static final int UNFORMED_MISSING_ITEM_NAME_X = 36;
-    public static final int UNFORMED_MISSING_ITEM_COUNT_RIGHT_MARGIN = 36;
-    public static final int UNFORMED_LIST_ITEM_SPACING = 16;
     public static final int UNFORMED_REFRESH_INTERVAL_TICKS = 20;
-
-    // ==================== 大型未成形界面（装配枢纽）构造参数 ====================
-
-    public static final int UNFORMED_LARGE_YSIZE = 350;
-    public static final int UNFORMED_LARGE_BUTTON_Y_OFFSET = 236;
-    public static final int UNFORMED_LARGE_INNER_PANEL_BOTTOM = 210;
-    public static final int UNFORMED_LARGE_STATUS_Y_OFFSET = 224;
-    public static final int UNFORMED_LARGE_INVENTORY_DIVIDER_Y_OFFSET = 256;
-    public static final int UNFORMED_LARGE_MISSING_LIST_START_Y = 80;
-    public static final int UNFORMED_LARGE_READY_TEXT_Y = 62;
-    public static final int UNFORMED_LARGE_HINT_TEXT_Y = 82;
-    public static final int UNFORMED_LARGE_MISSING_TITLE_Y = 46;
-    public static final int UNFORMED_LARGE_HEADER_Y = 62;
-    public static final int UNFORMED_LARGE_HEADER_DIVIDER_Y = 74;
-
-    // ==================== 小型未成形界面（计算核心/超维度仓储）构造参数 ====================
-
-    public static final int UNFORMED_SMALL_YSIZE = 260;
-    public static final int UNFORMED_SMALL_BUTTON_Y_OFFSET = 150;
-    public static final int UNFORMED_SMALL_INNER_PANEL_BOTTOM = 140;
-    public static final int UNFORMED_SMALL_STATUS_Y_OFFSET = 134;
-    public static final int UNFORMED_SMALL_INVENTORY_DIVIDER_Y_OFFSET = 170;
-    public static final int UNFORMED_SMALL_MISSING_LIST_START_Y = 76;
-    public static final int UNFORMED_SMALL_READY_TEXT_Y = 54;
-    public static final int UNFORMED_SMALL_HINT_TEXT_Y = 70;
-    public static final int UNFORMED_SMALL_MISSING_TITLE_Y = 46;
-    public static final int UNFORMED_SMALL_HEADER_Y = 58;
-    public static final int UNFORMED_SMALL_HEADER_DIVIDER_Y = 70;
 
     // ==================== 默认数值 ====================
 

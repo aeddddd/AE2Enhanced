@@ -1,0 +1,30 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "equipment",
+  "key": {
+    "C": {
+      "item": "ae2:charged_staff"
+    },
+    "E": {
+      "item": "ae2:entropy_manipulator"
+    },
+    "M": {
+      "item": "ae2:memory_card"
+    },
+    "N": {
+      "item": "ae2:network_tool"
+    },
+    "S": {
+      "item": "ae2enhanced:stable_spacetime_manifold"
+    }
+  },
+  "pattern": [
+    " E ",
+    "CSN",
+    " M "
+  ],
+  "result": {
+    "item": "ae2enhanced:me_omni_tool"
+  },
+  "show_notification": true
+}

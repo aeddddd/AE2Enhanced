@@ -1,15 +1,16 @@
 {
   "type": "minecraft:crafting_shaped",
   "pattern": [
-    "SSS",
-    "S S",
-    "SSS"
+    "MMM",
+    "DMD",
+    "MMM"
   ],
   "key": {
-    "S": { "item": "ae2:smooth_sky_stone_block" }
+    "M": { "item": "ae2enhanced:stable_spacetime_manifold" },
+    "D": { "item": "ae2enhanced:differential_form_stabilizer" }
   },
   "result": {
     "item": "ae2enhanced:assembly_casing_1",
-    "count": 4
+    "count": 1
   }
 }

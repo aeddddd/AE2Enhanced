@@ -457,10 +457,17 @@ public class AssemblyControllerBlockEntity extends AENetworkBlockEntity
 
     @Override
     public boolean pushPattern(IPatternDetails pattern, KeyCounter[] inputs) {
+        // 防御性过滤：仅分子装配室可执行的样板(合成/锻造台/切石机)
+        if (!AssemblyPatternManager.isSupportedPattern(pattern)) {
+            return false;
+        }
         return this.craftingProcessor.pushPattern(pattern, inputs);
     }
 
     public boolean pushPattern(IPatternDetails pattern, KeyCounter[] inputs, @Nullable IManagedGridNode node) {
+        if (!AssemblyPatternManager.isSupportedPattern(pattern)) {
+            return false;
+        }
         return this.craftingProcessor.pushPattern(pattern, inputs, node);
     }
 
@@ -468,6 +475,9 @@ public class AssemblyControllerBlockEntity extends AENetworkBlockEntity
      * 批量执行样板任务,一次性处理 {@code batchSize} 个副本.
      */
     public boolean pushPatternBatch(IPatternDetails pattern, KeyCounter[] inputs, @Nullable IManagedGridNode node, long batchSize) {
+        if (!AssemblyPatternManager.isSupportedPattern(pattern)) {
+            return false;
+        }
         return this.craftingProcessor.pushPatternBatch(pattern, inputs, node, batchSize);
     }
 

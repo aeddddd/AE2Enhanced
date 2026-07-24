@@ -1,7 +1,0 @@
-{
-  "loader": "ae2enhanced:connected",
-  "textures": {
-    "particle": "ae2enhanced:block/assembly_inner_wall",
-    "texture": "ae2enhanced:block/assembly_inner_wall_ctm"
-  }
-}

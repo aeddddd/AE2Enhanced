@@ -198,6 +198,12 @@ public abstract class MultiblockControllerBlockEntity extends AE2EBaseBlockEntit
     public void serverTick() {
     }
 
+    /**
+     * 客户端每 tick 调用入口.子类覆写以处理粒子等客户端效果.
+     */
+    public void clientTick() {
+    }
+
     @Override
     public CompoundTag getUpdateTag() {
         CompoundTag tag = super.getUpdateTag();

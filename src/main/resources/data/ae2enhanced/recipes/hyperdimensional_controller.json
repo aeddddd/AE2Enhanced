@@ -6,8 +6,8 @@
     "EQE"
   ],
   "key": {
-    "E": { "item": "ae2:logic_processor" },
-    "Q": { "item": "ae2:engineering_processor" },
+    "E": { "item": "ae2enhanced:differential_form_stabilizer" },
+    "Q": { "item": "ae2enhanced:conformal_invariant_charge" },
     "O": { "item": "ae2:quartz_glass" }
   },
   "result": {

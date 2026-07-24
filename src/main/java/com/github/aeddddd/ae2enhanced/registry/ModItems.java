@@ -10,8 +10,12 @@ import javax.annotation.Nullable;
 
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
 import com.github.aeddddd.ae2enhanced.assembly.item.AssemblyUpgradeCardItem;
+import com.github.aeddddd.ae2enhanced.item.AdvancedMEOmniToolItem;
 import com.github.aeddddd.ae2enhanced.item.ConformalInvariantChargeItem;
 import com.github.aeddddd.ae2enhanced.item.GuideBookItem;
+import com.github.aeddddd.ae2enhanced.item.MicroSingularityItem;
+import com.github.aeddddd.ae2enhanced.item.PersonalDimensionCoreItem;
+import com.github.aeddddd.ae2enhanced.item.SingularityConstrictorItem;
 import com.github.aeddddd.ae2enhanced.item.DifferentialFormStabilizerItem;
 import com.github.aeddddd.ae2enhanced.item.StableSpacetimeManifoldItem;
 import com.github.aeddddd.ae2enhanced.util.DevEnvironment;
@@ -50,8 +54,13 @@ public final class ModItems {
     public static final RegistryObject<Item> CONFORMAL_INVARIANT_CHARGE = DR.register("conformal_invariant_charge",
             () -> new ConformalInvariantChargeItem(new Item.Properties()));
 
+    // 被约束的微型奇点（物品形态,NBT 携带寿命/永久标记,不可堆叠）
     public static final RegistryObject<Item> MICRO_SINGULARITY = DR.register("micro_singularity",
-            () -> new BlockItem(ModBlocks.MICRO_SINGULARITY.get(), new Item.Properties()));
+            () -> new MicroSingularityItem(new Item.Properties().stacksTo(1)));
+
+    // 奇点约束器：右键微型奇点将其约束为物品形态
+    public static final RegistryObject<Item> SINGULARITY_CONSTRICTOR = DR.register("singularity_constrictor",
+            () -> new SingularityConstrictorItem(new Item.Properties().stacksTo(16)));
 
     // Assembly Hub
     public static final RegistryObject<Item> ASSEMBLY_CONTROLLER = DR.register("assembly_controller",
@@ -99,6 +108,22 @@ public final class ModItems {
 
     public static final RegistryObject<Item> CAUSAL_ANCHOR_CORE = DR.register("causal_anchor_core",
             () -> new BlockItem(ModBlocks.CAUSAL_ANCHOR_CORE.get(), new Item.Properties()));
+
+    // 个人维度核心（便携进出个人维度）
+    public static final RegistryObject<Item> PERSONAL_DIMENSION = DR.register("personal_dimension",
+            () -> new PersonalDimensionCoreItem(new Item.Properties().stacksTo(1)));
+
+    // 个人维度管理器
+    public static final RegistryObject<Item> PERSONAL_DIMENSION_MANAGER = DR.register("personal_dimension_manager",
+            () -> new BlockItem(ModBlocks.PERSONAL_DIMENSION_MANAGER.get(), new Item.Properties()));
+
+    // 警示方块(个人维度地板预设用)
+    public static final RegistryObject<Item> YELLOW_STRIPES_BLOCK_B = DR.register("yellow_stripes_block_b",
+            () -> new BlockItem(ModBlocks.YELLOW_STRIPES_BLOCK_B.get(), new Item.Properties()));
+
+    // 先进 ME 全能工具
+    public static final RegistryObject<Item> ME_OMNI_TOOL = DR.register("me_omni_tool",
+            () -> new AdvancedMEOmniToolItem(new Item.Properties().stacksTo(1)));
 
     // 【仅开发环境】测试用单方块合成 CPU,与 ModBlocks.TEST_CRAFTING_CPU 同步条件注册
     @Nullable

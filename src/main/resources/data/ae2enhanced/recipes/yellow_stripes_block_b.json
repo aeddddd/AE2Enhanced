@@ -1,0 +1,11 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "ingredients": [
+    { "item": "minecraft:black_concrete" },
+    { "item": "minecraft:yellow_dye" }
+  ],
+  "result": {
+    "item": "ae2enhanced:yellow_stripes_block_b",
+    "count": 64
+  }
+}

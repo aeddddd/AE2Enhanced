@@ -1,58 +1,58 @@
 package com.github.aeddddd.ae2enhanced.client.gui;
 
+import java.util.LinkedHashMap;
+import java.util.Map;
+
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.Block;
 
+import com.github.aeddddd.ae2enhanced.AE2Enhanced;
 import com.github.aeddddd.ae2enhanced.common.menu.StructureUnformedMenu;
 import com.github.aeddddd.ae2enhanced.network.ModNetwork;
 import com.github.aeddddd.ae2enhanced.network.packet.RequestAssemblyPacket;
 
-import java.util.LinkedHashMap;
-import java.util.Map;
-
 /**
  * 多方块结构未成型状态 GUI 抽象基类.
+ * <p>与成型 GUI 统一的纹理浅色风:2.png 背景 + 玩家背包槽位(见 StructureUnformedMenu).</p>
  */
-public abstract class StructureUnformedScreen<T extends StructureUnformedMenu> extends TechPanelScreen<T> {
+public abstract class StructureUnformedScreen<T extends StructureUnformedMenu> extends AbstractContainerScreen<T> {
 
-    protected final TechButton assembleButton;
+    private static final ResourceLocation TEXTURE = new ResourceLocation(AE2Enhanced.MOD_ID, "textures/gui/2.png");
+
+    // 布局(176x190,与 2.png 匹配;背包槽位于 y108/y166,由菜单注册)
+    private static final int TITLE_Y = 8;
+    private static final int SUBTITLE_Y = 19;
+    private static final int MISSING_TITLE_X = 20;
+    private static final int MISSING_TITLE_Y = 32;
+    private static final int LIST_START_Y = 44;
+    private static final int LIST_ITEM_SPACING = 12;
+    private static final int ITEM_NAME_X = 20;
+    private static final int ITEM_COUNT_RIGHT_X = 156;
+    private static final int READY_TEXT_Y = 44;
+    private static final int HINT_TEXT_Y = 56;
+    private static final int BUTTON_WIDTH = 150;
+    private static final int BUTTON_HEIGHT = 20;
+    private static final int BUTTON_Y = 82;
+
+    // 浅色纹理背景上的文字颜色
+    private static final int TEXT_GRAY = 0xFF555555;
+    private static final int TEXT_RED = 0xFFAA0000;
+
+    protected Button assembleButton;
     protected Map<Block, Integer> missingMap = new LinkedHashMap<>();
     protected int refreshTicks = 0;
 
-    private final int buttonYOffset;
-    private final int innerPanelBottom;
-    private final int statusYOffset;
-    private final int inventoryDividerYOffset;
-    private final int missingListStartY;
-    private final int readyTextY;
-    private final int hintTextY;
-    private final int missingTitleY;
-    private final int headerY;
-    private final int headerDividerY;
-
-    public StructureUnformedScreen(T menu, Inventory inv, Component title, int ySize,
-                                    int buttonYOffset, int innerPanelBottom, int statusYOffset,
-                                    int inventoryDividerYOffset, int missingListStartY,
-                                    int readyTextY, int hintTextY, int missingTitleY,
-                                    int headerY, int headerDividerY) {
+    public StructureUnformedScreen(T menu, Inventory inv, Component title) {
         super(menu, inv, title);
-        this.imageWidth = GuiConstants.PANEL_WIDTH;
-        this.imageHeight = ySize;
-        this.buttonYOffset = buttonYOffset;
-        this.innerPanelBottom = innerPanelBottom;
-        this.statusYOffset = statusYOffset;
-        this.inventoryDividerYOffset = inventoryDividerYOffset;
-        this.missingListStartY = missingListStartY;
-        this.readyTextY = readyTextY;
-        this.hintTextY = hintTextY;
-        this.missingTitleY = missingTitleY;
-        this.headerY = headerY;
-        this.headerDividerY = headerDividerY;
-        this.assembleButton = new TechButton(0, 0, GuiConstants.ASSEMBLE_BUTTON_WIDTH, GuiConstants.ASSEMBLE_BUTTON_HEIGHT, getAssembleButtonText(), btn -> requestAssembly());
+        this.imageWidth = GuiConstants.DEFAULT_IMAGE_WIDTH;
+        this.imageHeight = GuiConstants.NEXUS_IMAGE_HEIGHT;
     }
 
     protected abstract String getTitleKey();
@@ -62,11 +62,11 @@ public abstract class StructureUnformedScreen<T extends StructureUnformedMenu> e
     @Override
     protected void init() {
         super.init();
-        this.titleLabelX = (this.imageWidth - this.font.width(this.title)) / 2;
-        int centerX = this.leftPos + this.imageWidth / 2;
-        this.assembleButton.setX(centerX - GuiConstants.ASSEMBLE_BUTTON_WIDTH / 2);
-        this.assembleButton.setY(this.topPos + buttonYOffset);
-        this.addRenderableWidget(this.assembleButton);
+        this.assembleButton = addRenderableWidget(Button
+                .builder(getAssembleButtonText(), btn -> requestAssembly())
+                .bounds(this.leftPos + (this.imageWidth - BUTTON_WIDTH) / 2, this.topPos + BUTTON_Y,
+                        BUTTON_WIDTH, BUTTON_HEIGHT)
+                .build());
         refreshMissingMap();
         updateButtonState();
     }
@@ -87,31 +87,23 @@ public abstract class StructureUnformedScreen<T extends StructureUnformedMenu> e
         return Component.translatable("gui.ae2enhanced.assemble.survival");
     }
 
-    private boolean hasEnoughMaterials() {
+    /**
+     * 部分组装模式：只要背包中有任意一种缺失方块即可点击,
+     * 每次点击消耗现有材料放置对应方块,逐步补齐直至成型.
+     */
+    private boolean hasAnyNeededMaterial() {
         if (missingMap.isEmpty()) return true;
         Minecraft mc = Minecraft.getInstance();
         if (mc.player == null) return false;
-        Map<Block, Integer> needed = new LinkedHashMap<>(missingMap);
         for (ItemStack stack : mc.player.getInventory().items) {
             if (stack.isEmpty()) continue;
-            for (Map.Entry<Block, Integer> entry : needed.entrySet()) {
-                Block block = entry.getKey();
+            for (Block block : missingMap.keySet()) {
                 if (stack.getItem() == block.asItem()) {
-                    int need = entry.getValue();
-                    int have = stack.getCount();
-                    if (have >= need) {
-                        entry.setValue(0);
-                    } else {
-                        entry.setValue(need - have);
-                    }
-                    break;
+                    return true;
                 }
             }
         }
-        for (int count : needed.values()) {
-            if (count > 0) return false;
-        }
-        return true;
+        return false;
     }
 
     private void updateButtonState() {
@@ -121,72 +113,57 @@ public abstract class StructureUnformedScreen<T extends StructureUnformedMenu> e
             this.assembleButton.active = true;
             this.assembleButton.setMessage(getAssembleButtonText());
         } else {
-            this.assembleButton.active = creative || hasEnoughMaterials();
+            this.assembleButton.active = creative || hasAnyNeededMaterial();
             this.assembleButton.setMessage(this.assembleButton.active ? getAssembleButtonText()
                     : Component.translatable("gui.ae2enhanced.assemble.insufficient"));
         }
     }
 
     @Override
+    public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
+        this.renderBackground(graphics);
+        super.render(graphics, mouseX, mouseY, partialTicks);
+        this.renderTooltip(graphics, mouseX, mouseY);
+    }
+
+    @Override
     protected void renderBg(GuiGraphics graphics, float partialTicks, int mouseX, int mouseY) {
-        this.drawTechPanelFrame(graphics);
-        this.drawInnerPanel(graphics, this.leftPos + GuiConstants.PANEL_CONTENT_LEFT_MARGIN, this.topPos + GuiConstants.PANEL_CONTENT_TOP_MARGIN, this.leftPos + this.imageWidth - GuiConstants.PANEL_CONTENT_LEFT_MARGIN, this.topPos + innerPanelBottom);
+        graphics.blit(TEXTURE, this.leftPos, this.topPos, 0, 0, this.imageWidth, this.imageHeight);
     }
 
     @Override
     protected void renderLabels(GuiGraphics graphics, int mouseX, int mouseY) {
         Component title = Component.translatable(getTitleKey());
-        int titleWidth = this.font.width(title);
-        graphics.drawString(this.font, title, (this.imageWidth - titleWidth) / 2, GuiConstants.UNFORMED_TITLE_Y, GuiColors.ACCENT, false);
+        graphics.drawString(this.font, title, (this.imageWidth - this.font.width(title)) / 2, TITLE_Y,
+                GuiConstants.DARK_TEXT_COLOR, false);
 
         Component subtitle = Component.translatable(getSubtitleKey());
-        int subWidth = this.font.width(subtitle);
-        graphics.drawString(this.font, subtitle, (this.imageWidth - subWidth) / 2, GuiConstants.UNFORMED_SUBTITLE_Y, GuiConstants.SUBTITLE_COLOR, false);
-
-        graphics.fill(GuiConstants.UNFORMED_OUTER_DIVIDER_LEFT_MARGIN, GuiConstants.UNFORMED_HEADER_DIVIDER_Y,
-                this.imageWidth - GuiConstants.UNFORMED_OUTER_DIVIDER_LEFT_MARGIN, GuiConstants.UNFORMED_HEADER_DIVIDER_Y + 1, GuiColors.ACCENT_SOFT);
+        graphics.drawString(this.font, subtitle, (this.imageWidth - this.font.width(subtitle)) / 2, SUBTITLE_Y,
+                TEXT_GRAY, false);
 
         if (missingMap.isEmpty()) {
             Component ready = Component.translatable("gui.ae2enhanced.unformed.ready");
-            int rw = this.font.width(ready);
-            graphics.drawString(this.font, ready, (this.imageWidth - rw) / 2, readyTextY, GuiColors.TEXT_SUCCESS, false);
+            graphics.drawString(this.font, ready, (this.imageWidth - this.font.width(ready)) / 2, READY_TEXT_Y,
+                    GuiConstants.ASSEMBLY_STATUS_ACTIVE_COLOR, false);
 
             Component hint = Component.translatable("gui.ae2enhanced.unformed.hint");
-            int hw = this.font.width(hint);
-            graphics.drawString(this.font, hint, (this.imageWidth - hw) / 2, hintTextY, GuiConstants.HINT_COLOR, false);
+            graphics.drawString(this.font, hint, (this.imageWidth - this.font.width(hint)) / 2, HINT_TEXT_Y,
+                    TEXT_GRAY, false);
         } else {
-            Component missingTitle = Component.translatable("gui.ae2enhanced.unformed.missing");
-            graphics.drawString(this.font, missingTitle, GuiConstants.UNFORMED_MISSING_TITLE_X, missingTitleY, GuiColors.TEXT_WARN, false);
+            graphics.drawString(this.font, Component.translatable("gui.ae2enhanced.unformed.missing"),
+                    MISSING_TITLE_X, MISSING_TITLE_Y, TEXT_RED, false);
 
-            graphics.drawString(this.font, Component.translatable("gui.ae2enhanced.unformed.header.material"), GuiConstants.UNFORMED_MATERIAL_HEADER_X, headerY, GuiConstants.HEADER_TEXT_COLOR, false);
-            graphics.drawString(this.font, Component.translatable("gui.ae2enhanced.unformed.header.quantity"), this.imageWidth - GuiConstants.UNFORMED_QUANTITY_HEADER_RIGHT_OFFSET, headerY, GuiConstants.HEADER_TEXT_COLOR, false);
-            graphics.fill(GuiConstants.UNFORMED_HEADER_DIVIDER_LEFT_MARGIN, headerDividerY, this.imageWidth - GuiConstants.UNFORMED_HEADER_DIVIDER_LEFT_MARGIN, headerDividerY + 1, GuiColors.BORDER_DIM);
-
-            int y = missingListStartY;
+            int y = LIST_START_Y;
             for (Map.Entry<Block, Integer> entry : missingMap.entrySet()) {
-                Block block = entry.getKey();
-                int count = entry.getValue();
-                ItemStack stack = new ItemStack(block, 1);
-                Component name = stack.getHoverName();
+                Component name = new ItemStack(entry.getKey(), 1).getHoverName();
+                graphics.drawString(this.font, name, ITEM_NAME_X, y, GuiConstants.DARK_TEXT_COLOR, false);
 
-                graphics.drawString(this.font, name, GuiConstants.UNFORMED_MISSING_ITEM_NAME_X, y, GuiColors.TEXT_MAIN, false);
-                String countStr = "x" + count;
-                graphics.drawString(this.font, countStr, this.imageWidth - GuiConstants.UNFORMED_MISSING_ITEM_COUNT_RIGHT_MARGIN - this.font.width(countStr), y, GuiColors.TEXT_ERROR, false);
-                y += GuiConstants.UNFORMED_LIST_ITEM_SPACING;
+                String countStr = "x" + entry.getValue();
+                graphics.drawString(this.font, countStr, ITEM_COUNT_RIGHT_X - this.font.width(countStr), y,
+                        TEXT_RED, false);
+                y += LIST_ITEM_SPACING;
             }
         }
-
-        if (missingMap.isEmpty()) {
-            Component status = Component.translatable("gui.ae2enhanced.unformed.status.ready");
-            int sw = this.font.width(status);
-            graphics.drawString(this.font, status, (this.imageWidth - sw) / 2, statusYOffset, GuiColors.TEXT_SUCCESS, false);
-        } else {
-            Component status = Component.translatable("gui.ae2enhanced.unformed.status.missing");
-            int sw = this.font.width(status);
-            graphics.drawString(this.font, status, (this.imageWidth - sw) / 2, statusYOffset, GuiColors.TEXT_ERROR, false);
-        }
-
-        graphics.fill(GuiConstants.UNFORMED_OUTER_DIVIDER_LEFT_MARGIN, inventoryDividerYOffset, this.imageWidth - GuiConstants.UNFORMED_OUTER_DIVIDER_LEFT_MARGIN, inventoryDividerYOffset + 1, GuiColors.ACCENT_SOFT);
     }
 
     @Override

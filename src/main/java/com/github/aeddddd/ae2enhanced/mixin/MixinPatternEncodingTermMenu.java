@@ -8,10 +8,10 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraftforge.items.ItemStackHandler;
 
-import appeng.api.crafting.PatternDetailsHelper;
 import appeng.menu.me.items.PatternEncodingTermMenu;
 import appeng.menu.slot.RestrictedInputSlot;
 
+import com.github.aeddddd.ae2enhanced.assembly.AssemblyPatternManager;
 import com.github.aeddddd.ae2enhanced.assembly.blockentity.AssemblyControllerBlockEntity;
 import com.github.aeddddd.ae2enhanced.structure.ControllerIndex;
 
@@ -42,11 +42,16 @@ public class MixinPatternEncodingTermMenu {
         }
 
         ItemStack encoded = encodedPatternSlot.getItem();
-        if (encoded.isEmpty() || !PatternDetailsHelper.isEncodedPattern(encoded)) {
+        // 仅上传合成/锻造台/切石机样板,处理样板不上传
+        if (encoded.isEmpty() || !AssemblyPatternManager.isSupportedPattern(encoded)) {
             return;
         }
 
         Player player = self.getPlayerInventory().player;
+        // 潜行(按住 Shift)编码不上传,样板留在终端输出槽(1.12 语义)
+        if (player.isShiftKeyDown()) {
+            return;
+        }
         if (!(player.level() instanceof ServerLevel serverLevel)) {
             return;
         }

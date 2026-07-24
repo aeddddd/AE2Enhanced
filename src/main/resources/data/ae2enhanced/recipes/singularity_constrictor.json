@@ -1,0 +1,16 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    " M ",
+    "MSM",
+    " M "
+  ],
+  "key": {
+    "M": { "item": "ae2enhanced:stable_spacetime_manifold" },
+    "S": { "item": "ae2:singularity" }
+  },
+  "result": {
+    "item": "ae2enhanced:singularity_constrictor",
+    "count": 1
+  }
+}

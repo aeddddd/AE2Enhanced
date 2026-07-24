@@ -5,7 +5,6 @@ import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
-import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
@@ -14,13 +13,13 @@ import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
-import com.github.aeddddd.ae2enhanced.crafting.singularity.SingularityRecipe;
-import com.github.aeddddd.ae2enhanced.crafting.singularity.SingularityRecipeRegistry;
+import com.github.aeddddd.ae2enhanced.crafting.singularity.SingularityRitualRecipe;
+import com.github.aeddddd.ae2enhanced.registry.ModRecipes;
 
 /**
  * 微型奇点仪式触发器.
  * 玩家手持指定物品右键指定目标方块时,扫描周围 5×5×5 区域内的物品实体,
- * 如果匹配仪式配方,则消耗材料并生成微型奇点.
+ * 如果匹配仪式配方（JSON 数据驱动）,则消耗材料并生成微型奇点.
  */
 @Mod.EventBusSubscriber(modid = AE2Enhanced.MOD_ID, bus = Mod.EventBusSubscriber.Bus.FORGE)
 public class SingularityRitualHandler {
@@ -36,7 +35,7 @@ public class SingularityRitualHandler {
         Player player = event.getEntity();
         ItemStack held = event.getItemStack();
 
-        SingularityRecipe recipe = SingularityRecipeRegistry.findMatching(level, pos, held);
+        SingularityRitualRecipe recipe = findMatching(level, pos, held);
         if (recipe == null) {
             return;
         }
@@ -50,7 +49,7 @@ public class SingularityRitualHandler {
         }
 
         // 执行仪式
-        recipe.craft(level, pos, held);
+        recipe.craft(level, pos);
 
         // 特效
         if (level instanceof ServerLevel serverLevel) {
@@ -58,5 +57,15 @@ public class SingularityRitualHandler {
                     1, 0, 0, 0, 0);
         }
         level.playSound(null, pos, SoundEvents.WITHER_SPAWN, SoundSource.BLOCKS, 1.0f, 0.5f);
+    }
+
+    private static SingularityRitualRecipe findMatching(Level level, BlockPos pos, ItemStack held) {
+        for (SingularityRitualRecipe recipe : level.getRecipeManager()
+                .getAllRecipesFor(ModRecipes.SINGULARITY_RITUAL_TYPE.get())) {
+            if (recipe.matches(level, pos, held)) {
+                return recipe;
+            }
+        }
+        return null;
     }
 }

@@ -6,7 +6,7 @@
     "SQS"
   ],
   "key": {
-    "S": { "item": "ae2:fluix_pearl" },
+    "S": { "item": "ae2enhanced:stable_spacetime_manifold" },
     "Q": { "item": "ae2:quartz_glass" },
     "C": { "item": "ae2enhanced:assembly_casing_1" }
   },

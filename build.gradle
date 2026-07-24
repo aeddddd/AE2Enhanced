@@ -119,6 +119,7 @@ repositories {
     maven { url = 'https://repo.spongepowered.org/maven' }
     maven { url = 'https://www.cursemaven.com' }
     maven { url = 'https://maven.blamejared.com' }
+    maven { url = 'https://dl.cloudsmith.io/public/geckolib3/geckolib/maven/' } // GeckoLib
     flatDir {
         name = 'local_libs'
         dir 'libs'
@@ -132,27 +133,22 @@ dependencies {
     // JetBrains annotations used in source code.
     compileOnly 'org.jetbrains:annotations:24.0.1'
 
-    // MixinExtras: compile-time annotations and annotation processor.
-    compileOnly 'io.github.llamalad7:mixinextras-common:0.4.1'
-    annotationProcessor 'io.github.llamalad7:mixinextras-common:0.4.1'
-    // MixinExtras: embed via jarJar so it is available in production.
-    jarJar(group: 'io.github.llamalad7', name: 'mixinextras-forge', version: '[0.4.1,0.5)')
-    // MixinExtras: required on the runtime classpath for dev runs (runClient/runServer).
-    runtimeOnly 'io.github.llamalad7:mixinextras-forge:0.4.1'
+    modImplementation "blank:appliedenergistics2-forge-15.4.10"
 
-    // AE2: published with SRG mappings, so declare it on a mod* configuration to remap to official mappings.
-    // The actual jar is expected at libs/appliedenergistics2-forge-15.3.4.jar
-    modImplementation "blank:appliedenergistics2-forge-15.3.4"
-
-    // 开发环境联调用的第三方 mod（JEI / 神秘农业）,必须走 modLocalRuntime 让 Gradle 做
-    // SRG -> 官方名重映射；直接丢进 run/mods 会以 SRG 名加载并报 NoSuchFieldError/NoSuchMethodError.
+    modCompileOnly "mezz.jei:jei-1.20.1-forge:15.20.0.132"
     modLocalRuntime "mezz.jei:jei-1.20.1-forge:15.20.0.132"
     modLocalRuntime "curse.maven:mystical-agriculture-246640:8034376" // MysticalAgriculture-1.20.1-7.0.24
     modLocalRuntime "curse.maven:mystical-agradditions-256247:7180729" // MysticalAgradditions-1.20.1-7.0.12
     modLocalRuntime "curse.maven:cucumber-272335:7180783" // Cucumber-1.20.1-7.0.16
 
-    // 注意：不要引入独立 GuideME mod（org.appliedenergistics:guideme）——AE2 15.3.4 使用其内置的
-    // appeng.client.guidebook 引擎,本模组指南直接复用它（assets/ae2enhanced/ae2guide/）.
+    modLocalRuntime "blank:AdvancedAE-1.3.5-1.20.1" // AdvancedAE 1.3.5 (Forge 1.20.1)
+    modCompileOnly "blank:AdvancedAE-1.3.5-1.20.1"
+    modCompileOnly "blank:neoecoae-20.3.0"
+    modLocalRuntime "software.bernie.geckolib:geckolib-forge-1.20.1:4.7"
+    modLocalRuntime "blank:ExtendedAE-1.20-1.4.18-forge" // ExtendedAE 1.4.18 (Forge 1.20.1)
+    modLocalRuntime "blank:Glodium-1.20-1.5-forge" // Glodium 1.5 (Forge 1.20.1)
+    modLocalRuntime "blank:AppliedFlux-1.20-1.3.7-forge" // AppliedFlux 1.3.7 (Forge 1.20.1,可选联动)
+    modLocalRuntime "org.appliedenergistics:guideme:20.1.7"
 
     testImplementation 'org.junit.jupiter:junit-jupiter:5.10.0'
 }
@@ -162,7 +158,6 @@ mixin {
     config 'mixins.ae2enhanced.json'
 }
 
-// Make the jarJar output part of the main jar so MixinExtras is embedded in the production artifact.
 tasks.jar {
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
     manifest {
@@ -170,7 +165,6 @@ tasks.jar {
                 "MixinConfigs": "mixins.ae2enhanced.json"
         )
     }
-    from(tasks.named('jarJar').map { it.outputDirectory })
 }
 
 // This block of code expands all declared replace properties in the specified resource targets.

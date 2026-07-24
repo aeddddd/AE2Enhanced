@@ -22,17 +22,22 @@ import com.github.aeddddd.ae2enhanced.registry.ModBlockEntities;
 
 /**
  * 微型奇点的方块实体.
- * 默认 300 秒（6000 ticks）后自动坍缩消失.
+ * 默认 300 秒（6000 ticks）后自动坍缩消失；喂入共形不变荷类永久燃料后不再倒计时.
  * 期间对 3×3×3 范围内的生物执行稳定击杀.
- * 黑洞合成由玩家右键方块主动触发.
+ * 周期性吸入附近可参与黑洞合成的物品实体,并并行完成所有匹配配方；
+ * 玩家右键方块也可主动触发一次合成.
  */
 public class MicroSingularityBlockEntity extends BlockEntity {
 
     public static final int DEFAULT_LIFE_TICKS = 6000;
     private static final String NBT_LIFE_TICKS = "LifeTicks";
+    private static final String NBT_PERMANENT = "Permanent";
     private static final int HORIZON_RADIUS = 1;
+    /** 自动吸入/合成节流间隔（tick） */
+    private static final int AUTO_CRAFT_INTERVAL = 10;
 
     private int lifeTicks = DEFAULT_LIFE_TICKS;
+    private boolean permanent = false;
 
     public MicroSingularityBlockEntity(BlockPos pos, BlockState state) {
         super(ModBlockEntities.MICRO_SINGULARITY.get(), pos, state);
@@ -40,10 +45,26 @@ public class MicroSingularityBlockEntity extends BlockEntity {
 
     public void setLifetimeTicks(int ticks) {
         this.lifeTicks = ticks > 0 ? ticks : DEFAULT_LIFE_TICKS;
+        setChanged();
     }
 
     public int getLifetimeTicks() {
         return lifeTicks;
+    }
+
+    /** 追加存在时间（燃料喂入）. */
+    public void addLifetimeTicks(int ticks) {
+        this.lifeTicks += Math.max(0, ticks);
+        setChanged();
+    }
+
+    public boolean isPermanent() {
+        return permanent;
+    }
+
+    public void setPermanent(boolean permanent) {
+        this.permanent = permanent;
+        setChanged();
     }
 
     public static void tick(Level level, BlockPos pos, BlockState state, MicroSingularityBlockEntity entity) {
@@ -72,20 +93,32 @@ public class MicroSingularityBlockEntity extends BlockEntity {
             }
         }
 
-        // 倒计时
-        if (--entity.lifeTicks <= 0) {
+        // 自动吸入与并行合成（节流）
+        if (level.getGameTime() % AUTO_CRAFT_INTERVAL == 0) {
+            BlackHoleCraftingHelper.suckMatchingItems(level, pos);
+            BlackHoleCraftingHelper.craftAllAvailable(level, pos, pos.above(2));
+        }
+
+        // 倒计时（永久奇点不坍缩）
+        if (!entity.permanent && --entity.lifeTicks <= 0) {
             entity.collapse();
         }
     }
 
     /**
-     * 玩家右键微型奇点时调用：主动触发黑洞合成.
+     * 玩家右键微型奇点时调用：主动触发一次并行黑洞合成.
      */
     public void activateCrafting() {
         if (level == null || level.isClientSide()) {
             return;
         }
-        BlackHoleCraftingHelper.tryCraftAll(level, worldPosition, worldPosition.above(2), false, 100);
+        BlackHoleCraftingHelper.craftAllAvailable(level, worldPosition, worldPosition.above(2));
+    }
+
+    @Override
+    public AABB getRenderBoundingBox() {
+        // 吸积盘半径约 1 格,超出方块包围盒,需扩大避免视锥裁剪
+        return new AABB(worldPosition).inflate(2.0);
     }
 
     private void collapse() {
@@ -103,11 +136,13 @@ public class MicroSingularityBlockEntity extends BlockEntity {
     public void load(CompoundTag tag) {
         super.load(tag);
         this.lifeTicks = tag.contains(NBT_LIFE_TICKS) ? tag.getInt(NBT_LIFE_TICKS) : DEFAULT_LIFE_TICKS;
+        this.permanent = tag.getBoolean(NBT_PERMANENT);
     }
 
     @Override
     protected void saveAdditional(CompoundTag tag) {
         super.saveAdditional(tag);
         tag.putInt(NBT_LIFE_TICKS, this.lifeTicks);
+        tag.putBoolean(NBT_PERMANENT, this.permanent);
     }
 }

@@ -1,17 +1,17 @@
 {
   "type": "minecraft:crafting_shaped",
   "pattern": [
-    "IPI",
-    "FNF",
-    "IPI"
+    "CMC",
+    "MIM",
+    "CMC"
   ],
   "key": {
-    "I": { "item": "ae2:interface" },
-    "P": { "item": "ae2:fluix_pearl" },
-    "F": { "item": "ae2:fluix_glass_cable" },
-    "N": { "item": "ae2:engineering_processor" }
+    "C": { "item": "ae2enhanced:assembly_casing_1" },
+    "M": { "item": "ae2enhanced:stable_spacetime_manifold" },
+    "I": { "item": "ae2:interface" }
   },
   "result": {
-    "item": "ae2enhanced:multiblock_me_interface"
+    "item": "ae2enhanced:multiblock_me_interface",
+    "count": 1
   }
 }

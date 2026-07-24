@@ -1,16 +1,17 @@
 {
   "type": "minecraft:crafting_shaped",
   "pattern": [
-    "SSS",
-    "SQS",
-    "SSS"
+    "FQF",
+    "QCQ",
+    "FQF"
   ],
   "key": {
-    "S": { "item": "ae2:smooth_sky_stone_block" },
-    "Q": { "item": "ae2:quartz_glass" }
+    "F": { "item": "ae2:quartz_fiber" },
+    "Q": { "item": "ae2:quartz_glass" },
+    "C": { "item": "ae2enhanced:assembly_casing_1" }
   },
   "result": {
     "item": "ae2enhanced:assembly_casing_2",
-    "count": 4
+    "count": 1
   }
 }

@@ -28,3 +28,10 @@ mandatory=true
 versionRange="[15.3.4,)"
 ordering="AFTER"
 side="BOTH"
+
+[[dependencies.${mod_id}]]
+modId="jei"
+mandatory=false
+versionRange="[15.20.0.132,)"
+ordering="NONE"
+side="CLIENT"

@@ -8,12 +8,10 @@ import java.util.Map;
 import javax.annotation.Nullable;
 
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.Direction;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
-import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
 
 import appeng.api.config.Actionable;
@@ -27,7 +25,6 @@ import appeng.api.stacks.KeyCounter;
 import appeng.api.storage.MEStorage;
 
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
-import com.github.aeddddd.ae2enhanced.assembly.block.AssemblyControllerBlock;
 import com.github.aeddddd.ae2enhanced.assembly.blockentity.AssemblyControllerBlockEntity;
 import com.github.aeddddd.ae2enhanced.config.AE2EnhancedConfig;
 import com.github.aeddddd.ae2enhanced.crafting.blackhole.BlackHoleCraftingHelper;
@@ -217,9 +214,8 @@ public class AssemblyCraftingProcessor {
         if (blackHoleTick % 5 != 0) {
             return;
         }
-        BlockState state = level.getBlockState(controller.getBlockPos());
-        Direction facing = state.getValue(AssemblyControllerBlock.FACING);
-        BlockPos center = AssemblyStructure.getOriginFromController(controller.getBlockPos(), facing);
+        // 击杀/吸入/合成区域以黑洞渲染位置为中心(结构几何中心),而非控制器位置
+        BlockPos center = BlockPos.containing(AssemblyStructure.getBlackHoleCenter(level, controller.getBlockPos()));
         BlockPos outputPos = center.above();
 
         BlackHoleCraftingHelper.killLivingEntities(level, center);

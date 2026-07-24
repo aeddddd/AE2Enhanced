@@ -14,8 +14,7 @@ import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraftforge.items.ItemStackHandler;
 import net.minecraftforge.items.SlotItemHandler;
 
-import appeng.api.crafting.PatternDetailsHelper;
-
+import com.github.aeddddd.ae2enhanced.assembly.AssemblyPatternManager;
 import com.github.aeddddd.ae2enhanced.assembly.blockentity.AssemblyControllerBlockEntity;
 import com.github.aeddddd.ae2enhanced.client.gui.GuiConstants;
 import com.github.aeddddd.ae2enhanced.registry.ModMenus;
@@ -174,6 +173,10 @@ public class AssemblyPatternMenu extends AbstractContainerMenu {
 
         @Override
         public boolean mayPlace(ItemStack stack) {
+            // 未解锁页面的槽位禁止放入(moveItemStackTo 不检查 isActive)
+            if (!isActive()) {
+                return false;
+            }
             int absolute = getAbsoluteIndex();
             if (absolute < 0 || absolute >= handler.getSlots()) {
                 return false;
@@ -181,8 +184,21 @@ public class AssemblyPatternMenu extends AbstractContainerMenu {
             if (stack.isEmpty()) {
                 return true;
             }
-            Level level = menu.playerInventory.player.level();
-            return level != null && PatternDetailsHelper.decodePattern(stack, level) != null && handler.isItemValid(absolute, stack);
+            // 仅接受合成/锻造台/切石机样板
+            return AssemblyPatternManager.isSupportedPattern(stack) && handler.isItemValid(absolute, stack);
+        }
+
+        /**
+         * 点击拾取(原版 clicked -> Slot.remove)必须按绝对索引抽取,
+         * 否则继承的 SlotItemHandler.remove 会用局部索引抽错槽位.
+         */
+        @Override
+        public ItemStack remove(int amount) {
+            int absolute = getAbsoluteIndex();
+            if (absolute < 0 || absolute >= handler.getSlots()) {
+                return ItemStack.EMPTY;
+            }
+            return handler.extractItem(absolute, amount, false);
         }
 
         @Override

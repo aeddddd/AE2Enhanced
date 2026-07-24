@@ -12,6 +12,7 @@ import com.github.aeddddd.ae2enhanced.assembly.blockentity.AssemblyCasingBlockEn
 import com.github.aeddddd.ae2enhanced.assembly.blockentity.AssemblyControllerBlockEntity;
 import com.github.aeddddd.ae2enhanced.blackhole.blockentity.MicroSingularityBlockEntity;
 import com.github.aeddddd.ae2enhanced.blockentity.HyperdimensionalControllerBlockEntity;
+import com.github.aeddddd.ae2enhanced.blockentity.PersonalDimensionManagerBlockEntity;
 import com.github.aeddddd.ae2enhanced.computation.blockentity.ComputationCoreBlockEntity;
 import com.github.aeddddd.ae2enhanced.computation.blockentity.TestCraftingCpuBlockEntity;
 import com.github.aeddddd.ae2enhanced.multiblock.MultiblockMeInterfaceBlockEntity;
@@ -54,6 +55,12 @@ public final class ModBlockEntities {
             .register("computation_controller",
                     () -> BlockEntityType.Builder.of(ComputationCoreBlockEntity::new,
                             ModBlocks.COMPUTATION_CONTROLLER.get()).build(null));
+
+    // 个人维度管理器
+    public static final RegistryObject<BlockEntityType<PersonalDimensionManagerBlockEntity>> PERSONAL_DIMENSION_MANAGER = DR
+            .register("personal_dimension_manager",
+                    () -> BlockEntityType.Builder.of(PersonalDimensionManagerBlockEntity::new,
+                            ModBlocks.PERSONAL_DIMENSION_MANAGER.get()).build(null));
 
     // 【仅开发环境】测试用单方块合成 CPU,与 ModBlocks.TEST_CRAFTING_CPU 同步条件注册
     @Nullable

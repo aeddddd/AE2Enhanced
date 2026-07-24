@@ -60,6 +60,18 @@ public class BlackHoleRecipe implements Recipe<Container> {
     }
 
     /**
+     * 计算当前区域内的物品可并行合成本配方的最大批次数.
+     */
+    public int maxBatches(Map<String, Integer> found) {
+        int batches = Integer.MAX_VALUE;
+        for (Map.Entry<String, Integer> entry : inputs.entrySet()) {
+            int have = found.getOrDefault(entry.getKey(), 0);
+            batches = Math.min(batches, have / entry.getValue());
+        }
+        return batches == Integer.MAX_VALUE ? 0 : batches;
+    }
+
+    /**
      * 生成 ItemStack 的物品键：注册名 + NBT 字符串（若存在）.
      */
     public static String keyOf(ItemStack stack) {

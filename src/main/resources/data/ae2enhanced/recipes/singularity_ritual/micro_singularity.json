@@ -1,0 +1,10 @@
+{
+  "type": "ae2enhanced:singularity_ritual",
+  "dropped": [
+    { "item": "ae2:singularity", "count": 64 },
+    { "item": "minecraft:nether_star", "count": 4 }
+  ],
+  "held": { "item": "minecraft:nether_star" },
+  "target_block": "ae2:controller",
+  "lifetime": 6000
+}

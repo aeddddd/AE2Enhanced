@@ -35,7 +35,10 @@ public final class ModCreativeTab {
                         output.accept(new ItemStack(ModItems.STABLE_SPACETIME_MANIFOLD.get()));
                         output.accept(new ItemStack(ModItems.DIFFERENTIAL_FORM_STABILIZER.get()));
                         output.accept(new ItemStack(ModItems.CONFORMAL_INVARIANT_CHARGE.get()));
-                        output.accept(new ItemStack(ModItems.MICRO_SINGULARITY.get()));
+                        output.accept(new ItemStack(ModItems.SINGULARITY_CONSTRICTOR.get()));
+                        output.accept(com.github.aeddddd.ae2enhanced.item.MicroSingularityItem.createStack(
+                                com.github.aeddddd.ae2enhanced.blackhole.blockentity.MicroSingularityBlockEntity.DEFAULT_LIFE_TICKS,
+                                false));
 
                         // Assembly Hub
                         output.accept(new ItemStack(ModItems.ASSEMBLY_CONTROLLER.get()));
@@ -49,6 +52,14 @@ public final class ModCreativeTab {
                         output.accept(new ItemStack(ModItems.ASSEMBLY_SPEED_UPGRADE.get()));
                         output.accept(new ItemStack(ModItems.ASSEMBLY_CAPACITY_UPGRADE.get()));
                         output.accept(new ItemStack(ModItems.ASSEMBLY_AUTO_UPLOAD_UPGRADE.get()));
+
+                        // 个人维度
+                        output.accept(new ItemStack(ModItems.PERSONAL_DIMENSION.get()));
+                        output.accept(new ItemStack(ModItems.PERSONAL_DIMENSION_MANAGER.get()));
+                        output.accept(new ItemStack(ModItems.YELLOW_STRIPES_BLOCK_B.get()));
+
+                        // 先进 ME 全能工具
+                        output.accept(new ItemStack(ModItems.ME_OMNI_TOOL.get()));
 
                         // Supercausal Computation Core —— 多方块功能异常,已临时下线并隐藏结构方块
                         // （保留注册以兼容既有存档,仅不出现在创造栏）

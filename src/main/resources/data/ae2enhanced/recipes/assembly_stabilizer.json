@@ -1,14 +1,14 @@
 {
   "type": "minecraft:crafting_shaped",
   "pattern": [
-    "DMD",
-    "MCM",
-    "DMD"
+    "DAD",
+    "ACA",
+    "DAD"
   ],
   "key": {
-    "C": { "item": "ae2enhanced:assembly_casing_1" },
-    "M": { "item": "ae2:fluix_pearl" },
-    "D": { "item": "ae2:logic_processor" }
+    "D": { "item": "ae2enhanced:differential_form_stabilizer" },
+    "A": { "item": "ae2:spatial_anchor" },
+    "C": { "item": "ae2enhanced:assembly_casing_1" }
   },
   "result": {
     "item": "ae2enhanced:assembly_stabilizer",

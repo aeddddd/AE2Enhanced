@@ -1,7 +1,0 @@
-{
-  "loader": "ae2enhanced:connected",
-  "textures": {
-    "particle": "ae2enhanced:block/hyperdimensional_casing",
-    "texture": "ae2enhanced:block/hyperdimensional_casing_ctm"
-  }
-}

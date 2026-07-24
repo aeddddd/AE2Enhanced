@@ -13,6 +13,8 @@ import net.minecraftforge.items.ItemStackHandler;
 
 import appeng.api.crafting.IPatternDetails;
 import appeng.api.crafting.PatternDetailsHelper;
+import appeng.blockentity.crafting.IMolecularAssemblerSupportedPattern;
+import appeng.core.definitions.AEItems;
 
 import com.github.aeddddd.ae2enhanced.assembly.blockentity.AssemblyControllerBlockEntity;
 import com.github.aeddddd.ae2enhanced.registry.ModItems;
@@ -38,6 +40,23 @@ public class AssemblyPatternManager {
 
     public ItemStackHandler getItemHandler() {
         return itemHandler;
+    }
+
+    /**
+     * 装配枢纽仅支持合成样板、锻造台样板与切石机样板(分子装配室可执行的种类),
+     * 拒绝需要外部机器加工的处理样板(对应 1.12 的 crafting=1 过滤).
+     */
+    public static boolean isSupportedPattern(ItemStack stack) {
+        return AEItems.CRAFTING_PATTERN.isSameAs(stack)
+                || AEItems.SMITHING_TABLE_PATTERN.isSameAs(stack)
+                || AEItems.STONECUTTING_PATTERN.isSameAs(stack);
+    }
+
+    /**
+     * 解码后的样板类型过滤:仅分子装配室可执行的样板.
+     */
+    public static boolean isSupportedPattern(IPatternDetails details) {
+        return details instanceof IMolecularAssemblerSupportedPattern;
     }
 
     public int getPatternSlotCount() {
@@ -110,7 +129,8 @@ public class AssemblyPatternManager {
                 continue;
             }
             IPatternDetails base = PatternDetailsHelper.decodePattern(stack, level);
-            if (base != null) {
+            // 仅向网络通告受支持的样板类型,防止存量处理样板被当作合成样板直接产出
+            if (base != null && isSupportedPattern(base)) {
                 result.add(base);
             }
         }
@@ -226,8 +246,8 @@ public class AssemblyPatternManager {
             if (stack.isEmpty()) {
                 return true;
             }
-            Level level = controller.getLevel();
-            return level != null && PatternDetailsHelper.decodePattern(stack, level) != null;
+            // 样板槽仅接受合成/锻造台/切石机样板
+            return isSupportedPattern(stack);
         }
 
         @Override

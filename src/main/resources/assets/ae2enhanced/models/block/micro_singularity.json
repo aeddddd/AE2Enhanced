@@ -1,6 +1,3 @@
 {
-  "parent": "minecraft:block/cube_all",
-  "textures": {
-    "all": "ae2enhanced:block/micro_singularity"
-  }
+  "parent": "minecraft:block/block"
 }

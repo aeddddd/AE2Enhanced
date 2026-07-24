@@ -1,8 +1,0 @@
-{
-  "variants": {
-    "facing=north": { "model": "ae2enhanced:block/multiblock_me_interface" },
-    "facing=south": { "model": "ae2enhanced:block/multiblock_me_interface", "y": 180 },
-    "facing=east":  { "model": "ae2enhanced:block/multiblock_me_interface", "y": 90 },
-    "facing=west":  { "model": "ae2enhanced:block/multiblock_me_interface", "y": 270 }
-  }
-}

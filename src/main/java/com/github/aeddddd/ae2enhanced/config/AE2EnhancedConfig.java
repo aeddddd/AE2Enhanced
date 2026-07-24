@@ -43,6 +43,16 @@ public final class AE2EnhancedConfig {
         public final ForgeConfigSpec.BooleanValue enableBlackHole;
         public final ForgeConfigSpec.EnumValue<BlackHoleDamageMode> blackHoleDamageMode;
         public final ForgeConfigSpec.BooleanValue debugMode;
+        public final ForgeConfigSpec.IntValue personalDimensionFloorY;
+        public final ForgeConfigSpec.IntValue personalDimensionEntryY;
+        public final ForgeConfigSpec.ConfigValue<String> personalDimensionPresetPath;
+        public final ForgeConfigSpec.BooleanValue omniToolEnableBedrockBreakerUpgrade;
+        public final ForgeConfigSpec.IntValue omniToolMaxBlinkDistance;
+        public final ForgeConfigSpec.IntValue omniToolMaxBreakCooldown;
+        public final ForgeConfigSpec.DoubleValue omniToolBaseAttackDamage;
+        public final ForgeConfigSpec.BooleanValue omniToolEnableWallPhase;
+        public final ForgeConfigSpec.ConfigValue<java.util.List<? extends String>> omniToolBreakableBlacklist;
+        public final ForgeConfigSpec.IntValue omniToolMaxEnchantmentLevel;
 
         CommonConfig(ForgeConfigSpec.Builder builder) {
             builder.push("computation");
@@ -70,6 +80,42 @@ public final class AE2EnhancedConfig {
             blackHoleDamageMode = builder
                     .comment("微型奇点事件视界伤害模式：ALL 击杀所有实体,NON_CREATIVE 不击杀创造玩家,NONE 关闭伤害")
                     .defineEnum("damageMode", BlackHoleDamageMode.ALL);
+            builder.pop();
+
+            builder.push("personalDimension");
+            personalDimensionFloorY = builder
+                    .comment("个人维度地板高度")
+                    .defineInRange("floorY", 64, 1, 250);
+            personalDimensionEntryY = builder
+                    .comment("个人维度默认进入高度")
+                    .defineInRange("entryY", 65, 2, 255);
+            personalDimensionPresetPath = builder
+                    .comment("个人维度地板样式：API 注册的命名样式 id（默认 ae2enhanced:default 为马路+平台组合样式），或预设 JSON 路径（相对 config 目录，如 ae2enhanced/personal_dimension_floor.json）")
+                    .define("presetPath", "ae2enhanced:default");
+            builder.pop();
+
+            builder.push("omniTool");
+            omniToolEnableBedrockBreakerUpgrade = builder
+                    .comment("是否启用基岩破坏者升级配方（工具 + 基岩）,允许工具破坏所有不可破坏方块（硬度 < 0）")
+                    .define("enableBedrockBreakerUpgrade", true);
+            omniToolMaxBlinkDistance = builder
+                    .comment("旅行模式闪现（blink）最大距离（格）")
+                    .defineInRange("maxBlinkDistance", 256, 1, 1000);
+            omniToolMaxBreakCooldown = builder
+                    .comment("挖掘冷却上限（tick）,0 表示无冷却")
+                    .defineInRange("maxBreakCooldown", 20, 0, 200);
+            omniToolBaseAttackDamage = builder
+                    .comment("全能工具真实伤害基础攻击力")
+                    .defineInRange("baseAttackDamage", 6.0, 0.0, 10000.0);
+            omniToolEnableWallPhase = builder
+                    .comment("闪现默认是否允许穿墙（可逐工具覆盖）")
+                    .define("enableWallPhase", true);
+            omniToolBreakableBlacklist = builder
+                    .comment("不可破坏黑名单（注册名列表,如 minecraft:bedrock）,工具无法破坏列表中的方块")
+                    .defineList("breakableBlacklist", java.util.List.of(), obj -> obj instanceof String);
+            omniToolMaxEnchantmentLevel = builder
+                    .comment("附魔书升级时附魔等级上限")
+                    .defineInRange("maxEnchantmentLevel", 255, 1, 32767);
             builder.pop();
 
             builder.push("debug");

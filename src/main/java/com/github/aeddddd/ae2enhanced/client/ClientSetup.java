@@ -4,8 +4,11 @@ import java.io.IOException;
 
 import net.minecraft.client.gui.screens.MenuScreens;
 import net.minecraft.client.renderer.blockentity.BlockEntityRenderers;
+import net.minecraft.client.renderer.item.ItemProperties;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.event.ModelEvent;
+import net.minecraftforge.client.event.RegisterKeyMappingsEvent;
 import net.minecraftforge.client.event.RegisterShadersEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
@@ -19,11 +22,18 @@ import com.github.aeddddd.ae2enhanced.client.gui.ComputationCoreScreen;
 import com.github.aeddddd.ae2enhanced.client.gui.ComputationUnformedScreen;
 import com.github.aeddddd.ae2enhanced.client.gui.HyperdimensionalNexusScreen;
 import com.github.aeddddd.ae2enhanced.client.gui.HyperdimensionalUnformedScreen;
+import com.github.aeddddd.ae2enhanced.client.gui.OmniToolConfigScreen;
+import com.github.aeddddd.ae2enhanced.client.gui.PersonalDimensionCreateScreen;
+import com.github.aeddddd.ae2enhanced.client.gui.PersonalDimensionManagerScreen;
+import com.github.aeddddd.ae2enhanced.client.handler.KeyHandlerOmniTool;
 import com.github.aeddddd.ae2enhanced.client.model.ConnectedTextureModel;
 import com.github.aeddddd.ae2enhanced.client.render.AE2EnhancedShaders;
 import com.github.aeddddd.ae2enhanced.client.render.AssemblyHubRenderer;
 import com.github.aeddddd.ae2enhanced.client.render.HyperdimensionalControllerRenderer;
+import com.github.aeddddd.ae2enhanced.client.render.MicroSingularityRenderer;
+import com.github.aeddddd.ae2enhanced.omnitool.OmniToolUpgrades;
 import com.github.aeddddd.ae2enhanced.registry.ModBlockEntities;
+import com.github.aeddddd.ae2enhanced.registry.ModItems;
 import com.github.aeddddd.ae2enhanced.registry.ModMenus;
 
 /**
@@ -42,11 +52,24 @@ public final class ClientSetup {
             MenuScreens.register(ModMenus.HYPERDIMENSIONAL_UNFORMED.get(), HyperdimensionalUnformedScreen::new);
             MenuScreens.register(ModMenus.COMPUTATION_CORE.get(), ComputationCoreScreen::new);
             MenuScreens.register(ModMenus.COMPUTATION_UNFORMED.get(), ComputationUnformedScreen::new);
+            MenuScreens.register(ModMenus.PERSONAL_DIMENSION_MANAGER.get(), PersonalDimensionManagerScreen::new);
+            MenuScreens.register(ModMenus.PERSONAL_DIMENSION_CREATE.get(), PersonalDimensionCreateScreen::new);
+            MenuScreens.register(ModMenus.OMNI_TOOL_CONFIG.get(), OmniToolConfigScreen::new);
 
             BlockEntityRenderers.register(ModBlockEntities.ASSEMBLY_CONTROLLER.get(), AssemblyHubRenderer::new);
             BlockEntityRenderers.register(ModBlockEntities.HYPERDIMENSIONAL_CONTROLLER.get(),
                     HyperdimensionalControllerRenderer::new);
+            BlockEntityRenderers.register(ModBlockEntities.MICRO_SINGULARITY.get(), MicroSingularityRenderer::new);
+
+            // 全能工具按 NBT Mode 切换模型（对应 1.12 的 ItemMeshDefinition）
+            ItemProperties.register(ModItems.ME_OMNI_TOOL.get(), new ResourceLocation("ae2enhanced", "mode"),
+                    (stack, level, entity, seed) -> OmniToolUpgrades.getMode(stack));
         });
+    }
+
+    @SubscribeEvent
+    public static void registerKeyMappings(RegisterKeyMappingsEvent event) {
+        KeyHandlerOmniTool.registerKeyMappings(event);
     }
 
     @SubscribeEvent

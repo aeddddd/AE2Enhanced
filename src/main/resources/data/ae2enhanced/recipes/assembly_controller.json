@@ -7,8 +7,8 @@
   ],
   "key": {
     "S": { "item": "ae2enhanced:assembly_stabilizer" },
-    "C": { "item": "ae2enhanced:assembly_casing_1" },
-    "H": { "item": "ae2:engineering_processor" }
+    "C": { "item": "ae2enhanced:assembly_casing_4" },
+    "H": { "item": "ae2enhanced:conformal_invariant_charge" }
   },
   "result": {
     "item": "ae2enhanced:assembly_controller",

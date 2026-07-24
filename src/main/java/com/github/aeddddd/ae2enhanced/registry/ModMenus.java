@@ -14,6 +14,9 @@ import com.github.aeddddd.ae2enhanced.common.menu.ComputationCoreMenu;
 import com.github.aeddddd.ae2enhanced.common.menu.ComputationUnformedMenu;
 import com.github.aeddddd.ae2enhanced.common.menu.HyperdimensionalNexusMenu;
 import com.github.aeddddd.ae2enhanced.common.menu.HyperdimensionalUnformedMenu;
+import com.github.aeddddd.ae2enhanced.common.menu.OmniToolConfigMenu;
+import com.github.aeddddd.ae2enhanced.common.menu.PersonalDimensionCreateMenu;
+import com.github.aeddddd.ae2enhanced.common.menu.PersonalDimensionManagerMenu;
 
 /**
  * 菜单类型注册中心.
@@ -41,6 +44,15 @@ public final class ModMenus {
 
     public static final RegistryObject<MenuType<ComputationUnformedMenu>> COMPUTATION_UNFORMED = DR.register(
             "computation_unformed", () -> IForgeMenuType.create(ComputationUnformedMenu::create));
+
+    public static final RegistryObject<MenuType<PersonalDimensionManagerMenu>> PERSONAL_DIMENSION_MANAGER = DR
+            .register("personal_dimension_manager", () -> IForgeMenuType.create(PersonalDimensionManagerMenu::create));
+
+    public static final RegistryObject<MenuType<PersonalDimensionCreateMenu>> PERSONAL_DIMENSION_CREATE = DR
+            .register("personal_dimension_create", () -> IForgeMenuType.create(PersonalDimensionCreateMenu::create));
+
+    public static final RegistryObject<MenuType<OmniToolConfigMenu>> OMNI_TOOL_CONFIG = DR
+            .register("omni_tool_config", () -> IForgeMenuType.create(OmniToolConfigMenu::create));
 
     private ModMenus() {
     }

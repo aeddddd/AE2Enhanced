@@ -15,6 +15,7 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.registries.RegistryObject;
 
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
@@ -141,6 +142,30 @@ public class AssemblyStructure {
     public static BlockPos getOriginFromController(BlockPos controllerPos, Direction facing) {
         // 新结构以控制器本身为原点,结构向面朝方向的反方向延伸.
         return controllerPos;
+    }
+
+    /**
+     * 计算黑洞中心的世界坐标.
+     * <p>与客户端渲染器 AssemblyHubRenderer.getShiftedCenterOffset 保持同一算法:
+     * 结构几何中心沿长轴向控制器移动一格.黑洞的击杀区域、物品吸入与合成都以此为中心,
+     * 保证与渲染位置一致.</p>
+     */
+    public static Vec3 getBlackHoleCenter(Level level, BlockPos controllerPos) {
+        Direction facing = getInstance().getRotation(level, controllerPos);
+        float[] bounds = StructureUtils.computeBounds(getAllSet(), facing);
+        double cx = (bounds[0] + bounds[3]) * 0.5;
+        double cy = (bounds[1] + bounds[4]) * 0.5;
+        double cz = (bounds[2] + bounds[5]) * 0.5;
+        // 中心偏移绝对值最大的轴即长轴,沿该轴向控制器(原点)移动一格
+        double ax = Math.abs(cx), ay = Math.abs(cy), az = Math.abs(cz);
+        if (ax >= ay && ax >= az) {
+            cx -= Math.signum(cx);
+        } else if (ay >= az) {
+            cy -= Math.signum(cy);
+        } else {
+            cz -= Math.signum(cz);
+        }
+        return new Vec3(controllerPos.getX() + cx, controllerPos.getY() + cy, controllerPos.getZ() + cz);
     }
 
     public static Direction getControllerFacing(Level level, BlockPos controllerPos) {
