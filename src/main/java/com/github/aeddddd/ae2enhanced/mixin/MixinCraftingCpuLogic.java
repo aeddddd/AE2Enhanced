@@ -1,6 +1,8 @@
 package com.github.aeddddd.ae2enhanced.mixin;
 
+import appeng.api.config.Actionable;
 import appeng.api.networking.energy.IEnergyService;
+import appeng.api.stacks.AEKey;
 import appeng.crafting.execution.CraftingCpuLogic;
 import appeng.crafting.execution.ExecutingCraftingJob;
 import appeng.me.cluster.implementations.CraftingCPUCluster;
@@ -10,6 +12,7 @@ import net.minecraft.world.level.Level;
 import com.github.aeddddd.ae2enhanced.assembly.AssemblyHubBatchCrafting;
 import com.github.aeddddd.ae2enhanced.mixin.accessor.CraftingCpuLogicAccessor;
 import com.github.aeddddd.ae2enhanced.mixin.accessor.ExecutingCraftingJobAccessor;
+import com.github.aeddddd.ae2enhanced.specialcrafting.SelfRefOutputGate;
 
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
@@ -39,5 +42,19 @@ public class MixinCraftingCpuLogic {
                 logic.getInventory(), jobAccessor.getWaitingFor(),
                 AssemblyHubBatchCrafting.ae2TimeTracker(jobAccessor.getTimeTracker()),
                 jobAccessor.getFinalOutput(), cluster.getSrc(), cluster::markDirty, craftingService, level, null);
+    }
+
+    /**
+     * 自消耗 job（自引用/循环链计划,最终产出仍是任务输入）的交付门控:
+     * 最终产出先入 CPU 库存,全部任务收官后一次性交付,防止边产边交付饿死合成链.
+     * 普通计划判定为 false 时零影响;{@code require = 0} 防第三方改写该方法时崩溃.
+     */
+    @Inject(method = "insert", at = @At("HEAD"), cancellable = true, require = 0, remap = false)
+    private void ae2e$gateSelfConsumingOutput(AEKey what, long amount, Actionable type,
+            CallbackInfoReturnable<Long> cir) {
+        Long result = SelfRefOutputGate.handleInsert((CraftingCpuLogic) (Object) this, what, amount, type);
+        if (result != null) {
+            cir.setReturnValue(result);
+        }
     }
 }

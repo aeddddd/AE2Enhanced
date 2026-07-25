@@ -4,6 +4,7 @@ import java.util.Map;
 
 import appeng.api.crafting.IPatternDetails;
 import appeng.api.stacks.GenericStack;
+import appeng.crafting.CraftingLink;
 import appeng.crafting.execution.ElapsedTimeTracker;
 import appeng.crafting.execution.ExecutingCraftingJob;
 import appeng.crafting.inv.ListCraftingInventory;
@@ -29,4 +30,13 @@ public interface ExecutingCraftingJobAccessor {
 
     @Accessor("finalOutput")
     GenericStack getFinalOutput();
+
+    @Accessor("remainingAmount")
+    long getRemainingAmount();
+
+    @Accessor("remainingAmount")
+    void setRemainingAmount(long remainingAmount);
+
+    @Accessor("link")
+    CraftingLink getLink();
 }

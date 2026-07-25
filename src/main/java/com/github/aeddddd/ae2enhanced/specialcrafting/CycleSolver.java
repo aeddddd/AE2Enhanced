@@ -49,14 +49,9 @@ public final class CycleSolver {
             return SolveResult.FALLBACK;
         }
 
+        // 注意:不做"库存直接交付"(fromStock)——AE2 执行模型只认样板产出作为交付来源,
+        // 交付量一律由环运转产出,种子保留,余量执行结束返回网络.
         long remaining = target;
-
-        // 2) 先用库存交付（预留种子,与阶段 1 语义一致）
-        long fromStock = Math.min(remaining, stock - seed);
-        if (fromStock > 0) {
-            inv.extract(what, fromStock, Actionable.MODULATE);
-            remaining -= fromStock;
-        }
 
         if (remaining > 0) {
             long rounds = (remaining + analysis.netGain() - 1) / analysis.netGain();

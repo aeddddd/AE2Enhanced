@@ -135,6 +135,24 @@ public class CycleSolverTest {
                 .missingMatch();
     }
 
+    /** G7(问题 2 回归防护):环路径库存超出种子时同样全额环运转,仅种子计入 usedItems. */
+    @Test
+    public void testCycleBeyondSeedStillCraftsFully() {
+        var env = new SimulationEnv();
+        var stone = item(Items.STONE);
+        var cobble = item(Items.COBBLESTONE);
+        var p0 = env.addPattern(new ProcessingPatternBuilder(mult(cobble, 2)).addPreciseInput(1, stone).build());
+        var p1 = env.addPattern(new ProcessingPatternBuilder(stone).addPreciseInput(1, cobble).build());
+        env.addStoredItem(mult(stone, 50)); // 库存远超种子
+
+        var plan = env.runSpecialSimulation(mult(stone, 10), CalculationStrategy.REPORT_MISSING_ITEMS);
+        assertThatPlan(plan)
+                .succeeded()
+                .patternsMatch(Map.of(p0, 10L, p1, 20L))
+                .usedMatch(stone) // 仅 1 份种子
+                .missingMatch();
+    }
+
     // ===== 断言辅助 =====
 
     private static GenericStack item(Item item) {

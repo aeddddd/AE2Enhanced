@@ -108,20 +108,40 @@ public class SpecialCraftingCalculationTest {
                 .missingMatch();
     }
 
-    /** C4:库存超出种子部分先交付,边界无 off-by-one. */
+    /**
+     * C4:库存超出种子时不做"库存直接交付"（AE2 执行模型只认样板产出,
+     * 无样板任务的计划永远无法完成——游戏内验证发现）:仅种子计入 usedItems,全额合成.
+     */
     @Test
-    public void testStockBeyondSeedDeliveredFirst() {
+    public void testStockBeyondSeedStillCraftsFully() {
         var env = new SimulationEnv();
         var stone = item(Items.STONE);
         var dup = env.addPattern(new ProcessingPatternBuilder(mult(stone, 2)).addPreciseInput(1, stone).build());
-        env.addStoredItem(mult(stone, 5)); // 种子 1 + 可交付 4
+        env.addStoredItem(mult(stone, 5)); // 库存远超种子
 
         var plan = env.runSpecialSimulation(mult(stone, 10), CalculationStrategy.REPORT_MISSING_ITEMS);
         assertThatPlan(plan)
                 .succeeded()
-                .patternsMatch(dup, 6) // 10 - 4 库存 = 6 份净产出
-                .usedMatch(mult(stone, 5)) // 4 交付 + 1 种子
+                .patternsMatch(dup, 10) // 全额 10 份,不用库存抵扣
+                .usedMatch(stone) // 仅 1 份种子
                 .missingMatch();
+    }
+
+    /** C15(问题 2 回归防护):库存 > 下单量时,成功计划必须包含样板任务(不得为空). */
+    @Test
+    public void testPlanNeverReliesOnPureStockDelivery() {
+        var env = new SimulationEnv();
+        var stone = item(Items.STONE);
+        var dup = env.addPattern(new ProcessingPatternBuilder(mult(stone, 2)).addPreciseInput(1, stone).build());
+        env.addStoredItem(mult(stone, 100)); // 现存 >> 下单
+
+        var plan = env.runSpecialSimulation(mult(stone, 5), CalculationStrategy.REPORT_MISSING_ITEMS);
+        assertThatPlan(plan)
+                .succeeded()
+                .patternsMatch(dup, 5)
+                .usedMatch(stone)
+                .missingMatch();
+        assertThat(plan.patternTimes()).isNotEmpty(); // 空任务计划 = CPU 提取材料后卡死
     }
 
     /** C5:多分支(自引用 + 普通),无种子 → 回落原生走普通分支. */
@@ -162,9 +182,13 @@ public class SpecialCraftingCalculationTest {
         assertThat(SpecialPlanMarker.isSpecial(plan)).isTrue();
     }
 
-    /** C7a:催化剂型(A→A+B)请求 A,库存充足 → O(1) 库存交付成功(原生逐份展开会挂起). */
+    /**
+     * C7a:催化剂型(A→A+B)请求 A → O(1) 缺料计划.
+     * 请求物无法增殖,且"库存直接交付"在执行模型上行不通(无样板任务的计划无法完成),
+     * 与原生失败语义一致,但避免原生 limitQty 逐份展开在超大单下挂起.
+     */
     @Test
-    public void testCatalystRequestSelfDeliveredFromStock() {
+    public void testCatalystRequestSelfReportsMissing() {
         var env = new SimulationEnv();
         var stone = item(Items.STONE);
         var stick = item(Items.STICK);
@@ -173,14 +197,12 @@ public class SpecialCraftingCalculationTest {
 
         var plan = env.runSpecialSimulation(mult(stone, 10), CalculationStrategy.REPORT_MISSING_ITEMS);
         assertThatPlan(plan)
-                .succeeded()
-                .usedMatch(mult(stone, 10))
-                .missingMatch();
-        assertThat(plan.patternTimes()).isEmpty(); // 无需合成,直接库存交付
-        assertThat(SpecialPlanMarker.isSpecial(plan)).isTrue();
+                .failed()
+                .missingMatch(mult(stone, 10));
+        assertThat(SpecialPlanMarker.isSpecial(plan)).isFalse();
     }
 
-    /** C7b:催化剂型请求 A,库存不足 → 缺料报告(无法增殖,不凭空产生). */
+    /** C7b:催化剂型请求 A 且无库存 → 同样 O(1) 缺料(不逐份展开). */
     @Test
     public void testCatalystRequestSelfInsufficientStock() {
         var env = new SimulationEnv();
@@ -192,8 +214,8 @@ public class SpecialCraftingCalculationTest {
         var plan = env.runSpecialSimulation(mult(stone, 10), CalculationStrategy.REPORT_MISSING_ITEMS);
         assertThatPlan(plan)
                 .failed()
-                .missingMatch(mult(stone, 7));
-        assertThat(SpecialPlanMarker.isSpecial(plan)).isTrue();
+                .missingMatch(mult(stone, 10));
+        assertThat(SpecialPlanMarker.isSpecial(plan)).isFalse();
     }
 
     /** C12:自引用 key ≠ 请求 key(A→B+A,请求 B)→ 贷款法成功,种子仅 1 份 A. */

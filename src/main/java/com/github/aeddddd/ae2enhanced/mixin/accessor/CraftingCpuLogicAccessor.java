@@ -6,6 +6,7 @@ import appeng.me.cluster.implementations.CraftingCPUCluster;
 
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.gen.Accessor;
+import org.spongepowered.asm.mixin.gen.Invoker;
 
 /**
  * {@link CraftingCpuLogic} 字段访问器,替代运行时反射.
@@ -17,4 +18,7 @@ public interface CraftingCpuLogicAccessor {
 
     @Accessor("cluster")
     CraftingCPUCluster getCluster();
+
+    @Invoker("finishJob")
+    void invokeFinishJob(boolean success);
 }

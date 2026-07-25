@@ -131,14 +131,10 @@ public class SpecialCraftingCalculation extends CraftingCalculation {
             return null; // 无种子 → 原生兜底(报缺料),保证不凭空增殖
         }
 
+        // 注意:不做"库存直接交付"(fromStock)——AE2 执行模型只认样板产出作为交付来源,
+        // 无样板任务的计划会让 CPU 提取材料后永远无法完成(游戏内验证发现).
+        // 交付量一律由样板产出:crafts 覆盖全额,种子保留,余量执行结束返回网络.
         long remaining = target;
-
-        // 2) 先用库存交付（预留 inPer 种子,与 MixinCraftingTreeNode 的既有语义一致）
-        long fromStock = Math.min(remaining, stock - inPer);
-        if (fromStock > 0) {
-            inv.extract(what, fromStock, Actionable.MODULATE);
-            remaining -= fromStock;
-        }
 
         if (remaining > 0) {
             long crafts = (remaining + gain - 1) / gain;
@@ -257,22 +253,10 @@ public class SpecialCraftingCalculation extends CraftingCalculation {
         // 关键差异:不执行 ignore(what),保留网络库存中的种子/库存
 
         if (selfKey.equals(what)) {
-            // 催化剂型(X==Y,gain=0):请求物无法增殖 → 库存交付 + 缺料报告
-            long stock = inv.extract(what, Long.MAX_VALUE, Actionable.SIMULATE);
-            long fromStock = Math.min(target, stock);
-            if (fromStock > 0) {
-                inv.extract(what, fromStock, Actionable.MODULATE);
-            }
-            if (fromStock < target) {
-                Ae2CraftingReflect.addMissing(this, what, target - fromStock);
-            }
-            inv.addBytes(8);
-            CraftingPlan base = CraftingSimulationState.buildCraftingPlan(inv, this, target);
-            ICraftingPlan plan = new CraftingPlan(base.finalOutput(), base.bytes(), fromStock < target,
-                    candidateCount > 1, base.usedItems(), base.emittedItems(), this.getMissingItems(),
-                    base.patternTimes());
-            SpecialPlanMarker.mark(plan);
-            return plan;
+            // 催化剂型(X==Y,gain=0):请求物无法增殖;而"库存直接交付"的执行模型
+            // 上行不通(无样板任务的计划永远无法完成)→ O(1) 缺料计划,
+            // 与原生失败语义一致,但避免原生 limitQty 逐份展开在超大单下挂起
+            return missingPlan(what, target, candidateCount > 1);
         }
 
         // X ≠ Y:种子 = inX 份 X(执行结束随返还回网络),贷款覆盖整批消耗
@@ -280,12 +264,8 @@ public class SpecialCraftingCalculation extends CraftingCalculation {
         if (stockX < inX) {
             return null; // 无种子 → 原生兜底(首份即缺,快速失败)
         }
-        long stockY = inv.extract(what, Long.MAX_VALUE, Actionable.SIMULATE);
-        long fromStock = Math.min(target, stockY);
-        if (fromStock > 0) {
-            inv.extract(what, fromStock, Actionable.MODULATE);
-        }
-        long remaining = target - fromStock;
+        // 注意:不使用请求物库存直接交付(同阶段 1 的执行模型约束),交付全部来自样板产出
+        long remaining = target;
 
         if (remaining > 0) {
             long crafts = (remaining + outY - 1) / outY;
