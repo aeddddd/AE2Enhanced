@@ -54,9 +54,13 @@ public final class CycleAnalyzer {
      * @param timesPerRound 每个超轮各样板的执行次数（正整数,已约分）
      * @param netGain 每个超轮净产出的请求物数量
      * @param seedsPerKey 各环内物品的启动种子（与 keys 对齐,启动一个超轮的最小前置需求）
+     * @param batchSeedPerKey 多消费者键的全批次保守种子（每超轮总消耗量,与 keys 对齐;
+     * 单消费者键为 0）——某环键被 ≥2 个步骤消耗时,CPU 贪婪推送可能让先行的消费者
+     * 一次性耗尽该键、饿死其余消费者（运行时无贷款兜底,会永久死锁）,此类键的种子
+     * 必须覆盖整批消耗才对任意推送顺序安全
      */
     public record Analysis(List<AEKey> keys, List<CycleStep> steps, RateClass rateClass,
-            long[] timesPerRound, long netGain, long[] seedsPerKey) {
+            long[] timesPerRound, long netGain, long[] seedsPerKey, long[] batchSeedPerKey) {
     }
 
     /** detector/求解共用的遍历预算,避免超大网络下 DFS 失控. */
@@ -222,15 +226,32 @@ public final class CycleAnalyzer {
             }
         }
 
+        // 多消费者键检测:某环键被 ≥2 个步骤消耗时,前缀种子+贷款只在计划期成立,
+        // 运行时 CPU 贪婪推送可致先行的消费者耗尽该键、其余消费者永久饿死 →
+        // 此类键必须以"每超轮总消耗 × 轮次"的全批次种子记账(对任意推送顺序安全).
+        int[] consumers = new int[n];
+        BigInteger[] consumption = new BigInteger[n];
+        for (int j = 0; j < n; j++) {
+            consumption[j] = BigInteger.ZERO;
+            for (int i = 0; i < n; i++) {
+                if (coeff[i][j].signum() < 0) {
+                    consumers[j]++;
+                    consumption[j] = consumption[j].add(coeff[i][j].negate().multiply(times[i]));
+                }
+            }
+        }
+
         try {
             long[] timesLong = new long[n];
             long[] seeds = new long[n];
+            long[] batchSeeds = new long[n];
             for (int i = 0; i < n; i++) {
                 timesLong[i] = times[i].longValueExact();
                 seeds[i] = minPrefix[i].negate().max(BigInteger.ZERO).longValueExact();
+                batchSeeds[i] = consumers[i] >= 2 ? consumption[i].longValueExact() : 0;
             }
             return new Analysis(List.copyOf(keys), List.copyOf(steps), rateClass, timesLong,
-                    netGain.longValueExact(), seeds);
+                    netGain.longValueExact(), seeds, batchSeeds);
         } catch (ArithmeticException e) {
             return null; // 超出 long → 不接管
         }

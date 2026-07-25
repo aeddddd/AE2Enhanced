@@ -154,8 +154,11 @@ public class CycleSolverTest {
     }
 
     /**
-     * G8(用户案例):A→B,16A+16B+1W→64C,64C+1W→64A,种子 32A + 充足 W.
+     * G8(用户案例):A→B,16A+16B+1W→64C,64C+1W→64A.
      * 平衡解 t=[16,1,1],净产 32A/轮,请求 64A → 2 轮.
+     * 注意:A 被 P1 与 P2 两个步骤消耗(多消费者键)——运行时 CPU 贪婪推送可能让
+     * P1 一次性耗尽种子、饿死 P2(无贷款兜底,死锁),因此 A 的种子按全批次保守
+     * 记账 = 每轮总消耗 32 × 2 轮 = 64.
      */
     @Test
     public void testUserCaseMultiInputCycleSolved() {
@@ -174,19 +177,19 @@ public class CycleSolverTest {
                 .addPreciseInput(64, sand)
                 .addPreciseInput(1, dirt)
                 .build());
-        env.addStoredItem(mult(stone, 32)); // 种子 32A(前缀分析:16+16)
+        env.addStoredItem(mult(stone, 64)); // 全批次保守种子:32/轮 × 2 轮
         env.addStoredItem(mult(dirt, 100)); // 辅材 W
 
         var plan = env.runSpecialSimulation(mult(stone, 64), CalculationStrategy.REPORT_MISSING_ITEMS);
         assertThatPlan(plan)
                 .succeeded()
                 .patternsMatch(Map.of(p1, 32L, p2, 2L, p3, 2L)) // 2 轮 × [16,1,1]
-                .usedMatch(mult(stone, 32), mult(dirt, 4)) // 种子 32A + 2×2W
+                .usedMatch(mult(stone, 64), mult(dirt, 4)) // 全批次种子 64A + 2×2W
                 .missingMatch();
         assertThat(SpecialPlanMarker.isSpecial(plan)).isTrue();
     }
 
-    /** G9(用户案例变体):种子不足(16A < 32A)→ 回落原生,报缺料. */
+    /** G9(用户案例变体):库存 32A 仅为前缀启动种子,不满足多消费者键的全批次保守种子(64A)→ 回落. */
     @Test
     public void testUserCaseInsufficientSeedFallsBack() {
         var env = new SimulationEnv();
@@ -204,7 +207,7 @@ public class CycleSolverTest {
                 .addPreciseInput(64, sand)
                 .addPreciseInput(1, dirt)
                 .build());
-        env.addStoredItem(mult(stone, 16)); // 种子不足
+        env.addStoredItem(mult(stone, 32)); // 前缀种子够,全批次保守种子(64)不足
         env.addStoredItem(mult(dirt, 100));
 
         var plan = env.runSpecialSimulation(mult(stone, 64), CalculationStrategy.REPORT_MISSING_ITEMS);

@@ -188,6 +188,9 @@ public class CycleAnalyzerTest {
         assertThat(analysis.timesPerRound()).containsExactly(16, 1, 1);
         assertThat(analysis.netGain()).isEqualTo(32);
         assertThat(analysis.seedsPerKey()).containsExactly(32, 0, 0);
+        // A 被 P1、P2 两个步骤消耗(多消费者键)→ 全批次保守种子 = 每轮总消耗 32;
+        // B、C 单消费者 → 0(前缀种子+贷款在运行时对任意推送顺序安全)
+        assertThat(analysis.batchSeedPerKey()).containsExactly(32, 0, 0);
     }
 
     private static GenericStack item(Item item) {

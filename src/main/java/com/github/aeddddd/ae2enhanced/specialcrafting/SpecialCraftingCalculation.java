@@ -1,5 +1,8 @@
 package com.github.aeddddd.ae2enhanced.specialcrafting;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import org.jetbrains.annotations.Nullable;
 
 import net.minecraft.world.level.Level;
@@ -94,21 +97,38 @@ public class SpecialCraftingCalculation extends CraftingCalculation {
         long target = this.outputStack.amount();
 
         IPatternDetails selfRef = null;
-        IPatternDetails selfRefAny = null;
+        List<IPatternDetails> selfRefAnyCandidates = new ArrayList<>();
         int candidateCount = 0;
         for (var pattern : craftingService.getCraftingFor(what)) {
             candidateCount++;
             if (selfRef == null && RecursiveCraftingHelper.isNetPositiveSelfRef(pattern, what)) {
                 selfRef = pattern;
             }
-            if (selfRefAny == null && RecursiveCraftingHelper.findSelfRefKey(pattern) != null) {
-                selfRefAny = pattern;
+            if (RecursiveCraftingHelper.findSelfRefKey(pattern) != null) {
+                selfRefAnyCandidates.add(pattern);
             }
         }
         if (selfRef == null) {
-            if (selfRefAny != null) {
-                // 广义自引用:催化剂型(X==Y 进出等量)或自引用 key ≠ 请求 key
-                return computeGeneralSelfRefPlan(selfRefAny, what, target, candidateCount);
+            // 广义自引用:自引用 key ≠ 请求 key 的候选迭代求解(不同候选的种子需求
+            // 可能不同);催化剂型(X==Y 进出等量)无法净增殖,留待最后统一报缺料,
+            // 不阻塞后续 X≠Y 候选.
+            boolean sawCatalystSelf = false;
+            for (var candidate : selfRefAnyCandidates) {
+                AEKey selfKey = RecursiveCraftingHelper.findSelfRefKey(candidate);
+                if (selfKey != null && selfKey.equals(what)) {
+                    sawCatalystSelf = true;
+                    continue;
+                }
+                var plan = computeGeneralSelfRefPlan(candidate, what, target, candidateCount);
+                if (plan != null) {
+                    return plan; // 含 O(1) 缺料计划(天文数字),不可解时终止迭代
+                }
+            }
+            if (sawCatalystSelf) {
+                // 催化剂型(X==Y,gain=0):请求物无法增殖;而"库存直接交付"在执行模型
+                // 上行不通(无样板任务的计划永远无法完成,产出又必须喂给下一份合成,
+                // 结算时库存只剩种子)→ O(1) 缺料计划,与原生失败语义一致但不挂起
+                return missingPlan(what, target, candidateCount > 1);
             }
             // 阶段 2:跨样板循环链
             return computeCyclePlan(what, target);
@@ -193,41 +213,36 @@ public class SpecialCraftingCalculation extends CraftingCalculation {
      */
     @Nullable
     private ICraftingPlan computeCyclePlan(AEKey what, long target) throws InterruptedException {
-        // 枚举候选环（长环优先,键集更完整）,取第一个可解的增殖环
-        CycleAnalyzer.Analysis analysis = null;
+        // 枚举候选环（长环优先,键集更完整）,迭代求解直到成功——不同候选环的
+        // 种子需求/环外输入可能不同,第一个增殖环求解失败时应尝试下一个.
         for (var cycle : CycleAnalyzer.findCyclesThrough(craftingService, what)) {
-            var candidate = CycleAnalyzer.analyze(cycle);
-            if (candidate != null && candidate.rateClass() == CycleAnalyzer.RateClass.PRODUCTIVE) {
-                analysis = candidate;
-                break;
+            var analysis = CycleAnalyzer.analyze(cycle);
+            // 不可解/中性/耗散环不接管
+            if (analysis == null || analysis.rateClass() != CycleAnalyzer.RateClass.PRODUCTIVE) {
+                continue;
             }
-        }
-        // 无环/非简单环/中性/耗散环不接管 → 原生兜底(原生对环剪枝,快速失败,无回归)
-        if (analysis == null) {
-            return null;
-        }
 
-        ChildCraftingSimulationState inv = new ChildCraftingSimulationState(
-                Ae2CraftingReflect.getNetworkInv(this));
-        // 关键差异:不执行 ignore(what),保留网络库存中的种子
-        var result = CycleSolver.trySolve(craftingService, this, analysis, inv, what, target);
-        switch (result) {
-            case FALLBACK:
-                return null;
-            case OVERFLOW:
+            ChildCraftingSimulationState inv = new ChildCraftingSimulationState(
+                    Ae2CraftingReflect.getNetworkInv(this));
+            // 关键差异:不执行 ignore(what),保留网络库存中的种子
+            var result = CycleSolver.trySolve(craftingService, this, analysis, inv, what, target);
+            if (result == CycleSolver.SolveResult.OVERFLOW) {
                 return missingPlan(what, target, true);
-            case SUCCESS:
-            default:
-                break;
-        }
+            }
+            if (result != CycleSolver.SolveResult.SUCCESS) {
+                continue; // 种子/环外输入不足 → 尝试下一个候选环
+            }
 
-        inv.addBytes(8);
-        CraftingPlan base = CraftingSimulationState.buildCraftingPlan(inv, this, target);
-        // 环计划保守标记 multiplePaths（环外可能仍有其他候选路线）
-        ICraftingPlan plan = new CraftingPlan(base.finalOutput(), base.bytes(), base.simulation(), true,
-                base.usedItems(), base.emittedItems(), base.missingItems(), base.patternTimes());
-        SpecialPlanMarker.mark(plan);
-        return plan;
+            inv.addBytes(8);
+            CraftingPlan base = CraftingSimulationState.buildCraftingPlan(inv, this, target);
+            // 环计划保守标记 multiplePaths（环外可能仍有其他候选路线）
+            ICraftingPlan plan = new CraftingPlan(base.finalOutput(), base.bytes(), base.simulation(), true,
+                    base.usedItems(), base.emittedItems(), base.missingItems(), base.patternTimes());
+            SpecialPlanMarker.mark(plan);
+            return plan;
+        }
+        // 所有候选环均不适用 → 原生兜底(原生对环剪枝,快速失败,无回归)
+        return null;
     }
 
     /**
@@ -257,10 +272,9 @@ public class SpecialCraftingCalculation extends CraftingCalculation {
         // 关键差异:不执行 ignore(what),保留网络库存中的种子/库存
 
         if (selfKey.equals(what)) {
-            // 催化剂型(X==Y,gain=0):请求物无法增殖;而"库存直接交付"的执行模型
-            // 上行不通(无样板任务的计划永远无法完成)→ O(1) 缺料计划,
-            // 与原生失败语义一致,但避免原生 limitQty 逐份展开在超大单下挂起
-            return missingPlan(what, target, candidateCount > 1);
+            // 催化剂型由调用方统一报缺料(见 computeSpecialPlan),此处防御性拒绝:
+            // gain=0 时产出必须喂给下一份合成,结算只剩种子,计划期"成功"是假象
+            return null;
         }
 
         // X ≠ Y:种子 = inX 份 X(执行结束随返还回网络),贷款覆盖整批消耗
