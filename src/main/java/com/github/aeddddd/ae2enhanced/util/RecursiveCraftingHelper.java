@@ -4,6 +4,8 @@ import appeng.api.crafting.IPatternDetails;
 import appeng.api.networking.crafting.ICraftingService;
 import appeng.api.stacks.AEKey;
 
+import org.jetbrains.annotations.Nullable;
+
 /**
  * 递归类合成（产物与原料含相同物品且净产出为正,如 A+2B=2A）的判定工具.
  * <p>AE2 1.20 原生计算层通过 {@code CraftingTreeNode#notRecursive} 排除一切自引用样板,
@@ -13,6 +15,39 @@ import appeng.api.stacks.AEKey;
 public final class RecursiveCraftingHelper {
 
     private RecursiveCraftingHelper() {
+    }
+
+    /**
+     * 查找样板的精确自引用 key:主输入 key 与输出 key 完全相等(非模糊匹配),
+     * 且每份产出总量 ≥ 投入总量(净增殖或催化剂型).
+     * <p>NBT 变化型(耐久损耗等模糊自引用)不会被命中——其借贷记账需要逐物品追踪,
+     * 不在闭式解范围内.</p>
+     *
+     * @return 自引用 key;不存在或净耗型返回 null.
+     */
+    @Nullable
+    public static AEKey findSelfRefKey(IPatternDetails details) {
+        for (var input : details.getInputs()) {
+            var possibleInputs = input.getPossibleInputs();
+            if (possibleInputs.length == 0 || possibleInputs[0].amount() <= 0) {
+                continue;
+            }
+            AEKey inKey = possibleInputs[0].what();
+            long inPer = possibleInputs[0].amount() * input.getMultiplier();
+            if (inPer <= 0) {
+                continue;
+            }
+            long outPer = 0;
+            for (var output : details.getOutputs()) {
+                if (inKey.equals(output.what())) {
+                    outPer += output.amount();
+                }
+            }
+            if (outPer >= inPer) {
+                return inKey;
+            }
+        }
+        return null;
     }
 
     /**

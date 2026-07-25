@@ -94,14 +94,22 @@ public class SpecialCraftingCalculation extends CraftingCalculation {
         long target = this.outputStack.amount();
 
         IPatternDetails selfRef = null;
+        IPatternDetails selfRefAny = null;
         int candidateCount = 0;
         for (var pattern : craftingService.getCraftingFor(what)) {
             candidateCount++;
             if (selfRef == null && RecursiveCraftingHelper.isNetPositiveSelfRef(pattern, what)) {
                 selfRef = pattern;
             }
+            if (selfRefAny == null && RecursiveCraftingHelper.findSelfRefKey(pattern) != null) {
+                selfRefAny = pattern;
+            }
         }
         if (selfRef == null) {
+            if (selfRefAny != null) {
+                // 广义自引用:催化剂型(X==Y 进出等量)或自引用 key ≠ 请求 key
+                return computeGeneralSelfRefPlan(selfRefAny, what, target, candidateCount);
+            }
             // 阶段 2:跨样板循环链
             return computeCyclePlan(what, target);
         }
@@ -218,6 +226,103 @@ public class SpecialCraftingCalculation extends CraftingCalculation {
         // 环计划保守标记 multiplePaths（环外可能仍有其他候选路线）
         ICraftingPlan plan = new CraftingPlan(base.finalOutput(), base.bytes(), base.simulation(), true,
                 base.usedItems(), base.emittedItems(), base.missingItems(), base.patternTimes());
+        SpecialPlanMarker.mark(plan);
+        return plan;
+    }
+
+    /**
+     * 广义自引用求解（解决原生 limitQty 逐份展开在超大订单下挂起的问题）.
+     * <ul>
+     * <li>自引用 key == 请求 key 且进出等量（催化剂型）:请求物无法增殖,
+     * 直接从库存交付,不足部分报缺料,O(1).</li>
+     * <li>自引用 key X ≠ 请求 key Y(如请求 B,样板 A→A+B):X 只需 inPer 份种子,
+     * 贷款法整批模拟,O(1).</li>
+     * </ul>
+     */
+    @Nullable
+    private ICraftingPlan computeGeneralSelfRefPlan(IPatternDetails pattern, AEKey what, long target,
+            int candidateCount) throws InterruptedException {
+        AEKey selfKey = RecursiveCraftingHelper.findSelfRefKey(pattern);
+        if (selfKey == null) {
+            return null;
+        }
+        long inX = RecursiveCraftingHelper.selfInputPerCraft(pattern, selfKey);
+        long outY = RecursiveCraftingHelper.selfOutputPerCraft(pattern, what);
+        if (inX <= 0 || outY <= 0) {
+            return null;
+        }
+
+        ChildCraftingSimulationState inv = new ChildCraftingSimulationState(
+                Ae2CraftingReflect.getNetworkInv(this));
+        // 关键差异:不执行 ignore(what),保留网络库存中的种子/库存
+
+        if (selfKey.equals(what)) {
+            // 催化剂型(X==Y,gain=0):请求物无法增殖 → 库存交付 + 缺料报告
+            long stock = inv.extract(what, Long.MAX_VALUE, Actionable.SIMULATE);
+            long fromStock = Math.min(target, stock);
+            if (fromStock > 0) {
+                inv.extract(what, fromStock, Actionable.MODULATE);
+            }
+            if (fromStock < target) {
+                Ae2CraftingReflect.addMissing(this, what, target - fromStock);
+            }
+            inv.addBytes(8);
+            CraftingPlan base = CraftingSimulationState.buildCraftingPlan(inv, this, target);
+            ICraftingPlan plan = new CraftingPlan(base.finalOutput(), base.bytes(), fromStock < target,
+                    candidateCount > 1, base.usedItems(), base.emittedItems(), this.getMissingItems(),
+                    base.patternTimes());
+            SpecialPlanMarker.mark(plan);
+            return plan;
+        }
+
+        // X ≠ Y:种子 = inX 份 X(执行结束随返还回网络),贷款覆盖整批消耗
+        long stockX = inv.extract(selfKey, Long.MAX_VALUE, Actionable.SIMULATE);
+        if (stockX < inX) {
+            return null; // 无种子 → 原生兜底(首份即缺,快速失败)
+        }
+        long stockY = inv.extract(what, Long.MAX_VALUE, Actionable.SIMULATE);
+        long fromStock = Math.min(target, stockY);
+        if (fromStock > 0) {
+            inv.extract(what, fromStock, Actionable.MODULATE);
+        }
+        long remaining = target - fromStock;
+
+        if (remaining > 0) {
+            long crafts = (remaining + outY - 1) / outY;
+            if (crafts <= 0 || crafts > Long.MAX_VALUE / inX) {
+                return missingPlan(what, target, candidateCount > 1);
+            }
+            CraftingTreeNode rootNode = new CraftingTreeNode(craftingService, this, what, 1, null, -1);
+            CraftingTreeProcess pro = new CraftingTreeProcess(craftingService, this, pattern, rootNode);
+
+            long loan = inX * (crafts - 1);
+            if (loan > 0) {
+                inv.insert(selfKey, loan, Actionable.MODULATE);
+            }
+            try {
+                Ae2CraftingReflect.treeProcessRequest(pro, inv, crafts);
+            } catch (CraftBranchFailure failure) {
+                return null; // 其他输入不足 → 原生兜底(缺料报告)
+            } finally {
+                if (loan > 0) {
+                    inv.extract(selfKey, loan, Actionable.MODULATE);
+                }
+            }
+
+            long avail = inv.extract(what, Long.MAX_VALUE, Actionable.SIMULATE);
+            long drain = inv.extract(what, Math.min(remaining, avail), Actionable.MODULATE);
+            remaining -= drain;
+            if (remaining > 0) {
+                return null; // 理论不可达,保险起见回落
+            }
+        }
+
+        inv.addBytes(8);
+        CraftingPlan base = CraftingSimulationState.buildCraftingPlan(inv, this, target);
+        ICraftingPlan plan = candidateCount > 1
+                ? new CraftingPlan(base.finalOutput(), base.bytes(), base.simulation(), true,
+                        base.usedItems(), base.emittedItems(), base.missingItems(), base.patternTimes())
+                : base;
         SpecialPlanMarker.mark(plan);
         return plan;
     }

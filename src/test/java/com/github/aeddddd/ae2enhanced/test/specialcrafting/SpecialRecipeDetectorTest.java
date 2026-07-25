@@ -78,16 +78,16 @@ public class SpecialRecipeDetectorTest {
         assertThat(SpecialRecipeDetector.mayInvolveSpecialRecipes(env.craftingService(), water.what())).isTrue();
     }
 
-    /** 催化剂型(进出等量,无净产出)→ 未命中(不在阶段 1 范围). */
+    /** 催化剂型(进出等量)→ 命中(原生 limitQty 逐份展开会在超大订单挂起,必须路由). */
     @Test
-    public void testCatalystPatternMisses() {
+    public void testCatalystPatternHits() {
         var env = new SimulationEnv();
         var stone = item(Items.STONE);
         var stick = item(Items.STICK);
-        // A -> A + B:stone 进出等量,无净产出
+        // A -> A + B:stone 进出等量
         env.addPattern(new ProcessingPatternBuilder(stone, stick).addPreciseInput(1, stone).build());
 
-        assertThat(SpecialRecipeDetector.mayInvolveSpecialRecipes(env.craftingService(), stone.what())).isFalse();
+        assertThat(SpecialRecipeDetector.mayInvolveSpecialRecipes(env.craftingService(), stone.what())).isTrue();
     }
 
     private static GenericStack item(Item item) {

@@ -19,9 +19,14 @@ public final class SpecialRecipeDetector {
      * 请求 {@code what} 是否可能涉及特殊配方.
      */
     public static boolean mayInvolveSpecialRecipes(ICraftingService craftingService, AEKey what) {
-        // 阶段 1:候选样板含净产出自引用
+        // 阶段 1:候选样板含自引用(净产出自引用,或任意精确自引用 key——
+        // 含催化剂型与"自引用 key ≠ 请求 key"的情形,这些场景原生 limitQty
+        // 逐份展开会在超大订单下挂起,必须走闭式解)
         for (var pattern : craftingService.getCraftingFor(what)) {
             if (RecursiveCraftingHelper.isNetPositiveSelfRef(pattern, what)) {
+                return true;
+            }
+            if (RecursiveCraftingHelper.findSelfRefKey(pattern) != null) {
                 return true;
             }
         }

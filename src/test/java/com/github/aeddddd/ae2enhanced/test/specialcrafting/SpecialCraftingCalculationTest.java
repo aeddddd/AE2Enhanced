@@ -162,19 +162,92 @@ public class SpecialCraftingCalculationTest {
         assertThat(SpecialPlanMarker.isSpecial(plan)).isTrue();
     }
 
-    /** C7:催化剂型(A→A+B,无净产出)不在阶段 1 范围 → 原生行为(缺料失败). */
+    /** C7a:催化剂型(A→A+B)请求 A,库存充足 → O(1) 库存交付成功(原生逐份展开会挂起). */
     @Test
-    public void testCatalystPatternFallsBackToNative() {
+    public void testCatalystRequestSelfDeliveredFromStock() {
         var env = new SimulationEnv();
         var stone = item(Items.STONE);
         var stick = item(Items.STICK);
         env.addPattern(new ProcessingPatternBuilder(stone, stick).addPreciseInput(1, stone).build());
-        env.addStoredItem(stone); // 即使有库存,原生 ignore(output) 也不交付
+        env.addStoredItem(mult(stone, 10));
 
-        var plan = env.runSpecialSimulation(stone, CalculationStrategy.REPORT_MISSING_ITEMS);
+        var plan = env.runSpecialSimulation(mult(stone, 10), CalculationStrategy.REPORT_MISSING_ITEMS);
+        assertThatPlan(plan)
+                .succeeded()
+                .usedMatch(mult(stone, 10))
+                .missingMatch();
+        assertThat(plan.patternTimes()).isEmpty(); // 无需合成,直接库存交付
+        assertThat(SpecialPlanMarker.isSpecial(plan)).isTrue();
+    }
+
+    /** C7b:催化剂型请求 A,库存不足 → 缺料报告(无法增殖,不凭空产生). */
+    @Test
+    public void testCatalystRequestSelfInsufficientStock() {
+        var env = new SimulationEnv();
+        var stone = item(Items.STONE);
+        var stick = item(Items.STICK);
+        env.addPattern(new ProcessingPatternBuilder(stone, stick).addPreciseInput(1, stone).build());
+        env.addStoredItem(mult(stone, 3));
+
+        var plan = env.runSpecialSimulation(mult(stone, 10), CalculationStrategy.REPORT_MISSING_ITEMS);
         assertThatPlan(plan)
                 .failed()
-                .missingMatch(stone);
+                .missingMatch(mult(stone, 7));
+        assertThat(SpecialPlanMarker.isSpecial(plan)).isTrue();
+    }
+
+    /** C12:自引用 key ≠ 请求 key(A→B+A,请求 B)→ 贷款法成功,种子仅 1 份 A. */
+    @Test
+    public void testCatalystOtherKeyWithSeed() {
+        var env = new SimulationEnv();
+        var diamond = item(Items.DIAMOND);
+        var emerald = item(Items.EMERALD);
+        // 1 diamond -> 1 emerald + 1 diamond:diamond 为自引用催化剂,emerald 为请求物
+        var pattern = env.addPattern(new ProcessingPatternBuilder(emerald, diamond)
+                .addPreciseInput(1, diamond)
+                .build());
+        env.addStoredItem(diamond); // 种子 1
+
+        var plan = env.runSpecialSimulation(mult(emerald, 10), CalculationStrategy.REPORT_MISSING_ITEMS);
+        assertThatPlan(plan)
+                .succeeded()
+                .patternsMatch(pattern, 10)
+                .usedMatch(diamond) // 仅 1 份种子
+                .missingMatch();
+        assertThat(SpecialPlanMarker.isSpecial(plan)).isTrue();
+    }
+
+    /** C13:自引用 key ≠ 请求 key 且净增殖(A→B+2A,请求 B)→ 贷款法成功. */
+    @Test
+    public void testNetPositiveOtherKeyWithSeed() {
+        var env = new SimulationEnv();
+        var diamond = item(Items.DIAMOND);
+        var emerald = item(Items.EMERALD);
+        var pattern = env.addPattern(new ProcessingPatternBuilder(emerald, mult(diamond, 2))
+                .addPreciseInput(1, diamond)
+                .build());
+        env.addStoredItem(diamond); // 种子 1
+
+        var plan = env.runSpecialSimulation(mult(emerald, 5), CalculationStrategy.REPORT_MISSING_ITEMS);
+        assertThatPlan(plan)
+                .succeeded()
+                .patternsMatch(pattern, 5)
+                .usedMatch(diamond)
+                .missingMatch();
+    }
+
+    /** C12b:自引用 key ≠ 请求 key,无种子 → 回落原生(快速失败). */
+    @Test
+    public void testCatalystOtherKeyWithoutSeedFallsBack() {
+        var env = new SimulationEnv();
+        var diamond = item(Items.DIAMOND);
+        var emerald = item(Items.EMERALD);
+        env.addPattern(new ProcessingPatternBuilder(emerald, diamond)
+                .addPreciseInput(1, diamond)
+                .build());
+
+        var plan = env.runSpecialSimulation(mult(emerald, 10), CalculationStrategy.REPORT_MISSING_ITEMS);
+        assertThatPlan(plan).failed();
         assertThat(SpecialPlanMarker.isSpecial(plan)).isFalse();
     }
 
