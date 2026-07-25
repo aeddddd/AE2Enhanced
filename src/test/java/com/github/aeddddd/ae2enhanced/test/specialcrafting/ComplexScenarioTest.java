@@ -167,14 +167,14 @@ public class ComplexScenarioTest {
                 .addPreciseInput(64, sand)
                 .addPreciseInput(1, dirt)
                 .build());
-        env.addStoredItem(mult(stone, 64)); // 全批次种子 32×2
+        env.addStoredItem(mult(stone, 64)); // 远超每轮种子要求(32)
         env.addStoredItem(mult(dirt, 100));
 
         var plan = env.runSpecialSimulation(mult(stone, 33), CalculationStrategy.REPORT_MISSING_ITEMS);
         assertThatPlan(plan)
                 .succeeded()
                 .patternsMatch(Map.of(p1, 32L, p2, 2L, p3, 2L)) // ceil(33/32)=2 轮,与请求 64 相同
-                .usedMatch(mult(stone, 64), mult(dirt, 4))
+                .usedMatch(mult(stone, 32), mult(dirt, 4)) // 每轮种子记账
                 .missingMatch();
         assertThat(SpecialPlanMarker.isSpecial(plan)).isTrue();
     }

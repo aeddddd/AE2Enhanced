@@ -31,4 +31,12 @@ public final class VirtualCraftingCPURegistry {
     public static Set<CraftingCPUCluster> getClusters() {
         return Collections.unmodifiableSet(CLUSTERS);
     }
+
+    /**
+     * 集群是否为本项目注册的虚拟 CPU（测试 CPU / 计算核心）.
+     * 普通 CPU 与第三方 CPU（Adv/NeoECOAE）集群必然为 false.
+     */
+    public static boolean isOurVirtualCpu(CraftingCPUCluster cluster) {
+        return cluster != null && CLUSTERS.contains(cluster);
+    }
 }

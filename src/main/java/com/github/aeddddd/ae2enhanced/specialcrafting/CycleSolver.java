@@ -65,51 +65,49 @@ public final class CycleSolver {
         }
 
         // 1) 各环内物品种子校验:
-        // - 多消费者键(batchSeeds>0):必须覆盖整批消耗(全批次保守种子,运行时无贷款,
-        //   CPU 贪婪推送下才能对任意顺序安全);
+        // - 多消费者键(batchSeeds>0):仅需 max(前缀种子, 每轮总消耗)——运行时并发消耗
+        //   由超轮配额调度器(RoundQuotaScheduler)闸在每轮以内,不再需要全批次库存;
         // - 单消费者键:仅需前缀启动种子(需求超种子时自我节流,运行时自然交错爬坡).
         long[] requiredStock = new long[seeds.length];
         for (int i = 0; i < keys.size(); i++) {
-            if (batchSeeds[i] > 0) {
-                if (rounds > Long.MAX_VALUE / batchSeeds[i]) {
-                    return SolveResult.OVERFLOW;
-                }
-                requiredStock[i] = batchSeeds[i] * rounds;
-            } else {
-                requiredStock[i] = seeds[i];
-            }
+            requiredStock[i] = batchSeeds[i] > 0 ? Math.max(seeds[i], batchSeeds[i]) : seeds[i];
             if (requiredStock[i] > 0) {
                 long stock = inv.extract(keys.get(i), Long.MAX_VALUE, Actionable.SIMULATE);
                 if (stock < requiredStock[i]) {
                     com.github.aeddddd.ae2enhanced.AE2Enhanced.LOGGER.info(
                             "[特殊配方] 环求解回落: {} 种子不足(需要 {},库存 {}{})",
                             keys.get(i), requiredStock[i], stock,
-                            batchSeeds[i] > 0 ? ",多消费者键按全批次保守记账" : "");
+                            batchSeeds[i] > 0 ? ",多消费者键按每轮消耗记账" : "");
                     return SolveResult.FALLBACK;
                 }
             }
         }
 
-        // 2) 贷款法(仅单消费者键):批处理按执行顺序先消耗后产出,前缀缺口为
-        // (rounds-1)×seed,借入使整批通过,产出后归还(借还精确对冲,只抬高水位).
+        // 2) 贷款法(计划期模拟技巧,借还精确对冲,只抬高水位):
+        // - 单消费者键:批处理前缀缺口为 (rounds-1)×seed;
+        // - 多消费者键:批处理按执行顺序先消耗后产出,缺口为 rounds×前缀种子,但
+        //   usedItems 必须恰好 = requiredStock(运行时只需每轮库存),贷款把水位最低点
+        //   钳在 库存-requiredStock,深于该值的批量下探由贷款吸收.
         long[] loans = new long[seeds.length];
         for (int i = 0; i < seeds.length; i++) {
-            if (batchSeeds[i] == 0 && seeds[i] > 0 && rounds - 1 > 0) {
+            if (seeds[i] <= 0 || rounds - 1 <= 0) {
+                continue;
+            }
+            long dip;
+            if (batchSeeds[i] > 0) {
+                if (seeds[i] > Long.MAX_VALUE / rounds) {
+                    return SolveResult.OVERFLOW;
+                }
+                dip = rounds * seeds[i] - requiredStock[i];
+            } else {
                 if (seeds[i] > Long.MAX_VALUE / (rounds - 1)) {
                     return SolveResult.OVERFLOW;
                 }
-                loans[i] = (rounds - 1) * seeds[i];
-                inv.insert(keys.get(i), loans[i], Actionable.MODULATE);
+                dip = (rounds - 1) * seeds[i];
             }
-        }
-        // 多消费者键"准备金对冲":模拟开头先取后还 R,把历史最低点压到 库存-R,
-        // 使 usedItems 按全批次种子记账——CPU 初始提取必须覆盖整批消耗,
-        // 否则贪婪推送顺序下先行的消费者会耗尽该键、其余消费者永久饿死
-        // (游戏内 ×100 水晶订单实测死锁).
-        for (int i = 0; i < keys.size(); i++) {
-            if (batchSeeds[i] > 0 && requiredStock[i] > 0) {
-                inv.extract(keys.get(i), requiredStock[i], Actionable.MODULATE);
-                inv.insert(keys.get(i), requiredStock[i], Actionable.MODULATE);
+            if (dip > 0) {
+                loans[i] = dip;
+                inv.insert(keys.get(i), loans[i], Actionable.MODULATE);
             }
         }
         try {

@@ -1,22 +1,33 @@
 package com.github.aeddddd.ae2enhanced.mixin;
 
+import java.util.Map;
+import java.util.Set;
+
 import appeng.api.config.Actionable;
+import appeng.api.crafting.IPatternDetails;
+import appeng.api.networking.IGrid;
+import appeng.api.networking.crafting.ICraftingPlan;
+import appeng.api.networking.crafting.ICraftingRequester;
+import appeng.api.networking.crafting.ICraftingSubmitResult;
 import appeng.api.networking.energy.IEnergyService;
 import appeng.api.stacks.AEKey;
 import appeng.crafting.execution.CraftingCpuLogic;
 import appeng.crafting.execution.ExecutingCraftingJob;
 import appeng.me.cluster.implementations.CraftingCPUCluster;
 import appeng.me.service.CraftingService;
+import appeng.api.networking.security.IActionSource;
 import net.minecraft.world.level.Level;
 
 import com.github.aeddddd.ae2enhanced.assembly.AssemblyHubBatchCrafting;
 import com.github.aeddddd.ae2enhanced.mixin.accessor.CraftingCpuLogicAccessor;
 import com.github.aeddddd.ae2enhanced.mixin.accessor.ExecutingCraftingJobAccessor;
+import com.github.aeddddd.ae2enhanced.specialcrafting.RoundQuotaScheduler;
 import com.github.aeddddd.ae2enhanced.specialcrafting.SelfRefOutputGate;
 
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 /**
@@ -56,5 +67,32 @@ public class MixinCraftingCpuLogic {
         if (result != null) {
             cir.setReturnValue(result);
         }
+    }
+
+    /**
+     * 任务提交成功时快照 patternTimes,供超轮配额调度器恢复轮次.
+     */
+    @Inject(method = "trySubmitJob", at = @At("RETURN"), require = 0, remap = false)
+    private void ae2e$snapshotJobTotals(IGrid grid, ICraftingPlan plan, IActionSource src,
+            ICraftingRequester requester, CallbackInfoReturnable<ICraftingSubmitResult> cir) {
+        if (cir.getReturnValue() != null && cir.getReturnValue().successful()) {
+            var job = ((CraftingCpuLogicAccessor) this).getJob();
+            if (job != null) {
+                RoundQuotaScheduler.snapshot(job, plan);
+            }
+        }
+    }
+
+    /**
+     * 超轮配额调度:过滤 executeCrafting 任务迭代入口,超配额的闭包 pattern 本轮不推送.
+     * 仅对我们的虚拟 CPU 上的自消耗 job 生效,其余返回原始任务集.
+     */
+    @Redirect(method = "executeCrafting",
+            at = @At(value = "INVOKE", target = "Ljava/util/Map;entrySet()Ljava/util/Set;", remap = false),
+            require = 0, remap = false)
+    @SuppressWarnings({ "rawtypes", "unchecked" })
+    private Set ae2e$filterTaskEntriesByQuota(Map tasks, int maxPatterns, CraftingService craftingService,
+            IEnergyService energyService, Level level) {
+        return RoundQuotaScheduler.filterEntries((CraftingCpuLogic) (Object) this, tasks);
     }
 }

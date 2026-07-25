@@ -1,0 +1,199 @@
+package com.github.aeddddd.ae2enhanced.specialcrafting;
+
+import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.Map;
+import java.util.Set;
+import java.util.WeakHashMap;
+
+import org.jetbrains.annotations.Nullable;
+
+import appeng.api.crafting.IPatternDetails;
+import appeng.api.networking.crafting.ICraftingPlan;
+import appeng.api.stacks.AEKey;
+import appeng.crafting.execution.CraftingCpuLogic;
+import appeng.crafting.execution.ExecutingCraftingJob;
+
+import com.github.aeddddd.ae2enhanced.computation.cpu.VirtualCraftingCPURegistry;
+import com.github.aeddddd.ae2enhanced.mixin.accessor.CraftingCpuLogicAccessor;
+import com.github.aeddddd.ae2enhanced.mixin.accessor.ExecutingCraftingJobAccessor;
+import com.github.aeddddd.ae2enhanced.mixin.accessor.TaskProgressAccessor;
+
+/**
+ * 超轮配额调度器（执行层,解决多消费者键的全批次种子依赖）.
+ * <p><b>问题</b>:环计划中某键被 ≥2 个 pattern 消耗时,CPU 贪婪推送可让先行的
+ * 消费者一次性耗尽库存、其余消费者饿死.此前用"全批次种子"（库存 ≈ 下单量）
+ * 兜底,巨型订单不可用.</p>
+ * <p><b>方案</b>:对我们的虚拟 CPU 上的自消耗 job,限制每个闭包 pattern 的推送
+ * 不超过"最慢闭包 pattern 进度 + 1 个超轮"的配额——先行消费者最多领先一轮,
+ * 多消费者键的并发消耗被闸在每轮总消耗以内,库存要求降回每轮种子.</p>
+ * <p><b>配额自恢复</b>:计划 patternTimes 总次数 = 轮次 × 超轮比（求解器构造上
+ * 已约分）,对闭包内总次数求 GCD 即恢复轮次,无需标记传播;闭包 = 任务集中
+ * "既消耗又产出"的键所触及的 pattern（外部子合成 pattern 自动豁免）.</p>
+ * <p><b>只过滤不复制</b>:在原生 executeCrafting 的任务迭代入口过滤超配额
+ * pattern,能量/waitingFor/容器返还等原生推送机制零改动.</p>
+ * <p><b>已知限制</b>:NBT 恢复的 job 无配额快照,退化为原生推送（计算核心
+ * 持久化阶段解决）.</p>
+ */
+public final class RoundQuotaScheduler {
+
+    /**
+     * 配额:闭包内各 pattern 每个超轮（相对 GCD）的执行次数.
+     */
+    public record Quota(Map<IPatternDetails, Long> perRound) {
+    }
+
+    /** job → 提交时的 patternTimes 快照（弱键,job 结束自动回收）. */
+    private static final Map<ExecutingCraftingJob, Map<IPatternDetails, Long>> TOTALS = new WeakHashMap<>();
+
+    private RoundQuotaScheduler() {
+    }
+
+    /**
+     * 任务提交成功时快照 patternTimes（供后续配额推导）.
+     */
+    public static synchronized void snapshot(ExecutingCraftingJob job, ICraftingPlan plan) {
+        if (plan != null && !plan.patternTimes().isEmpty()) {
+            TOTALS.put(job, Map.copyOf(plan.patternTimes()));
+        }
+    }
+
+    /**
+     * executeCrafting 任务迭代入口的过滤（游戏适配层）.
+     * 非我们的虚拟 CPU / 无快照 / 非自消耗 job 时返回原始任务集（零影响）.
+     */
+    public static <T> Set<Map.Entry<IPatternDetails, T>> filterEntries(CraftingCpuLogic logic,
+            Map<IPatternDetails, T> tasks) {
+        var logicAcc = (CraftingCpuLogicAccessor) logic;
+        var job = logicAcc.getJob();
+        if (job == null || !VirtualCraftingCPURegistry.isOurVirtualCpu(logicAcc.getCluster())) {
+            return tasks.entrySet();
+        }
+        Map<IPatternDetails, Long> totals;
+        synchronized (RoundQuotaScheduler.class) {
+            totals = TOTALS.get(job);
+        }
+        if (totals == null) {
+            return tasks.entrySet(); // NBT 恢复任务:退化原生推送
+        }
+        var quota = deriveQuota(totals, ((ExecutingCraftingJobAccessor) job).getFinalOutput().what());
+        if (quota == null) {
+            return tasks.entrySet();
+        }
+        Map<IPatternDetails, Long> remaining = new LinkedHashMap<>();
+        for (var entry : tasks.entrySet()) {
+            remaining.put(entry.getKey(), ((TaskProgressAccessor) entry.getValue()).getValue());
+        }
+        var allowed = filterPushable(quota, totals, remaining);
+        var result = new LinkedHashSet<Map.Entry<IPatternDetails, T>>();
+        for (var entry : tasks.entrySet()) {
+            if (allowed.contains(entry.getKey())) {
+                result.add(entry);
+            }
+        }
+        return result;
+    }
+
+    /**
+     * 推导配额（纯函数）:任务集中"既消耗又产出"的键构成闭包键,最终产出必须是
+     * 闭包键（否则非自消耗 job,不调度）;闭包内 pattern 的总次数对 GCD 约分.
+     *
+     * @return 配额;非自消耗/无法推导时返回 null（调用方退化原生推送）.
+     */
+    @Nullable
+    public static Quota deriveQuota(Map<IPatternDetails, Long> totals, AEKey finalOutputWhat) {
+        Set<AEKey> produced = new HashSet<>();
+        Set<AEKey> consumed = new HashSet<>();
+        for (var pattern : totals.keySet()) {
+            for (var output : pattern.getOutputs()) {
+                produced.add(output.what());
+            }
+            for (var input : pattern.getInputs()) {
+                var possible = input.getPossibleInputs();
+                if (possible.length > 0) {
+                    consumed.add(possible[0].what());
+                }
+            }
+        }
+        produced.retainAll(consumed);
+        if (!produced.contains(finalOutputWhat)) {
+            return null; // 非自消耗 job
+        }
+        Map<IPatternDetails, Long> closureTotals = new LinkedHashMap<>();
+        long gcd = 0;
+        for (var entry : totals.entrySet()) {
+            if (touchesAny(entry.getKey(), produced)) {
+                closureTotals.put(entry.getKey(), entry.getValue());
+                gcd = gcd(gcd, entry.getValue());
+            }
+        }
+        if (closureTotals.isEmpty() || gcd <= 0) {
+            return null;
+        }
+        Map<IPatternDetails, Long> perRound = new LinkedHashMap<>();
+        for (var entry : closureTotals.entrySet()) {
+            perRound.put(entry.getKey(), entry.getValue() / gcd);
+        }
+        return new Quota(perRound);
+    }
+
+    /**
+     * 配额过滤（纯函数）:闭包 pattern 的已推送量不得超过（最慢闭包进度 + 1 超轮）;
+     * 闭包外 pattern（外部子合成）不受限.
+     *
+     * @param remaining 各 pattern 剩余执行次数（任务表现状）
+     * @return 本轮允许推送的 pattern 集合
+     */
+    public static Set<IPatternDetails> filterPushable(Quota quota, Map<IPatternDetails, Long> totals,
+            Map<IPatternDetails, Long> remaining) {
+        long round = Long.MAX_VALUE;
+        for (var entry : quota.perRound().entrySet()) {
+            long pushed = totals.getOrDefault(entry.getKey(), 0L) - remaining.getOrDefault(entry.getKey(), 0L);
+            round = Math.min(round, pushed / entry.getValue());
+        }
+        if (round == Long.MAX_VALUE) {
+            round = 0; // 闭包已全部完成,剩余任务自由推送
+        }
+        var allowed = new LinkedHashSet<IPatternDetails>();
+        for (var pattern : remaining.keySet()) {
+            Long t = quota.perRound().get(pattern);
+            if (t == null) {
+                allowed.add(pattern); // 闭包外:不限推
+                continue;
+            }
+            long pushed = totals.getOrDefault(pattern, 0L) - remaining.get(pattern);
+            long cap = t > Long.MAX_VALUE / (round + 1) ? Long.MAX_VALUE : t * (round + 1);
+            if (pushed < cap) {
+                allowed.add(pattern);
+            }
+        }
+        return allowed;
+    }
+
+    private static boolean touchesAny(IPatternDetails pattern, Set<AEKey> loopKeys) {
+        for (var output : pattern.getOutputs()) {
+            if (loopKeys.contains(output.what())) {
+                return true;
+            }
+        }
+        for (var input : pattern.getInputs()) {
+            var possible = input.getPossibleInputs();
+            if (possible.length > 0 && loopKeys.contains(possible[0].what())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static long gcd(long a, long b) {
+        a = Math.abs(a);
+        b = Math.abs(b);
+        while (b != 0) {
+            long t = a % b;
+            a = b;
+            b = t;
+        }
+        return a;
+    }
+}

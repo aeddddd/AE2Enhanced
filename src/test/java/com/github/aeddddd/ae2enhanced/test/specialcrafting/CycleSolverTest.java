@@ -156,9 +156,8 @@ public class CycleSolverTest {
     /**
      * G8(用户案例):A→B,16A+16B+1W→64C,64C+1W→64A.
      * 平衡解 t=[16,1,1],净产 32A/轮,请求 64A → 2 轮.
-     * 注意:A 被 P1 与 P2 两个步骤消耗(多消费者键)——运行时 CPU 贪婪推送可能让
-     * P1 一次性耗尽种子、饿死 P2(无贷款兜底,死锁),因此 A 的种子按全批次保守
-     * 记账 = 每轮总消耗 32 × 2 轮 = 64.
+     * A 被 P1 与 P2 两个步骤消耗(多消费者键)——库存要求仅为 max(前缀种子, 每轮消耗)=32,
+     * 运行时并发消耗由超轮配额调度器闸在每轮以内(不再需要全批次库存).
      */
     @Test
     public void testUserCaseMultiInputCycleSolved() {
@@ -177,22 +176,48 @@ public class CycleSolverTest {
                 .addPreciseInput(64, sand)
                 .addPreciseInput(1, dirt)
                 .build());
-        env.addStoredItem(mult(stone, 64)); // 全批次保守种子:32/轮 × 2 轮
+        env.addStoredItem(mult(stone, 32)); // 每轮种子:max(32, 32)
         env.addStoredItem(mult(dirt, 100)); // 辅材 W
 
         var plan = env.runSpecialSimulation(mult(stone, 64), CalculationStrategy.REPORT_MISSING_ITEMS);
         assertThatPlan(plan)
                 .succeeded()
                 .patternsMatch(Map.of(p1, 32L, p2, 2L, p3, 2L)) // 2 轮 × [16,1,1]
-                .usedMatch(mult(stone, 64), mult(dirt, 4)) // 全批次种子 64A + 2×2W
+                .usedMatch(mult(stone, 32), mult(dirt, 4)) // 每轮种子 32A + 2×2W
                 .missingMatch();
         assertThat(SpecialPlanMarker.isSpecial(plan)).isTrue();
     }
 
+    /** G9(用户案例变体):库存 16A 低于每轮种子要求(32A)→ 回落原生. */
+    @Test
+    public void testUserCaseInsufficientSeedFallsBack() {
+        var env = new SimulationEnv();
+        var stone = item(Items.STONE);
+        var cobble = item(Items.COBBLESTONE);
+        var sand = item(Items.SAND);
+        var dirt = item(Items.DIRT);
+        env.addPattern(new ProcessingPatternBuilder(cobble).addPreciseInput(1, stone).build());
+        env.addPattern(new ProcessingPatternBuilder(mult(sand, 64))
+                .addPreciseInput(16, stone)
+                .addPreciseInput(16, cobble)
+                .addPreciseInput(1, dirt)
+                .build());
+        env.addPattern(new ProcessingPatternBuilder(mult(stone, 64))
+                .addPreciseInput(64, sand)
+                .addPreciseInput(1, dirt)
+                .build());
+        env.addStoredItem(mult(stone, 16)); // 低于每轮种子 32
+        env.addStoredItem(mult(dirt, 100));
+
+        var plan = env.runSpecialSimulation(mult(stone, 64), CalculationStrategy.REPORT_MISSING_ITEMS);
+        assertThatPlan(plan).failed();
+        assertThat(SpecialPlanMarker.isSpecial(plan)).isFalse();
+    }
+
     /**
      * G10(游戏案例,θ 形共享结构):A→B、A→C、B+C→4A——并集联立 t=[1,1,1],净产 2A/轮;
-     * A 多消费者:usedItems 按全批次种子记账(2/轮 × 4 轮 = 8,准备金对冲),
-     * 保证 CPU 贪婪推送的任意顺序下都不会有消费者被饿死(游戏内死锁实测).
+     * A 多消费者:库存要求降为 max(前缀种子, 每轮消耗)=2,usedItems 按钳位后水位记账,
+     * 运行时并发消耗由超轮配额调度器闸在每轮以内.
      */
     @Test
     public void testThetaSharedPatternSolved() {
@@ -206,14 +231,14 @@ public class CycleSolverTest {
                 .addPreciseInput(1, cobble)
                 .addPreciseInput(1, sand)
                 .build());
-        env.addStoredItem(mult(stone, 8)); // 全批次种子:2/轮 × 4 轮
+        env.addStoredItem(mult(stone, 8)); // 远超每轮要求(2)
         env.addStoredItem(sand); // B+C→4A 中 C(sand)的前缀种子 1
 
         var plan = env.runSpecialSimulation(mult(stone, 8), CalculationStrategy.REPORT_MISSING_ITEMS);
         assertThatPlan(plan)
                 .succeeded()
                 .patternsMatch(Map.of(pCrush, 4L, pBack, 4L, pCharge, 4L))
-                .usedMatch(mult(stone, 8), sand) // 全批次种子记账(准备金对冲)
+                .usedMatch(mult(stone, 2), sand) // 每轮消耗记账(贷款钳位)
                 .missingMatch();
         assertThat(SpecialPlanMarker.isSpecial(plan)).isTrue();
     }
@@ -234,32 +259,6 @@ public class CycleSolverTest {
         env.addStoredItem(mult(stone, 8)); // 缺 sand 种子
 
         var plan = env.runSpecialSimulation(mult(stone, 8), CalculationStrategy.REPORT_MISSING_ITEMS);
-        assertThatPlan(plan).failed();
-        assertThat(SpecialPlanMarker.isSpecial(plan)).isFalse();
-    }
-
-    /** G9(用户案例变体):库存 32A 仅为前缀启动种子,不满足多消费者键的全批次保守种子(64A)→ 回落. */
-    @Test
-    public void testUserCaseInsufficientSeedFallsBack() {
-        var env = new SimulationEnv();
-        var stone = item(Items.STONE);
-        var cobble = item(Items.COBBLESTONE);
-        var sand = item(Items.SAND);
-        var dirt = item(Items.DIRT);
-        env.addPattern(new ProcessingPatternBuilder(cobble).addPreciseInput(1, stone).build());
-        env.addPattern(new ProcessingPatternBuilder(mult(sand, 64))
-                .addPreciseInput(16, stone)
-                .addPreciseInput(16, cobble)
-                .addPreciseInput(1, dirt)
-                .build());
-        env.addPattern(new ProcessingPatternBuilder(mult(stone, 64))
-                .addPreciseInput(64, sand)
-                .addPreciseInput(1, dirt)
-                .build());
-        env.addStoredItem(mult(stone, 32)); // 前缀种子够,全批次保守种子(64)不足
-        env.addStoredItem(mult(dirt, 100));
-
-        var plan = env.runSpecialSimulation(mult(stone, 64), CalculationStrategy.REPORT_MISSING_ITEMS);
         assertThatPlan(plan).failed();
         assertThat(SpecialPlanMarker.isSpecial(plan)).isFalse();
     }
