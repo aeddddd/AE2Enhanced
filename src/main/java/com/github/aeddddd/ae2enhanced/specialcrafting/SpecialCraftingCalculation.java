@@ -109,6 +109,10 @@ public class SpecialCraftingCalculation extends CraftingCalculation {
             }
         }
         if (selfRef == null) {
+            if (!selfRefAnyCandidates.isEmpty()) {
+                AE2Enhanced.LOGGER.info("[特殊配方] 广义自引用路径: {}×{},{} 个候选样板", what, target,
+                        selfRefAnyCandidates.size());
+            }
             // 广义自引用:自引用 key ≠ 请求 key 的候选迭代求解(不同候选的种子需求
             // 可能不同);催化剂型(X==Y 进出等量)无法净增殖,留待最后统一报缺料,
             // 不阻塞后续 X≠Y 候选.
@@ -215,12 +219,23 @@ public class SpecialCraftingCalculation extends CraftingCalculation {
     private ICraftingPlan computeCyclePlan(AEKey what, long target) throws InterruptedException {
         // 枚举候选环（长环优先,键集更完整）,迭代求解直到成功——不同候选环的
         // 种子需求/环外输入可能不同,第一个增殖环求解失败时应尝试下一个.
-        for (var cycle : CycleAnalyzer.findCyclesThrough(craftingService, what)) {
+        var cycles = CycleAnalyzer.findCyclesThrough(craftingService, what);
+        AE2Enhanced.LOGGER.info("[特殊配方] 循环链求解: {}×{},找到 {} 个候选环", what, target, cycles.size());
+        for (var cycle : cycles) {
             var analysis = CycleAnalyzer.analyze(cycle);
-            // 不可解/中性/耗散环不接管
-            if (analysis == null || analysis.rateClass() != CycleAnalyzer.RateClass.PRODUCTIVE) {
+            if (analysis == null) {
+                AE2Enhanced.LOGGER.info("[特殊配方] 候选环({} 步)不可解(秩不足/无正整数解/超 long),跳过",
+                        cycle.size());
                 continue;
             }
+            if (analysis.rateClass() != CycleAnalyzer.RateClass.PRODUCTIVE) {
+                AE2Enhanced.LOGGER.info("[特殊配方] 候选环({} 步)为 {},不接管", cycle.size(), analysis.rateClass());
+                continue;
+            }
+            AE2Enhanced.LOGGER.info("[特殊配方] 候选环({} 步)为增殖环:净产 {}/轮,种子 {},全批次种子 {}",
+                    cycle.size(), analysis.netGain(),
+                    java.util.Arrays.toString(analysis.seedsPerKey()),
+                    java.util.Arrays.toString(analysis.batchSeedPerKey()));
 
             ChildCraftingSimulationState inv = new ChildCraftingSimulationState(
                     Ae2CraftingReflect.getNetworkInv(this));
@@ -233,6 +248,7 @@ public class SpecialCraftingCalculation extends CraftingCalculation {
                 continue; // 种子/环外输入不足 → 尝试下一个候选环
             }
 
+            AE2Enhanced.LOGGER.info("[特殊配方] 循环链求解成功: {}×{}", what, target);
             inv.addBytes(8);
             CraftingPlan base = CraftingSimulationState.buildCraftingPlan(inv, this, target);
             // 环计划保守标记 multiplePaths（环外可能仍有其他候选路线）
@@ -242,6 +258,7 @@ public class SpecialCraftingCalculation extends CraftingCalculation {
             return plan;
         }
         // 所有候选环均不适用 → 原生兜底(原生对环剪枝,快速失败,无回归)
+        AE2Enhanced.LOGGER.info("[特殊配方] 无可用候选环,回落原生计算: {}×{}", what, target);
         return null;
     }
 

@@ -81,6 +81,10 @@ public final class CycleSolver {
             if (requiredStock[i] > 0) {
                 long stock = inv.extract(keys.get(i), Long.MAX_VALUE, Actionable.SIMULATE);
                 if (stock < requiredStock[i]) {
+                    com.github.aeddddd.ae2enhanced.AE2Enhanced.LOGGER.info(
+                            "[特殊配方] 环求解回落: {} 种子不足(需要 {},库存 {}{})",
+                            keys.get(i), requiredStock[i], stock,
+                            batchSeeds[i] > 0 ? ",多消费者键按全批次保守记账" : "");
                     return SolveResult.FALLBACK;
                 }
             }
@@ -109,6 +113,8 @@ public final class CycleSolver {
                 Ae2CraftingReflect.treeProcessRequest(pro, inv, totalTimes[i]);
             }
         } catch (CraftBranchFailure failure) {
+            com.github.aeddddd.ae2enhanced.AE2Enhanced.LOGGER.info(
+                    "[特殊配方] 环求解回落:环外输入不足({})", failure.toString());
             return SolveResult.FALLBACK; // 环外输入不足 → 原生兜底(缺料报告)
         } finally {
             for (int i = 0; i < seeds.length; i++) {

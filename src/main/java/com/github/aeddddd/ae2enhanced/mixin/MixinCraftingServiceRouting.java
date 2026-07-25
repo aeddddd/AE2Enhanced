@@ -45,9 +45,15 @@ public class MixinCraftingServiceRouting {
             AEKey what, long amount, CalculationStrategy strategy,
             CallbackInfoReturnable<Future<ICraftingPlan>> cir) {
         try {
-            if (!SpecialRecipeDetector.mayInvolveSpecialRecipes(this.grid.getCraftingService(), what)) {
+            boolean hit = SpecialRecipeDetector.mayInvolveSpecialRecipes(this.grid.getCraftingService(), what);
+            if (!hit) {
+                // 诊断:仅当请求物可合成但未命中时记录(排查"无法识别循环"类问题)
+                if (!this.grid.getCraftingService().getCraftingFor(what).isEmpty()) {
+                    AE2Enhanced.LOGGER.info("[特殊配方] 路由未命中,走原生计算: {}×{}", what, amount);
+                }
                 return;
             }
+            AE2Enhanced.LOGGER.info("[特殊配方] 路由命中,提交专用求解器: {}×{}", what, amount);
             var job = new SpecialCraftingCalculation(level, this.grid, simRequester,
                     new GenericStack(what, amount), strategy);
             cir.setReturnValue(CraftingServiceAccessor.getCraftingPool().submit(job::run));

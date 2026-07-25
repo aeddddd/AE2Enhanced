@@ -111,7 +111,11 @@ public final class CycleAnalyzer {
                 continue;
             }
             for (var input : pattern.getInputs()) {
-                var primaryIn = input.getPossibleInputs()[0];
+                var possible = input.getPossibleInputs();
+                if (possible.length == 0) {
+                    continue; // 真实游戏中可能出现空候选输入(模糊匹配无成员等)
+                }
+                var primaryIn = possible[0];
                 if (primaryIn.amount() <= 0) {
                     continue;
                 }
@@ -179,7 +183,11 @@ public final class CycleAnalyzer {
                 }
             }
             for (var input : pattern.getInputs()) {
-                var primaryIn = input.getPossibleInputs()[0];
+                var possible = input.getPossibleInputs();
+                if (possible.length == 0) {
+                    continue;
+                }
+                var primaryIn = possible[0];
                 int keyIdx = keys.indexOf(primaryIn.what());
                 if (keyIdx >= 0) {
                     coeff[i][keyIdx] = coeff[i][keyIdx]
