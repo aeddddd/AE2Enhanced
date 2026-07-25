@@ -221,6 +221,15 @@ public class SpecialCraftingCalculation extends CraftingCalculation {
         // 种子需求/环外输入可能不同,第一个增殖环求解失败时应尝试下一个.
         var cycles = CycleAnalyzer.findCyclesThrough(craftingService, what);
         AE2Enhanced.LOGGER.info("[特殊配方] 循环链求解: {}×{},找到 {} 个候选环", what, target, cycles.size());
+        // θ 形共享结构(多个环共享同一中间样板,如赛特斯石英循环)逐环分析会互相把
+        // 对方的中间物当环外输入而双双失败 → 先尝试候选环并集联立求解
+        var union = CycleAnalyzer.analyzeUnion(cycles);
+        if (union != null && union.rateClass() == CycleAnalyzer.RateClass.PRODUCTIVE) {
+            var plan = tryCycleAnalysis(union, what, target);
+            if (plan != null) {
+                return plan;
+            }
+        }
         for (var cycle : cycles) {
             var analysis = CycleAnalyzer.analyze(cycle);
             if (analysis == null) {
@@ -232,34 +241,48 @@ public class SpecialCraftingCalculation extends CraftingCalculation {
                 AE2Enhanced.LOGGER.info("[特殊配方] 候选环({} 步)为 {},不接管", cycle.size(), analysis.rateClass());
                 continue;
             }
-            AE2Enhanced.LOGGER.info("[特殊配方] 候选环({} 步)为增殖环:净产 {}/轮,种子 {},全批次种子 {}",
-                    cycle.size(), analysis.netGain(),
-                    java.util.Arrays.toString(analysis.seedsPerKey()),
-                    java.util.Arrays.toString(analysis.batchSeedPerKey()));
-
-            ChildCraftingSimulationState inv = new ChildCraftingSimulationState(
-                    Ae2CraftingReflect.getNetworkInv(this));
-            // 关键差异:不执行 ignore(what),保留网络库存中的种子
-            var result = CycleSolver.trySolve(craftingService, this, analysis, inv, what, target);
-            if (result == CycleSolver.SolveResult.OVERFLOW) {
-                return missingPlan(what, target, true);
+            var plan = tryCycleAnalysis(analysis, what, target);
+            if (plan != null) {
+                return plan;
             }
-            if (result != CycleSolver.SolveResult.SUCCESS) {
-                continue; // 种子/环外输入不足 → 尝试下一个候选环
-            }
-
-            AE2Enhanced.LOGGER.info("[特殊配方] 循环链求解成功: {}×{}", what, target);
-            inv.addBytes(8);
-            CraftingPlan base = CraftingSimulationState.buildCraftingPlan(inv, this, target);
-            // 环计划保守标记 multiplePaths（环外可能仍有其他候选路线）
-            ICraftingPlan plan = new CraftingPlan(base.finalOutput(), base.bytes(), base.simulation(), true,
-                    base.usedItems(), base.emittedItems(), base.missingItems(), base.patternTimes());
-            SpecialPlanMarker.mark(plan);
-            return plan;
         }
         // 所有候选环均不适用 → 原生兜底(原生对环剪枝,快速失败,无回归)
         AE2Enhanced.LOGGER.info("[特殊配方] 无可用候选环,回落原生计算: {}×{}", what, target);
         return null;
+    }
+
+    /**
+     * 对单个增殖环分析结果尝试求解并构建计划.
+     *
+     * @return 成功且已标记的计划;失败（种子/环外输入不足）返回 null,溢出返回缺料计划.
+     */
+    @Nullable
+    private ICraftingPlan tryCycleAnalysis(CycleAnalyzer.Analysis analysis, AEKey what, long target)
+            throws InterruptedException {
+        AE2Enhanced.LOGGER.info("[特殊配方] 尝试增殖环({} 步):净产 {}/轮,种子 {},全批次种子 {}",
+                analysis.steps().size(), analysis.netGain(),
+                java.util.Arrays.toString(analysis.seedsPerKey()),
+                java.util.Arrays.toString(analysis.batchSeedPerKey()));
+
+        ChildCraftingSimulationState inv = new ChildCraftingSimulationState(
+                Ae2CraftingReflect.getNetworkInv(this));
+        // 关键差异:不执行 ignore(what),保留网络库存中的种子
+        var result = CycleSolver.trySolve(craftingService, this, analysis, inv, what, target);
+        if (result == CycleSolver.SolveResult.OVERFLOW) {
+            return missingPlan(what, target, true);
+        }
+        if (result != CycleSolver.SolveResult.SUCCESS) {
+            return null;
+        }
+
+        AE2Enhanced.LOGGER.info("[特殊配方] 循环链求解成功: {}×{}", what, target);
+        inv.addBytes(8);
+        CraftingPlan base = CraftingSimulationState.buildCraftingPlan(inv, this, target);
+        // 环计划保守标记 multiplePaths（环外可能仍有其他候选路线）
+        ICraftingPlan plan = new CraftingPlan(base.finalOutput(), base.bytes(), base.simulation(), true,
+                base.usedItems(), base.emittedItems(), base.missingItems(), base.patternTimes());
+        SpecialPlanMarker.mark(plan);
+        return plan;
     }
 
     /**

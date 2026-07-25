@@ -193,6 +193,37 @@ public class CycleAnalyzerTest {
         assertThat(analysis.batchSeedPerKey()).containsExactly(32, 0, 0);
     }
 
+    /**
+     * F10(游戏案例,θ 形共享结构):A→B、A→C、B+C→4A——"B+C→4A"被两个两键环共享,
+     * 逐环分析互相把对方中间物当环外输入;并集联立:3 键 × 3 样板适定,t=[1,1,1],
+     * 净产 2A/轮,A 多消费者(被两个样板消耗)需全批次种子 2/轮.
+     */
+    @Test
+    public void testThetaSharedPatternUnionAnalysis() {
+        var env = new SimulationEnv();
+        var stone = item(Items.STONE);
+        var cobble = item(Items.COBBLESTONE);
+        var sand = item(Items.SAND);
+        env.addPattern(new ProcessingPatternBuilder(cobble).addPreciseInput(1, stone).build()); // A→B
+        env.addPattern(new ProcessingPatternBuilder(sand).addPreciseInput(1, stone).build()); // A→C
+        env.addPattern(new ProcessingPatternBuilder(mult(stone, 4))
+                .addPreciseInput(1, cobble)
+                .addPreciseInput(1, sand)
+                .build()); // B+C→4A
+
+        var cycles = CycleAnalyzer.findCyclesThrough(env.craftingService(), stone.what());
+        assertThat(cycles).hasSize(2); // 两个两键环,共享 P_back
+
+        var union = CycleAnalyzer.analyzeUnion(cycles);
+        assertThat(union).isNotNull();
+        assertThat(union.keys()).containsExactly(stone.what(), cobble.what(), sand.what());
+        assertThat(union.rateClass()).isEqualTo(CycleAnalyzer.RateClass.PRODUCTIVE);
+        assertThat(union.timesPerRound()).containsExactly(1, 1, 1);
+        assertThat(union.netGain()).isEqualTo(2);
+        assertThat(union.seedsPerKey()).containsExactly(1, 0, 1);
+        assertThat(union.batchSeedPerKey()).containsExactly(2, 0, 0);
+    }
+
     private static GenericStack item(Item item) {
         return GenericStack.fromItemStack(new ItemStack(item));
     }

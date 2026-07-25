@@ -189,6 +189,55 @@ public class CycleSolverTest {
         assertThat(SpecialPlanMarker.isSpecial(plan)).isTrue();
     }
 
+    /**
+     * G10(游戏案例,θ 形共享结构):A→B、A→C、B+C→4A——并集联立 t=[1,1,1],净产 2A/轮;
+     * A 多消费者,库存校验按全批次种子 2/轮 × 4 轮 = 8;usedItems 按模拟峰值记账
+     * (P_back 在 P_charge 消耗前已产出 A,峰值提取 4).
+     */
+    @Test
+    public void testThetaSharedPatternSolved() {
+        var env = new SimulationEnv();
+        var stone = item(Items.STONE);
+        var cobble = item(Items.COBBLESTONE);
+        var sand = item(Items.SAND);
+        var pCrush = env.addPattern(new ProcessingPatternBuilder(cobble).addPreciseInput(1, stone).build());
+        var pCharge = env.addPattern(new ProcessingPatternBuilder(sand).addPreciseInput(1, stone).build());
+        var pBack = env.addPattern(new ProcessingPatternBuilder(mult(stone, 4))
+                .addPreciseInput(1, cobble)
+                .addPreciseInput(1, sand)
+                .build());
+        env.addStoredItem(mult(stone, 8)); // 全批次种子:2/轮 × 4 轮
+        env.addStoredItem(sand); // B+C→4A 中 C(sand)的前缀种子 1
+
+        var plan = env.runSpecialSimulation(mult(stone, 8), CalculationStrategy.REPORT_MISSING_ITEMS);
+        assertThatPlan(plan)
+                .succeeded()
+                .patternsMatch(Map.of(pCrush, 4L, pBack, 4L, pCharge, 4L))
+                .usedMatch(mult(stone, 4), sand) // 峰值提取:A 产出早于部分消耗
+                .missingMatch();
+        assertThat(SpecialPlanMarker.isSpecial(plan)).isTrue();
+    }
+
+    /** G11:θ 结构缺少中间物前缀种子(sand=0)→ 并集与逐环均不可解,回落原生. */
+    @Test
+    public void testThetaSharedPatternMissingSeedFallsBack() {
+        var env = new SimulationEnv();
+        var stone = item(Items.STONE);
+        var cobble = item(Items.COBBLESTONE);
+        var sand = item(Items.SAND);
+        env.addPattern(new ProcessingPatternBuilder(cobble).addPreciseInput(1, stone).build());
+        env.addPattern(new ProcessingPatternBuilder(sand).addPreciseInput(1, stone).build());
+        env.addPattern(new ProcessingPatternBuilder(mult(stone, 4))
+                .addPreciseInput(1, cobble)
+                .addPreciseInput(1, sand)
+                .build());
+        env.addStoredItem(mult(stone, 8)); // 缺 sand 种子
+
+        var plan = env.runSpecialSimulation(mult(stone, 8), CalculationStrategy.REPORT_MISSING_ITEMS);
+        assertThatPlan(plan).failed();
+        assertThat(SpecialPlanMarker.isSpecial(plan)).isFalse();
+    }
+
     /** G9(用户案例变体):库存 32A 仅为前缀启动种子,不满足多消费者键的全批次保守种子(64A)→ 回落. */
     @Test
     public void testUserCaseInsufficientSeedFallsBack() {

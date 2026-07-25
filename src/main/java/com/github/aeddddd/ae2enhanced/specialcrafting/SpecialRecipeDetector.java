@@ -30,13 +30,15 @@ public final class SpecialRecipeDetector {
                 return true;
             }
         }
-        // 阶段 2:经过请求物的候选环中存在可解增殖环
-        for (var cycle : CycleAnalyzer.findCyclesThrough(craftingService, what)) {
+        // 阶段 2:经过请求物的候选环中存在可解增殖环(含 θ 形共享结构的并集分析)
+        var cycles = CycleAnalyzer.findCyclesThrough(craftingService, what);
+        for (var cycle : cycles) {
             var analysis = CycleAnalyzer.analyze(cycle);
             if (analysis != null && analysis.rateClass() == CycleAnalyzer.RateClass.PRODUCTIVE) {
                 return true;
             }
         }
-        return false;
+        var union = CycleAnalyzer.analyzeUnion(cycles);
+        return union != null && union.rateClass() == CycleAnalyzer.RateClass.PRODUCTIVE;
     }
 }

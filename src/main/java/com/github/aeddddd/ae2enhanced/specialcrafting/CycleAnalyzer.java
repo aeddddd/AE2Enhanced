@@ -6,6 +6,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import org.jetbrains.annotations.Nullable;
@@ -150,23 +151,71 @@ public final class CycleAnalyzer {
     }
 
     /**
-     * 分析简单环:系数矩阵 + 零空间正整数解 + 净率分类 + 各键种子前缀分析.
+     * 分析简单环:闭合性校验后委托 {@link #solveSystem}.
      *
      * @return 分析结果;闭合性错误/秩不足/无正整数解/数值超 long 时返回 null.
      */
     @Nullable
-    public static Analysis analyze(List<CycleStep> steps) {
-        if (steps == null || steps.size() < 2) {
+    public static Analysis analyze(List<CycleStep> cycle) {
+        if (cycle == null || cycle.size() < 2) {
             return null;
         }
-        int n = steps.size();
+        int n = cycle.size();
         // 闭合性校验 + 键集（首步 fromKey 为 root）
         List<AEKey> keys = new ArrayList<>(n);
         for (int i = 0; i < n; i++) {
-            if (!steps.get(i).toKey().equals(steps.get((i + 1) % n).fromKey())) {
+            if (!cycle.get(i).toKey().equals(cycle.get((i + 1) % n).fromKey())) {
                 return null;
             }
-            keys.add(steps.get(i).fromKey());
+            keys.add(cycle.get(i).fromKey());
+        }
+        return solveSystem(keys, cycle);
+    }
+
+    /**
+     * 候选环并集分析（θ 形共享结构,如赛特斯石英循环:水晶→粉、水晶→充能、
+     * 粉+充能→水晶——"粉+充能→水晶"被两个两键环共享,逐环分析会把另一中间物
+     * 当环外输入而双双失败）.
+     * <p>取所有候选环的键集与样板（按样板去重）的并集;当 样板数 == 键数 时构成
+     * 适定方程组,与单环同一套零空间求解;否则（欠定/仅共享 root 的无关环并集）
+     * 返回 null,由调用方回落逐环迭代.</p>
+     */
+    @Nullable
+    public static Analysis analyzeUnion(List<List<CycleStep>> cycles) {
+        if (cycles == null || cycles.size() < 2) {
+            return null;
+        }
+        AEKey root = cycles.get(0).get(0).fromKey();
+        List<AEKey> keys = new ArrayList<>();
+        keys.add(root);
+        Map<IPatternDetails, CycleStep> stepByPattern = new LinkedHashMap<>();
+        for (var cycle : cycles) {
+            for (var step : cycle) {
+                if (!step.fromKey().equals(root) && !keys.contains(step.fromKey())) {
+                    keys.add(step.fromKey());
+                }
+                if (!step.toKey().equals(root) && !keys.contains(step.toKey())) {
+                    keys.add(step.toKey());
+                }
+                stepByPattern.putIfAbsent(step.pattern(), step);
+            }
+        }
+        List<CycleStep> steps = new ArrayList<>(stepByPattern.values());
+        if (steps.size() != keys.size()) {
+            return null; // m ≠ n:欠定(LP 领域)或仅有平凡解,回落逐环迭代
+        }
+        return solveSystem(keys, steps);
+    }
+
+    /**
+     * 求解核心:对给定的键集与样板集建立系数矩阵,求平衡方程正整数零空间解、
+     * 净率分类、前缀种子与多消费者键全批次种子.
+     */
+    @Nullable
+    private static Analysis solveSystem(List<AEKey> keys, List<CycleStep> steps) {
+        int n = steps.size();
+        if (n < 2 || keys.size() != n) {
+            return null;
         }
 
         // 系数矩阵 coeff[step][key] = 该样板每份对该 key 的净产出(产出-消耗,精确 key 相等)
