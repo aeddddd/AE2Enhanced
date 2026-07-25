@@ -90,6 +90,47 @@ public class SpecialRecipeDetectorTest {
         assertThat(SpecialRecipeDetector.mayInvolveSpecialRecipes(env.craftingService(), stone.what())).isTrue();
     }
 
+    /** D7:增殖循环链(A→2B,B→A)→ 命中. */
+    @Test
+    public void testProductiveCycleHits() {
+        var env = new SimulationEnv();
+        var stone = item(Items.STONE);
+        var cobble = item(Items.COBBLESTONE);
+        env.addPattern(new ProcessingPatternBuilder(mult(cobble, 2)).addPreciseInput(1, stone).build());
+        env.addPattern(new ProcessingPatternBuilder(stone).addPreciseInput(1, cobble).build());
+
+        assertThat(SpecialRecipeDetector.mayInvolveSpecialRecipes(env.craftingService(), stone.what())).isTrue();
+    }
+
+    /** D8:中性循环链(A→B,B→A,净率 1)→ 未命中(不接管,走原生). */
+    @Test
+    public void testNeutralCycleMisses() {
+        var env = new SimulationEnv();
+        var stone = item(Items.STONE);
+        var cobble = item(Items.COBBLESTONE);
+        env.addPattern(new ProcessingPatternBuilder(cobble).addPreciseInput(1, stone).build());
+        env.addPattern(new ProcessingPatternBuilder(stone).addPreciseInput(1, cobble).build());
+
+        assertThat(SpecialRecipeDetector.mayInvolveSpecialRecipes(env.craftingService(), stone.what())).isFalse();
+    }
+
+    /** D9:θ 形共享结构(A→B、A→C、B+C→4A)→ 命中(单环分析即增殖,并集联立真正可解). */
+    @Test
+    public void testThetaUnionHits() {
+        var env = new SimulationEnv();
+        var stone = item(Items.STONE);
+        var cobble = item(Items.COBBLESTONE);
+        var sand = item(Items.SAND);
+        env.addPattern(new ProcessingPatternBuilder(cobble).addPreciseInput(1, stone).build());
+        env.addPattern(new ProcessingPatternBuilder(sand).addPreciseInput(1, stone).build());
+        env.addPattern(new ProcessingPatternBuilder(mult(stone, 4))
+                .addPreciseInput(1, cobble)
+                .addPreciseInput(1, sand)
+                .build());
+
+        assertThat(SpecialRecipeDetector.mayInvolveSpecialRecipes(env.craftingService(), stone.what())).isTrue();
+    }
+
     private static GenericStack item(Item item) {
         return GenericStack.fromItemStack(new ItemStack(item));
     }
