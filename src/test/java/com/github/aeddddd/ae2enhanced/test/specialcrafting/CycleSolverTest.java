@@ -191,8 +191,8 @@ public class CycleSolverTest {
 
     /**
      * G10(游戏案例,θ 形共享结构):A→B、A→C、B+C→4A——并集联立 t=[1,1,1],净产 2A/轮;
-     * A 多消费者,库存校验按全批次种子 2/轮 × 4 轮 = 8;usedItems 按模拟峰值记账
-     * (P_back 在 P_charge 消耗前已产出 A,峰值提取 4).
+     * A 多消费者:usedItems 按全批次种子记账(2/轮 × 4 轮 = 8,准备金对冲),
+     * 保证 CPU 贪婪推送的任意顺序下都不会有消费者被饿死(游戏内死锁实测).
      */
     @Test
     public void testThetaSharedPatternSolved() {
@@ -213,7 +213,7 @@ public class CycleSolverTest {
         assertThatPlan(plan)
                 .succeeded()
                 .patternsMatch(Map.of(pCrush, 4L, pBack, 4L, pCharge, 4L))
-                .usedMatch(mult(stone, 4), sand) // 峰值提取:A 产出早于部分消耗
+                .usedMatch(mult(stone, 8), sand) // 全批次种子记账(准备金对冲)
                 .missingMatch();
         assertThat(SpecialPlanMarker.isSpecial(plan)).isTrue();
     }

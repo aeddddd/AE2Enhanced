@@ -102,6 +102,16 @@ public final class CycleSolver {
                 inv.insert(keys.get(i), loans[i], Actionable.MODULATE);
             }
         }
+        // 多消费者键"准备金对冲":模拟开头先取后还 R,把历史最低点压到 库存-R,
+        // 使 usedItems 按全批次种子记账——CPU 初始提取必须覆盖整批消耗,
+        // 否则贪婪推送顺序下先行的消费者会耗尽该键、其余消费者永久饿死
+        // (游戏内 ×100 水晶订单实测死锁).
+        for (int i = 0; i < keys.size(); i++) {
+            if (batchSeeds[i] > 0 && requiredStock[i] > 0) {
+                inv.extract(keys.get(i), requiredStock[i], Actionable.MODULATE);
+                inv.insert(keys.get(i), requiredStock[i], Actionable.MODULATE);
+            }
+        }
         try {
             CraftingTreeNode rootNode = new CraftingTreeNode(craftingService, job, what, 1, null, -1);
             for (int i = 0; i < analysis.steps().size(); i++) {
