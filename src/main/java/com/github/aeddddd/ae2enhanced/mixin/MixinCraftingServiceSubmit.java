@@ -39,6 +39,12 @@ public class MixinCraftingServiceSubmit {
     private void ae2e$routeSpecialJob(ICraftingPlan job, ICraftingRequester requestingMachine,
             ICraftingCPU target, boolean prioritizePower, IActionSource src,
             CallbackInfoReturnable<ICraftingSubmitResult> cir) {
+        // 与原生相同的先序校验:模拟(缺料)计划一律拒绝,且不得进入我方路由
+        // (特殊求解器产出的失败计划也带标记,若直接路由会被 CPU 当完整计划执行)
+        if (job.simulation()) {
+            cir.setReturnValue(CraftingSubmitResult.INCOMPLETE_PLAN);
+            return;
+        }
         if (!SpecialPlanMarker.isSpecial(job)) {
             return;
         }
