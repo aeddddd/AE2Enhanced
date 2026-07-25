@@ -151,6 +151,10 @@ dependencies {
     modLocalRuntime "org.appliedenergistics:guideme:20.1.7"
 
     testImplementation 'org.junit.jupiter:junit-jupiter:5.10.0'
+    // 合成模拟测试基建(移植自 AE2 SimulationEnv/CraftingSimulationTest)所需断言与 mock 库
+    testImplementation 'org.assertj:assertj-core:3.24.2'
+    testImplementation 'org.mockito:mockito-core:5.3.1'
+    testImplementation 'org.jetbrains:annotations:24.0.1'
 }
 
 mixin {
