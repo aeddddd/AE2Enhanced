@@ -251,6 +251,33 @@ public class SpecialCraftingCalculationTest {
         assertThat(SpecialPlanMarker.isSpecial(plan)).isFalse();
     }
 
+    /**
+     * C14:NBT 恒等催化剂(带 NBT 的物品同 key 返还,如受损镐原样返还)→
+     * 精确 key 相等即被广义自引用覆盖,无需逐份展开.
+     * (耐久损耗型 NBT 变化映射不在此列,仍为原生逐份,见规划文档已知限制.)
+     */
+    @Test
+    public void testNbtIdenticalCatalystWithSeed() {
+        var env = new SimulationEnv();
+        var damagedStack = new ItemStack(Items.DIAMOND_PICKAXE);
+        damagedStack.setDamageValue(100);
+        var damagedPickaxe = GenericStack.fromItemStack(damagedStack);
+        var emerald = item(Items.EMERALD);
+        // 1 受损镐 -> 1 绿宝石 + 1 受损镐(同 NBT 恒等返还)
+        var pattern = env.addPattern(new ProcessingPatternBuilder(emerald, damagedPickaxe)
+                .addPreciseInput(1, damagedPickaxe)
+                .build());
+        env.addStoredItem(damagedPickaxe); // 种子 1(同一 NBT key)
+
+        var plan = env.runSpecialSimulation(mult(emerald, 10), CalculationStrategy.REPORT_MISSING_ITEMS);
+        assertThatPlan(plan)
+                .succeeded()
+                .patternsMatch(pattern, 10)
+                .usedMatch(damagedPickaxe) // 仅 1 份种子
+                .missingMatch();
+        assertThat(SpecialPlanMarker.isSpecial(plan)).isTrue();
+    }
+
     /** C9:天文数字订单(贷款量溢出 long)→ 回落原生,不静默截断. */
     @Test
     public void testAstronomicalOrderFallsBack() {

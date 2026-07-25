@@ -34,6 +34,10 @@ import java.util.Map;
  * 借入 (份数-1)×单次种子 的请求物,使 {@code pro.request(inv, crafts)} 可以
  * 整批通过,产出后立即归还借入量并取走净产出、保留种子.相比逐份迭代,
  * 计算耗时从 O(份数) 降为 O(1) 次样板模拟.其余场景完全走原生逻辑.</p>
+ * <p><b>职责收窄（阶段 3)</b>:本注入对根节点（{@code parent == null}）本就不生效,
+ * 根请求已由路由层（{@code specialcrafting} 包）闭式解接管;本 mixin 保留用于
+ * <b>中间节点</b>（深层自引用,如"锻造装备间接需要复制模板")及催化剂同 key
+ * 返还的中间节点加速,在深层支持落地前不予删除.</p>
  */
 @Mixin(value = CraftingTreeNode.class, remap = false)
 public class MixinCraftingTreeNode {

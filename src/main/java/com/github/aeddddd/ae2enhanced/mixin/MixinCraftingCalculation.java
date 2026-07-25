@@ -19,6 +19,11 @@ import org.spongepowered.asm.mixin.injection.Redirect;
  * 库存中的请求物是启动合成链的必要种子,清零后必然报缺料.
  * 此处仅当请求物的唯一候选样板为净产出自引用样板时跳过 ignore,
  * 其余情况保持原生行为不变.</p>
+ * <p><b>职责收窄（阶段 3)</b>:根请求的自引用/循环链已由路由层
+ * （{@code specialcrafting} 包）以闭式解接管;本 mixin 保留用于
+ * <b>中间节点</b>场景（请求物的间接输入含唯一候选自引用样板,
+ * 如"锻造装备间接需要复制模板")及路由求解器的原生回落路径,
+ * 在深层支持落地前不予删除.</p>
  */
 @Mixin(value = CraftingCalculation.class, remap = false)
 public class MixinCraftingCalculation {
