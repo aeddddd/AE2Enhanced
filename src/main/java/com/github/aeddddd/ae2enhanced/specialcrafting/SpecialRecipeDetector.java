@@ -30,12 +30,13 @@ public final class SpecialRecipeDetector {
                 return true;
             }
         }
-        // 阶段 2:经过请求物的简单环且为增殖环
-        var cycle = CycleAnalyzer.findCycle(craftingService, what);
-        if (cycle == null) {
-            return false;
+        // 阶段 2:经过请求物的候选环中存在可解增殖环
+        for (var cycle : CycleAnalyzer.findCyclesThrough(craftingService, what)) {
+            var analysis = CycleAnalyzer.analyze(cycle);
+            if (analysis != null && analysis.rateClass() == CycleAnalyzer.RateClass.PRODUCTIVE) {
+                return true;
+            }
         }
-        var analysis = CycleAnalyzer.analyze(cycle);
-        return analysis != null && analysis.rateClass() == CycleAnalyzer.RateClass.PRODUCTIVE;
+        return false;
     }
 }

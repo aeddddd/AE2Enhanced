@@ -153,6 +153,65 @@ public class CycleSolverTest {
                 .missingMatch();
     }
 
+    /**
+     * G8(用户案例):A→B,16A+16B+1W→64C,64C+1W→64A,种子 32A + 充足 W.
+     * 平衡解 t=[16,1,1],净产 32A/轮,请求 64A → 2 轮.
+     */
+    @Test
+    public void testUserCaseMultiInputCycleSolved() {
+        var env = new SimulationEnv();
+        var stone = item(Items.STONE);
+        var cobble = item(Items.COBBLESTONE);
+        var sand = item(Items.SAND);
+        var dirt = item(Items.DIRT);
+        var p1 = env.addPattern(new ProcessingPatternBuilder(cobble).addPreciseInput(1, stone).build());
+        var p2 = env.addPattern(new ProcessingPatternBuilder(mult(sand, 64))
+                .addPreciseInput(16, stone)
+                .addPreciseInput(16, cobble)
+                .addPreciseInput(1, dirt)
+                .build());
+        var p3 = env.addPattern(new ProcessingPatternBuilder(mult(stone, 64))
+                .addPreciseInput(64, sand)
+                .addPreciseInput(1, dirt)
+                .build());
+        env.addStoredItem(mult(stone, 32)); // 种子 32A(前缀分析:16+16)
+        env.addStoredItem(mult(dirt, 100)); // 辅材 W
+
+        var plan = env.runSpecialSimulation(mult(stone, 64), CalculationStrategy.REPORT_MISSING_ITEMS);
+        assertThatPlan(plan)
+                .succeeded()
+                .patternsMatch(Map.of(p1, 32L, p2, 2L, p3, 2L)) // 2 轮 × [16,1,1]
+                .usedMatch(mult(stone, 32), mult(dirt, 4)) // 种子 32A + 2×2W
+                .missingMatch();
+        assertThat(SpecialPlanMarker.isSpecial(plan)).isTrue();
+    }
+
+    /** G9(用户案例变体):种子不足(16A < 32A)→ 回落原生,报缺料. */
+    @Test
+    public void testUserCaseInsufficientSeedFallsBack() {
+        var env = new SimulationEnv();
+        var stone = item(Items.STONE);
+        var cobble = item(Items.COBBLESTONE);
+        var sand = item(Items.SAND);
+        var dirt = item(Items.DIRT);
+        env.addPattern(new ProcessingPatternBuilder(cobble).addPreciseInput(1, stone).build());
+        env.addPattern(new ProcessingPatternBuilder(mult(sand, 64))
+                .addPreciseInput(16, stone)
+                .addPreciseInput(16, cobble)
+                .addPreciseInput(1, dirt)
+                .build());
+        env.addPattern(new ProcessingPatternBuilder(mult(stone, 64))
+                .addPreciseInput(64, sand)
+                .addPreciseInput(1, dirt)
+                .build());
+        env.addStoredItem(mult(stone, 16)); // 种子不足
+        env.addStoredItem(mult(dirt, 100));
+
+        var plan = env.runSpecialSimulation(mult(stone, 64), CalculationStrategy.REPORT_MISSING_ITEMS);
+        assertThatPlan(plan).failed();
+        assertThat(SpecialPlanMarker.isSpecial(plan)).isFalse();
+    }
+
     // ===== 断言辅助 =====
 
     private static GenericStack item(Item item) {

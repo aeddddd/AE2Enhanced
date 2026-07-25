@@ -193,13 +193,17 @@ public class SpecialCraftingCalculation extends CraftingCalculation {
      */
     @Nullable
     private ICraftingPlan computeCyclePlan(AEKey what, long target) throws InterruptedException {
-        var cycle = CycleAnalyzer.findCycle(craftingService, what);
-        if (cycle == null) {
-            return null;
+        // 枚举候选环（长环优先,键集更完整）,取第一个可解的增殖环
+        CycleAnalyzer.Analysis analysis = null;
+        for (var cycle : CycleAnalyzer.findCyclesThrough(craftingService, what)) {
+            var candidate = CycleAnalyzer.analyze(cycle);
+            if (candidate != null && candidate.rateClass() == CycleAnalyzer.RateClass.PRODUCTIVE) {
+                analysis = candidate;
+                break;
+            }
         }
-        var analysis = CycleAnalyzer.analyze(cycle);
-        // 非简单环/中性/耗散环不接管 → 原生兜底(原生对环剪枝,快速失败,无回归)
-        if (analysis == null || analysis.rateClass() != CycleAnalyzer.RateClass.PRODUCTIVE) {
+        // 无环/非简单环/中性/耗散环不接管 → 原生兜底(原生对环剪枝,快速失败,无回归)
+        if (analysis == null) {
             return null;
         }
 

@@ -60,7 +60,7 @@ public class CycleAnalyzerTest {
         assertThat(analysis.rateClass()).isEqualTo(CycleAnalyzer.RateClass.PRODUCTIVE);
         assertThat(analysis.timesPerRound()).containsExactly(1, 2);
         assertThat(analysis.netGain()).isEqualTo(1);
-        assertThat(analysis.seed()).isEqualTo(1);
+        assertThat(analysis.seedsPerKey()).containsExactly(1, 0);
     }
 
     /** F4:三节点增殖环 A→B,B→C,C→2A. */
@@ -83,7 +83,7 @@ public class CycleAnalyzerTest {
         assertThat(analysis.rateClass()).isEqualTo(CycleAnalyzer.RateClass.PRODUCTIVE);
         assertThat(analysis.timesPerRound()).containsExactly(1, 1, 1);
         assertThat(analysis.netGain()).isEqualTo(1);
-        assertThat(analysis.seed()).isEqualTo(1);
+        assertThat(analysis.seedsPerKey()).containsExactly(1, 0, 0);
     }
 
     /** F5:存在无关普通样板时仍能发现环. */
@@ -132,9 +132,12 @@ public class CycleAnalyzerTest {
         assertThat(analysis.rateClass()).isEqualTo(CycleAnalyzer.RateClass.DISSIPATIVE);
     }
 
-    /** F8:非简单环(样板消耗两种环内物品)→ analyze 返回 null. */
+    /**
+     * F8:样板消耗多种环内物品但净率为 1(A+B→2B,B→A:每轮 A 净变化为 0)
+     * → 泛化引擎可分析(非简单检查已移除),分类为 NEUTRAL,不接管.
+     */
     @Test
-    public void testNonSimpleCycleRejected() {
+    public void testMultiCycleKeyInputNeutralCycle() {
         var env = new SimulationEnv();
         var stone = item(Items.STONE);
         var cobble = item(Items.COBBLESTONE);
@@ -146,10 +149,45 @@ public class CycleAnalyzerTest {
         env.addPattern(new ProcessingPatternBuilder(stone).addPreciseInput(1, cobble).build());
 
         var cycle = CycleAnalyzer.findCycle(env.craftingService(), stone.what());
-        // 环可能被找到,但分析必须拒绝(净率无法按简单环闭式求解)
-        if (cycle != null) {
-            assertThat(CycleAnalyzer.analyze(cycle)).isNull();
-        }
+        assertThat(cycle).isNotNull();
+        var analysis = CycleAnalyzer.analyze(cycle);
+        assertThat(analysis).isNotNull();
+        assertThat(analysis.rateClass()).isEqualTo(CycleAnalyzer.RateClass.NEUTRAL);
+    }
+
+    /**
+     * F9(用户案例):A→B,16A+16B+1W→64C,64C+1W→64A.
+     * 样板同时消耗两种环内物品 → 线性平衡解 t=[16,1,1],每轮净产 32A,种子 32A.
+     */
+    @Test
+    public void testUserCaseMultiInputCycle() {
+        var env = new SimulationEnv();
+        var stone = item(Items.STONE);
+        var cobble = item(Items.COBBLESTONE);
+        var sand = item(Items.SAND);
+        var dirt = item(Items.DIRT);
+        env.addPattern(new ProcessingPatternBuilder(cobble).addPreciseInput(1, stone).build());
+        env.addPattern(new ProcessingPatternBuilder(mult(sand, 64))
+                .addPreciseInput(16, stone)
+                .addPreciseInput(16, cobble)
+                .addPreciseInput(1, dirt)
+                .build());
+        env.addPattern(new ProcessingPatternBuilder(mult(stone, 64))
+                .addPreciseInput(64, sand)
+                .addPreciseInput(1, dirt)
+                .build());
+
+        // 应找到最长的三键环(而非 {A,C} 两键短环)
+        var cycles = CycleAnalyzer.findCyclesThrough(env.craftingService(), stone.what());
+        assertThat(cycles).isNotEmpty();
+        assertThat(cycles.get(0)).hasSize(3);
+
+        var analysis = CycleAnalyzer.analyze(cycles.get(0));
+        assertThat(analysis).isNotNull();
+        assertThat(analysis.rateClass()).isEqualTo(CycleAnalyzer.RateClass.PRODUCTIVE);
+        assertThat(analysis.timesPerRound()).containsExactly(16, 1, 1);
+        assertThat(analysis.netGain()).isEqualTo(32);
+        assertThat(analysis.seedsPerKey()).containsExactly(32, 0, 0);
     }
 
     private static GenericStack item(Item item) {

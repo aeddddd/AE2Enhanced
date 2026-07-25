@@ -10,11 +10,12 @@ import appeng.crafting.CraftingTreeProcess;
 import appeng.crafting.inv.ChildCraftingSimulationState;
 
 /**
- * 跨样板增殖环求解器（阶段 2）.
- * <p>对 {@link CycleAnalyzer.Analysis} 判定为增殖环的简单环求闭式解:
- * 种子保留 + 贷款法整批模拟（与阶段 1 自引用同一模式）——沿环正向依次以
- * 原生 {@code CraftingTreeProcess.request} 整批执行各样板,环中间产物的消耗/产出
- * 在模拟库存内闭合（每步产出恰好等于下步消耗）,仅请求物有净增益.</p>
+ * 跨样板增殖环求解器（阶段 2,泛化版）.
+ * <p>对 {@link CycleAnalyzer.Analysis} 判定为增殖环的环键集求闭式解:
+ * 各环内物品按前缀分析得出的种子保留 + 贷款法整批模拟——沿环执行顺序依次以
+ * 原生 {@code CraftingTreeProcess.request} 整批执行各样板,环内物品的消耗/产出
+ * 在模拟库存内闭合（非 root 键每超轮净变化为零）,仅请求物有净增益.
+ * 环外输入（辅材等）由子节点原生解析（库存/外部子合成）.</p>
  */
 public final class CycleSolver {
 
@@ -24,7 +25,7 @@ public final class CycleSolver {
     public enum SolveResult {
         /** 成功,模拟库存已记账（调用方构建计划）. */
         SUCCESS,
-        /** 不适用（无种子/输入不足等）,调用方应回落原生. */
+        /** 不适用（种子不足/输入不足等）,调用方应回落原生. */
         FALLBACK,
         /** 数值溢出（天文数字订单）,调用方应产出 O(1) 缺料计划. */
         OVERFLOW
@@ -41,12 +42,18 @@ public final class CycleSolver {
     public static SolveResult trySolve(ICraftingService craftingService, CraftingCalculation job,
             CycleAnalyzer.Analysis analysis, ChildCraftingSimulationState inv, AEKey what, long target)
             throws InterruptedException {
-        long seed = analysis.seed();
+        var keys = analysis.keys();
+        var seeds = analysis.seedsPerKey();
+        var times = analysis.timesPerRound();
 
-        // 1) 种子校验
-        long stock = inv.extract(what, Long.MAX_VALUE, Actionable.SIMULATE);
-        if (stock < seed) {
-            return SolveResult.FALLBACK;
+        // 1) 各环内物品种子校验:库存必须覆盖各自的前缀启动需求
+        for (int i = 0; i < keys.size(); i++) {
+            if (seeds[i] > 0) {
+                long stock = inv.extract(keys.get(i), Long.MAX_VALUE, Actionable.SIMULATE);
+                if (stock < seeds[i]) {
+                    return SolveResult.FALLBACK;
+                }
+            }
         }
 
         // 注意:不做"库存直接交付"(fromStock)——AE2 执行模型只认样板产出作为交付来源,
@@ -56,31 +63,28 @@ public final class CycleSolver {
         if (remaining > 0) {
             long rounds = (remaining + analysis.netGain() - 1) / analysis.netGain();
             // T_i = rounds × timesPerRound[i],任一溢出即天文数字订单
-            long[] totalTimes = new long[analysis.timesPerRound().length];
+            long[] totalTimes = new long[times.length];
             for (int i = 0; i < totalTimes.length; i++) {
-                if (analysis.timesPerRound()[i] != 0 && rounds > Long.MAX_VALUE / analysis.timesPerRound()[i]) {
+                if (times[i] != 0 && rounds > Long.MAX_VALUE / times[i]) {
                     return SolveResult.OVERFLOW;
                 }
-                totalTimes[i] = rounds * analysis.timesPerRound()[i];
+                totalTimes[i] = rounds * times[i];
             }
 
-            // 3) 贷款法:首步消耗 totalTimes[0]×inPer 的请求物,而净产出在末步才回到库存,
-            // 借入 (总消耗 - 种子) 使整批通过,产出后归还.
-            long firstStepInPer = analysis.steps().get(0).inPer();
-            if (totalTimes[0] > 0 && firstStepInPer > Long.MAX_VALUE / totalTimes[0]) {
-                return SolveResult.OVERFLOW;
-            }
-            long totalConsume = totalTimes[0] * firstStepInPer;
-            long loan = totalConsume - seed;
-            if (loan < 0 || (loan > 0 && seed > totalConsume)) {
-                return SolveResult.OVERFLOW; // 防御,理论不可达
-            }
-
-            CraftingTreeNode rootNode = new CraftingTreeNode(craftingService, job, what, 1, null, -1);
-            if (loan > 0) {
-                inv.insert(what, loan, Actionable.MODULATE);
+            // 2) 贷款法:批处理按执行顺序先消耗后产出,各键前缀缺口为 (rounds-1)×seed,
+            // 借入使整批通过,产出后归还（借还精确对冲,只抬高模拟库存水位）.
+            long[] loans = new long[seeds.length];
+            for (int i = 0; i < seeds.length; i++) {
+                if (seeds[i] > 0 && rounds - 1 > 0) {
+                    if (seeds[i] > Long.MAX_VALUE / (rounds - 1)) {
+                        return SolveResult.OVERFLOW;
+                    }
+                    loans[i] = (rounds - 1) * seeds[i];
+                    inv.insert(keys.get(i), loans[i], Actionable.MODULATE);
+                }
             }
             try {
+                CraftingTreeNode rootNode = new CraftingTreeNode(craftingService, job, what, 1, null, -1);
                 for (int i = 0; i < analysis.steps().size(); i++) {
                     if (totalTimes[i] <= 0) {
                         continue;
@@ -92,14 +96,16 @@ public final class CycleSolver {
             } catch (CraftBranchFailure failure) {
                 return SolveResult.FALLBACK; // 环外输入不足 → 原生兜底(缺料报告)
             } finally {
-                if (loan > 0) {
-                    inv.extract(what, loan, Actionable.MODULATE);
+                for (int i = 0; i < seeds.length; i++) {
+                    if (loans[i] > 0) {
+                        inv.extract(keys.get(i), loans[i], Actionable.MODULATE);
+                    }
                 }
             }
 
-            // 4) 结算:模拟库存 = 种子 + rounds×netGain,取走交付量,种子保留
+            // 3) 结算:模拟库存请求物 = 种子 + rounds×netGain,取走交付量,种子保留
             long avail = inv.extract(what, Long.MAX_VALUE, Actionable.SIMULATE);
-            long keep = avail > remaining ? seed : 0;
+            long keep = avail > remaining ? seeds[0] : 0;
             long drain = inv.extract(what, Math.min(remaining, Math.max(0, avail - keep)),
                     Actionable.MODULATE);
             remaining -= drain;

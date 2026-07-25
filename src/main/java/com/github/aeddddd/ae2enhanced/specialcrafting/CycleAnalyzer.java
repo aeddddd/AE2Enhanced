@@ -2,6 +2,7 @@ package com.github.aeddddd.ae2enhanced.specialcrafting;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -14,12 +15,14 @@ import appeng.api.networking.crafting.ICraftingService;
 import appeng.api.stacks.AEKey;
 
 /**
- * 跨样板循环链分析器（阶段 2）.
- * <p>在"物品↔样板"依赖图中检测经过请求物品的<b>简单环</b>（每个环内样板只消耗
- * 一种环内物品、只产出一种环内物品,如 A→2B,B→A）,并用精确有理数（BigInteger）
- * 计算环的净乘积率,分类为增殖环（>1)/中性环（=1)/耗散环（<1).
- * 非简单环（样板引用多个环内物品）与超出 long 的速率一律返回 null,
- * 由调用方回落原生行为（原生对环剪枝,快速失败,无回归风险）.</p>
+ * 跨样板循环链分析器（阶段 2,泛化版）.
+ * <p>枚举经过请求物品的<b>简单环</b>（按键集升序尝试,长环优先）,对每个环键集
+ * 建立"样板×物品"精确系数矩阵（样板可消耗/产出任意多种环内物品,如
+ * {@code 16A+16B+W→64C} 同时消耗 A 与 B）,以广义叉积（Bareiss 精确行列式）
+ * 求平衡方程组的正整数零空间向量,得到各样板执行次数比与环净乘积率分类
+ * （增殖/中性/耗散）;再以超轮前缀分析求各环内物品的启动种子.</p>
+ * <p>秩不足/无正整数解/数值超 long 时返回 null,由调用方回落原生行为
+ * （原生对环剪枝,快速失败,无回归风险）.</p>
  */
 public final class CycleAnalyzer {
 
@@ -27,110 +30,121 @@ public final class CycleAnalyzer {
      * 环净乘积率分类.
      */
     public enum RateClass {
-        /** 每轮净产出为正,可增殖（如 A→2B,B→A:1A 经一轮变 2A）. */
+        /** 每轮净产出为正,可增殖（如 1A 经一轮变 2A）. */
         PRODUCTIVE,
-        /** 进出相等（催化剂环）,阶段 2 不接管. */
+        /** 进出相等（中性环）,不接管. */
         NEUTRAL,
-        /** 净产出为负（耗散环）,阶段 2 不接管. */
+        /** 净产出为负（耗散环）,不接管. */
         DISSIPATIVE
     }
 
     /**
-     * 环的一步:{@code pattern} 消耗 {@code inPer} 个 {@code fromKey},产出 {@code outPer} 个 {@code toKey}.
+     * 环的一步:{@code pattern} 将 {@code fromKey}（路径视角的主输入）转化为 {@code toKey}.
+     * 实际消耗/产出的环内物品集合以样板全量输入输出为准（系数矩阵在 analyze 中构建）.
      */
-    public record CycleStep(IPatternDetails pattern, AEKey fromKey, long inPer, AEKey toKey, long outPer) {
+    public record CycleStep(IPatternDetails pattern, AEKey fromKey, AEKey toKey) {
     }
 
     /**
      * 环分析结果.
      *
-     * @param steps 按正向（消耗→产出）排列的环步骤,末步 toKey = 首步 fromKey
+     * @param keys 环内物品列表,keys[0] 为请求物（root）
+     * @param steps 按执行顺序排列的环步骤（= 找到的回溯环的正向序）
      * @param rateClass 净乘积率分类
-     * @param timesPerRound 每个"超轮"各样板的执行次数（速率分数通分为整数）
+     * @param timesPerRound 每个超轮各样板的执行次数（正整数,已约分）
      * @param netGain 每个超轮净产出的请求物数量
-     * @param seed 启动一个超轮所需的请求物种子数量
+     * @param seedsPerKey 各环内物品的启动种子（与 keys 对齐,启动一个超轮的最小前置需求）
      */
-    public record Analysis(List<CycleStep> steps, RateClass rateClass, long[] timesPerRound,
-            long netGain, long seed) {
+    public record Analysis(List<AEKey> keys, List<CycleStep> steps, RateClass rateClass,
+            long[] timesPerRound, long netGain, long[] seedsPerKey) {
     }
 
     /** detector/求解共用的遍历预算,避免超大网络下 DFS 失控. */
     private static final int MAX_VISITED = 512;
+    /** 单次请求最多枚举的候选环数量,防止复杂网络下指数爆炸. */
+    private static final int MAX_CYCLES = 64;
 
     private CycleAnalyzer() {
     }
 
     /**
-     * 寻找经过 {@code root} 的简单环（长度 ≥ 2;自引用环由阶段 1 处理,此处跳过）.
-     *
-     * @return 正向步骤列表,未找到返回 null.
+     * 枚举经过 {@code root} 的所有简单环（长度 ≥ 2;自引用环由阶段 1 处理,此处跳过）,
+     * 按环长度降序返回（长环的键集更完整,优先尝试）.
+     */
+    public static List<List<CycleStep>> findCyclesThrough(ICraftingService craftingService, AEKey root) {
+        int[] budget = { MAX_VISITED };
+        List<List<CycleStep>> cycles = new ArrayList<>();
+        Set<AEKey> onPath = new HashSet<>();
+        onPath.add(root);
+        LinkedHashMap<AEKey, CycleStep> chain = new LinkedHashMap<>();
+        dfs(craftingService, root, root, onPath, chain, budget, cycles);
+        cycles.sort((a, b) -> Integer.compare(b.size(), a.size()));
+        return cycles;
+    }
+
+    /**
+     * 便捷方法:返回找到的第一个（最长）环,无环返回 null.
      */
     @Nullable
     public static List<CycleStep> findCycle(ICraftingService craftingService, AEKey root) {
-        int[] budget = { MAX_VISITED };
-        Set<AEKey> onPath = new HashSet<>();
-        onPath.add(root);
-        // 从 root 到当前节点的"产生链",按插入序保持正向顺序
-        LinkedHashMap<AEKey, CycleStep> chain = new LinkedHashMap<>();
-        return dfs(craftingService, root, root, onPath, chain, budget);
+        var cycles = findCyclesThrough(craftingService, root);
+        return cycles.isEmpty() ? null : cycles.get(0);
     }
 
     /**
      * 沿"被产生"边回溯 DFS:current 由某 pattern 产生,其主输入 from 即反向边.
-     * 当 from == root 时闭合为环.
+     * from == root 时闭合为环并记录（继续搜索其他环）.
      */
-    @Nullable
-    private static List<CycleStep> dfs(ICraftingService craftingService, AEKey root, AEKey current,
-            Set<AEKey> onPath, LinkedHashMap<AEKey, CycleStep> chain, int[] budget) {
-        if (budget[0]-- <= 0) {
-            return null;
+    private static void dfs(ICraftingService craftingService, AEKey root, AEKey current,
+            Set<AEKey> onPath, LinkedHashMap<AEKey, CycleStep> chain, int[] budget,
+            List<List<CycleStep>> cycles) {
+        if (budget[0]-- <= 0 || cycles.size() >= MAX_CYCLES) {
+            return;
         }
         for (var pattern : craftingService.getCraftingFor(current)) {
             var primaryOut = pattern.getPrimaryOutput();
             if (primaryOut == null || !current.matches(primaryOut) || primaryOut.amount() <= 0) {
                 continue;
             }
-            long outPer = primaryOut.amount();
             for (var input : pattern.getInputs()) {
                 var primaryIn = input.getPossibleInputs()[0];
-                long inPer = primaryIn.amount() * input.getMultiplier();
-                if (inPer <= 0) {
+                if (primaryIn.amount() <= 0) {
                     continue;
                 }
                 AEKey from = primaryIn.what();
                 if (from.equals(current)) {
                     continue; // 自引用交给阶段 1
                 }
-                CycleStep step = new CycleStep(pattern, from, inPer, current, outPer);
+                CycleStep step = new CycleStep(pattern, from, current);
                 if (from.equals(root)) {
                     List<CycleStep> steps = new ArrayList<>();
                     steps.add(step);
                     // chain 按"从 root 回溯发现"的插入序排列,反向后才是正向环序
                     var chainSteps = new ArrayList<>(chain.values());
-                    java.util.Collections.reverse(chainSteps);
+                    Collections.reverse(chainSteps);
                     steps.addAll(chainSteps);
-                    return steps;
+                    cycles.add(steps);
+                    if (cycles.size() >= MAX_CYCLES) {
+                        return;
+                    }
+                    continue;
                 }
                 if (onPath.contains(from)) {
                     continue; // 只接受经过 root 的简单环
                 }
                 onPath.add(from);
                 chain.put(from, step);
-                var found = dfs(craftingService, root, from, onPath, chain, budget);
-                if (found != null) {
-                    return found;
-                }
+                dfs(craftingService, root, from, onPath, chain, budget, cycles);
                 chain.remove(from);
                 onPath.remove(from);
             }
         }
-        return null;
     }
 
     /**
-     * 分析简单环:闭合性/非简单校验 + 净乘积率分类 + 超轮缩放.
+     * 分析简单环:系数矩阵 + 零空间正整数解 + 净率分类 + 各键种子前缀分析.
      *
-     * @return 分析结果;非简单环或数值超出 long 时返回 null.
+     * @return 分析结果;闭合性错误/秩不足/无正整数解/数值超 long 时返回 null.
      */
     @Nullable
     public static Analysis analyze(List<CycleStep> steps) {
@@ -138,70 +152,187 @@ public final class CycleAnalyzer {
             return null;
         }
         int n = steps.size();
-        // 闭合性校验
+        // 闭合性校验 + 键集（首步 fromKey 为 root）
+        List<AEKey> keys = new ArrayList<>(n);
         for (int i = 0; i < n; i++) {
             if (!steps.get(i).toKey().equals(steps.get((i + 1) % n).fromKey())) {
                 return null;
             }
+            keys.add(steps.get(i).fromKey());
         }
-        // 非简单判定:任一样板的输入/输出引用环内其他 key → 不接管
-        Set<AEKey> cycleKeys = new HashSet<>();
-        for (var step : steps) {
-            cycleKeys.add(step.fromKey());
-        }
-        for (var step : steps) {
-            for (var input : step.pattern().getInputs()) {
-                AEKey k = input.getPossibleInputs()[0].what();
-                if (cycleKeys.contains(k) && !k.equals(step.fromKey())) {
-                    return null;
+
+        // 系数矩阵 coeff[step][key] = 该样板每份对该 key 的净产出(产出-消耗,精确 key 相等)
+        BigInteger[][] coeff = new BigInteger[n][n];
+        for (int i = 0; i < n; i++) {
+            for (int j = 0; j < n; j++) {
+                coeff[i][j] = BigInteger.ZERO;
+            }
+            var pattern = steps.get(i).pattern();
+            for (var output : pattern.getOutputs()) {
+                int keyIdx = keys.indexOf(output.what());
+                if (keyIdx >= 0) {
+                    coeff[i][keyIdx] = coeff[i][keyIdx].add(BigInteger.valueOf(output.amount()));
                 }
             }
-            for (var output : step.pattern().getOutputs()) {
-                if (cycleKeys.contains(output.what()) && !output.what().equals(step.toKey())) {
-                    return null;
+            for (var input : pattern.getInputs()) {
+                var primaryIn = input.getPossibleInputs()[0];
+                int keyIdx = keys.indexOf(primaryIn.what());
+                if (keyIdx >= 0) {
+                    coeff[i][keyIdx] = coeff[i][keyIdx]
+                            .subtract(BigInteger.valueOf(primaryIn.amount() * input.getMultiplier()));
                 }
             }
         }
 
-        // 速率分数:rs[0] = 1;rs[i] = rs[i-1] × outPer[i-1] / inPer[i](每轮各样板执行次数)
-        BigInteger[] num = new BigInteger[n];
-        BigInteger[] den = new BigInteger[n];
-        num[0] = BigInteger.ONE;
-        den[0] = BigInteger.ONE;
-        for (int i = 1; i < n; i++) {
-            BigInteger rn = num[i - 1].multiply(BigInteger.valueOf(steps.get(i - 1).outPer()));
-            BigInteger rd = den[i - 1].multiply(BigInteger.valueOf(steps.get(i).inPer()));
-            BigInteger gcd = rn.gcd(rd);
-            num[i] = rn.divide(gcd);
-            den[i] = rd.divide(gcd);
+        // 平衡方程:对每个非 root 键 Σ coeff[step][key]×t[step] = 0.
+        // (n-1)×n 矩阵的零空间向量由广义叉积给出:t[j] = (-1)^j × det(删第 j 列的子矩阵).
+        BigInteger[][] balance = new BigInteger[n - 1][n];
+        for (int row = 0; row < n - 1; row++) {
+            // 第 row 行对应 keys[row+1](非 root 键):取各样板对该键的系数
+            for (int j = 0; j < n; j++) {
+                balance[row][j] = coeff[j][row + 1];
+            }
         }
-        // 每轮 X 净率 = rs[n-1] × outPer[n-1] / inPer[0]
-        BigInteger produced = num[n - 1].multiply(BigInteger.valueOf(steps.get(n - 1).outPer()));
-        BigInteger consumed = den[n - 1].multiply(BigInteger.valueOf(steps.get(0).inPer()));
-        int cmp = produced.compareTo(consumed);
+        BigInteger[] times = nullSpaceVector(balance, n);
+        if (times == null) {
+            return null;
+        }
+
+        // 净率分类:root 键每超轮净产出 = Σ coeff[step][0]×t[step]
+        BigInteger netGain = BigInteger.ZERO;
+        for (int i = 0; i < n; i++) {
+            netGain = netGain.add(coeff[i][0].multiply(times[i]));
+        }
+        int cmp = netGain.compareTo(BigInteger.ZERO);
         RateClass rateClass = cmp > 0 ? RateClass.PRODUCTIVE : cmp == 0 ? RateClass.NEUTRAL : RateClass.DISSIPATIVE;
 
-        // 超轮缩放:分母最小公倍数
-        BigInteger m = BigInteger.ONE;
-        for (int i = 0; i < n; i++) {
-            m = m.multiply(den[i]).divide(m.gcd(den[i]));
+        // 各键种子:按执行顺序做超轮前缀分析,取各键余额最低点
+        BigInteger[] balancePrefix = new BigInteger[n];
+        BigInteger[] minPrefix = new BigInteger[n];
+        for (int j = 0; j < n; j++) {
+            balancePrefix[j] = BigInteger.ZERO;
+            minPrefix[j] = BigInteger.ZERO;
         }
-        long[] times = new long[n];
+        for (int i = 0; i < n; i++) {
+            for (int j = 0; j < n; j++) {
+                balancePrefix[j] = balancePrefix[j].add(coeff[i][j].multiply(times[i]));
+                if (balancePrefix[j].compareTo(minPrefix[j]) < 0) {
+                    minPrefix[j] = balancePrefix[j];
+                }
+            }
+        }
+
         try {
+            long[] timesLong = new long[n];
+            long[] seeds = new long[n];
             for (int i = 0; i < n; i++) {
-                times[i] = num[i].multiply(m).divide(den[i]).longValueExact();
+                timesLong[i] = times[i].longValueExact();
+                seeds[i] = minPrefix[i].negate().max(BigInteger.ZERO).longValueExact();
             }
-            long netGain = produced.multiply(m).divide(den[n - 1])
-                    .subtract(BigInteger.valueOf(times[0]).multiply(BigInteger.valueOf(steps.get(0).inPer())))
-                    .longValueExact();
-            long seed = BigInteger.valueOf(times[0]).multiply(BigInteger.valueOf(steps.get(0).inPer()))
-                    .longValueExact();
-            if (netGain <= 0 && rateClass == RateClass.PRODUCTIVE) {
-                return null; // 理论不可达,防御
-            }
-            return new Analysis(List.copyOf(steps), rateClass, times, netGain, seed);
+            return new Analysis(List.copyOf(keys), List.copyOf(steps), rateClass, timesLong,
+                    netGain.longValueExact(), seeds);
         } catch (ArithmeticException e) {
             return null; // 超出 long → 不接管
         }
+    }
+
+    /**
+     * 求 (n-1)×n 整数矩阵的正整数零空间向量（广义叉积,Bareiss 精确行列式）.
+     *
+     * @return 已约分的正整数向量;秩不足或不存在全正解时返回 null.
+     */
+    @Nullable
+    private static BigInteger[] nullSpaceVector(BigInteger[][] balance, int n) {
+        BigInteger[] v = new BigInteger[n];
+        boolean allZero = true;
+        for (int j = 0; j < n; j++) {
+            // 删第 j 列的 (n-1)×(n-1) 子矩阵
+            BigInteger[][] sub = new BigInteger[n - 1][n - 1];
+            for (int r = 0; r < n - 1; r++) {
+                int c = 0;
+                for (int k = 0; k < n; k++) {
+                    if (k != j) {
+                        sub[r][c++] = balance[r][k];
+                    }
+                }
+            }
+            BigInteger det = determinant(sub, n - 1);
+            v[j] = (j % 2 == 0) ? det : det.negate();
+            if (!v[j].equals(BigInteger.ZERO)) {
+                allZero = false;
+            }
+        }
+        if (allZero) {
+            return null; // 秩 < n-1,欠定 → 不接管
+        }
+        // 统一符号并要求全正(零分量意味着该样板不执行,环断裂)
+        boolean anyPos = false;
+        boolean anyNeg = false;
+        for (var x : v) {
+            anyPos |= x.signum() > 0;
+            anyNeg |= x.signum() < 0;
+        }
+        if (anyNeg) {
+            for (int j = 0; j < n; j++) {
+                v[j] = v[j].negate();
+            }
+        }
+        for (var x : v) {
+            if (x.signum() <= 0) {
+                return null;
+            }
+        }
+        // gcd 约分
+        BigInteger gcd = v[0].abs();
+        for (var x : v) {
+            gcd = gcd.gcd(x.abs());
+        }
+        for (int j = 0; j < n; j++) {
+            v[j] = v[j].divide(gcd);
+        }
+        return v;
+    }
+
+    /**
+     * Bareiss 无分数高斯消元求精确行列式.
+     */
+    private static BigInteger determinant(BigInteger[][] matrix, int n) {
+        if (n == 0) {
+            return BigInteger.ONE;
+        }
+        BigInteger[][] m = new BigInteger[n][n];
+        for (int i = 0; i < n; i++) {
+            m[i] = matrix[i].clone();
+        }
+        BigInteger prevPivot = BigInteger.ONE;
+        int sign = 1;
+        for (int k = 0; k < n - 1; k++) {
+            if (m[k][k].equals(BigInteger.ZERO)) {
+                // 行交换找非零主元
+                int swap = -1;
+                for (int r = k + 1; r < n; r++) {
+                    if (!m[r][k].equals(BigInteger.ZERO)) {
+                        swap = r;
+                        break;
+                    }
+                }
+                if (swap < 0) {
+                    return BigInteger.ZERO;
+                }
+                var tmp = m[k];
+                m[k] = m[swap];
+                m[swap] = tmp;
+                sign = -sign;
+            }
+            for (int i = k + 1; i < n; i++) {
+                for (int j = k + 1; j < n; j++) {
+                    m[i][j] = m[i][j].multiply(m[k][k])
+                            .subtract(m[i][k].multiply(m[k][j]))
+                            .divide(prevPivot);
+                }
+            }
+            prevPivot = m[k][k];
+        }
+        return sign > 0 ? m[n - 1][n - 1] : m[n - 1][n - 1].negate();
     }
 }
