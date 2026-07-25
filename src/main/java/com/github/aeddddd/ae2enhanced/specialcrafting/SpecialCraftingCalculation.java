@@ -102,7 +102,8 @@ public class SpecialCraftingCalculation extends CraftingCalculation {
             }
         }
         if (selfRef == null) {
-            return null;
+            // 阶段 2:跨样板循环链
+            return computeCyclePlan(what, target);
         }
 
         long inPer = RecursiveCraftingHelper.selfInputPerCraft(selfRef, what);
@@ -136,10 +137,7 @@ public class SpecialCraftingCalculation extends CraftingCalculation {
             if (crafts <= 0 || crafts > Long.MAX_VALUE / Math.max(1, inPer)) {
                 // 天文数字订单（贷款量溢出）:直接构造缺料失败计划(与旧 mixin 的
                 // failShortage 语义一致,O(1));若回落原生,其逐份展开会在超大单下卡死
-                Ae2CraftingReflect.addMissing(this, what, remaining);
-                return new CraftingPlan(new GenericStack(what, target), 8, true, candidateCount > 1,
-                        new appeng.api.stacks.KeyCounter(), new appeng.api.stacks.KeyCounter(),
-                        this.getMissingItems(), java.util.Map.of());
+                return missingPlan(what, target, candidateCount > 1);
             }
 
             // 3) 贷款法:借入 (crafts-1)×inPer 使整批 request 通过,产出后立即归还.
@@ -182,5 +180,55 @@ public class SpecialCraftingCalculation extends CraftingCalculation {
                 : base;
         SpecialPlanMarker.mark(plan);
         return plan;
+    }
+
+    /**
+     * 阶段 2 特殊求解:跨样板增殖环闭式解.
+     *
+     * @return 成功且已标记为特殊计划的结果;不适用时返回 null（调用方回落原生）.
+     */
+    @Nullable
+    private ICraftingPlan computeCyclePlan(AEKey what, long target) throws InterruptedException {
+        var cycle = CycleAnalyzer.findCycle(craftingService, what);
+        if (cycle == null) {
+            return null;
+        }
+        var analysis = CycleAnalyzer.analyze(cycle);
+        // 非简单环/中性/耗散环不接管 → 原生兜底(原生对环剪枝,快速失败,无回归)
+        if (analysis == null || analysis.rateClass() != CycleAnalyzer.RateClass.PRODUCTIVE) {
+            return null;
+        }
+
+        ChildCraftingSimulationState inv = new ChildCraftingSimulationState(
+                Ae2CraftingReflect.getNetworkInv(this));
+        // 关键差异:不执行 ignore(what),保留网络库存中的种子
+        var result = CycleSolver.trySolve(craftingService, this, analysis, inv, what, target);
+        switch (result) {
+            case FALLBACK:
+                return null;
+            case OVERFLOW:
+                return missingPlan(what, target, true);
+            case SUCCESS:
+            default:
+                break;
+        }
+
+        inv.addBytes(8);
+        CraftingPlan base = CraftingSimulationState.buildCraftingPlan(inv, this, target);
+        // 环计划保守标记 multiplePaths（环外可能仍有其他候选路线）
+        ICraftingPlan plan = new CraftingPlan(base.finalOutput(), base.bytes(), base.simulation(), true,
+                base.usedItems(), base.emittedItems(), base.missingItems(), base.patternTimes());
+        SpecialPlanMarker.mark(plan);
+        return plan;
+    }
+
+    /**
+     * 构造 O(1) 缺料失败计划（天文数字订单,避免原生逐份模拟卡死）.
+     */
+    private ICraftingPlan missingPlan(AEKey what, long target, boolean multiplePaths) {
+        Ae2CraftingReflect.addMissing(this, what, target);
+        return new CraftingPlan(new GenericStack(what, target), 8, true, multiplePaths,
+                new appeng.api.stacks.KeyCounter(), new appeng.api.stacks.KeyCounter(),
+                this.getMissingItems(), java.util.Map.of());
     }
 }
