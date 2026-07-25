@@ -104,6 +104,30 @@ public class SimulationEnv {
         }
     }
 
+    // ===== 以下为 AE2Enhanced 扩展（特殊配方求解器测试用,非 AE2 原内容）=====
+
+    /**
+     * 暴露网格的合成服务,供 detector 测试直接调用.
+     */
+    public ICraftingService craftingService() {
+        return gridMock.getCraftingService();
+    }
+
+    /**
+     * 以 {@link SpecialCraftingCalculation} 运行模拟（路由命中后的实际执行路径）.
+     */
+    public ICraftingPlan runSpecialSimulation(GenericStack what, CalculationStrategy strategy) {
+        var calculation = new com.github.aeddddd.ae2enhanced.specialcrafting.SpecialCraftingCalculation(
+                mock(Level.class), gridMock, simulationRequester, what, strategy);
+        try {
+            var calculationFuture = Executors.newSingleThreadExecutor().submit(calculation::run);
+            calculation.simulateFor(1000000000);
+            return calculationFuture.get(1000, TimeUnit.MILLISECONDS);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
     private final IGrid gridMock = createGridMock();
     private final IGridNode nodeMock = createNodeMock();
     private final ICraftingSimulationRequester simulationRequester = new ICraftingSimulationRequester() {

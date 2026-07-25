@@ -7,6 +7,8 @@
   "plugin": "com.github.aeddddd.ae2enhanced.mixin.AE2EnhancedMixinPlugin",
   "mixins": [
     "MixinCraftingService",
+    "MixinCraftingServiceRouting",
+    "MixinCraftingServiceSubmit",
     "MixinCraftingCPUCluster",
     "MixinCraftingCpuLogic",
     "MixinCraftingCalculation",
@@ -25,6 +27,7 @@
     "accessor.ElapsedTimeTrackerAccessor",
     "accessor.CraftingCPUClusterInvoker",
     "accessor.CraftingCalculationAccessor",
+    "accessor.CraftingServiceAccessor",
     "accessor.AEBaseMenuAccessor",
     "accessor.MinecraftServerAccessor",
     "accessor.CraftingTreeNodeAccessor",
