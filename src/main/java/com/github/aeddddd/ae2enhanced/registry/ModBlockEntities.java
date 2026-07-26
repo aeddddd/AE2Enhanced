@@ -5,7 +5,6 @@ import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraftforge.registries.DeferredRegister;
 import net.minecraftforge.registries.RegistryObject;
 
-import javax.annotation.Nullable;
 
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
 import com.github.aeddddd.ae2enhanced.assembly.blockentity.AssemblyCasingBlockEntity;
@@ -16,7 +15,6 @@ import com.github.aeddddd.ae2enhanced.blockentity.PersonalDimensionManagerBlockE
 import com.github.aeddddd.ae2enhanced.computation.blockentity.ComputationCoreBlockEntity;
 import com.github.aeddddd.ae2enhanced.computation.blockentity.TestCraftingCpuBlockEntity;
 import com.github.aeddddd.ae2enhanced.multiblock.MultiblockMeInterfaceBlockEntity;
-import com.github.aeddddd.ae2enhanced.util.DevEnvironment;
 
 /**
  * 方块实体类型注册中心.
@@ -62,19 +60,11 @@ public final class ModBlockEntities {
                     () -> BlockEntityType.Builder.of(PersonalDimensionManagerBlockEntity::new,
                             ModBlocks.PERSONAL_DIMENSION_MANAGER.get()).build(null));
 
-    // 【仅开发环境】测试用单方块合成 CPU,与 ModBlocks.TEST_CRAFTING_CPU 同步条件注册
-    @Nullable
-    public static final RegistryObject<BlockEntityType<TestCraftingCpuBlockEntity>> TEST_CRAFTING_CPU;
-
-    static {
-        if (DevEnvironment.isDev()) {
-            TEST_CRAFTING_CPU = DR.register("test_crafting_cpu",
+    // 测试用单方块合成 CPU,与 ModBlocks.TEST_CRAFTING_CPU 同步注册(所有环境)
+    public static final RegistryObject<BlockEntityType<TestCraftingCpuBlockEntity>> TEST_CRAFTING_CPU = DR
+            .register("test_crafting_cpu",
                     () -> BlockEntityType.Builder.of(TestCraftingCpuBlockEntity::new,
                             ModBlocks.TEST_CRAFTING_CPU.get()).build(null));
-        } else {
-            TEST_CRAFTING_CPU = null;
-        }
-    }
 
     private ModBlockEntities() {
     }

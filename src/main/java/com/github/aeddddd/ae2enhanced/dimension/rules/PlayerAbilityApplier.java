@@ -68,10 +68,10 @@ public final class PlayerAbilityApplier {
     /**
      * 将玩家能力恢复为默认值.
      *
-     * <p>仅在玩家离开个人维度或重生时调用.创造模式玩家的飞行能力不会被清除.</p>
+     * <p>仅在玩家离开个人维度或重生时调用.创造与观察模式玩家的飞行能力不会被清除.</p>
      */
     public static void resetAbilities(ServerPlayer player) {
-        if (player.isCreative()) {
+        if (player.isCreative() || player.isSpectator()) {
             return;
         }
         Abilities abilities = player.getAbilities();

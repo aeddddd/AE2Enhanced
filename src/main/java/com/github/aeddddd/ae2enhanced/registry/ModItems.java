@@ -6,7 +6,6 @@ import net.minecraft.world.item.Item;
 import net.minecraftforge.registries.DeferredRegister;
 import net.minecraftforge.registries.RegistryObject;
 
-import javax.annotation.Nullable;
 
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
 import com.github.aeddddd.ae2enhanced.assembly.item.AssemblyUpgradeCardItem;
@@ -18,7 +17,6 @@ import com.github.aeddddd.ae2enhanced.item.PersonalDimensionCoreItem;
 import com.github.aeddddd.ae2enhanced.item.SingularityConstrictorItem;
 import com.github.aeddddd.ae2enhanced.item.DifferentialFormStabilizerItem;
 import com.github.aeddddd.ae2enhanced.item.StableSpacetimeManifoldItem;
-import com.github.aeddddd.ae2enhanced.util.DevEnvironment;
 
 /**
  * 物品注册中心.
@@ -125,18 +123,9 @@ public final class ModItems {
     public static final RegistryObject<Item> ME_OMNI_TOOL = DR.register("me_omni_tool",
             () -> new AdvancedMEOmniToolItem(new Item.Properties().stacksTo(1)));
 
-    // 【仅开发环境】测试用单方块合成 CPU,与 ModBlocks.TEST_CRAFTING_CPU 同步条件注册
-    @Nullable
-    public static final RegistryObject<Item> TEST_CRAFTING_CPU;
-
-    static {
-        if (DevEnvironment.isDev()) {
-            TEST_CRAFTING_CPU = DR.register("test_crafting_cpu",
-                    () -> new BlockItem(ModBlocks.TEST_CRAFTING_CPU.get(), new Item.Properties()));
-        } else {
-            TEST_CRAFTING_CPU = null;
-        }
-    }
+    // 测试用单方块合成 CPU：所有环境注册(可指令获取),但隐藏于创造栏与 JEI
+    public static final RegistryObject<Item> TEST_CRAFTING_CPU = DR.register("test_crafting_cpu",
+            () -> new BlockItem(ModBlocks.TEST_CRAFTING_CPU.get(), new Item.Properties()));
 
     private ModItems() {
     }

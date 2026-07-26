@@ -439,10 +439,26 @@ public final class PersonalDimensionManager {
 
     public static void setRules(MinecraftServer server, UUID playerId, PersonalDimensionRules rules) {
         PersonalDimensionData.get(server).setRules(playerId, rules);
-        // 规则变更后立即对在线玩家应用能力变化
-        ServerPlayer player = server.getPlayerList().getPlayer(playerId);
-        if (player != null && isPersonalDimension(player.level().dimension())) {
-            PlayerAbilityApplier.applyCapabilities(player, rules);
+        // 规则变更后立即对该维度内所有在线玩家应用能力变化(含访客)
+        ServerLevel level = server.getLevel(dimensionKeyFor(playerId));
+        if (level != null) {
+            for (ServerPlayer player : level.players()) {
+                PlayerAbilityApplier.applyCapabilities(player, rules);
+            }
+        }
+    }
+
+    /**
+     * 按玩家当前所在维度应用/重置能力:
+     * 在个人维度内使用<b>维度所有者</b>的规则,不在任何个人维度内时恢复默认,
+     * 同时清理 abilities NBT 中可能残留的旧加成(删维度/换存档等场景).
+     */
+    private static void applyDimensionRules(ServerPlayer player) {
+        PlayerDimEntry entry = getEntryByDimension(player.server, player.level().dimension());
+        if (entry != null) {
+            PlayerAbilityApplier.applyCapabilities(player, entry.rules);
+        } else {
+            PlayerAbilityApplier.resetAbilities(player);
         }
     }
 
@@ -619,7 +635,7 @@ public final class PersonalDimensionManager {
     }
 
     /**
-     * 玩家在个人维度死亡并重生后恢复默认能力.
+     * 玩家在个人维度死亡并重生后,按重生落点重新应用/恢复默认能力.
      */
     @SubscribeEvent
     public static void onPlayerRespawn(PlayerEvent.PlayerRespawnEvent event) {
@@ -627,7 +643,7 @@ public final class PersonalDimensionManager {
             return;
         }
         if (diedInPersonalDimension.remove(player.getUUID())) {
-            PlayerAbilityApplier.resetAbilities(player);
+            applyDimensionRules(player);
         }
     }
 
@@ -636,12 +652,8 @@ public final class PersonalDimensionManager {
         if (!(event.getEntity() instanceof ServerPlayer player)) {
             return;
         }
-        if (isPersonalDimension(player.level().dimension())) {
-            PlayerDimEntry entry = getEntry(player.server, player.getUUID());
-            if (entry != null) {
-                PlayerAbilityApplier.applyCapabilities(player, entry.rules);
-            }
-        }
+        // 在维度内按所有者规则应用;不在则恢复默认,清理 abilities 中残留的旧加成
+        applyDimensionRules(player);
     }
 
     /**
@@ -652,28 +664,20 @@ public final class PersonalDimensionManager {
         if (!(event.getEntity() instanceof ServerPlayer player)) {
             return;
         }
-        if (isPersonalDimension(event.getTo())) {
-            PlayerDimEntry entry = getEntry(player.server, player.getUUID());
-            if (entry != null) {
-                PlayerAbilityApplier.applyCapabilities(player, entry.rules);
-            }
-        } else if (isPersonalDimension(event.getFrom())) {
-            PlayerAbilityApplier.resetAbilities(player);
+        if (isPersonalDimension(event.getTo()) || isPersonalDimension(event.getFrom())) {
+            applyDimensionRules(player);
         }
     }
 
     /**
-     * 玩家 tick 中持续应用无飞行惯性规则.
+     * 玩家 tick 中持续应用无飞行惯性规则(按所在维度所有者的规则).
      */
     @SubscribeEvent
     public static void onPlayerTick(TickEvent.PlayerTickEvent event) {
         if (event.phase != TickEvent.Phase.END || !(event.player instanceof ServerPlayer player)) {
             return;
         }
-        if (!isPersonalDimension(player.level().dimension())) {
-            return;
-        }
-        PlayerDimEntry entry = getEntry(player.server, player.getUUID());
+        PlayerDimEntry entry = getEntryByDimension(player.server, player.level().dimension());
         if (entry != null) {
             PlayerAbilityApplier.tickNoFlightInertia(player, entry.rules);
         }

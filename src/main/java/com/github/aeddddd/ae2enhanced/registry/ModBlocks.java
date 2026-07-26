@@ -8,7 +8,6 @@ import net.minecraft.world.level.material.MapColor;
 import net.minecraftforge.registries.DeferredRegister;
 import net.minecraftforge.registries.RegistryObject;
 
-import javax.annotation.Nullable;
 
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
 import com.github.aeddddd.ae2enhanced.assembly.block.AssemblyCasingBlock;
@@ -27,7 +26,6 @@ import com.github.aeddddd.ae2enhanced.block.MicroSingularityBlock;
 import com.github.aeddddd.ae2enhanced.block.PersonalDimensionManagerBlock;
 import com.github.aeddddd.ae2enhanced.block.YellowStripesBlockBBlock;
 import com.github.aeddddd.ae2enhanced.multiblock.MultiblockMeInterfaceBlock;
-import com.github.aeddddd.ae2enhanced.util.DevEnvironment;
 
 /**
  * 方块注册中心.
@@ -97,18 +95,10 @@ public final class ModBlocks {
     public static final RegistryObject<Block> YELLOW_STRIPES_BLOCK_B = DR.register("yellow_stripes_block_b",
             YellowStripesBlockBBlock::new);
 
-    // 【仅开发环境】测试用单方块合成 CPU：超因果计算核心多方块临时下线期间的替代测试手段.
-    // 生产环境中不注册,使用方必须以 DevEnvironment.isDev() 判空.
-    @Nullable
-    public static final RegistryObject<Block> TEST_CRAFTING_CPU;
-
-    static {
-        if (DevEnvironment.isDev()) {
-            TEST_CRAFTING_CPU = DR.register("test_crafting_cpu", () -> new TestCraftingCpuBlock(metalProperties()));
-        } else {
-            TEST_CRAFTING_CPU = null;
-        }
-    }
+    // 测试用单方块合成 CPU：超因果计算核心多方块临时下线期间的替代测试手段.
+    // 所有环境均注册以便通过 /give 等指令获取,但不出现在创造模式物品栏和 JEI 中.
+    public static final RegistryObject<Block> TEST_CRAFTING_CPU = DR.register("test_crafting_cpu",
+            () -> new TestCraftingCpuBlock(metalProperties()));
 
     private static BlockBehaviour.Properties metalProperties() {
         return BlockBehaviour.Properties.of()

@@ -4,9 +4,11 @@ import java.util.List;
 
 import mezz.jei.api.IModPlugin;
 import mezz.jei.api.JeiPlugin;
+import mezz.jei.api.constants.VanillaTypes;
 import mezz.jei.api.registration.IRecipeCatalystRegistration;
 import mezz.jei.api.registration.IRecipeCategoryRegistration;
 import mezz.jei.api.registration.IRecipeRegistration;
+import mezz.jei.api.runtime.IJeiRuntime;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.resources.ResourceLocation;
@@ -16,6 +18,7 @@ import net.minecraft.world.level.Level;
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
 import com.github.aeddddd.ae2enhanced.crafting.blackhole.BlackHoleRecipe;
 import com.github.aeddddd.ae2enhanced.registry.ModBlocks;
+import com.github.aeddddd.ae2enhanced.registry.ModItems;
 import com.github.aeddddd.ae2enhanced.registry.ModRecipes;
 
 /**
@@ -55,5 +58,12 @@ public class AE2EnhancedJeiPlugin implements IModPlugin {
         // 黑洞由装配枢纽产生,以装配控制器作为催化剂(对该方块按 R/U 可查看黑洞配方)
         registration.addRecipeCatalyst(new ItemStack(ModBlocks.ASSEMBLY_CONTROLLER.get()),
                 BlackHoleRecipeCategory.RECIPE_TYPE);
+    }
+
+    @Override
+    public void onRuntimeAvailable(IJeiRuntime jeiRuntime) {
+        // 测试用单方块合成 CPU 仅通过指令获取,在 JEI 物品列表中隐藏
+        jeiRuntime.getIngredientManager().removeIngredientsAtRuntime(VanillaTypes.ITEM_STACK,
+                List.of(new ItemStack(ModItems.TEST_CRAFTING_CPU.get())));
     }
 }
