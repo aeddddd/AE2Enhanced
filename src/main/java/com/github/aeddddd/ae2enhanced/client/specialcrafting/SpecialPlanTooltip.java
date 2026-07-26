@@ -21,14 +21,15 @@ public final class SpecialPlanTooltip {
 
     /**
      * 行内描述(列表每行数量区):发配轮次/调用次数.
+     * <p>注意单元格仅 67px 宽(0.5 倍缩放),文案必须短小;灰色避免过亮.</p>
      */
     public static Component descriptionLine(AEKey key, SpecialPlanInfo.Entry entry) {
         if (entry.kind() == SpecialPlanInfo.KIND_SELF_DUP) {
             return Component.translatable("gui.ae2enhanced.special_plan.dup_desc", entry.totalCrafts())
-                    .withStyle(ChatFormatting.AQUA);
+                    .withStyle(ChatFormatting.GRAY);
         }
         return Component.translatable("gui.ae2enhanced.special_plan.rounds_desc", entry.rounds())
-                .withStyle(ChatFormatting.AQUA);
+                .withStyle(ChatFormatting.GRAY);
     }
 
     /**
@@ -39,7 +40,7 @@ public final class SpecialPlanTooltip {
     public static Component normalDescriptionLine(long calls, long pushesPerRound) {
         long rounds = Math.max(1, (calls + pushesPerRound - 1) / pushesPerRound);
         return Component.translatable("gui.ae2enhanced.special_plan.normal_calls", calls, rounds)
-                .withStyle(ChatFormatting.AQUA);
+                .withStyle(ChatFormatting.GRAY);
     }
 
     /**

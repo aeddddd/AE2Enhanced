@@ -1,12 +1,17 @@
 package com.github.aeddddd.ae2enhanced.specialcrafting;
 
+import java.util.Map;
+import java.util.WeakHashMap;
+
 import org.jetbrains.annotations.Nullable;
 
 import appeng.api.config.Actionable;
 import appeng.api.stacks.AEKey;
 import appeng.api.stacks.GenericStack;
 import appeng.crafting.execution.CraftingCpuLogic;
+import appeng.crafting.execution.ExecutingCraftingJob;
 
+import com.github.aeddddd.ae2enhanced.AE2Enhanced;
 import com.github.aeddddd.ae2enhanced.mixin.accessor.CraftingCpuLogicAccessor;
 import com.github.aeddddd.ae2enhanced.mixin.accessor.ElapsedTimeTrackerAccessor;
 import com.github.aeddddd.ae2enhanced.mixin.accessor.ExecutingCraftingJobAccessor;
@@ -64,6 +69,7 @@ public final class SelfRefOutputGate {
         }
         long accepted = Math.min(amount, waitingFor);
         if (type == Actionable.MODULATE) {
+            logGateStartOnce(job, finalOutput, jobAcc.getRemainingAmount());
             ((ElapsedTimeTrackerAccessor) jobAcc.getTimeTracker()).invokeDecrementItems(accepted, what.getType());
             waitingForInv.extract(what, accepted, Actionable.MODULATE);
             logicAcc.getCluster().markDirty();
@@ -74,6 +80,25 @@ public final class SelfRefOutputGate {
         return accepted;
     }
 
+    /** 诊断:每个 job 只记录一次(弱键,随 job 回收). */
+    private static final Map<ExecutingCraftingJob, String> LOGGED_JOBS = new WeakHashMap<>();
+
+    private static void logGateStartOnce(ExecutingCraftingJob job, GenericStack finalOutput, long remaining) {
+        synchronized (LOGGED_JOBS) {
+            if (LOGGED_JOBS.put(job, "started") == null) {
+                AE2Enhanced.LOGGER.info("[特殊配方] 门控启动: {} 待交付 {}", finalOutput, remaining);
+            }
+        }
+    }
+
+    private static void logOnce(ExecutingCraftingJob job, String reason, String message, Object... args) {
+        synchronized (LOGGED_JOBS) {
+            if (!reason.equals(LOGGED_JOBS.put(job, reason))) {
+                AE2Enhanced.LOGGER.info(message, args);
+            }
+        }
+    }
+
     /**
      * 收官结算:所有任务已推送且最终产出 key 无在途量时,从库存一次性交付.
      */
@@ -82,7 +107,9 @@ public final class SelfRefOutputGate {
         if (!jobAcc.getTasks().isEmpty()) {
             return;
         }
-        if (jobAcc.getWaitingFor().extract(what, Long.MAX_VALUE, Actionable.SIMULATE) > 0) {
+        long inFlight = jobAcc.getWaitingFor().extract(what, Long.MAX_VALUE, Actionable.SIMULATE);
+        if (inFlight > 0) {
+            logOnce((ExecutingCraftingJob) jobAcc, "settle-inflight", "[特殊配方] 门控待收官: {} 在途 {}", what, inFlight);
             return;
         }
         long remaining = jobAcc.getRemainingAmount();
@@ -90,12 +117,21 @@ public final class SelfRefOutputGate {
             return;
         }
         var inventory = logic.getInventory();
-        long deliver = Math.min(remaining, inventory.extract(what, Long.MAX_VALUE, Actionable.SIMULATE));
+        long held = inventory.extract(what, Long.MAX_VALUE, Actionable.SIMULATE);
+        long deliver = Math.min(remaining, held);
         if (deliver <= 0) {
+            logOnce((ExecutingCraftingJob) jobAcc, "settle-nostock",
+                    "[特殊配方] 门控收官受阻: {} 待交付 {} 但 CPU 库存 {}", what, remaining, held);
             return;
         }
         inventory.extract(what, deliver, Actionable.MODULATE);
-        jobAcc.getLink().insert(what, deliver, Actionable.MODULATE);
+        long linkInserted = jobAcc.getLink().insert(what, deliver, Actionable.MODULATE);
+        if (linkInserted < deliver) {
+            AE2Enhanced.LOGGER.warn("[特殊配方] 门控交付部分丢失: {} 应交付 {},网络实收 {}(网络存储空间/类型不足)",
+                    what, deliver, linkInserted);
+        } else {
+            AE2Enhanced.LOGGER.info("[特殊配方] 门控交付: {} × {}", what, deliver);
+        }
         // 与原生一致:忽略 link 拒收余量,直接按已交付扣减
         long newRemaining = Math.max(0, remaining - deliver);
         jobAcc.setRemainingAmount(newRemaining);
