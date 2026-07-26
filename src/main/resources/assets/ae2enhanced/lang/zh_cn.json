@@ -277,5 +277,13 @@
   "gui.ae2enhanced.placement.mode.single": "单格放置",
   "gui.ae2enhanced.placement.mode.bulk": "批量放置",
   "gui.ae2enhanced.placement.mode.cable": "线缆放置",
-  "gui.ae2enhanced.placement.cable_color": "线缆颜色：%s"
+  "gui.ae2enhanced.placement.cable_color": "线缆颜色：%s",
+  "gui.ae2enhanced.special_plan.dup_desc": "自增殖调用 %s 次",
+  "gui.ae2enhanced.special_plan.dup_header": "自增殖样板",
+  "gui.ae2enhanced.special_plan.dup_per_craft": "每次:消耗 %s → 产出 %s(净 +%s)",
+  "gui.ae2enhanced.special_plan.dup_total": "共调用 %s 次;启动种子 %s",
+  "gui.ae2enhanced.special_plan.rounds_desc": "循环合成:分 %s 轮发配执行",
+  "gui.ae2enhanced.special_plan.cycle_header": "循环合成:共 %s 轮",
+  "gui.ae2enhanced.special_plan.cycle_per_round": "每轮:消耗 %s,产出 %s",
+  "gui.ae2enhanced.special_plan.initial_extract": "初始提取 %s"
 }

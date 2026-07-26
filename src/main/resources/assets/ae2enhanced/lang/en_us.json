@@ -277,5 +277,13 @@
   "gui.ae2enhanced.placement.mode.single": "Single Placement",
   "gui.ae2enhanced.placement.mode.bulk": "Bulk Placement",
   "gui.ae2enhanced.placement.mode.cable": "Cable Placement",
-  "gui.ae2enhanced.placement.cable_color": "Cable Color: %s"
+  "gui.ae2enhanced.placement.cable_color": "Cable Color: %s",
+  "gui.ae2enhanced.special_plan.dup_desc": "Self-duplicating x%s crafts",
+  "gui.ae2enhanced.special_plan.dup_header": "Self-Duplicating Pattern",
+  "gui.ae2enhanced.special_plan.dup_per_craft": "Per craft: %s -> %s (net +%s)",
+  "gui.ae2enhanced.special_plan.dup_total": "%s crafts total; seed %s",
+  "gui.ae2enhanced.special_plan.rounds_desc": "Cyclic craft: dispatched in %s rounds",
+  "gui.ae2enhanced.special_plan.cycle_header": "Cyclic Crafting: %s rounds",
+  "gui.ae2enhanced.special_plan.cycle_per_round": "Per round: consume %s, produce %s",
+  "gui.ae2enhanced.special_plan.initial_extract": "Initial extraction %s"
 }

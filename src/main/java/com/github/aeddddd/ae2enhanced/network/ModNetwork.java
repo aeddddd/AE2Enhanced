@@ -22,6 +22,7 @@ import com.github.aeddddd.ae2enhanced.network.packet.PersonalDimManagerStatePack
 import com.github.aeddddd.ae2enhanced.network.packet.PersonalDimPermissionPacket;
 import com.github.aeddddd.ae2enhanced.network.packet.PersonalDimRulesSubmitPacket;
 import com.github.aeddddd.ae2enhanced.network.packet.RequestAssemblyPacket;
+import com.github.aeddddd.ae2enhanced.network.packet.SpecialPlanInfoPacket;
 
 /**
  * 网络包注册中心（Forge 1.20.1 SimpleChannel）.
@@ -140,6 +141,12 @@ public final class ModNetwork {
                 .encoder(PacketOmniToolConfig::encode)
                 .decoder(PacketOmniToolConfig::decode)
                 .consumerMainThread(PacketOmniToolConfig::handle)
+                .add();
+
+        CHANNEL.messageBuilder(SpecialPlanInfoPacket.class, nextId())
+                .encoder(SpecialPlanInfoPacket::encode)
+                .decoder(SpecialPlanInfoPacket::decode)
+                .consumerMainThread(SpecialPlanInfoPacket::handle)
                 .add();
     }
 

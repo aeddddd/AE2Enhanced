@@ -47,7 +47,8 @@
   ],
   "client": [
     "client.MixinCraftAmountScreen",
-    "client.MixinCPUSelectionList"
+    "client.MixinCPUSelectionList",
+    "client.MixinCraftConfirmTableRenderer"
   ],
   "injectors": {
     "defaultRequire": 1

@@ -2,6 +2,8 @@ package com.github.aeddddd.ae2enhanced.mixin;
 
 import java.util.concurrent.Future;
 
+import net.minecraft.server.level.ServerPlayer;
+
 import appeng.api.networking.IGrid;
 import appeng.api.networking.crafting.CalculationStrategy;
 import appeng.api.networking.crafting.ICraftingPlan;
@@ -10,10 +12,16 @@ import appeng.api.stacks.AEKey;
 import appeng.menu.me.crafting.CraftConfirmMenu;
 
 import com.github.aeddddd.ae2enhanced.crafting.CraftConfirmMenuLongExt;
+import com.github.aeddddd.ae2enhanced.network.ModNetwork;
+import com.github.aeddddd.ae2enhanced.network.packet.SpecialPlanInfoPacket;
+import com.github.aeddddd.ae2enhanced.specialcrafting.SpecialPlanInfo;
 
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
+import org.spongepowered.asm.mixin.injection.At;
+import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
  * 为 {@link CraftConfirmMenu} 增加 long 型计划提交入口,突破原生 planJob 的 int 上限.
@@ -70,5 +78,26 @@ public abstract class MixinCraftConfirmMenu implements CraftConfirmMenuLongExt {
                 amountLong,
                 strategy);
         return true;
+    }
+
+    /**
+     * 计划摘要构建后,向客户端发送特殊计划显示信息(自增殖/循环链轮次详情);
+     * 普通计划发送空信息以清空客户端缓存.{@code require = 0} 防第三方改写时崩溃.
+     */
+    @Inject(method = "broadcastChanges",
+            at = @At(value = "INVOKE",
+                    target = "Lappeng/menu/me/crafting/CraftingPlanSummary;fromJob(Lappeng/api/networking/IGrid;Lappeng/api/networking/security/IActionSource;Lappeng/api/networking/crafting/ICraftingPlan;)Lappeng/menu/me/crafting/CraftingPlanSummary;",
+                    shift = At.Shift.AFTER, remap = false),
+            require = 0, remap = false)
+    private void ae2e$sendSpecialPlanInfo(CallbackInfo ci) {
+        if (this.result == null) {
+            return;
+        }
+        var player = ((CraftConfirmMenu) (Object) this).getPlayer();
+        if (player instanceof ServerPlayer serverPlayer) {
+            var info = SpecialPlanInfo.compute(this.result);
+            ModNetwork.CHANNEL.send(net.minecraftforge.network.PacketDistributor.PLAYER.with(() -> serverPlayer),
+                    new SpecialPlanInfoPacket(info));
+        }
     }
 }
