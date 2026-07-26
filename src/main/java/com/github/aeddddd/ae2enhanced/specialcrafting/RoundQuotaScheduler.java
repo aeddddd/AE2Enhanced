@@ -47,6 +47,9 @@ public final class RoundQuotaScheduler {
     /** job → 提交时的 patternTimes 快照（弱键,job 结束自动回收）. */
     private static final Map<ExecutingCraftingJob, Map<IPatternDetails, Long>> TOTALS = new WeakHashMap<>();
 
+    /** job → 推导出的配额（随快照失效自动回收）. */
+    private static final Map<ExecutingCraftingJob, Quota> QUOTAS = new WeakHashMap<>();
+
     private RoundQuotaScheduler() {
     }
 
@@ -56,43 +59,43 @@ public final class RoundQuotaScheduler {
     public static synchronized void snapshot(ExecutingCraftingJob job, ICraftingPlan plan) {
         if (plan != null && !plan.patternTimes().isEmpty()) {
             TOTALS.put(job, Map.copyOf(plan.patternTimes()));
+            QUOTAS.remove(job);
         }
     }
 
     /**
-     * executeCrafting 任务迭代入口的过滤（游戏适配层）.
-     * 非我们的虚拟 CPU / 无快照 / 非自消耗 job 时返回原始任务集（零影响）.
+     * 逐次推送否决（游戏适配层,每次推送前由 extractPatternInputs 的注入点调用）.
+     * <p>超配额时返回 true,注入点令输入提取返回 null——原生视同"输入不足"自然
+     * 跳过该 pattern（空容器 reinject 安全）,下一拍配额前进后自动恢复.</p>
+     * 非我们的虚拟 CPU / 无快照 / 非自消耗 job / 闭包外 pattern 一律 false（零影响）.
      */
-    public static <T> Set<Map.Entry<IPatternDetails, T>> filterEntries(CraftingCpuLogic logic,
-            Map<IPatternDetails, T> tasks) {
+    public static boolean shouldVetoPush(CraftingCpuLogic logic, IPatternDetails details) {
         var logicAcc = (CraftingCpuLogicAccessor) logic;
         var job = logicAcc.getJob();
         if (job == null || !VirtualCraftingCPURegistry.isOurVirtualCpu(logicAcc.getCluster())) {
-            return tasks.entrySet();
+            return false;
         }
         Map<IPatternDetails, Long> totals;
         synchronized (RoundQuotaScheduler.class) {
             totals = TOTALS.get(job);
         }
-        if (totals == null) {
-            return tasks.entrySet(); // NBT 恢复任务:退化原生推送
+        if (totals == null || !totals.containsKey(details)) {
+            return false; // NBT 恢复任务:退化原生推送
         }
-        var quota = deriveQuota(totals, ((ExecutingCraftingJobAccessor) job).getFinalOutput().what());
+        Quota quota;
+        synchronized (RoundQuotaScheduler.class) {
+            quota = QUOTAS.computeIfAbsent(job,
+                    j -> deriveQuota(totals, ((ExecutingCraftingJobAccessor) j).getFinalOutput().what()));
+        }
         if (quota == null) {
-            return tasks.entrySet();
+            return false;
         }
+        var tasks = ((ExecutingCraftingJobAccessor) job).getTasks();
         Map<IPatternDetails, Long> remaining = new LinkedHashMap<>();
         for (var entry : tasks.entrySet()) {
             remaining.put(entry.getKey(), ((TaskProgressAccessor) entry.getValue()).getValue());
         }
-        var allowed = filterPushable(quota, totals, remaining);
-        var result = new LinkedHashSet<Map.Entry<IPatternDetails, T>>();
-        for (var entry : tasks.entrySet()) {
-            if (allowed.contains(entry.getKey())) {
-                result.add(entry);
-            }
-        }
-        return result;
+        return !isPushAllowed(quota, totals, remaining, details);
     }
 
     /**
@@ -139,14 +142,15 @@ public final class RoundQuotaScheduler {
     }
 
     /**
-     * 配额过滤（纯函数）:闭包 pattern 的已推送量不得超过（最慢闭包进度 + 1 超轮）;
-     * 闭包外 pattern（外部子合成）不受限.
-     *
-     * @param remaining 各 pattern 剩余执行次数（任务表现状）
-     * @return 本轮允许推送的 pattern 集合
+     * 单次推送配额判定（纯函数）:闭包 pattern 的已推送量不得超过
+     * （最慢闭包进度 + 1 超轮）;闭包外 pattern 不受限.
      */
-    public static Set<IPatternDetails> filterPushable(Quota quota, Map<IPatternDetails, Long> totals,
-            Map<IPatternDetails, Long> remaining) {
+    public static boolean isPushAllowed(Quota quota, Map<IPatternDetails, Long> totals,
+            Map<IPatternDetails, Long> remaining, IPatternDetails pattern) {
+        Long t = quota.perRound().get(pattern);
+        if (t == null) {
+            return true; // 闭包外:不限推
+        }
         long round = Long.MAX_VALUE;
         for (var entry : quota.perRound().entrySet()) {
             long pushed = totals.getOrDefault(entry.getKey(), 0L) - remaining.getOrDefault(entry.getKey(), 0L);
@@ -155,16 +159,19 @@ public final class RoundQuotaScheduler {
         if (round == Long.MAX_VALUE) {
             round = 0; // 闭包已全部完成,剩余任务自由推送
         }
+        long pushed = totals.getOrDefault(pattern, 0L) - remaining.getOrDefault(pattern, 0L);
+        long cap = t > Long.MAX_VALUE / (round + 1) ? Long.MAX_VALUE : t * (round + 1);
+        return pushed < cap;
+    }
+
+    /**
+     * 配额过滤（纯函数,测试辅助）:返回当前允许推送的 pattern 集合.
+     */
+    public static Set<IPatternDetails> filterPushable(Quota quota, Map<IPatternDetails, Long> totals,
+            Map<IPatternDetails, Long> remaining) {
         var allowed = new LinkedHashSet<IPatternDetails>();
         for (var pattern : remaining.keySet()) {
-            Long t = quota.perRound().get(pattern);
-            if (t == null) {
-                allowed.add(pattern); // 闭包外:不限推
-                continue;
-            }
-            long pushed = totals.getOrDefault(pattern, 0L) - remaining.get(pattern);
-            long cap = t > Long.MAX_VALUE / (round + 1) ? Long.MAX_VALUE : t * (round + 1);
-            if (pushed < cap) {
+            if (isPushAllowed(quota, totals, remaining, pattern)) {
                 allowed.add(pattern);
             }
         }

@@ -255,6 +255,37 @@ public class ComplexScenarioTest {
         assertThat(SpecialPlanMarker.isSpecial(plan)).isTrue();
     }
 
+    /** H13:四键环 + 分数速率 + 每轮辅材 + 辅材子合成:A+W→2B,B→C,2C→3D,2D→2A(t=[2,4,2,3],净产 4A/轮). */
+    @Test
+    public void testFourKeyCycleWithAuxSubcraft() {
+        var env = new SimulationEnv();
+        var stone = item(Items.STONE);
+        var cobble = item(Items.COBBLESTONE);
+        var sand = item(Items.SAND);
+        var gravel = item(Items.GRAVEL);
+        var dirt = item(Items.DIRT);
+        var flint = item(Items.FLINT);
+        var p0 = env.addPattern(new ProcessingPatternBuilder(mult(cobble, 2))
+                .addPreciseInput(1, stone)
+                .addPreciseInput(1, dirt)
+                .build());
+        var p1 = env.addPattern(new ProcessingPatternBuilder(sand).addPreciseInput(1, cobble).build());
+        var p2 = env.addPattern(new ProcessingPatternBuilder(mult(gravel, 3)).addPreciseInput(2, sand).build());
+        var p3 = env.addPattern(new ProcessingPatternBuilder(mult(stone, 2)).addPreciseInput(2, gravel).build());
+        var pW = env.addPattern(new ProcessingPatternBuilder(mult(dirt, 2)).addPreciseInput(1, flint).build());
+        env.addStoredItem(mult(stone, 2)); // 前缀种子(t0=2 → A 种子 2)
+        env.addStoredItem(dirt); // W 库存 1,缺口 1 由子合成补
+        env.addStoredItem(flint);
+
+        var plan = env.runSpecialSimulation(mult(stone, 4), CalculationStrategy.REPORT_MISSING_ITEMS);
+        assertThatPlan(plan)
+                .succeeded()
+                .patternsMatch(Map.of(p0, 2L, p1, 4L, p2, 2L, p3, 3L, pW, 1L)) // 1 轮 × t + W 子合成
+                .usedMatch(mult(stone, 2), dirt, flint)
+                .missingMatch();
+        assertThat(SpecialPlanMarker.isSpecial(plan)).isTrue();
+    }
+
     // ===== 断言辅助 =====
 
     private static GenericStack item(Item item) {

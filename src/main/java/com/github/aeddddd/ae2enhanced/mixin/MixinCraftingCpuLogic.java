@@ -1,8 +1,5 @@
 package com.github.aeddddd.ae2enhanced.mixin;
 
-import java.util.Map;
-import java.util.Set;
-
 import appeng.api.config.Actionable;
 import appeng.api.crafting.IPatternDetails;
 import appeng.api.networking.IGrid;
@@ -10,12 +7,15 @@ import appeng.api.networking.crafting.ICraftingPlan;
 import appeng.api.networking.crafting.ICraftingRequester;
 import appeng.api.networking.crafting.ICraftingSubmitResult;
 import appeng.api.networking.energy.IEnergyService;
+import appeng.api.networking.security.IActionSource;
 import appeng.api.stacks.AEKey;
+import appeng.api.stacks.KeyCounter;
+import appeng.crafting.execution.CraftingCpuHelper;
 import appeng.crafting.execution.CraftingCpuLogic;
 import appeng.crafting.execution.ExecutingCraftingJob;
+import appeng.crafting.inv.ICraftingInventory;
 import appeng.me.cluster.implementations.CraftingCPUCluster;
 import appeng.me.service.CraftingService;
-import appeng.api.networking.security.IActionSource;
 import net.minecraft.world.level.Level;
 
 import com.github.aeddddd.ae2enhanced.assembly.AssemblyHubBatchCrafting;
@@ -84,15 +84,21 @@ public class MixinCraftingCpuLogic {
     }
 
     /**
-     * 超轮配额调度:过滤 executeCrafting 任务迭代入口,超配额的闭包 pattern 本轮不推送.
-     * 仅对我们的虚拟 CPU 上的自消耗 job 生效,其余返回原始任务集.
+     * 超轮配额调度:逐次推送否决——超配额的闭包 pattern 令其输入提取返回 null,
+     * 原生视同"输入不足"自然跳过,下一拍配额前进后自动恢复.
+     * 仅对我们的虚拟 CPU 上的自消耗 job 生效;两个调用点(首次提取 + 续推重备)全部拦截.
      */
     @Redirect(method = "executeCrafting",
-            at = @At(value = "INVOKE", target = "Ljava/util/Map;entrySet()Ljava/util/Set;", remap = false),
+            at = @At(value = "INVOKE",
+                    target = "Lappeng/crafting/execution/CraftingCpuHelper;extractPatternInputs(Lappeng/api/crafting/IPatternDetails;Lappeng/api/networking/crafting/ICraftingInventory;Lnet/minecraft/world/level/Level;Lappeng/api/stacks/KeyCounter;Lappeng/api/stacks/KeyCounter;)[Lappeng/api/stacks/KeyCounter;",
+                    remap = false),
             require = 0, remap = false)
-    @SuppressWarnings({ "rawtypes", "unchecked" })
-    private Set ae2e$filterTaskEntriesByQuota(Map tasks, int maxPatterns, CraftingService craftingService,
-            IEnergyService energyService, Level level) {
-        return RoundQuotaScheduler.filterEntries((CraftingCpuLogic) (Object) this, tasks);
+    private KeyCounter[] ae2e$vetoPushOverQuota(IPatternDetails details, ICraftingInventory sourceInv, Level level,
+            KeyCounter expectedOutputs, KeyCounter expectedContainerItems) {
+        if (RoundQuotaScheduler.shouldVetoPush((CraftingCpuLogic) (Object) this, details)) {
+            return null; // 超配额:视同输入不足,本拍跳过该 pattern
+        }
+        return CraftingCpuHelper.extractPatternInputs(details, sourceInv, level, expectedOutputs,
+                expectedContainerItems);
     }
 }
