@@ -127,6 +127,17 @@ public final class SelfRefOutputGate {
         inventory.extract(what, deliver, Actionable.MODULATE);
         long linkInserted = jobAcc.getLink().insert(what, deliver, Actionable.MODULATE);
         if (linkInserted < deliver) {
+            // standalone(玩家终端提交,requester=null)任务的原生 link 永不注册 nexus,
+            // insert 恒为 0——回退到与 finishJob→storeItems 相同的网络存储直插.
+            var cluster0 = logicAcc.getCluster();
+            var grid = cluster0.getGrid();
+            if (grid != null) {
+                long stored = grid.getStorageService().getInventory()
+                        .insert(what, deliver - linkInserted, Actionable.MODULATE, cluster0.getSrc());
+                linkInserted += stored;
+            }
+        }
+        if (linkInserted < deliver) {
             AE2Enhanced.LOGGER.warn("[特殊配方] 门控交付部分丢失: {} 应交付 {},网络实收 {}(网络存储空间/类型不足)",
                     what, deliver, linkInserted);
         } else {
