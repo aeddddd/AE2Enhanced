@@ -32,6 +32,17 @@ public final class SpecialPlanTooltip {
     }
 
     /**
+     * 普通处理样板的行内描述:调用次数 + 按当前 CPU 协处理器估算的发配轮次.
+     *
+     * @param pushesPerRound 每拍推送预算(1 + 协处理器数)
+     */
+    public static Component normalDescriptionLine(long calls, long pushesPerRound) {
+        long rounds = Math.max(1, (calls + pushesPerRound - 1) / pushesPerRound);
+        return Component.translatable("gui.ae2enhanced.special_plan.normal_calls", calls, rounds)
+                .withStyle(ChatFormatting.AQUA);
+    }
+
+    /**
      * 悬停详情:完整结构信息.
      */
     public static List<Component> tooltipLines(AEKey key, SpecialPlanInfo.Entry entry) {

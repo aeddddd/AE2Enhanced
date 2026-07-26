@@ -285,5 +285,6 @@
   "gui.ae2enhanced.special_plan.rounds_desc": "Cyclic craft: dispatched in %s rounds",
   "gui.ae2enhanced.special_plan.cycle_header": "Cyclic Crafting: %s rounds",
   "gui.ae2enhanced.special_plan.cycle_per_round": "Per round: consume %s, produce %s",
-  "gui.ae2enhanced.special_plan.initial_extract": "Initial extraction %s"
+  "gui.ae2enhanced.special_plan.initial_extract": "Initial extraction %s",
+  "gui.ae2enhanced.special_plan.normal_calls": "%s calls (~%s dispatch rounds)"
 }

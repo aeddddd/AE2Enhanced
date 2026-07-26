@@ -23,4 +23,9 @@ public final class SpecialPlanClientCache {
     public static SpecialPlanInfo.Entry entryFor(appeng.api.stacks.AEKey key) {
         return current.entryFor(key);
     }
+
+    /** 该键作为主产出的样板调用总次数(无则 0,普通计划也有). */
+    public static long callCountOf(appeng.api.stacks.AEKey key) {
+        return current.callCountOf(key);
+    }
 }

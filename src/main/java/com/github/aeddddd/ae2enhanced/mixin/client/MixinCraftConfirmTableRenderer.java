@@ -4,6 +4,7 @@ import java.util.List;
 
 import net.minecraft.network.chat.Component;
 
+import appeng.client.gui.me.crafting.CraftConfirmScreen;
 import appeng.client.gui.me.crafting.CraftConfirmTableRenderer;
 import appeng.menu.me.crafting.CraftingPlanSummaryEntry;
 
@@ -16,9 +17,10 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 /**
- * 计划确认界面:自增殖/循环链条目的显示增强.
- * <p>行内描述追加发配轮次(自增殖:调用次数);悬停追加完整结构详情
- * (每轮消耗/产出、总轮次、初始提取).普通计划缓存为空,零影响.</p>
+ * 计划确认界面:样板调用信息显示增强.
+ * <p>自增殖/循环链条目:行内追加发配轮次,悬停追加完整结构详情;
+ * 普通处理样板条目:行内追加"调用 N 次(约 R 轮发配)"(R 按当前选中 CPU
+ * 的协处理器数估算).缓存为空时零影响.</p>
  */
 @Mixin(value = CraftConfirmTableRenderer.class, remap = false)
 public abstract class MixinCraftConfirmTableRenderer {
@@ -29,6 +31,11 @@ public abstract class MixinCraftConfirmTableRenderer {
         var info = SpecialPlanClientCache.entryFor(entry.getWhat());
         if (info != null) {
             cir.getReturnValue().add(SpecialPlanTooltip.descriptionLine(entry.getWhat(), info));
+            return;
+        }
+        long calls = SpecialPlanClientCache.callCountOf(entry.getWhat());
+        if (calls > 0) {
+            cir.getReturnValue().add(SpecialPlanTooltip.normalDescriptionLine(calls, ae2e$pushesPerRound()));
         }
     }
 
@@ -39,5 +46,16 @@ public abstract class MixinCraftConfirmTableRenderer {
         if (info != null) {
             cir.getReturnValue().addAll(SpecialPlanTooltip.tooltipLines(entry.getWhat(), info));
         }
+    }
+
+    /**
+     * 每拍推送预算(1 + 当前选中 CPU 协处理器数);无法确定时按 1 估算.
+     */
+    private long ae2e$pushesPerRound() {
+        var screen = ((AbstractTableRendererAccessor) this).getScreen();
+        if (screen instanceof CraftConfirmScreen confirmScreen) {
+            return 1L + Math.max(0, confirmScreen.getMenu().getCpuCoProcessors());
+        }
+        return 1L;
     }
 }

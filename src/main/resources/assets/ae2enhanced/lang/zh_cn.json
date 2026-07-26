@@ -285,5 +285,6 @@
   "gui.ae2enhanced.special_plan.rounds_desc": "循环合成:分 %s 轮发配执行",
   "gui.ae2enhanced.special_plan.cycle_header": "循环合成:共 %s 轮",
   "gui.ae2enhanced.special_plan.cycle_per_round": "每轮:消耗 %s,产出 %s",
-  "gui.ae2enhanced.special_plan.initial_extract": "初始提取 %s"
+  "gui.ae2enhanced.special_plan.initial_extract": "初始提取 %s",
+  "gui.ae2enhanced.special_plan.normal_calls": "调用 %s 次(约 %s 轮发配)"
 }

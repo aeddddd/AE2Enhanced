@@ -52,6 +52,7 @@ public class SpecialPlanInfoTest {
         assertThat(entry.perRoundProduce()).isEqualTo(2);
         assertThat(entry.totalCrafts()).isEqualTo(10);
         assertThat(entry.initialExtract()).isEqualTo(1);
+        assertThat(info.callCountOf(stone.what())).isEqualTo(10);
     }
 
     /** θ 循环计划:kind=CYCLE,轮次=GCD 恢复,每轮消耗/产出精确. */
@@ -87,9 +88,9 @@ public class SpecialPlanInfoTest {
         assertThat(cobbleEntry.perRoundConsume()).isEqualTo(1);
     }
 
-    /** 普通计划:EMPTY(客户端清空缓存). */
+    /** 普通计划:无特殊标注,但调用次数表完整(客户端显示"调用 N 次"). */
     @Test
-    public void testNormalPlanYieldsEmpty() {
+    public void testNormalPlanYieldsCallCounts() {
         var env = new SimulationEnv();
         var stone = item(Items.STONE);
         var stick = item(Items.STICK);
@@ -97,7 +98,9 @@ public class SpecialPlanInfoTest {
         env.addStoredItem(mult(stone, 64));
 
         var plan = env.runSpecialSimulation(mult(stick, 8), CalculationStrategy.REPORT_MISSING_ITEMS);
-        assertThat(SpecialPlanInfo.compute(plan).isEmpty()).isTrue();
+        var info = SpecialPlanInfo.compute(plan);
+        assertThat(info.entries()).isEmpty(); // 无自增殖/循环标注
+        assertThat(info.callCountOf(stick.what())).isEqualTo(2); // 8 木棍 ÷ 每次 4 个 = 2 次调用
     }
 
     /** 编解码往返:字节级一致. */
