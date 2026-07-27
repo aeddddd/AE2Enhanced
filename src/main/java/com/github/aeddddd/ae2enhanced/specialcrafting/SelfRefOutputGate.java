@@ -124,35 +124,32 @@ public final class SelfRefOutputGate {
                     "[特殊配方] 门控收官受阻: {} 待交付 {} 但 CPU 库存 {}", what, remaining, held);
             return;
         }
-        inventory.extract(what, deliver, Actionable.MODULATE);
-        long linkInserted = jobAcc.getLink().insert(what, deliver, Actionable.MODULATE);
-        if (linkInserted < deliver) {
-            // standalone(玩家终端提交,requester=null)任务的原生 link 永不注册 nexus,
-            // insert 恒为 0——回退到与 finishJob→storeItems 相同的网络存储直插.
-            var cluster0 = logicAcc.getCluster();
-            var grid = cluster0.getGrid();
-            if (grid != null) {
-                long stored = grid.getStorageService().getInventory()
-                        .insert(what, deliver - linkInserted, Actionable.MODULATE, cluster0.getSrc());
-                linkInserted += stored;
+
+        long delivered = 0;
+        // standalone(玩家终端提交)任务的原生 link 无 nexus,交付恒拒收;机器任务的 link 也可能已满.
+        // 先用 SIMULATE 探测:可用则直付;拒收部分一律留在 CPU 库存,由 finishJob→storeItems
+        // 兜底送入网络存储(tick 中执行且带 cantStoreItems 重试——不能在此同步插网络:
+        // 本方法运行在回流调用栈内,NetworkStorage 的 mountsInUse 重入保护会静默返回 0).
+        if (jobAcc.getLink().insert(what, 1, Actionable.SIMULATE) > 0) {
+            inventory.extract(what, deliver, Actionable.MODULATE);
+            delivered = jobAcc.getLink().insert(what, deliver, Actionable.MODULATE);
+            long refused = deliver - delivered;
+            if (refused > 0) {
+                // ICraftingInventory.insert 无返回值,用前后差值检测真实入库存量
+                long before = inventory.extract(what, Long.MAX_VALUE, Actionable.SIMULATE);
+                inventory.insert(what, refused, Actionable.MODULATE);
+                long accepted = inventory.extract(what, Long.MAX_VALUE, Actionable.SIMULATE) - before;
+                if (accepted < refused) {
+                    AE2Enhanced.LOGGER.warn("[特殊配方] 门控交付丢失: {} × {}(link 拒收且 CPU 库存已满)",
+                            what, refused - accepted);
+                }
             }
         }
-        if (linkInserted < deliver) {
-            AE2Enhanced.LOGGER.warn("[特殊配方] 门控交付部分丢失: {} 应交付 {},网络实收 {}(网络存储空间/类型不足)",
-                    what, deliver, linkInserted);
-        } else {
-            AE2Enhanced.LOGGER.info("[特殊配方] 门控交付: {} × {}", what, deliver);
-        }
-        // 与原生一致:忽略 link 拒收余量,直接按已交付扣减
-        long newRemaining = Math.max(0, remaining - deliver);
-        jobAcc.setRemainingAmount(newRemaining);
-        var cluster = logicAcc.getCluster();
-        if (newRemaining <= 0) {
-            logicAcc.invokeFinishJob(true);
-            cluster.updateOutput(null);
-        } else {
-            cluster.updateOutput(new GenericStack(what, newRemaining));
-        }
+        // 拒收部分随 storeItems 入网络,语义上视为交付完成
+        jobAcc.setRemainingAmount(0);
+        AE2Enhanced.LOGGER.info("[特殊配方] 门控收官: {} 直付 {},库存兜底 {}", what, delivered, deliver - delivered);
+        logicAcc.invokeFinishJob(true);
+        logicAcc.getCluster().updateOutput(null);
     }
 
     /**
