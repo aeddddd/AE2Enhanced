@@ -110,7 +110,7 @@ public class SpecialCraftingCalculation extends CraftingCalculation {
         }
         if (selfRef == null) {
             if (!selfRefAnyCandidates.isEmpty()) {
-                AE2Enhanced.LOGGER.info("[特殊配方] 广义自引用路径: {}×{},{} 个候选样板", what, target,
+                SpecialLog.info("[特殊配方] 广义自引用路径: {}×{},{} 个候选样板", what, target,
                         selfRefAnyCandidates.size());
             }
             // 广义自引用:自引用 key ≠ 请求 key 的候选迭代求解(不同候选的种子需求
@@ -220,7 +220,7 @@ public class SpecialCraftingCalculation extends CraftingCalculation {
         // 枚举候选环（长环优先,键集更完整）,迭代求解直到成功——不同候选环的
         // 种子需求/环外输入可能不同,第一个增殖环求解失败时应尝试下一个.
         var cycles = CycleAnalyzer.findCyclesThrough(craftingService, what);
-        AE2Enhanced.LOGGER.info("[特殊配方] 循环链求解: {}×{},找到 {} 个候选环", what, target, cycles.size());
+        SpecialLog.info("[特殊配方] 循环链求解: {}×{},找到 {} 个候选环", what, target, cycles.size());
         // θ 形共享结构(多个环共享同一中间样板,如赛特斯石英循环)逐环分析会互相把
         // 对方的中间物当环外输入而双双失败 → 先尝试候选环并集联立求解
         var union = CycleAnalyzer.analyzeUnion(cycles);
@@ -233,12 +233,12 @@ public class SpecialCraftingCalculation extends CraftingCalculation {
         for (var cycle : cycles) {
             var analysis = CycleAnalyzer.analyze(cycle);
             if (analysis == null) {
-                AE2Enhanced.LOGGER.info("[特殊配方] 候选环({} 步)不可解(秩不足/无正整数解/超 long),跳过",
+                SpecialLog.info("[特殊配方] 候选环({} 步)不可解(秩不足/无正整数解/超 long),跳过",
                         cycle.size());
                 continue;
             }
             if (analysis.rateClass() != CycleAnalyzer.RateClass.PRODUCTIVE) {
-                AE2Enhanced.LOGGER.info("[特殊配方] 候选环({} 步)为 {},不接管", cycle.size(), analysis.rateClass());
+                SpecialLog.info("[特殊配方] 候选环({} 步)为 {},不接管", cycle.size(), analysis.rateClass());
                 continue;
             }
             var plan = tryCycleAnalysis(analysis, what, target);
@@ -247,7 +247,7 @@ public class SpecialCraftingCalculation extends CraftingCalculation {
             }
         }
         // 所有候选环均不适用 → 原生兜底(原生对环剪枝,快速失败,无回归)
-        AE2Enhanced.LOGGER.info("[特殊配方] 无可用候选环,回落原生计算: {}×{}", what, target);
+        SpecialLog.info("[特殊配方] 无可用候选环,回落原生计算: {}×{}", what, target);
         return null;
     }
 
@@ -259,7 +259,7 @@ public class SpecialCraftingCalculation extends CraftingCalculation {
     @Nullable
     private ICraftingPlan tryCycleAnalysis(CycleAnalyzer.Analysis analysis, AEKey what, long target)
             throws InterruptedException {
-        AE2Enhanced.LOGGER.info("[特殊配方] 尝试增殖环({} 步):净产 {}/轮,种子 {},全批次种子 {}",
+        SpecialLog.info("[特殊配方] 尝试增殖环({} 步):净产 {}/轮,种子 {},全批次种子 {}",
                 analysis.steps().size(), analysis.netGain(),
                 java.util.Arrays.toString(analysis.seedsPerKey()),
                 java.util.Arrays.toString(analysis.batchSeedPerKey()));
@@ -275,7 +275,7 @@ public class SpecialCraftingCalculation extends CraftingCalculation {
             return null;
         }
 
-        AE2Enhanced.LOGGER.info("[特殊配方] 循环链求解成功: {}×{}", what, target);
+        SpecialLog.info("[特殊配方] 循环链求解成功: {}×{}", what, target);
         inv.addBytes(8);
         CraftingPlan base = CraftingSimulationState.buildCraftingPlan(inv, this, target);
         // 环计划保守标记 multiplePaths（环外可能仍有其他候选路线）

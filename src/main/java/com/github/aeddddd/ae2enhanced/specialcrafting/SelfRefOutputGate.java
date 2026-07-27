@@ -86,7 +86,7 @@ public final class SelfRefOutputGate {
     private static void logGateStartOnce(ExecutingCraftingJob job, GenericStack finalOutput, long remaining) {
         synchronized (LOGGED_JOBS) {
             if (LOGGED_JOBS.put(job, "started") == null) {
-                AE2Enhanced.LOGGER.info("[特殊配方] 门控启动: {} 待交付 {}", finalOutput, remaining);
+                SpecialLog.info("[特殊配方] 门控启动: {} 待交付 {}", finalOutput, remaining);
             }
         }
     }
@@ -94,7 +94,7 @@ public final class SelfRefOutputGate {
     private static void logOnce(ExecutingCraftingJob job, String reason, String message, Object... args) {
         synchronized (LOGGED_JOBS) {
             if (!reason.equals(LOGGED_JOBS.put(job, reason))) {
-                AE2Enhanced.LOGGER.info(message, args);
+                SpecialLog.info(message, args);
             }
         }
     }
@@ -147,7 +147,7 @@ public final class SelfRefOutputGate {
         }
         // 拒收部分随 storeItems 入网络,语义上视为交付完成
         jobAcc.setRemainingAmount(0);
-        AE2Enhanced.LOGGER.info("[特殊配方] 门控收官: {} 直付 {},库存兜底 {}", what, delivered, deliver - delivered);
+        SpecialLog.info("[特殊配方] 门控收官: {} 直付 {},库存兜底 {}", what, delivered, deliver - delivered);
         logicAcc.invokeFinishJob(true);
         logicAcc.getCluster().updateOutput(null);
     }
