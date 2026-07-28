@@ -86,12 +86,24 @@ public class DagCraftingCalculation extends CraftingCalculation {
         var networkInv = Ae2CraftingReflect.getNetworkInv(this);
         var inv = new ChildCraftingSimulationState(networkInv);
         inv.ignore(getOutput()); // 镜像原生:请求物自身库存不参与计划扣除
+        boolean hasCycleBoundary = false;
+        for (var node : graph.topoOrder) {
+            if (node.kind == DagGraph.Kind.CYCLE) {
+                hasCycleBoundary = true;
+                break;
+            }
+        }
         try {
             DagExecutor.execute(graph, outputStack.amount(), inv, this, craftingService);
         } catch (DagFallback fallback) {
             SpecialLog.info("[DAG] 执行回落({}): {}", fallback.reason, getOutput());
             return null;
         }
-        return CraftingSimulationState.buildCraftingPlan(inv, this, outputStack.amount());
+        var plan = CraftingSimulationState.buildCraftingPlan(inv, this, outputStack.amount());
+        if (hasCycleBoundary) {
+            // 含循环内容的计划硬路由到模组虚拟 CPU(无限库存 + 门控/配额调度在场)
+            com.github.aeddddd.ae2enhanced.specialcrafting.SpecialPlanMarker.mark(plan);
+        }
+        return plan;
     }
 }

@@ -138,8 +138,8 @@ public final class AE2EnhancedConfig {
             builder.push("craftingPlan");
             dagPlannerMode = builder
                     .comment("DAG 计划引擎模式：OFF 关闭；FALLBACK 原生算不出（缺料/递归超限）时 DAG 重算兜底；"
-                            + "DEFAULT 所有非特殊请求默认走 DAG 引擎（深层自引用/循环也可识别）")
-                    .defineEnum("dagPlannerMode", DagPlannerMode.FALLBACK);
+                            + "DEFAULT 所有非特殊请求默认走 DAG 引擎（深层自引用/循环也可识别）,原版递归树作回退")
+                    .defineEnum("dagPlannerMode", DagPlannerMode.DEFAULT);
             builder.pop();
         }
     }

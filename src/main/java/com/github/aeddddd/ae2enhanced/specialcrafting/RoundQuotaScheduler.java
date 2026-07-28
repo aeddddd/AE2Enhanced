@@ -3,6 +3,8 @@ package com.github.aeddddd.ae2enhanced.specialcrafting;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.WeakHashMap;
@@ -99,10 +101,13 @@ public final class RoundQuotaScheduler {
     }
 
     /**
-     * 推导配额（纯函数）:任务集中"既消耗又产出"的键构成闭包键,最终产出必须是
-     * 闭包键（否则非自消耗 job,不调度）;闭包内 pattern 的总次数对 GCD 约分.
+     * 推导配额（纯函数）:任务集中"既消耗又产出"的键为候选闭包键;
+     * 候选键必须**真的成环**(沿闭包内样板能从自身回到自身)才纳入——
+     * 线性副产物复用(产出也被消耗但不成环)不调度,避免误伤死锁.
+     * 自 1.1.0 起不再要求最终产出在闭包内:深层循环(DAG 边界)计划的
+     * 最终产出是根物品,环在中间层,同样需要限推.
      *
-     * @return 配额;非自消耗/无法推导时返回 null（调用方退化原生推送）.
+     * @return 配额;无真环/无法推导时返回 null（调用方退化原生推送）.
      */
     @Nullable
     public static Quota deriveQuota(Map<IPatternDetails, Long> totals, AEKey finalOutputWhat) {
@@ -120,13 +125,39 @@ public final class RoundQuotaScheduler {
             }
         }
         produced.retainAll(consumed);
-        if (!produced.contains(finalOutputWhat)) {
+        if (produced.isEmpty()) {
             return null; // 非自消耗 job
+        }
+        // 真环判定:候选键 K 成环 ⟺ 从消费 K 的样板出发,沿"样板→产出候选键→
+        // 消费该键的样板"能回到产出 K 的样板(自增殖 = 单样板自环)
+        Map<AEKey, List<IPatternDetails>> consumersOf = new LinkedHashMap<>();
+        Map<AEKey, List<IPatternDetails>> producersOf = new LinkedHashMap<>();
+        for (var pattern : totals.keySet()) {
+            for (var output : pattern.getOutputs()) {
+                if (produced.contains(output.what())) {
+                    producersOf.computeIfAbsent(output.what(), k -> new ArrayList<>()).add(pattern);
+                }
+            }
+            for (var input : pattern.getInputs()) {
+                var possible = input.getPossibleInputs();
+                if (possible.length > 0 && produced.contains(possible[0].what())) {
+                    consumersOf.computeIfAbsent(possible[0].what(), k -> new ArrayList<>()).add(pattern);
+                }
+            }
+        }
+        Set<AEKey> cyclicKeys = new HashSet<>();
+        for (var key : produced) {
+            if (isCyclicKey(key, produced, consumersOf, producersOf)) {
+                cyclicKeys.add(key);
+            }
+        }
+        if (cyclicKeys.isEmpty()) {
+            return null; // 线性副产物复用,不成环,不调度
         }
         Map<IPatternDetails, Long> closureTotals = new LinkedHashMap<>();
         long gcd = 0;
         for (var entry : totals.entrySet()) {
-            if (touchesAny(entry.getKey(), produced)) {
+            if (touchesAny(entry.getKey(), cyclicKeys)) {
                 closureTotals.put(entry.getKey(), entry.getValue());
                 gcd = gcd(gcd, entry.getValue());
             }
@@ -188,6 +219,32 @@ public final class RoundQuotaScheduler {
             var possible = input.getPossibleInputs();
             if (possible.length > 0 && loopKeys.contains(possible[0].what())) {
                 return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * 键 K 是否成环:从消费 K 的样板出发,沿"样板产出候选键 → 消费该键的样板"
+     * 可达产出 K 的样板(自增殖样板一步即成环).
+     */
+    private static boolean isCyclicKey(AEKey key, Set<AEKey> candidates,
+            Map<AEKey, List<IPatternDetails>> consumersOf, Map<AEKey, List<IPatternDetails>> producersOf) {
+        var producers = producersOf.getOrDefault(key, List.of());
+        Set<IPatternDetails> visited = new HashSet<>();
+        var stack = new java.util.ArrayDeque<>(consumersOf.getOrDefault(key, List.of()));
+        while (!stack.isEmpty()) {
+            var pattern = stack.pop();
+            if (!visited.add(pattern)) {
+                continue;
+            }
+            if (producers.contains(pattern)) {
+                return true;
+            }
+            for (var output : pattern.getOutputs()) {
+                if (candidates.contains(output.what())) {
+                    stack.addAll(consumersOf.getOrDefault(output.what(), List.of()));
+                }
             }
         }
         return false;

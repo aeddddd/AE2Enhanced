@@ -83,6 +83,42 @@ public class RoundQuotaSchedulerTest {
         assertThat(quota).isNull();
     }
 
+    /** T6(1.1.0):深层环——最终产出不在闭包内(DAG 边界计划),仍应限推. */
+    @Test
+    public void testDeriveQuotaDeepCycleWithoutFinalOutput() {
+        var p = theta();
+        var gravel = item(Items.GRAVEL);
+        var pRoot = new ProcessingPatternBuilder(gravel).addPreciseInput(1, p.stone()).build();
+        Map<IPatternDetails, Long> totals = new LinkedHashMap<>();
+        totals.put(pRoot, 8L);
+        totals.put(p.crush(), 4L);
+        totals.put(p.charge(), 4L);
+        totals.put(p.back(), 4L);
+
+        // finalOutput = gravel(根),不在环闭包内——1.1.0 前返回 null,深层环失去限推
+        var quota = RoundQuotaScheduler.deriveQuota(totals, gravel.what());
+        assertThat(quota).isNotNull();
+        // 根 pattern 消耗环键(多消费者之一)→ 纳入闭包限推是安全的;GCD=4 → t={2,1,1,1}
+        assertThat(quota.perRound()).containsOnlyKeys(pRoot, p.crush(), p.charge(), p.back());
+        assertThat(quota.perRound().get(pRoot)).isEqualTo(2L);
+        assertThat(quota.perRound().get(p.back())).isEqualTo(1L);
+    }
+
+    /** T7(1.1.0):线性副产物复用(产出也被消耗但不成环)→ 不调度,防误伤死锁. */
+    @Test
+    public void testDeriveQuotaRejectsLinearByproductReuse() {
+        var a = item(Items.STONE);
+        var b = item(Items.COBBLESTONE);
+        var x = item(Items.SAND);
+        var c = item(Items.DIRT);
+        // 1A → 2B + 1X(副产物 X);1X → 1C:X 既产出又消耗,但不成环
+        var p0 = new ProcessingPatternBuilder(mult(b, 2), x).addPreciseInput(1, a).build();
+        var p1 = new ProcessingPatternBuilder(c).addPreciseInput(1, x).build();
+
+        var quota = RoundQuotaScheduler.deriveQuota(Map.of(p0, 4L, p1, 4L), c.what());
+        assertThat(quota).isNull();
+    }
+
     /** T3:赛特斯尺度 GCD 恢复:totals {512,8,512} → 超轮比 {64,1,64}. */
     @Test
     public void testGcdRecoversRounds() {
