@@ -9,6 +9,10 @@ import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
+
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.MutableComponent;
 
 /**
  * 修复 AE2 15.3.4 {@code Tooltips.BYTE_NUMS} 的上游 bug：
@@ -29,5 +33,15 @@ public class MixinTooltips {
     @Inject(method = "<clinit>", at = @At("TAIL"), remap = false)
     private static void ae2e$fixByteNums(CallbackInfo ci) {
         BYTE_NUMS = new long[] { 1L << 10, 1L << 20, 1L << 30, 1L << 40, 1L << 50, 1L << 60 };
+    }
+
+    /**
+     * 无限存储（Long.MAX_VALUE,虚拟 CPU）的字节 tooltip 直接显示为 ∞.
+     */
+    @Inject(method = "ofBytes", at = @At("HEAD"), cancellable = true, remap = false)
+    private static void ae2e$infiniteBytes(long number, CallbackInfoReturnable<MutableComponent> cir) {
+        if (number == Long.MAX_VALUE) {
+            cir.setReturnValue(Component.literal("∞"));
+        }
     }
 }

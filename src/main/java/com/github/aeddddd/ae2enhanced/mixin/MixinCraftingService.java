@@ -26,9 +26,8 @@ import com.github.aeddddd.ae2enhanced.computation.cpu.VirtualCraftingCPURegistry
  * <ul>
  * <li>虚拟 CPU 出现在终端 CPU 列表({@code getCpus} 返回值追加,priority=900
  * 让其他兼容 mod 先跑),可被手动选择（原生对手动 target 不校验集合成员）;</li>
- * <li>原生自动分配（{@code findSuitableCraftingCPU}）<b>不会</b>把普通计划派给虚拟 CPU
- * ——普通合成与特殊配方测试完全隔离,特殊计划由
- * {@link MixinCraftingServiceSubmit} 独占硬路由;</li>
+ * <li>普通计划由 {@link MixinCraftingServiceSubmit} 优先派给超因果计算核心的
+ * 子 CPU（无空闲时立即分裂,池满回落原生分配）,特殊计划独占硬路由;</li>
  * <li>合成逻辑 tick、在途物品送达、"正在合成"统计由本类在对应汇聚点补投.</li>
  * </ul>
  * 已知小缺口：监视器（watcher）的"正在合成"实时通知不含虚拟 CPU 任务（每 tick
@@ -42,8 +41,10 @@ public class MixinCraftingService {
     private IGrid grid;
 
     /**
-     * 每 tick:清理失效注册 + 驱动本网格虚拟 CPU 的合成逻辑（字段注入移除后,
+     * 每 tick:清理已销毁集群 + 驱动本网格虚拟 CPU 的合成逻辑（字段注入移除后,
      * 原生 tick 循环不再覆盖虚拟 CPU,必须在此补投,否则执行中任务停摆）.
+     * <p>注意：仅销毁才注销;<b>未激活（电网重启/断电/刚成形未并网）不注销</b>,
+     * 否则节点恢复后 CPU 也无法回到列表（计算核心池非空不会重建,测试 CPU 可自愈）.</p>
      */
     @Inject(method = "onServerEndTick", at = @At("TAIL"), remap = false)
     private void ae2e$tickVirtualCpus(CallbackInfo ci) {
@@ -54,11 +55,11 @@ public class MixinCraftingService {
         var energyService = this.grid.getEnergyService();
         var self = (CraftingService) (Object) this;
         for (CraftingCPUCluster cluster : clusters) {
-            if (cluster.isDestroyed() || !cluster.isActive()) {
+            if (cluster.isDestroyed()) {
                 VirtualCraftingCPURegistry.unregister(cluster);
                 continue;
             }
-            if (cluster.getGrid() == this.grid) {
+            if (cluster.isActive() && cluster.getGrid() == this.grid) {
                 cluster.craftingLogic.tickCraftingLogic(energyService, self);
             }
         }

@@ -1,6 +1,8 @@
 {
-  "parent": "block/cube_all",
+  "parent": "block/orientable",
   "textures": {
-    "all": "ae2enhanced:block/computation_controller"
+    "front": "ae2enhanced:block/computation_controller_front",
+    "side": "ae2enhanced:block/computation_controller",
+    "top": "ae2enhanced:block/computation_controller"
   }
 }

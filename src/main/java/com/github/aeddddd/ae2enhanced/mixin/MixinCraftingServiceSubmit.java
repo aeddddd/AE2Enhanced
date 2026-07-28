@@ -18,15 +18,19 @@ import appeng.crafting.execution.CraftingSubmitResult;
 import appeng.me.cluster.implementations.CraftingCPUCluster;
 import appeng.me.service.CraftingService;
 
+import com.github.aeddddd.ae2enhanced.computation.blockentity.ComputationCoreBlockEntity;
+import com.github.aeddddd.ae2enhanced.computation.cpu.IVirtualCraftingCPU;
+import com.github.aeddddd.ae2enhanced.computation.cpu.VirtualCraftingCPU;
 import com.github.aeddddd.ae2enhanced.computation.cpu.VirtualCraftingCPURegistry;
 import com.github.aeddddd.ae2enhanced.specialcrafting.RoutingDecision;
 import com.github.aeddddd.ae2enhanced.specialcrafting.SpecialPlanMarker;
 
 /**
- * 特殊配方路由（路由点 B:任务提交分流）.
+ * 虚拟 CPU 任务提交路由（路由点 B:任务提交分流）.
  * <p>特殊计划（{@link SpecialPlanMarker} 标记）<b>独占路由</b>到本项目虚拟 CPU
  * （测试 CPU / 超因果计算核心）,不回落普通 CPU,防止语义错误的执行;
- * 普通计划直接放行（返回 null 约定,参考 NeoECOAE 的软路由注入面）.</p>
+ * 普通计划优先分配给超因果计算核心的子 CPU,无空闲时<b>立即分裂</b>新子 CPU
+ * （参考 AAE 量子计算机）,池满才回落原生分配.</p>
  */
 @Mixin(value = CraftingService.class, remap = false)
 public class MixinCraftingServiceSubmit {
@@ -36,7 +40,7 @@ public class MixinCraftingServiceSubmit {
     private IGrid grid;
 
     @Inject(method = "submitJob", at = @At("HEAD"), cancellable = true, require = 0, remap = false)
-    private void ae2e$routeSpecialJob(ICraftingPlan job, ICraftingRequester requestingMachine,
+    private void ae2e$routeJob(ICraftingPlan job, ICraftingRequester requestingMachine,
             ICraftingCPU target, boolean prioritizePower, IActionSource src,
             CallbackInfoReturnable<ICraftingSubmitResult> cir) {
         // 与原生相同的先序校验:模拟(缺料)计划一律拒绝,且不得进入我方路由
@@ -45,28 +49,33 @@ public class MixinCraftingServiceSubmit {
             cir.setReturnValue(CraftingSubmitResult.INCOMPLETE_PLAN);
             return;
         }
-        if (!SpecialPlanMarker.isSpecial(job)) {
-            return;
-        }
 
-        // 玩家/机器手动指定了 CPU:只接受我方虚拟 CPU,否则拒绝
+        boolean special = SpecialPlanMarker.isSpecial(job);
+
+        // 玩家/机器手动指定了 CPU
         if (target != null) {
-            if (!RoutingDecision.isOurVirtualCpu(target)) {
+            if (RoutingDecision.isOurVirtualCpu(target)) {
+                // 目标为我方虚拟 CPU:忙碌时分裂新子 CPU 承接（参考 AAE 量子计算机）
+                cir.setReturnValue(ae2e$submitToOurs((CraftingCPUCluster) target, job, src, requestingMachine));
+            } else if (special) {
+                // 特殊计划只允许我方虚拟 CPU 执行,拒绝其他目标
                 cir.setReturnValue(
                         CraftingSubmitResult.simpleError(CraftingSubmitErrorCode.NO_SUITABLE_CPU_FOUND));
-                return;
             }
-            cir.setReturnValue(
-                    ((CraftingCPUCluster) target).submitJob(this.grid, job, src, requestingMachine));
+            // 普通计划指定普通 CPU:放行原生
             return;
         }
 
-        // 自动分配:仅从本项目虚拟 CPU 中选择（同网格、在线、空闲、容量足够）
+        // 自动分配:优先从我方虚拟 CPU 中选择（同网格、在线、空闲、容量足够）
         for (CraftingCPUCluster cluster : VirtualCraftingCPURegistry.getClusters()) {
             if (cluster.isDestroyed() || !cluster.isActive() || cluster.isBusy()) {
                 continue;
             }
             if (cluster.getGrid() != this.grid) {
+                continue;
+            }
+            // 普通计划只派给超因果计算核心的子 CPU,不派给测试 CPU
+            if (!special && ((IVirtualCraftingCPU) (Object) cluster).ae2enhanced$getHost() == null) {
                 continue;
             }
             if (cluster.getAvailableStorage() < job.bytes()) {
@@ -75,6 +84,49 @@ public class MixinCraftingServiceSubmit {
             cir.setReturnValue(cluster.submitJob(this.grid, job, src, requestingMachine));
             return;
         }
-        cir.setReturnValue(CraftingSubmitResult.NO_CPU_FOUND);
+
+        // 无空闲子 CPU:立即分裂一个新子 CPU 承接本任务（参考 AAE 量子计算机）
+        VirtualCraftingCPU spawned = ae2e$spawnSubCpu();
+        if (spawned != null) {
+            cir.setReturnValue(spawned.getCluster().submitJob(this.grid, job, src, requestingMachine));
+            return;
+        }
+
+        if (special) {
+            // 特殊计划不回落普通 CPU
+            cir.setReturnValue(CraftingSubmitResult.NO_CPU_FOUND);
+        }
+        // 普通计划池满:放行原生分配（返回 null 约定,参考 NeoECOAE 的软路由注入面）
+    }
+
+    /**
+     * 向指定的我方虚拟 CPU 提交;若其忙碌则尝试分裂新子 CPU 承接.
+     */
+    private ICraftingSubmitResult ae2e$submitToOurs(CraftingCPUCluster target, ICraftingPlan job,
+            IActionSource src, ICraftingRequester requestingMachine) {
+        if (!target.isBusy()) {
+            return target.submitJob(this.grid, job, src, requestingMachine);
+        }
+        VirtualCraftingCPU spawned = ae2e$spawnSubCpu();
+        if (spawned != null) {
+            return spawned.getCluster().submitJob(this.grid, job, src, requestingMachine);
+        }
+        return target.submitJob(this.grid, job, src, requestingMachine);
+    }
+
+    /**
+     * 找到本网格内的计算核心宿主并分裂一个新子 CPU.
+     */
+    private VirtualCraftingCPU ae2e$spawnSubCpu() {
+        for (CraftingCPUCluster cluster : VirtualCraftingCPURegistry.getClusters()) {
+            if (cluster.isDestroyed() || cluster.getGrid() != this.grid) {
+                continue;
+            }
+            ComputationCoreBlockEntity host = ((IVirtualCraftingCPU) (Object) cluster).ae2enhanced$getHost();
+            if (host != null) {
+                return host.spawnSubCpu();
+            }
+        }
+        return null;
     }
 }

@@ -14,9 +14,6 @@ public final class GuiConstants {
     public static final int DEFAULT_IMAGE_WIDTH = 176;
     public static final int DEFAULT_IMAGE_HEIGHT = 166;
 
-    public static final int PANEL_WIDTH = 280;
-    public static final int PANEL_HEIGHT = 200;
-
     // ==================== 各 Screen 专用尺寸 ====================
 
     public static final int PATTERN_IMAGE_WIDTH = 320;
@@ -83,10 +80,6 @@ public final class GuiConstants {
     public static final int SAFE_MODE_BANNER_COLOR = 0x55ff0000;
     public static final int SAFE_MODE_TEXT_COLOR = 0xFFffaaaa;
 
-    public static final int COMPUTATION_EMPTY_TEXT_COLOR = 0xFF668899;
-    public static final int COMPUTATION_INITIALIZING_TEXT_COLOR = 0xFF556677;
-    public static final int COMPUTATION_HINT_TEXT_COLOR = 0xFF445566;
-
     // ==================== 通用布局位置 ====================
 
     public static final int TITLE_LABEL_Y = 8;
@@ -98,30 +91,6 @@ public final class GuiConstants {
     public static final int NETWORK_STATUS_Y = 50;
     public static final int JOBS_TEXT_X = 12;
     public static final int JOBS_TEXT_Y = 62;
-
-    // ==================== 计算核心布局 ====================
-
-    public static final int PANEL_CONTENT_LEFT_MARGIN = 10;
-    public static final int PANEL_CONTENT_TOP_MARGIN = 40;
-
-    public static final int COMPUTATION_INNER_PANEL_TOP = 36;
-    public static final int COMPUTATION_INNER_PANEL_BOTTOM_MARGIN = 28;
-    public static final int COMPUTATION_TITLE_Y = 8;
-    public static final int COMPUTATION_SEPARATOR_Y = 22;
-    public static final int COMPUTATION_SEPARATOR_LEFT_MARGIN = 16;
-    public static final int COMPUTATION_CONTENT_START_X = 20;
-    public static final int COMPUTATION_CONTENT_START_Y = 42;
-    public static final int COMPUTATION_TILE_UNAVAILABLE_Y = 40;
-    public static final int COMPUTATION_LINE_HEIGHT = 14;
-    public static final int COMPUTATION_SMALL_LINE_SPACING = 12;
-    public static final int COMPUTATION_PARAGRAPH_SPACING = 4;
-    public static final int COMPUTATION_BAR_MAX_WIDTH = 140;
-    public static final int COMPUTATION_BAR_HEIGHT = 8;
-    public static final int COMPUTATION_DIVIDER_VERTICAL_MARGIN = 6;
-    public static final int COMPUTATION_HINT_BOTTOM_MARGIN = 18;
-    public static final int COMPUTATION_CORNER_ACCENT_SIZE = 10;
-    public static final int COMPUTATION_FRAME_ACCENT_THICKNESS = 2;
-    public static final int COMPUTATION_BORDER_THICKNESS = 1;
 
     // ==================== 超维度仓储 Nexus 布局 ====================
 

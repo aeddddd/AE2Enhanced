@@ -48,6 +48,7 @@ public final class AE2EnhancedConfig {
 
     public static class CommonConfig {
         public final ForgeConfigSpec.IntValue computationMaxParallel;
+        public final ForgeConfigSpec.IntValue computationMaxCpus;
         public final ForgeConfigSpec.IntValue hyperdimensionalFlushIntervalSeconds;
         public final ForgeConfigSpec.IntValue assemblyMaxPendingOutputs;
         public final ForgeConfigSpec.BooleanValue enableBlackHole;
@@ -68,8 +69,11 @@ public final class AE2EnhancedConfig {
         CommonConfig(ForgeConfigSpec.Builder builder) {
             builder.push("computation");
             computationMaxParallel = builder
-                    .comment("超因果计算核心每个虚拟 CPU 的并行上限,同时作为 CPU 池最大数量上限")
-                    .defineInRange("maxParallel", 8, 1, 16);
+                    .comment("超因果计算核心每个子 CPU 的并行线程数（协处理器数）")
+                    .defineInRange("maxParallel", 16384, 1, Integer.MAX_VALUE);
+            computationMaxCpus = builder
+                    .comment("超因果计算核心子 CPU 池最大数量,提交任务时无空闲 CPU 将自动分裂新子 CPU,直至达到该上限")
+                    .defineInRange("maxCpus", 256, 1, 4096);
             builder.pop();
 
             builder.push("hyperdimensional");
