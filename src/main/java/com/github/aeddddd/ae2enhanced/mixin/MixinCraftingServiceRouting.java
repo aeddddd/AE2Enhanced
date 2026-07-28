@@ -20,6 +20,7 @@ import appeng.api.stacks.GenericStack;
 import appeng.me.service.CraftingService;
 
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
+import com.github.aeddddd.ae2enhanced.config.AE2EnhancedConfig;
 import com.github.aeddddd.ae2enhanced.mixin.accessor.CraftingServiceAccessor;
 import com.github.aeddddd.ae2enhanced.specialcrafting.SpecialCraftingCalculation;
 import com.github.aeddddd.ae2enhanced.specialcrafting.SpecialRecipeDetector;
@@ -59,9 +60,53 @@ public class MixinCraftingServiceRouting {
             var job = new SpecialCraftingCalculation(level, this.grid, simRequester,
                     new GenericStack(what, amount), strategy);
             cir.setReturnValue(CraftingServiceAccessor.getCraftingPool().submit(job::run));
+            return;
         } catch (Throwable t) {
             // 宁可漏判不可误判:路由层任何异常都放行原生
             AE2Enhanced.LOGGER.warn("特殊配方路由判定异常,放行原生计算: {}", t.toString());
+        }
+    }
+
+    /**
+     * DAG 引擎路由(阶段 4):特殊根请求仍走专用求解器(O(1) 闭式),
+     * 其余按配置模式接线——OFF 放行;DEFAULT 直接 DAG;FALLBACK 原生先算,
+     * 得出缺料模拟计划时 DAG 重算,更优(非模拟)则采用.DAG 内部任何
+     * 不确定都会自行回落原生,本层只做模式选择.
+     */
+    @Inject(method = "beginCraftingCalculation", at = @At("HEAD"), cancellable = true, require = 0,
+            remap = false)
+    private void ae2e$routeDagCalculation(Level level, ICraftingSimulationRequester simRequester,
+            AEKey what, long amount, CalculationStrategy strategy,
+            CallbackInfoReturnable<Future<ICraftingPlan>> cir) {
+        if (cir.isCancelled()) {
+            return; // 特殊配方路由已接管
+        }
+        try {
+            var mode = AE2EnhancedConfig.COMMON.dagPlannerMode.get();
+            if (mode == AE2EnhancedConfig.DagPlannerMode.OFF) {
+                return;
+            }
+            // 特殊根请求已由上一注入接管;此处只有非特殊请求
+            if (mode == AE2EnhancedConfig.DagPlannerMode.DEFAULT) {
+                var job = new com.github.aeddddd.ae2enhanced.craftingplan.dag.DagCraftingCalculation(
+                        level, this.grid, simRequester, new GenericStack(what, amount), strategy);
+                cir.setReturnValue(CraftingServiceAccessor.getCraftingPool().submit(job::run));
+                return;
+            }
+            // FALLBACK:原生先算,缺料模拟计划才 DAG 重算
+            cir.setReturnValue(CraftingServiceAccessor.getCraftingPool().submit(() -> {
+                var nativePlan = new appeng.crafting.CraftingCalculation(level, this.grid, simRequester,
+                        new GenericStack(what, amount), strategy).run();
+                if (!nativePlan.simulation()) {
+                    return nativePlan;
+                }
+                var dagPlan = new com.github.aeddddd.ae2enhanced.craftingplan.dag.DagCraftingCalculation(
+                        level, this.grid, simRequester, new GenericStack(what, amount), strategy).run();
+                // 仅当 DAG 真正解出(非模拟)才替换;否则保留原生缺料报告
+                return dagPlan.simulation() ? nativePlan : dagPlan;
+            }));
+        } catch (Throwable t) {
+            AE2Enhanced.LOGGER.warn("DAG 路由异常,放行原生计算: {}", t.toString());
         }
     }
 }

@@ -128,6 +128,21 @@ public class SimulationEnv {
         }
     }
 
+    /**
+     * 以 {@code DagCraftingCalculation} 运行模拟(DAG 引擎 parity 测试用).
+     */
+    public ICraftingPlan runDagSimulation(GenericStack what, CalculationStrategy strategy) {
+        var calculation = new com.github.aeddddd.ae2enhanced.craftingplan.dag.DagCraftingCalculation(
+                mock(Level.class), gridMock, simulationRequester, what, strategy);
+        try {
+            var calculationFuture = Executors.newSingleThreadExecutor().submit(calculation::run);
+            calculation.simulateFor(1000000000);
+            return calculationFuture.get(1000, TimeUnit.MILLISECONDS);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
     private final IGrid gridMock = createGridMock();
     private final IGridNode nodeMock = createNodeMock();
     private final ICraftingSimulationRequester simulationRequester = new ICraftingSimulationRequester() {

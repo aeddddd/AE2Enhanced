@@ -13,6 +13,16 @@ public final class AE2EnhancedConfig {
         ALL, NON_CREATIVE, NONE
     }
 
+    /** DAG 计划引擎模式(阶段 4,kill-switch). */
+    public enum DagPlannerMode {
+        /** 关闭:原生递归 + 特殊求解器(现状). */
+        OFF,
+        /** 兜底:原生先算,得出缺料模拟计划时 DAG 重算,更优则采用. */
+        FALLBACK,
+        /** 默认:一切非特殊根请求直接走 DAG 引擎,其内部按需回落原生. */
+        DEFAULT
+    }
+
     public static final ForgeConfigSpec COMMON_SPEC;
     public static final CommonConfig COMMON;
     public static final ForgeConfigSpec CLIENT_SPEC;
@@ -43,6 +53,7 @@ public final class AE2EnhancedConfig {
         public final ForgeConfigSpec.BooleanValue enableBlackHole;
         public final ForgeConfigSpec.EnumValue<BlackHoleDamageMode> blackHoleDamageMode;
         public final ForgeConfigSpec.BooleanValue debugMode;
+        public final ForgeConfigSpec.EnumValue<DagPlannerMode> dagPlannerMode;
         public final ForgeConfigSpec.IntValue personalDimensionFloorY;
         public final ForgeConfigSpec.IntValue personalDimensionEntryY;
         public final ForgeConfigSpec.ConfigValue<String> personalDimensionPresetPath;
@@ -122,6 +133,13 @@ public final class AE2EnhancedConfig {
             debugMode = builder
                     .comment("调试模式：输出更多日志")
                     .define("debugMode", false);
+            builder.pop();
+
+            builder.push("craftingPlan");
+            dagPlannerMode = builder
+                    .comment("DAG 计划引擎模式：OFF 关闭；FALLBACK 原生算不出（缺料/递归超限）时 DAG 重算兜底；"
+                            + "DEFAULT 所有非特殊请求默认走 DAG 引擎（深层自引用/循环也可识别）")
+                    .defineEnum("dagPlannerMode", DagPlannerMode.FALLBACK);
             builder.pop();
         }
     }

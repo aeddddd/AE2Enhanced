@@ -19,7 +19,7 @@ import appeng.crafting.inv.NetworkCraftingSimulationState;
  * <p>所有成员名在初始化时一次性解析并校验,AE2 升级导致签名变化时在首次调用即
  * 抛出明确异常（路由层捕获后回落原生行为）.</p>
  */
-final class Ae2CraftingReflect {
+public final class Ae2CraftingReflect {
 
     private static final Field NETWORK_INV;
     private static final Method COMPUTE_PLAN;
@@ -52,7 +52,7 @@ final class Ae2CraftingReflect {
     private Ae2CraftingReflect() {
     }
 
-    static NetworkCraftingSimulationState getNetworkInv(CraftingCalculation calc) {
+    public static NetworkCraftingSimulationState getNetworkInv(CraftingCalculation calc) {
         try {
             return (NetworkCraftingSimulationState) NETWORK_INV.get(calc);
         } catch (ReflectiveOperationException e) {
@@ -60,7 +60,7 @@ final class Ae2CraftingReflect {
         }
     }
 
-    static ICraftingPlan computePlan(CraftingCalculation calc) throws InterruptedException {
+    public static ICraftingPlan computePlan(CraftingCalculation calc) throws InterruptedException {
         try {
             return (ICraftingPlan) COMPUTE_PLAN.invoke(calc);
         } catch (ReflectiveOperationException e) {
@@ -68,7 +68,7 @@ final class Ae2CraftingReflect {
         }
     }
 
-    static void finish(CraftingCalculation calc) {
+    public static void finish(CraftingCalculation calc) {
         try {
             FINISH.invoke(calc);
         } catch (ReflectiveOperationException e) {
@@ -76,7 +76,7 @@ final class Ae2CraftingReflect {
         }
     }
 
-    static void handlePausing(CraftingCalculation calc) throws InterruptedException {
+    public static void handlePausing(CraftingCalculation calc) throws InterruptedException {
         try {
             HANDLE_PAUSING.invoke(calc);
         } catch (ReflectiveOperationException e) {
@@ -84,7 +84,7 @@ final class Ae2CraftingReflect {
         }
     }
 
-    static void addMissing(CraftingCalculation calc, appeng.api.stacks.AEKey what, long amount) {
+    public static void addMissing(CraftingCalculation calc, appeng.api.stacks.AEKey what, long amount) {
         try {
             ADD_MISSING.invoke(calc, what, amount);
         } catch (ReflectiveOperationException e) {
