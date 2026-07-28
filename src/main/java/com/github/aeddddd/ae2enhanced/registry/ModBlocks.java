@@ -16,6 +16,7 @@ import com.github.aeddddd.ae2enhanced.assembly.block.AssemblyInnerWallBlock;
 import com.github.aeddddd.ae2enhanced.assembly.block.AssemblyStabilizerBlock;
 import com.github.aeddddd.ae2enhanced.block.HyperdimensionalCasingBlock;
 import com.github.aeddddd.ae2enhanced.computation.block.CausalAnchorCoreBlock;
+import com.github.aeddddd.ae2enhanced.computation.block.CasingGlassBlock;
 import com.github.aeddddd.ae2enhanced.computation.block.ComputationControllerBlock;
 import com.github.aeddddd.ae2enhanced.computation.block.ConstantSpinorFieldCasingBlock;
 import com.github.aeddddd.ae2enhanced.computation.block.ConstantTensorFieldCasingBlock;
@@ -87,6 +88,9 @@ public final class ModBlocks {
     public static final RegistryObject<Block> CAUSAL_ANCHOR_CORE = DR.register("causal_anchor_core",
             () -> new CausalAnchorCoreBlock(metalProperties().lightLevel(state -> 8)));
 
+    public static final RegistryObject<Block> CASING_GLASS = DR.register("casing_glass",
+            () -> new CasingGlassBlock(glassProperties()));
+
     // 个人维度管理器
     public static final RegistryObject<Block> PERSONAL_DIMENSION_MANAGER = DR.register(
             "personal_dimension_manager", () -> new PersonalDimensionManagerBlock(metalProperties()));
@@ -106,6 +110,19 @@ public final class ModBlocks {
                 .sound(SoundType.METAL)
                 .strength(5.0F, 10.0F)
                 .requiresCorrectToolForDrops();
+    }
+
+    private static BlockBehaviour.Properties glassProperties() {
+        return BlockBehaviour.Properties.of()
+                .mapColor(MapColor.NONE)
+                .sound(SoundType.GLASS)
+                .strength(3.0F, 10.0F)
+                .requiresCorrectToolForDrops()
+                .noOcclusion()
+                .isValidSpawn((state, level, pos, entityType) -> false)
+                .isRedstoneConductor((state, level, pos) -> false)
+                .isSuffocating((state, level, pos) -> false)
+                .isViewBlocking((state, level, pos) -> false);
     }
 
     private static BlockBehaviour.Properties microSingularityProperties() {

@@ -1,6 +1,9 @@
 package com.github.aeddddd.ae2enhanced.structure;
 
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -12,902 +15,79 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraftforge.registries.RegistryObject;
 
+import com.github.aeddddd.ae2enhanced.AE2Enhanced;
 import com.github.aeddddd.ae2enhanced.computation.block.ComputationControllerBlock;
 import com.github.aeddddd.ae2enhanced.config.AE2EnhancedConfig;
 import com.github.aeddddd.ae2enhanced.registry.ModBlocks;
 import com.github.aeddddd.ae2enhanced.util.StructureUtils;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 
 /**
- * 超因果计算核心的多方块结构验证系统
- * 坐标原点为控制器位置 (0,0,0),对应 JSON 中的 (0,0,6).
+ * 超因果计算核心的多方块结构验证系统.
+ * <p>结构为 11x11x11 空心立方体外壳,从
+ * {@code data/ae2enhanced/computation_structure/cpu_new.json} 加载.
+ * 规范坐标系以控制器为原点 (0,0,0)（控制器替代面心因果锚定核心）,
+ * 结构向 +Z（控制器背面）延伸,几何中心位于 (0,0,5).</p>
+ * <p>为避免在方块注册完成前访问 {@link RegistryObject#get()},
+ * 完整初始化推迟到 {@link #init()}.</p>
  */
 public class SupercausalStructure {
 
-    public static final BlockPos CONTROLLER_REL = new BlockPos(0, 0, 0);
-    public static final BlockPos ME_INTERFACE_REL = new BlockPos(0, 0, -6);
-
-    public static final Set<BlockPos> TENSOR_CASING_SET;
-    public static final Set<BlockPos> CAUSAL_ANCHOR_SET;
-    public static final Set<BlockPos> SPINOR_CASING_SET;
-    public static final Set<BlockPos> ALL_STRUCTURE_SET;
-
+    private static Set<BlockPos> ALL_SET;
+    private static Map<Block, Set<BlockPos>> BLOCK_SETS;
     private static AbstractMultiblockStructure INSTANCE;
     private static boolean initialized = false;
 
+    // 名称 -> RegistryObject,仅在 init() 中解析为 Block
+    private static final Map<String, RegistryObject<Block>> BLOCK_REGISTRY_MAP = new LinkedHashMap<>();
+    // 名称 -> 相对坐标集合,在静态块中从 JSON 读取
+    private static final Map<String, Set<BlockPos>> RAW_POSITIONS = new LinkedHashMap<>();
+
     static {
-        Set<BlockPos> tensor = new HashSet<>();
-        tensor.add(new BlockPos(-12, 0, 2));
-        tensor.add(new BlockPos(-12, 0, 3));
-        tensor.add(new BlockPos(-12, 0, 4));
-        tensor.add(new BlockPos(-12, 0, 5));
-        tensor.add(new BlockPos(-12, 0, 6));
-        tensor.add(new BlockPos(-12, 0, 7));
-        tensor.add(new BlockPos(-12, 0, 8));
-        tensor.add(new BlockPos(-12, 0, 9));
-        tensor.add(new BlockPos(-12, 0, 10));
-        tensor.add(new BlockPos(-11, 0, 0));
-        tensor.add(new BlockPos(-11, 0, 1));
-        tensor.add(new BlockPos(-11, 0, 6));
-        tensor.add(new BlockPos(-11, 0, 7));
-        tensor.add(new BlockPos(-10, 0, -1));
-        tensor.add(new BlockPos(-10, 0, 4));
-        tensor.add(new BlockPos(-10, 0, 5));
-        tensor.add(new BlockPos(-9, 0, -2));
-        tensor.add(new BlockPos(-9, 0, 3));
-        tensor.add(new BlockPos(-9, 0, 4));
-        tensor.add(new BlockPos(-8, 0, -3));
-        tensor.add(new BlockPos(-8, 0, 2));
-        tensor.add(new BlockPos(-8, 0, 3));
-        tensor.add(new BlockPos(-7, 0, -4));
-        tensor.add(new BlockPos(-7, 0, 2));
-        tensor.add(new BlockPos(-6, 0, -5));
-        tensor.add(new BlockPos(-6, 0, 1));
-        tensor.add(new BlockPos(-5, 0, -5));
-        tensor.add(new BlockPos(-5, 0, 1));
-        tensor.add(new BlockPos(-4, 0, -6));
-        tensor.add(new BlockPos(-4, 0, 0));
-        tensor.add(new BlockPos(-3, 0, -6));
-        tensor.add(new BlockPos(-3, 0, 0));
-        tensor.add(new BlockPos(-2, 0, -6));
-        tensor.add(new BlockPos(-2, 0, 0));
-        tensor.add(new BlockPos(-1, 0, -6));
-        tensor.add(new BlockPos(-1, 0, 0));
-        tensor.add(new BlockPos(0, -12, 2));
-        tensor.add(new BlockPos(0, -12, 3));
-        tensor.add(new BlockPos(0, -12, 4));
-        tensor.add(new BlockPos(0, -12, 5));
-        tensor.add(new BlockPos(0, -12, 6));
-        tensor.add(new BlockPos(0, -12, 7));
-        tensor.add(new BlockPos(0, -12, 8));
-        tensor.add(new BlockPos(0, -12, 9));
-        tensor.add(new BlockPos(0, -12, 10));
-        tensor.add(new BlockPos(0, -11, 0));
-        tensor.add(new BlockPos(0, -11, 1));
-        tensor.add(new BlockPos(0, -11, 6));
-        tensor.add(new BlockPos(0, -11, 7));
-        tensor.add(new BlockPos(0, -10, -1));
-        tensor.add(new BlockPos(0, -10, 4));
-        tensor.add(new BlockPos(0, -10, 5));
-        tensor.add(new BlockPos(0, -9, -2));
-        tensor.add(new BlockPos(0, -9, 3));
-        tensor.add(new BlockPos(0, -9, 4));
-        tensor.add(new BlockPos(0, -8, -3));
-        tensor.add(new BlockPos(0, -8, 2));
-        tensor.add(new BlockPos(0, -8, 3));
-        tensor.add(new BlockPos(0, -7, -4));
-        tensor.add(new BlockPos(0, -7, 2));
-        tensor.add(new BlockPos(0, -6, -5));
-        tensor.add(new BlockPos(0, -6, 1));
-        tensor.add(new BlockPos(0, -5, -5));
-        tensor.add(new BlockPos(0, -5, 1));
-        tensor.add(new BlockPos(0, -4, -6));
-        tensor.add(new BlockPos(0, -4, 0));
-        tensor.add(new BlockPos(0, -3, -6));
-        tensor.add(new BlockPos(0, -3, 0));
-        tensor.add(new BlockPos(0, -2, -6));
-        tensor.add(new BlockPos(0, -2, 0));
-        tensor.add(new BlockPos(0, -1, -6));
-        tensor.add(new BlockPos(0, -1, 0));
-        tensor.add(new BlockPos(0, 0, 0));
-        tensor.add(new BlockPos(0, 1, -6));
-        tensor.add(new BlockPos(0, 1, 0));
-        tensor.add(new BlockPos(0, 2, -6));
-        tensor.add(new BlockPos(0, 2, 0));
-        tensor.add(new BlockPos(0, 3, -6));
-        tensor.add(new BlockPos(0, 3, 0));
-        tensor.add(new BlockPos(0, 4, -6));
-        tensor.add(new BlockPos(0, 4, 0));
-        tensor.add(new BlockPos(0, 5, -5));
-        tensor.add(new BlockPos(0, 5, 1));
-        tensor.add(new BlockPos(0, 6, -5));
-        tensor.add(new BlockPos(0, 6, 1));
-        tensor.add(new BlockPos(0, 7, -4));
-        tensor.add(new BlockPos(0, 7, 2));
-        tensor.add(new BlockPos(0, 8, -3));
-        tensor.add(new BlockPos(0, 8, 2));
-        tensor.add(new BlockPos(0, 8, 3));
-        tensor.add(new BlockPos(0, 9, -2));
-        tensor.add(new BlockPos(0, 9, 3));
-        tensor.add(new BlockPos(0, 9, 4));
-        tensor.add(new BlockPos(0, 10, -1));
-        tensor.add(new BlockPos(0, 10, 4));
-        tensor.add(new BlockPos(0, 10, 5));
-        tensor.add(new BlockPos(0, 11, 0));
-        tensor.add(new BlockPos(0, 11, 1));
-        tensor.add(new BlockPos(0, 11, 6));
-        tensor.add(new BlockPos(0, 11, 7));
-        tensor.add(new BlockPos(0, 12, 2));
-        tensor.add(new BlockPos(0, 12, 3));
-        tensor.add(new BlockPos(0, 12, 4));
-        tensor.add(new BlockPos(0, 12, 5));
-        tensor.add(new BlockPos(0, 12, 6));
-        tensor.add(new BlockPos(0, 12, 7));
-        tensor.add(new BlockPos(0, 12, 8));
-        tensor.add(new BlockPos(0, 12, 9));
-        tensor.add(new BlockPos(0, 12, 10));
-        tensor.add(new BlockPos(1, 0, -6));
-        tensor.add(new BlockPos(1, 0, 0));
-        tensor.add(new BlockPos(2, 0, -6));
-        tensor.add(new BlockPos(2, 0, 0));
-        tensor.add(new BlockPos(3, 0, -6));
-        tensor.add(new BlockPos(3, 0, 0));
-        tensor.add(new BlockPos(4, 0, -6));
-        tensor.add(new BlockPos(4, 0, 0));
-        tensor.add(new BlockPos(5, 0, -5));
-        tensor.add(new BlockPos(5, 0, 1));
-        tensor.add(new BlockPos(6, 0, -5));
-        tensor.add(new BlockPos(6, 0, 1));
-        tensor.add(new BlockPos(7, 0, -4));
-        tensor.add(new BlockPos(7, 0, 2));
-        tensor.add(new BlockPos(8, 0, -3));
-        tensor.add(new BlockPos(8, 0, 2));
-        tensor.add(new BlockPos(8, 0, 3));
-        tensor.add(new BlockPos(9, 0, -2));
-        tensor.add(new BlockPos(9, 0, 3));
-        tensor.add(new BlockPos(9, 0, 4));
-        tensor.add(new BlockPos(10, 0, -1));
-        tensor.add(new BlockPos(10, 0, 4));
-        tensor.add(new BlockPos(10, 0, 5));
-        tensor.add(new BlockPos(11, 0, 0));
-        tensor.add(new BlockPos(11, 0, 1));
-        tensor.add(new BlockPos(11, 0, 6));
-        tensor.add(new BlockPos(11, 0, 7));
-        tensor.add(new BlockPos(12, 0, 2));
-        tensor.add(new BlockPos(12, 0, 3));
-        tensor.add(new BlockPos(12, 0, 4));
-        tensor.add(new BlockPos(12, 0, 5));
-        tensor.add(new BlockPos(12, 0, 6));
-        tensor.add(new BlockPos(12, 0, 7));
-        tensor.add(new BlockPos(12, 0, 8));
-        tensor.add(new BlockPos(12, 0, 9));
-        tensor.add(new BlockPos(12, 0, 10));
-        TENSOR_CASING_SET = Collections.unmodifiableSet(tensor);
+        BLOCK_REGISTRY_MAP.put("tensor_casing", ModBlocks.CONSTANT_TENSOR_FIELD_CASING);
+        BLOCK_REGISTRY_MAP.put("spinor_casing", ModBlocks.CONSTANT_SPINOR_FIELD_CASING);
+        BLOCK_REGISTRY_MAP.put("casing_glass", ModBlocks.CASING_GLASS);
+        BLOCK_REGISTRY_MAP.put("causal_anchor", ModBlocks.CAUSAL_ANCHOR_CORE);
+        BLOCK_REGISTRY_MAP.put("controller", ModBlocks.COMPUTATION_CONTROLLER);
 
-        Set<BlockPos> causal = new HashSet<>();
-        causal.add(new BlockPos(-11, 0, 2));
-        causal.add(new BlockPos(-11, 0, 3));
-        causal.add(new BlockPos(-11, 0, 4));
-        causal.add(new BlockPos(-11, 0, 5));
-        causal.add(new BlockPos(-10, 0, 0));
-        causal.add(new BlockPos(-10, 0, 1));
-        causal.add(new BlockPos(-10, 0, 2));
-        causal.add(new BlockPos(-10, 0, 3));
-        causal.add(new BlockPos(-9, 0, -1));
-        causal.add(new BlockPos(-9, 0, 0));
-        causal.add(new BlockPos(-9, 0, 1));
-        causal.add(new BlockPos(-9, 0, 2));
-        causal.add(new BlockPos(-8, -1, 0));
-        causal.add(new BlockPos(-8, 0, -2));
-        causal.add(new BlockPos(-8, 0, -1));
-        causal.add(new BlockPos(-8, 0, 0));
-        causal.add(new BlockPos(-8, 0, 1));
-        causal.add(new BlockPos(-8, 1, 0));
-        causal.add(new BlockPos(-7, -1, -1));
-        causal.add(new BlockPos(-7, 0, -3));
-        causal.add(new BlockPos(-7, 0, -2));
-        causal.add(new BlockPos(-7, 0, -1));
-        causal.add(new BlockPos(-7, 0, 0));
-        causal.add(new BlockPos(-7, 0, 1));
-        causal.add(new BlockPos(-7, 1, -1));
-        causal.add(new BlockPos(-6, -1, -2));
-        causal.add(new BlockPos(-6, -1, -1));
-        causal.add(new BlockPos(-6, 0, -4));
-        causal.add(new BlockPos(-6, 0, -3));
-        causal.add(new BlockPos(-6, 0, -2));
-        causal.add(new BlockPos(-6, 0, -1));
-        causal.add(new BlockPos(-6, 0, 0));
-        causal.add(new BlockPos(-6, 1, -2));
-        causal.add(new BlockPos(-6, 1, -1));
-        causal.add(new BlockPos(-5, -1, -3));
-        causal.add(new BlockPos(-5, -1, -2));
-        causal.add(new BlockPos(-5, 0, -4));
-        causal.add(new BlockPos(-5, 0, -3));
-        causal.add(new BlockPos(-5, 0, -2));
-        causal.add(new BlockPos(-5, 0, -1));
-        causal.add(new BlockPos(-5, 0, 0));
-        causal.add(new BlockPos(-5, 1, -3));
-        causal.add(new BlockPos(-5, 1, -2));
-        causal.add(new BlockPos(-4, -1, -3));
-        causal.add(new BlockPos(-4, -1, -2));
-        causal.add(new BlockPos(-4, 0, -5));
-        causal.add(new BlockPos(-4, 0, -4));
-        causal.add(new BlockPos(-4, 0, -3));
-        causal.add(new BlockPos(-4, 0, -2));
-        causal.add(new BlockPos(-4, 0, -1));
-        causal.add(new BlockPos(-4, 1, -3));
-        causal.add(new BlockPos(-4, 1, -2));
-        causal.add(new BlockPos(-3, -2, -3));
-        causal.add(new BlockPos(-3, -1, -4));
-        causal.add(new BlockPos(-3, -1, -3));
-        causal.add(new BlockPos(-3, -1, -2));
-        causal.add(new BlockPos(-3, 0, -5));
-        causal.add(new BlockPos(-3, 0, -4));
-        causal.add(new BlockPos(-3, 0, -3));
-        causal.add(new BlockPos(-3, 0, -2));
-        causal.add(new BlockPos(-3, 0, -1));
-        causal.add(new BlockPos(-3, 1, -4));
-        causal.add(new BlockPos(-3, 1, -3));
-        causal.add(new BlockPos(-3, 1, -2));
-        causal.add(new BlockPos(-3, 2, -3));
-        causal.add(new BlockPos(-2, -3, -3));
-        causal.add(new BlockPos(-2, -2, -3));
-        causal.add(new BlockPos(-2, -1, -4));
-        causal.add(new BlockPos(-2, -1, -3));
-        causal.add(new BlockPos(-2, -1, -2));
-        causal.add(new BlockPos(-2, 0, -5));
-        causal.add(new BlockPos(-2, 0, -4));
-        causal.add(new BlockPos(-2, 0, -3));
-        causal.add(new BlockPos(-2, 0, -2));
-        causal.add(new BlockPos(-2, 0, -1));
-        causal.add(new BlockPos(-2, 1, -4));
-        causal.add(new BlockPos(-2, 1, -3));
-        causal.add(new BlockPos(-2, 1, -2));
-        causal.add(new BlockPos(-2, 2, -3));
-        causal.add(new BlockPos(-2, 3, -3));
-        causal.add(new BlockPos(-1, -9, 0));
-        causal.add(new BlockPos(-1, -8, 0));
-        causal.add(new BlockPos(-1, -7, -1));
-        causal.add(new BlockPos(-1, -6, -2));
-        causal.add(new BlockPos(-1, -6, -1));
-        causal.add(new BlockPos(-1, -5, -3));
-        causal.add(new BlockPos(-1, -5, -2));
-        causal.add(new BlockPos(-1, -4, -3));
-        causal.add(new BlockPos(-1, -4, -2));
-        causal.add(new BlockPos(-1, -3, -4));
-        causal.add(new BlockPos(-1, -3, -3));
-        causal.add(new BlockPos(-1, -3, -2));
-        causal.add(new BlockPos(-1, -2, -4));
-        causal.add(new BlockPos(-1, -2, -3));
-        causal.add(new BlockPos(-1, -2, -2));
-        causal.add(new BlockPos(-1, -1, -4));
-        causal.add(new BlockPos(-1, -1, -3));
-        causal.add(new BlockPos(-1, -1, -2));
-        causal.add(new BlockPos(-1, 0, -5));
-        causal.add(new BlockPos(-1, 0, -4));
-        causal.add(new BlockPos(-1, 0, -3));
-        causal.add(new BlockPos(-1, 0, -2));
-        causal.add(new BlockPos(-1, 0, -1));
-        causal.add(new BlockPos(-1, 1, -4));
-        causal.add(new BlockPos(-1, 1, -3));
-        causal.add(new BlockPos(-1, 1, -2));
-        causal.add(new BlockPos(-1, 2, -4));
-        causal.add(new BlockPos(-1, 2, -3));
-        causal.add(new BlockPos(-1, 2, -2));
-        causal.add(new BlockPos(-1, 3, -4));
-        causal.add(new BlockPos(-1, 3, -3));
-        causal.add(new BlockPos(-1, 3, -2));
-        causal.add(new BlockPos(-1, 4, -3));
-        causal.add(new BlockPos(-1, 4, -2));
-        causal.add(new BlockPos(-1, 5, -3));
-        causal.add(new BlockPos(-1, 5, -2));
-        causal.add(new BlockPos(-1, 6, -2));
-        causal.add(new BlockPos(-1, 6, -1));
-        causal.add(new BlockPos(-1, 7, -1));
-        causal.add(new BlockPos(-1, 8, 0));
-        causal.add(new BlockPos(-1, 9, 0));
-        causal.add(new BlockPos(0, -11, 2));
-        causal.add(new BlockPos(0, -11, 3));
-        causal.add(new BlockPos(0, -11, 4));
-        causal.add(new BlockPos(0, -11, 5));
-        causal.add(new BlockPos(0, -10, 0));
-        causal.add(new BlockPos(0, -10, 1));
-        causal.add(new BlockPos(0, -10, 2));
-        causal.add(new BlockPos(0, -10, 3));
-        causal.add(new BlockPos(0, -9, -1));
-        causal.add(new BlockPos(0, -9, 0));
-        causal.add(new BlockPos(0, -9, 1));
-        causal.add(new BlockPos(0, -9, 2));
-        causal.add(new BlockPos(0, -8, -2));
-        causal.add(new BlockPos(0, -8, -1));
-        causal.add(new BlockPos(0, -8, 0));
-        causal.add(new BlockPos(0, -8, 1));
-        causal.add(new BlockPos(0, -7, -3));
-        causal.add(new BlockPos(0, -7, -2));
-        causal.add(new BlockPos(0, -7, -1));
-        causal.add(new BlockPos(0, -7, 0));
-        causal.add(new BlockPos(0, -7, 1));
-        causal.add(new BlockPos(0, -6, -4));
-        causal.add(new BlockPos(0, -6, -3));
-        causal.add(new BlockPos(0, -6, -2));
-        causal.add(new BlockPos(0, -6, -1));
-        causal.add(new BlockPos(0, -6, 0));
-        causal.add(new BlockPos(0, -5, -4));
-        causal.add(new BlockPos(0, -5, -3));
-        causal.add(new BlockPos(0, -5, -2));
-        causal.add(new BlockPos(0, -5, -1));
-        causal.add(new BlockPos(0, -5, 0));
-        causal.add(new BlockPos(0, -4, -5));
-        causal.add(new BlockPos(0, -4, -4));
-        causal.add(new BlockPos(0, -4, -3));
-        causal.add(new BlockPos(0, -4, -2));
-        causal.add(new BlockPos(0, -4, -1));
-        causal.add(new BlockPos(0, -3, -5));
-        causal.add(new BlockPos(0, -3, -4));
-        causal.add(new BlockPos(0, -3, -3));
-        causal.add(new BlockPos(0, -3, -2));
-        causal.add(new BlockPos(0, -3, -1));
-        causal.add(new BlockPos(0, -2, -5));
-        causal.add(new BlockPos(0, -2, -4));
-        causal.add(new BlockPos(0, -2, -3));
-        causal.add(new BlockPos(0, -2, -2));
-        causal.add(new BlockPos(0, -2, -1));
-        causal.add(new BlockPos(0, -1, -5));
-        causal.add(new BlockPos(0, -1, -4));
-        causal.add(new BlockPos(0, -1, -3));
-        causal.add(new BlockPos(0, -1, -2));
-        causal.add(new BlockPos(0, -1, -1));
-        causal.add(new BlockPos(0, 0, -5));
-        causal.add(new BlockPos(0, 0, -4));
-        causal.add(new BlockPos(0, 0, -3));
-        causal.add(new BlockPos(0, 0, -2));
-        causal.add(new BlockPos(0, 0, -1));
-        causal.add(new BlockPos(0, 1, -5));
-        causal.add(new BlockPos(0, 1, -4));
-        causal.add(new BlockPos(0, 1, -3));
-        causal.add(new BlockPos(0, 1, -2));
-        causal.add(new BlockPos(0, 1, -1));
-        causal.add(new BlockPos(0, 2, -5));
-        causal.add(new BlockPos(0, 2, -4));
-        causal.add(new BlockPos(0, 2, -3));
-        causal.add(new BlockPos(0, 2, -2));
-        causal.add(new BlockPos(0, 2, -1));
-        causal.add(new BlockPos(0, 3, -5));
-        causal.add(new BlockPos(0, 3, -4));
-        causal.add(new BlockPos(0, 3, -3));
-        causal.add(new BlockPos(0, 3, -2));
-        causal.add(new BlockPos(0, 3, -1));
-        causal.add(new BlockPos(0, 4, -5));
-        causal.add(new BlockPos(0, 4, -4));
-        causal.add(new BlockPos(0, 4, -3));
-        causal.add(new BlockPos(0, 4, -2));
-        causal.add(new BlockPos(0, 4, -1));
-        causal.add(new BlockPos(0, 5, -4));
-        causal.add(new BlockPos(0, 5, -3));
-        causal.add(new BlockPos(0, 5, -2));
-        causal.add(new BlockPos(0, 5, -1));
-        causal.add(new BlockPos(0, 5, 0));
-        causal.add(new BlockPos(0, 6, -4));
-        causal.add(new BlockPos(0, 6, -3));
-        causal.add(new BlockPos(0, 6, -2));
-        causal.add(new BlockPos(0, 6, -1));
-        causal.add(new BlockPos(0, 6, 0));
-        causal.add(new BlockPos(0, 7, -3));
-        causal.add(new BlockPos(0, 7, -2));
-        causal.add(new BlockPos(0, 7, -1));
-        causal.add(new BlockPos(0, 7, 0));
-        causal.add(new BlockPos(0, 7, 1));
-        causal.add(new BlockPos(0, 8, -2));
-        causal.add(new BlockPos(0, 8, -1));
-        causal.add(new BlockPos(0, 8, 0));
-        causal.add(new BlockPos(0, 8, 1));
-        causal.add(new BlockPos(0, 9, -1));
-        causal.add(new BlockPos(0, 9, 0));
-        causal.add(new BlockPos(0, 9, 1));
-        causal.add(new BlockPos(0, 9, 2));
-        causal.add(new BlockPos(0, 10, 0));
-        causal.add(new BlockPos(0, 10, 1));
-        causal.add(new BlockPos(0, 10, 2));
-        causal.add(new BlockPos(0, 10, 3));
-        causal.add(new BlockPos(0, 11, 2));
-        causal.add(new BlockPos(0, 11, 3));
-        causal.add(new BlockPos(0, 11, 4));
-        causal.add(new BlockPos(0, 11, 5));
-        causal.add(new BlockPos(1, -8, 0));
-        causal.add(new BlockPos(1, -7, -1));
-        causal.add(new BlockPos(1, -6, -2));
-        causal.add(new BlockPos(1, -6, -1));
-        causal.add(new BlockPos(1, -5, -3));
-        causal.add(new BlockPos(1, -5, -2));
-        causal.add(new BlockPos(1, -4, -3));
-        causal.add(new BlockPos(1, -4, -2));
-        causal.add(new BlockPos(1, -3, -4));
-        causal.add(new BlockPos(1, -3, -3));
-        causal.add(new BlockPos(1, -3, -2));
-        causal.add(new BlockPos(1, -2, -4));
-        causal.add(new BlockPos(1, -2, -3));
-        causal.add(new BlockPos(1, -2, -2));
-        causal.add(new BlockPos(1, -1, -4));
-        causal.add(new BlockPos(1, -1, -3));
-        causal.add(new BlockPos(1, -1, -2));
-        causal.add(new BlockPos(1, 0, -5));
-        causal.add(new BlockPos(1, 0, -4));
-        causal.add(new BlockPos(1, 0, -3));
-        causal.add(new BlockPos(1, 0, -2));
-        causal.add(new BlockPos(1, 0, -1));
-        causal.add(new BlockPos(1, 1, -4));
-        causal.add(new BlockPos(1, 1, -3));
-        causal.add(new BlockPos(1, 1, -2));
-        causal.add(new BlockPos(1, 2, -4));
-        causal.add(new BlockPos(1, 2, -3));
-        causal.add(new BlockPos(1, 2, -2));
-        causal.add(new BlockPos(1, 3, -4));
-        causal.add(new BlockPos(1, 3, -3));
-        causal.add(new BlockPos(1, 3, -2));
-        causal.add(new BlockPos(1, 4, -3));
-        causal.add(new BlockPos(1, 4, -2));
-        causal.add(new BlockPos(1, 5, -3));
-        causal.add(new BlockPos(1, 5, -2));
-        causal.add(new BlockPos(1, 6, -2));
-        causal.add(new BlockPos(1, 6, -1));
-        causal.add(new BlockPos(1, 7, -1));
-        causal.add(new BlockPos(1, 8, 0));
-        causal.add(new BlockPos(2, -2, -3));
-        causal.add(new BlockPos(2, -1, -4));
-        causal.add(new BlockPos(2, -1, -3));
-        causal.add(new BlockPos(2, -1, -2));
-        causal.add(new BlockPos(2, 0, -5));
-        causal.add(new BlockPos(2, 0, -4));
-        causal.add(new BlockPos(2, 0, -3));
-        causal.add(new BlockPos(2, 0, -2));
-        causal.add(new BlockPos(2, 0, -1));
-        causal.add(new BlockPos(2, 1, -4));
-        causal.add(new BlockPos(2, 1, -3));
-        causal.add(new BlockPos(2, 1, -2));
-        causal.add(new BlockPos(2, 2, -3));
-        causal.add(new BlockPos(3, -1, -4));
-        causal.add(new BlockPos(3, -1, -3));
-        causal.add(new BlockPos(3, -1, -2));
-        causal.add(new BlockPos(3, 0, -5));
-        causal.add(new BlockPos(3, 0, -4));
-        causal.add(new BlockPos(3, 0, -3));
-        causal.add(new BlockPos(3, 0, -2));
-        causal.add(new BlockPos(3, 0, -1));
-        causal.add(new BlockPos(3, 1, -4));
-        causal.add(new BlockPos(3, 1, -3));
-        causal.add(new BlockPos(3, 1, -2));
-        causal.add(new BlockPos(4, -1, -3));
-        causal.add(new BlockPos(4, -1, -2));
-        causal.add(new BlockPos(4, 0, -5));
-        causal.add(new BlockPos(4, 0, -4));
-        causal.add(new BlockPos(4, 0, -3));
-        causal.add(new BlockPos(4, 0, -2));
-        causal.add(new BlockPos(4, 0, -1));
-        causal.add(new BlockPos(4, 1, -3));
-        causal.add(new BlockPos(4, 1, -2));
-        causal.add(new BlockPos(5, -1, -3));
-        causal.add(new BlockPos(5, -1, -2));
-        causal.add(new BlockPos(5, 0, -4));
-        causal.add(new BlockPos(5, 0, -3));
-        causal.add(new BlockPos(5, 0, -2));
-        causal.add(new BlockPos(5, 0, -1));
-        causal.add(new BlockPos(5, 0, 0));
-        causal.add(new BlockPos(5, 1, -3));
-        causal.add(new BlockPos(5, 1, -2));
-        causal.add(new BlockPos(6, -1, -2));
-        causal.add(new BlockPos(6, -1, -1));
-        causal.add(new BlockPos(6, 0, -4));
-        causal.add(new BlockPos(6, 0, -3));
-        causal.add(new BlockPos(6, 0, -2));
-        causal.add(new BlockPos(6, 0, -1));
-        causal.add(new BlockPos(6, 0, 0));
-        causal.add(new BlockPos(6, 1, -2));
-        causal.add(new BlockPos(6, 1, -1));
-        causal.add(new BlockPos(7, -1, -1));
-        causal.add(new BlockPos(7, 0, -3));
-        causal.add(new BlockPos(7, 0, -2));
-        causal.add(new BlockPos(7, 0, -1));
-        causal.add(new BlockPos(7, 0, 0));
-        causal.add(new BlockPos(7, 0, 1));
-        causal.add(new BlockPos(7, 1, -1));
-        causal.add(new BlockPos(8, -1, 0));
-        causal.add(new BlockPos(8, 0, -2));
-        causal.add(new BlockPos(8, 0, -1));
-        causal.add(new BlockPos(8, 0, 0));
-        causal.add(new BlockPos(8, 0, 1));
-        causal.add(new BlockPos(8, 1, 0));
-        causal.add(new BlockPos(9, 0, -1));
-        causal.add(new BlockPos(9, 0, 0));
-        causal.add(new BlockPos(9, 0, 1));
-        causal.add(new BlockPos(9, 0, 2));
-        causal.add(new BlockPos(10, 0, 0));
-        causal.add(new BlockPos(10, 0, 1));
-        causal.add(new BlockPos(10, 0, 2));
-        causal.add(new BlockPos(10, 0, 3));
-        causal.add(new BlockPos(11, 0, 2));
-        causal.add(new BlockPos(11, 0, 3));
-        causal.add(new BlockPos(11, 0, 4));
-        causal.add(new BlockPos(11, 0, 5));
-        CAUSAL_ANCHOR_SET = Collections.unmodifiableSet(causal);
+        loadRawPositions();
+    }
 
-        Set<BlockPos> spinor = new HashSet<>();
-        spinor.add(new BlockPos(-11, -1, 2));
-        spinor.add(new BlockPos(-11, -1, 3));
-        spinor.add(new BlockPos(-11, -1, 4));
-        spinor.add(new BlockPos(-11, -1, 5));
-        spinor.add(new BlockPos(-11, 1, 2));
-        spinor.add(new BlockPos(-11, 1, 3));
-        spinor.add(new BlockPos(-11, 1, 4));
-        spinor.add(new BlockPos(-11, 1, 5));
-        spinor.add(new BlockPos(-10, -1, 0));
-        spinor.add(new BlockPos(-10, -1, 1));
-        spinor.add(new BlockPos(-10, -1, 2));
-        spinor.add(new BlockPos(-10, -1, 3));
-        spinor.add(new BlockPos(-10, 1, 0));
-        spinor.add(new BlockPos(-10, 1, 1));
-        spinor.add(new BlockPos(-10, 1, 2));
-        spinor.add(new BlockPos(-10, 1, 3));
-        spinor.add(new BlockPos(-9, -2, 0));
-        spinor.add(new BlockPos(-9, -1, -1));
-        spinor.add(new BlockPos(-9, -1, 0));
-        spinor.add(new BlockPos(-9, -1, 1));
-        spinor.add(new BlockPos(-9, -1, 2));
-        spinor.add(new BlockPos(-9, 1, -1));
-        spinor.add(new BlockPos(-9, 1, 0));
-        spinor.add(new BlockPos(-9, 1, 1));
-        spinor.add(new BlockPos(-9, 1, 2));
-        spinor.add(new BlockPos(-9, 2, 0));
-        spinor.add(new BlockPos(-8, -2, 0));
-        spinor.add(new BlockPos(-8, -1, -2));
-        spinor.add(new BlockPos(-8, -1, -1));
-        spinor.add(new BlockPos(-8, -1, 1));
-        spinor.add(new BlockPos(-8, 1, -2));
-        spinor.add(new BlockPos(-8, 1, -1));
-        spinor.add(new BlockPos(-8, 1, 1));
-        spinor.add(new BlockPos(-8, 2, 0));
-        spinor.add(new BlockPos(-7, -2, -1));
-        spinor.add(new BlockPos(-7, -1, -3));
-        spinor.add(new BlockPos(-7, -1, -2));
-        spinor.add(new BlockPos(-7, -1, 0));
-        spinor.add(new BlockPos(-7, -1, 1));
-        spinor.add(new BlockPos(-7, 1, -3));
-        spinor.add(new BlockPos(-7, 1, -2));
-        spinor.add(new BlockPos(-7, 1, 0));
-        spinor.add(new BlockPos(-7, 1, 1));
-        spinor.add(new BlockPos(-7, 2, -1));
-        spinor.add(new BlockPos(-6, -2, -2));
-        spinor.add(new BlockPos(-6, -2, -1));
-        spinor.add(new BlockPos(-6, -1, -4));
-        spinor.add(new BlockPos(-6, -1, -3));
-        spinor.add(new BlockPos(-6, -1, 0));
-        spinor.add(new BlockPos(-6, 1, -4));
-        spinor.add(new BlockPos(-6, 1, -3));
-        spinor.add(new BlockPos(-6, 1, 0));
-        spinor.add(new BlockPos(-6, 2, -2));
-        spinor.add(new BlockPos(-6, 2, -1));
-        spinor.add(new BlockPos(-5, -2, -3));
-        spinor.add(new BlockPos(-5, -2, -2));
-        spinor.add(new BlockPos(-5, -1, -4));
-        spinor.add(new BlockPos(-5, -1, -1));
-        spinor.add(new BlockPos(-5, -1, 0));
-        spinor.add(new BlockPos(-5, 1, -4));
-        spinor.add(new BlockPos(-5, 1, -1));
-        spinor.add(new BlockPos(-5, 1, 0));
-        spinor.add(new BlockPos(-5, 2, -3));
-        spinor.add(new BlockPos(-5, 2, -2));
-        spinor.add(new BlockPos(-4, -2, -3));
-        spinor.add(new BlockPos(-4, -2, -2));
-        spinor.add(new BlockPos(-4, -1, -5));
-        spinor.add(new BlockPos(-4, -1, -4));
-        spinor.add(new BlockPos(-4, -1, -1));
-        spinor.add(new BlockPos(-4, 1, -5));
-        spinor.add(new BlockPos(-4, 1, -4));
-        spinor.add(new BlockPos(-4, 1, -1));
-        spinor.add(new BlockPos(-4, 2, -3));
-        spinor.add(new BlockPos(-4, 2, -2));
-        spinor.add(new BlockPos(-3, -3, -3));
-        spinor.add(new BlockPos(-3, -2, -4));
-        spinor.add(new BlockPos(-3, -2, -2));
-        spinor.add(new BlockPos(-3, -1, -5));
-        spinor.add(new BlockPos(-3, -1, -1));
-        spinor.add(new BlockPos(-3, 1, -5));
-        spinor.add(new BlockPos(-3, 1, -1));
-        spinor.add(new BlockPos(-3, 2, -4));
-        spinor.add(new BlockPos(-3, 2, -2));
-        spinor.add(new BlockPos(-3, 3, -3));
-        spinor.add(new BlockPos(-2, -9, 0));
-        spinor.add(new BlockPos(-2, -8, 0));
-        spinor.add(new BlockPos(-2, -7, -1));
-        spinor.add(new BlockPos(-2, -6, -2));
-        spinor.add(new BlockPos(-2, -6, -1));
-        spinor.add(new BlockPos(-2, -5, -3));
-        spinor.add(new BlockPos(-2, -5, -2));
-        spinor.add(new BlockPos(-2, -4, -3));
-        spinor.add(new BlockPos(-2, -4, -2));
-        spinor.add(new BlockPos(-2, -3, -4));
-        spinor.add(new BlockPos(-2, -3, -2));
-        spinor.add(new BlockPos(-2, -2, -4));
-        spinor.add(new BlockPos(-2, -2, -2));
-        spinor.add(new BlockPos(-2, -1, -5));
-        spinor.add(new BlockPos(-2, -1, -1));
-        spinor.add(new BlockPos(-2, 1, -5));
-        spinor.add(new BlockPos(-2, 1, -1));
-        spinor.add(new BlockPos(-2, 2, -4));
-        spinor.add(new BlockPos(-2, 2, -2));
-        spinor.add(new BlockPos(-2, 3, -4));
-        spinor.add(new BlockPos(-2, 3, -2));
-        spinor.add(new BlockPos(-2, 4, -3));
-        spinor.add(new BlockPos(-2, 4, -2));
-        spinor.add(new BlockPos(-2, 5, -3));
-        spinor.add(new BlockPos(-2, 5, -2));
-        spinor.add(new BlockPos(-2, 6, -2));
-        spinor.add(new BlockPos(-2, 6, -1));
-        spinor.add(new BlockPos(-2, 7, -1));
-        spinor.add(new BlockPos(-2, 8, 0));
-        spinor.add(new BlockPos(-2, 9, 0));
-        spinor.add(new BlockPos(-1, -11, 2));
-        spinor.add(new BlockPos(-1, -11, 3));
-        spinor.add(new BlockPos(-1, -11, 4));
-        spinor.add(new BlockPos(-1, -11, 5));
-        spinor.add(new BlockPos(-1, -10, 0));
-        spinor.add(new BlockPos(-1, -10, 1));
-        spinor.add(new BlockPos(-1, -10, 2));
-        spinor.add(new BlockPos(-1, -10, 3));
-        spinor.add(new BlockPos(-1, -9, -1));
-        spinor.add(new BlockPos(-1, -9, 1));
-        spinor.add(new BlockPos(-1, -9, 2));
-        spinor.add(new BlockPos(-1, -8, -2));
-        spinor.add(new BlockPos(-1, -8, -1));
-        spinor.add(new BlockPos(-1, -8, 1));
-        spinor.add(new BlockPos(-1, -7, -3));
-        spinor.add(new BlockPos(-1, -7, -2));
-        spinor.add(new BlockPos(-1, -7, 0));
-        spinor.add(new BlockPos(-1, -7, 1));
-        spinor.add(new BlockPos(-1, -6, -4));
-        spinor.add(new BlockPos(-1, -6, -3));
-        spinor.add(new BlockPos(-1, -6, 0));
-        spinor.add(new BlockPos(-1, -5, -4));
-        spinor.add(new BlockPos(-1, -5, -1));
-        spinor.add(new BlockPos(-1, -5, 0));
-        spinor.add(new BlockPos(-1, -4, -5));
-        spinor.add(new BlockPos(-1, -4, -4));
-        spinor.add(new BlockPos(-1, -4, -1));
-        spinor.add(new BlockPos(-1, -3, -5));
-        spinor.add(new BlockPos(-1, -3, -1));
-        spinor.add(new BlockPos(-1, -2, -5));
-        spinor.add(new BlockPos(-1, -2, -1));
-        spinor.add(new BlockPos(-1, -1, -5));
-        spinor.add(new BlockPos(-1, -1, -1));
-        spinor.add(new BlockPos(-1, 1, -5));
-        spinor.add(new BlockPos(-1, 1, -1));
-        spinor.add(new BlockPos(-1, 2, -5));
-        spinor.add(new BlockPos(-1, 2, -1));
-        spinor.add(new BlockPos(-1, 3, -5));
-        spinor.add(new BlockPos(-1, 3, -1));
-        spinor.add(new BlockPos(-1, 4, -5));
-        spinor.add(new BlockPos(-1, 4, -4));
-        spinor.add(new BlockPos(-1, 4, -1));
-        spinor.add(new BlockPos(-1, 5, -4));
-        spinor.add(new BlockPos(-1, 5, -1));
-        spinor.add(new BlockPos(-1, 5, 0));
-        spinor.add(new BlockPos(-1, 6, -4));
-        spinor.add(new BlockPos(-1, 6, -3));
-        spinor.add(new BlockPos(-1, 6, 0));
-        spinor.add(new BlockPos(-1, 7, -3));
-        spinor.add(new BlockPos(-1, 7, -2));
-        spinor.add(new BlockPos(-1, 7, 0));
-        spinor.add(new BlockPos(-1, 7, 1));
-        spinor.add(new BlockPos(-1, 8, -2));
-        spinor.add(new BlockPos(-1, 8, -1));
-        spinor.add(new BlockPos(-1, 8, 1));
-        spinor.add(new BlockPos(-1, 9, -1));
-        spinor.add(new BlockPos(-1, 9, 1));
-        spinor.add(new BlockPos(-1, 9, 2));
-        spinor.add(new BlockPos(-1, 10, 0));
-        spinor.add(new BlockPos(-1, 10, 1));
-        spinor.add(new BlockPos(-1, 10, 2));
-        spinor.add(new BlockPos(-1, 10, 3));
-        spinor.add(new BlockPos(-1, 11, 2));
-        spinor.add(new BlockPos(-1, 11, 3));
-        spinor.add(new BlockPos(-1, 11, 4));
-        spinor.add(new BlockPos(-1, 11, 5));
-        spinor.add(new BlockPos(1, -11, 2));
-        spinor.add(new BlockPos(1, -11, 3));
-        spinor.add(new BlockPos(1, -11, 4));
-        spinor.add(new BlockPos(1, -11, 5));
-        spinor.add(new BlockPos(1, -10, 0));
-        spinor.add(new BlockPos(1, -10, 1));
-        spinor.add(new BlockPos(1, -10, 2));
-        spinor.add(new BlockPos(1, -10, 3));
-        spinor.add(new BlockPos(1, -9, -1));
-        spinor.add(new BlockPos(1, -9, 0));
-        spinor.add(new BlockPos(1, -9, 1));
-        spinor.add(new BlockPos(1, -9, 2));
-        spinor.add(new BlockPos(1, -8, -2));
-        spinor.add(new BlockPos(1, -8, -1));
-        spinor.add(new BlockPos(1, -8, 1));
-        spinor.add(new BlockPos(1, -7, -3));
-        spinor.add(new BlockPos(1, -7, -2));
-        spinor.add(new BlockPos(1, -7, 0));
-        spinor.add(new BlockPos(1, -7, 1));
-        spinor.add(new BlockPos(1, -6, -4));
-        spinor.add(new BlockPos(1, -6, -3));
-        spinor.add(new BlockPos(1, -6, 0));
-        spinor.add(new BlockPos(1, -5, -4));
-        spinor.add(new BlockPos(1, -5, -1));
-        spinor.add(new BlockPos(1, -5, 0));
-        spinor.add(new BlockPos(1, -4, -5));
-        spinor.add(new BlockPos(1, -4, -4));
-        spinor.add(new BlockPos(1, -4, -1));
-        spinor.add(new BlockPos(1, -3, -5));
-        spinor.add(new BlockPos(1, -3, -1));
-        spinor.add(new BlockPos(1, -2, -5));
-        spinor.add(new BlockPos(1, -2, -1));
-        spinor.add(new BlockPos(1, -1, -5));
-        spinor.add(new BlockPos(1, -1, -1));
-        spinor.add(new BlockPos(1, 1, -5));
-        spinor.add(new BlockPos(1, 1, -1));
-        spinor.add(new BlockPos(1, 2, -5));
-        spinor.add(new BlockPos(1, 2, -1));
-        spinor.add(new BlockPos(1, 3, -5));
-        spinor.add(new BlockPos(1, 3, -1));
-        spinor.add(new BlockPos(1, 4, -5));
-        spinor.add(new BlockPos(1, 4, -4));
-        spinor.add(new BlockPos(1, 4, -1));
-        spinor.add(new BlockPos(1, 5, -4));
-        spinor.add(new BlockPos(1, 5, -1));
-        spinor.add(new BlockPos(1, 5, 0));
-        spinor.add(new BlockPos(1, 6, -4));
-        spinor.add(new BlockPos(1, 6, -3));
-        spinor.add(new BlockPos(1, 6, 0));
-        spinor.add(new BlockPos(1, 7, -3));
-        spinor.add(new BlockPos(1, 7, -2));
-        spinor.add(new BlockPos(1, 7, 0));
-        spinor.add(new BlockPos(1, 7, 1));
-        spinor.add(new BlockPos(1, 8, -2));
-        spinor.add(new BlockPos(1, 8, -1));
-        spinor.add(new BlockPos(1, 8, 1));
-        spinor.add(new BlockPos(1, 9, -1));
-        spinor.add(new BlockPos(1, 9, 0));
-        spinor.add(new BlockPos(1, 9, 1));
-        spinor.add(new BlockPos(1, 9, 2));
-        spinor.add(new BlockPos(1, 10, 0));
-        spinor.add(new BlockPos(1, 10, 1));
-        spinor.add(new BlockPos(1, 10, 2));
-        spinor.add(new BlockPos(1, 10, 3));
-        spinor.add(new BlockPos(1, 11, 2));
-        spinor.add(new BlockPos(1, 11, 3));
-        spinor.add(new BlockPos(1, 11, 4));
-        spinor.add(new BlockPos(1, 11, 5));
-        spinor.add(new BlockPos(2, -9, 0));
-        spinor.add(new BlockPos(2, -8, 0));
-        spinor.add(new BlockPos(2, -7, -1));
-        spinor.add(new BlockPos(2, -6, -2));
-        spinor.add(new BlockPos(2, -6, -1));
-        spinor.add(new BlockPos(2, -5, -3));
-        spinor.add(new BlockPos(2, -5, -2));
-        spinor.add(new BlockPos(2, -4, -3));
-        spinor.add(new BlockPos(2, -4, -2));
-        spinor.add(new BlockPos(2, -3, -4));
-        spinor.add(new BlockPos(2, -3, -3));
-        spinor.add(new BlockPos(2, -3, -2));
-        spinor.add(new BlockPos(2, -2, -4));
-        spinor.add(new BlockPos(2, -2, -2));
-        spinor.add(new BlockPos(2, -1, -5));
-        spinor.add(new BlockPos(2, -1, -1));
-        spinor.add(new BlockPos(2, 1, -5));
-        spinor.add(new BlockPos(2, 1, -1));
-        spinor.add(new BlockPos(2, 2, -4));
-        spinor.add(new BlockPos(2, 2, -2));
-        spinor.add(new BlockPos(2, 3, -4));
-        spinor.add(new BlockPos(2, 3, -3));
-        spinor.add(new BlockPos(2, 3, -2));
-        spinor.add(new BlockPos(2, 4, -3));
-        spinor.add(new BlockPos(2, 4, -2));
-        spinor.add(new BlockPos(2, 5, -3));
-        spinor.add(new BlockPos(2, 5, -2));
-        spinor.add(new BlockPos(2, 6, -2));
-        spinor.add(new BlockPos(2, 6, -1));
-        spinor.add(new BlockPos(2, 7, -1));
-        spinor.add(new BlockPos(2, 8, 0));
-        spinor.add(new BlockPos(2, 9, 0));
-        spinor.add(new BlockPos(3, -3, -3));
-        spinor.add(new BlockPos(3, -2, -4));
-        spinor.add(new BlockPos(3, -2, -3));
-        spinor.add(new BlockPos(3, -2, -2));
-        spinor.add(new BlockPos(3, -1, -5));
-        spinor.add(new BlockPos(3, -1, -1));
-        spinor.add(new BlockPos(3, 1, -5));
-        spinor.add(new BlockPos(3, 1, -1));
-        spinor.add(new BlockPos(3, 2, -4));
-        spinor.add(new BlockPos(3, 2, -3));
-        spinor.add(new BlockPos(3, 2, -2));
-        spinor.add(new BlockPos(3, 3, -3));
-        spinor.add(new BlockPos(4, -2, -3));
-        spinor.add(new BlockPos(4, -2, -2));
-        spinor.add(new BlockPos(4, -1, -5));
-        spinor.add(new BlockPos(4, -1, -4));
-        spinor.add(new BlockPos(4, -1, -1));
-        spinor.add(new BlockPos(4, 1, -5));
-        spinor.add(new BlockPos(4, 1, -4));
-        spinor.add(new BlockPos(4, 1, -1));
-        spinor.add(new BlockPos(4, 2, -3));
-        spinor.add(new BlockPos(4, 2, -2));
-        spinor.add(new BlockPos(5, -2, -3));
-        spinor.add(new BlockPos(5, -2, -2));
-        spinor.add(new BlockPos(5, -1, -4));
-        spinor.add(new BlockPos(5, -1, -1));
-        spinor.add(new BlockPos(5, -1, 0));
-        spinor.add(new BlockPos(5, 1, -4));
-        spinor.add(new BlockPos(5, 1, -1));
-        spinor.add(new BlockPos(5, 1, 0));
-        spinor.add(new BlockPos(5, 2, -3));
-        spinor.add(new BlockPos(5, 2, -2));
-        spinor.add(new BlockPos(6, -2, -2));
-        spinor.add(new BlockPos(6, -2, -1));
-        spinor.add(new BlockPos(6, -1, -4));
-        spinor.add(new BlockPos(6, -1, -3));
-        spinor.add(new BlockPos(6, -1, 0));
-        spinor.add(new BlockPos(6, 1, -4));
-        spinor.add(new BlockPos(6, 1, -3));
-        spinor.add(new BlockPos(6, 1, 0));
-        spinor.add(new BlockPos(6, 2, -2));
-        spinor.add(new BlockPos(6, 2, -1));
-        spinor.add(new BlockPos(7, -2, -1));
-        spinor.add(new BlockPos(7, -1, -3));
-        spinor.add(new BlockPos(7, -1, -2));
-        spinor.add(new BlockPos(7, -1, 0));
-        spinor.add(new BlockPos(7, -1, 1));
-        spinor.add(new BlockPos(7, 1, -3));
-        spinor.add(new BlockPos(7, 1, -2));
-        spinor.add(new BlockPos(7, 1, 0));
-        spinor.add(new BlockPos(7, 1, 1));
-        spinor.add(new BlockPos(7, 2, -1));
-        spinor.add(new BlockPos(8, -2, 0));
-        spinor.add(new BlockPos(8, -1, -2));
-        spinor.add(new BlockPos(8, -1, -1));
-        spinor.add(new BlockPos(8, -1, 1));
-        spinor.add(new BlockPos(8, 1, -2));
-        spinor.add(new BlockPos(8, 1, -1));
-        spinor.add(new BlockPos(8, 1, 1));
-        spinor.add(new BlockPos(8, 2, 0));
-        spinor.add(new BlockPos(9, -2, 0));
-        spinor.add(new BlockPos(9, -1, -1));
-        spinor.add(new BlockPos(9, -1, 0));
-        spinor.add(new BlockPos(9, -1, 1));
-        spinor.add(new BlockPos(9, -1, 2));
-        spinor.add(new BlockPos(9, 1, -1));
-        spinor.add(new BlockPos(9, 1, 0));
-        spinor.add(new BlockPos(9, 1, 1));
-        spinor.add(new BlockPos(9, 1, 2));
-        spinor.add(new BlockPos(9, 2, 0));
-        spinor.add(new BlockPos(10, -1, 0));
-        spinor.add(new BlockPos(10, -1, 1));
-        spinor.add(new BlockPos(10, -1, 2));
-        spinor.add(new BlockPos(10, -1, 3));
-        spinor.add(new BlockPos(10, 1, 0));
-        spinor.add(new BlockPos(10, 1, 1));
-        spinor.add(new BlockPos(10, 1, 2));
-        spinor.add(new BlockPos(10, 1, 3));
-        spinor.add(new BlockPos(11, -1, 2));
-        spinor.add(new BlockPos(11, -1, 3));
-        spinor.add(new BlockPos(11, -1, 4));
-        spinor.add(new BlockPos(11, -1, 5));
-        spinor.add(new BlockPos(11, 1, 2));
-        spinor.add(new BlockPos(11, 1, 3));
-        spinor.add(new BlockPos(11, 1, 4));
-        spinor.add(new BlockPos(11, 1, 5));
-        SPINOR_CASING_SET = Collections.unmodifiableSet(spinor);
-
-        Set<BlockPos> all = new HashSet<>();
-        all.addAll(TENSOR_CASING_SET);
-        all.addAll(CAUSAL_ANCHOR_SET);
-        all.addAll(SPINOR_CASING_SET);
-        ALL_STRUCTURE_SET = Collections.unmodifiableSet(all);
+    private static void loadRawPositions() {
+        InputStream stream = SupercausalStructure.class
+                .getResourceAsStream("/data/ae2enhanced/computation_structure/cpu_new.json");
+        if (stream == null) {
+            AE2Enhanced.LOGGER.error("[AE2E] cpu_new.json not found in resources");
+            return;
+        }
+        try (InputStreamReader reader = new InputStreamReader(stream, java.nio.charset.StandardCharsets.UTF_8)) {
+            JsonObject root = JsonParser.parseReader(reader).getAsJsonObject();
+            JsonArray blocks = root.getAsJsonArray("blocks");
+            for (JsonElement e : blocks) {
+                JsonObject obj = e.getAsJsonObject();
+                int x = obj.get("x").getAsInt();
+                int y = obj.get("y").getAsInt();
+                int z = obj.get("z").getAsInt();
+                String name = obj.get("block").getAsString();
+                if (!BLOCK_REGISTRY_MAP.containsKey(name)) {
+                    continue;
+                }
+                // 源 JSON 即以控制器为原点、NORTH 为基准朝向（结构向 +Z 延伸）,无需额外旋转
+                RAW_POSITIONS.computeIfAbsent(name, k -> new HashSet<>()).add(new BlockPos(x, y, z));
+            }
+        } catch (Exception ex) {
+            AE2Enhanced.LOGGER.error("[AE2E] Failed to load cpu_new.json", ex);
+        }
     }
 
     /**
-     * 在方块注册完成后初始化 {@link AbstractMultiblockStructure} 实例.
+     * 在方块注册完成后调用,完成结构解析.
+     * <p>通常在 {@code FMLCommonSetupEvent} 中执行.</p>
      */
     public static void init() {
         if (initialized) {
@@ -915,14 +95,29 @@ public class SupercausalStructure {
         }
         initialized = true;
 
-        StructureDefinition definition = StructureDefinition.builder()
-                .addAll(ModBlocks.CONSTANT_TENSOR_FIELD_CASING.get(), TENSOR_CASING_SET)
-                .addAll(ModBlocks.CAUSAL_ANCHOR_CORE.get(), CAUSAL_ANCHOR_SET)
-                .addAll(ModBlocks.CONSTANT_SPINOR_FIELD_CASING.get(), SPINOR_CASING_SET)
-                .add(ModBlocks.MULTIBLOCK_ME_INTERFACE.get(), ME_INTERFACE_REL)
-                .interfacePos(ME_INTERFACE_REL)
-                .build();
-        INSTANCE = new Impl(definition);
+        Map<Block, Set<BlockPos>> blockSets = new HashMap<>();
+        Set<BlockPos> all = new HashSet<>();
+
+        for (Map.Entry<String, Set<BlockPos>> entry : RAW_POSITIONS.entrySet()) {
+            RegistryObject<Block> obj = BLOCK_REGISTRY_MAP.get(entry.getKey());
+            if (obj == null || !obj.isPresent()) {
+                AE2Enhanced.LOGGER.error("[AE2E] Computation block not registered: {}", entry.getKey());
+                continue;
+            }
+            Block block = obj.get();
+            Set<BlockPos> positions = entry.getValue();
+            all.addAll(positions);
+            blockSets.put(block, positions);
+        }
+
+        Map<Block, Set<BlockPos>> unmodifiableSets = new HashMap<>();
+        for (Map.Entry<Block, Set<BlockPos>> entry : blockSets.entrySet()) {
+            unmodifiableSets.put(entry.getKey(), Collections.unmodifiableSet(entry.getValue()));
+        }
+        BLOCK_SETS = Collections.unmodifiableMap(unmodifiableSets);
+        ALL_SET = Collections.unmodifiableSet(all);
+        // 计算核心采用任意结构方块接入网络方案,不使用通用 ME 接口
+        INSTANCE = new Impl(StructureDefinition.of(BLOCK_SETS, null));
     }
 
     private static void ensureInitialized() {
@@ -946,7 +141,7 @@ public class SupercausalStructure {
     }
 
     public static Set<BlockPos> getAllSet() {
-        return ALL_STRUCTURE_SET;
+        return ALL_SET;
     }
 
     public static Direction getControllerFacing(Level level, BlockPos controllerPos) {
@@ -991,9 +186,8 @@ public class SupercausalStructure {
         }
 
         /**
-         * Returns the facing used for structure rotation.
-         * We use the opposite of the controller's block facing so that the structure
-         * expands behind the controller, leaving the controller's front face open to air.
+         * 取控制器朝向的反方向作为结构旋转方向,使结构向控制器背面延伸,
+         * 控制器正面保持朝外可交互.
          */
         @Override
         public Direction getRotation(Level level, BlockPos controllerPos) {
@@ -1014,10 +208,6 @@ public class SupercausalStructure {
             for (Map.Entry<BlockPos, Block> entry : definition.getExpectedBlocks()) {
                 BlockPos rel = entry.getKey();
                 Block expected = entry.getValue();
-                // 控制器位置由核心方块占用,跳过张量外壳检查
-                if (rel.equals(CONTROLLER_REL) && expected == ModBlocks.CONSTANT_TENSOR_FIELD_CASING.get()) {
-                    continue;
-                }
                 BlockPos actual = controllerPos.offset(StructureUtils.rotate(rel, facing));
                 if (!level.isLoaded(actual)) {
                     allChunksLoaded = false;
@@ -1037,27 +227,6 @@ public class SupercausalStructure {
         }
 
         @Override
-        public Map<Block, Integer> getMissingMap(Level level, BlockPos controllerPos) {
-            Map<Block, Integer> missing = new LinkedHashMap<>();
-            Direction facing = getRotation(level, controllerPos);
-            for (Map.Entry<BlockPos, Block> entry : definition.getExpectedBlocks()) {
-                BlockPos rel = entry.getKey();
-                Block expected = entry.getValue();
-                if (rel.equals(CONTROLLER_REL) && expected == ModBlocks.CONSTANT_TENSOR_FIELD_CASING.get()) {
-                    continue;
-                }
-                BlockPos actual = controllerPos.offset(StructureUtils.rotate(rel, facing));
-                if (!level.isLoaded(actual)) {
-                    continue;
-                }
-                if (level.getBlockState(actual).getBlock() != expected) {
-                    missing.merge(expected, 1, Integer::sum);
-                }
-            }
-            return missing;
-        }
-
-        @Override
         public void placeMissingBlocks(Level level, BlockPos controllerPos, Player player) {
             if (level.isClientSide()) {
                 return;
@@ -1066,9 +235,6 @@ public class SupercausalStructure {
             for (Map.Entry<BlockPos, Block> entry : definition.getExpectedBlocks()) {
                 BlockPos rel = entry.getKey();
                 Block block = entry.getValue();
-                if (isControllerTensorOverlap(rel, block)) {
-                    continue;
-                }
                 BlockPos pos = controllerPos.offset(StructureUtils.rotate(rel, facing));
                 if (level.getBlockState(pos).getBlock() == block) {
                     continue;
@@ -1081,10 +247,9 @@ public class SupercausalStructure {
             assemble(level, controllerPos);
         }
 
-        private static boolean isControllerTensorOverlap(BlockPos rel, Block expected) {
-            return rel.equals(CONTROLLER_REL) && expected == ModBlocks.CONSTANT_TENSOR_FIELD_CASING.get();
-        }
-
+        /**
+         * 立方体外壳会封死内部空腔,一键放置前把腔内玩家移到控制器上方安全位置.
+         */
         private static void movePlayerToSafety(Level level, BlockPos controllerPos, Player player) {
             BlockPos safe = controllerPos.above(2);
             for (int dy = 2; dy < 10; dy++) {

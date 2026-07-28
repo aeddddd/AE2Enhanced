@@ -29,6 +29,7 @@ import com.github.aeddddd.ae2enhanced.client.handler.KeyHandlerOmniTool;
 import com.github.aeddddd.ae2enhanced.client.model.ConnectedTextureModel;
 import com.github.aeddddd.ae2enhanced.client.render.AE2EnhancedShaders;
 import com.github.aeddddd.ae2enhanced.client.render.AssemblyHubRenderer;
+import com.github.aeddddd.ae2enhanced.client.render.ComputationCoreRenderer;
 import com.github.aeddddd.ae2enhanced.client.render.HyperdimensionalControllerRenderer;
 import com.github.aeddddd.ae2enhanced.client.render.MicroSingularityRenderer;
 import com.github.aeddddd.ae2enhanced.omnitool.OmniToolUpgrades;
@@ -59,6 +60,8 @@ public final class ClientSetup {
             BlockEntityRenderers.register(ModBlockEntities.ASSEMBLY_CONTROLLER.get(), AssemblyHubRenderer::new);
             BlockEntityRenderers.register(ModBlockEntities.HYPERDIMENSIONAL_CONTROLLER.get(),
                     HyperdimensionalControllerRenderer::new);
+            BlockEntityRenderers.register(ModBlockEntities.COMPUTATION_CONTROLLER.get(),
+                    ComputationCoreRenderer::new);
             BlockEntityRenderers.register(ModBlockEntities.MICRO_SINGULARITY.get(), MicroSingularityRenderer::new);
 
             // 全能工具按 NBT Mode 切换模型（对应 1.12 的 ItemMeshDefinition）

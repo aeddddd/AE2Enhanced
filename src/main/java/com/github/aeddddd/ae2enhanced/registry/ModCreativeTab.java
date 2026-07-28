@@ -60,8 +60,12 @@ public final class ModCreativeTab {
                         // 先进 ME 全能工具
                         output.accept(new ItemStack(ModItems.ME_OMNI_TOOL.get()));
 
-                        // Supercausal Computation Core —— 多方块功能异常,已临时下线并隐藏结构方块
-                        // （保留注册以兼容既有存档,仅不出现在创造栏）
+                        // Supercausal Computation Core
+                        output.accept(new ItemStack(ModItems.COMPUTATION_CONTROLLER.get()));
+                        output.accept(new ItemStack(ModItems.CONSTANT_TENSOR_FIELD_CASING.get()));
+                        output.accept(new ItemStack(ModItems.CONSTANT_SPINOR_FIELD_CASING.get()));
+                        output.accept(new ItemStack(ModItems.CASING_GLASS.get()));
+                        output.accept(new ItemStack(ModItems.CAUSAL_ANCHOR_CORE.get()));
 
                         // 测试用单方块合成 CPU 仅通过指令获取,不出现在创造栏(见 ModItems.TEST_CRAFTING_CPU)
                     })

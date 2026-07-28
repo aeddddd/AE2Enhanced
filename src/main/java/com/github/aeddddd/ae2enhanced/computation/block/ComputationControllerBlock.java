@@ -10,6 +10,8 @@ import net.minecraft.world.SimpleMenuProvider;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.block.entity.BlockEntityTicker;
+import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraftforge.network.NetworkHooks;
@@ -60,6 +62,17 @@ public class ComputationControllerBlock extends MultiblockControllerBlock {
     @Override
     public BlockEntity newBlockEntity(BlockPos pos, BlockState state) {
         return new ComputationCoreBlockEntity(pos, state);
+    }
+
+    @Override
+    @javax.annotation.Nullable
+    public <T extends BlockEntity> BlockEntityTicker<T> getTicker(Level level, BlockState state,
+            BlockEntityType<T> blockEntityType) {
+        return (lvl, p, st, be) -> {
+            if (be instanceof ComputationCoreBlockEntity core && !lvl.isClientSide()) {
+                core.serverTick();
+            }
+        };
     }
 
     @Override

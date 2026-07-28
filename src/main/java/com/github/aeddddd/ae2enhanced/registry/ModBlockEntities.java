@@ -12,6 +12,7 @@ import com.github.aeddddd.ae2enhanced.assembly.blockentity.AssemblyControllerBlo
 import com.github.aeddddd.ae2enhanced.blackhole.blockentity.MicroSingularityBlockEntity;
 import com.github.aeddddd.ae2enhanced.blockentity.HyperdimensionalControllerBlockEntity;
 import com.github.aeddddd.ae2enhanced.blockentity.PersonalDimensionManagerBlockEntity;
+import com.github.aeddddd.ae2enhanced.computation.blockentity.ComputationCasingBlockEntity;
 import com.github.aeddddd.ae2enhanced.computation.blockentity.ComputationCoreBlockEntity;
 import com.github.aeddddd.ae2enhanced.computation.blockentity.TestCraftingCpuBlockEntity;
 import com.github.aeddddd.ae2enhanced.multiblock.MultiblockMeInterfaceBlockEntity;
@@ -53,6 +54,14 @@ public final class ModBlockEntities {
             .register("computation_controller",
                     () -> BlockEntityType.Builder.of(ComputationCoreBlockEntity::new,
                             ModBlocks.COMPUTATION_CONTROLLER.get()).build(null));
+
+    public static final RegistryObject<BlockEntityType<ComputationCasingBlockEntity>> COMPUTATION_CASING = DR
+            .register("computation_casing",
+                    () -> BlockEntityType.Builder.of(ComputationCasingBlockEntity::new,
+                            ModBlocks.CONSTANT_TENSOR_FIELD_CASING.get(),
+                            ModBlocks.CONSTANT_SPINOR_FIELD_CASING.get(),
+                            ModBlocks.CAUSAL_ANCHOR_CORE.get(),
+                            ModBlocks.CASING_GLASS.get()).build(null));
 
     // 个人维度管理器
     public static final RegistryObject<BlockEntityType<PersonalDimensionManagerBlockEntity>> PERSONAL_DIMENSION_MANAGER = DR

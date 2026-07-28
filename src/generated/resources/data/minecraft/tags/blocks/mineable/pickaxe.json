@@ -15,6 +15,7 @@
     "ae2enhanced:constant_tensor_field_casing",
     "ae2enhanced:constant_spinor_field_casing",
     "ae2enhanced:causal_anchor_core",
+    "ae2enhanced:casing_glass",
     "ae2enhanced:personal_dimension_manager",
     "ae2enhanced:yellow_stripes_block_b",
     "ae2enhanced:test_crafting_cpu"

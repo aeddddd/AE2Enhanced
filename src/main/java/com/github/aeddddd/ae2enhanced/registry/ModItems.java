@@ -107,6 +107,9 @@ public final class ModItems {
     public static final RegistryObject<Item> CAUSAL_ANCHOR_CORE = DR.register("causal_anchor_core",
             () -> new BlockItem(ModBlocks.CAUSAL_ANCHOR_CORE.get(), new Item.Properties()));
 
+    public static final RegistryObject<Item> CASING_GLASS = DR.register("casing_glass",
+            () -> new BlockItem(ModBlocks.CASING_GLASS.get(), new Item.Properties()));
+
     // 个人维度核心（便携进出个人维度）
     public static final RegistryObject<Item> PERSONAL_DIMENSION = DR.register("personal_dimension",
             () -> new PersonalDimensionCoreItem(new Item.Properties().stacksTo(1)));

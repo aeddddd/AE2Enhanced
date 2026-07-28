@@ -91,6 +91,7 @@
   "block.ae2enhanced.constant_tensor_field_casing": "恒定张量场外壳",
   "block.ae2enhanced.constant_spinor_field_casing": "恒定旋量场外壳",
   "block.ae2enhanced.causal_anchor_core": "因果锚定核心",
+  "block.ae2enhanced.casing_glass": "外壳玻璃",
   "block.ae2enhanced.computation_core": "超因果计算核心",
   "block.ae2enhanced.test_crafting_cpu": "测试用合成 CPU",
   "tooltip.ae2enhanced.test_crafting_cpu": "测试用途：单方块虚拟合成 CPU,用于替代临时下线的计算核心进行测试,仅可通过指令获取",

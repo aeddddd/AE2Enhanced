@@ -1,0 +1,3575 @@
+{
+  "originIsController": true,
+  "controller": "controller",
+  "controllerOffset": {
+    "x": 5,
+    "y": 5,
+    "z": 0
+  },
+  "blocks": [
+    {
+      "x": -4,
+      "y": -5,
+      "z": 0,
+      "block": "tensor_casing"
+    },
+    {
+      "x": -3,
+      "y": -5,
+      "z": 0,
+      "block": "tensor_casing"
+    },
+    {
+      "x": -2,
+      "y": -5,
+      "z": 0,
+      "block": "spinor_casing"
+    },
+    {
+      "x": -1,
+      "y": -5,
+      "z": 0,
+      "block": "spinor_casing"
+    },
+    {
+      "x": 0,
+      "y": -5,
+      "z": 0,
+      "block": "spinor_casing"
+    },
+    {
+      "x": 1,
+      "y": -5,
+      "z": 0,
+      "block": "spinor_casing"
+    },
+    {
+      "x": 2,
+      "y": -5,
+      "z": 0,
+      "block": "spinor_casing"
+    },
+    {
+      "x": 3,
+      "y": -5,
+      "z": 0,
+      "block": "tensor_casing"
+    },
+    {
+      "x": 4,
+      "y": -5,
+      "z": 0,
+      "block": "tensor_casing"
+    },
+    {
+      "x": -5,
+      "y": -5,
+      "z": 1,
+      "block": "tensor_casing"
+    },
+    {
+      "x": -4,
+      "y": -5,
+      "z": 1,
+      "block": "tensor_casing"
+    },
+    {
+      "x": -3,
+      "y": -5,
+      "z": 1,
+      "block": "casing_glass"
+    },
+    {
+      "x": -2,
+      "y": -5,
+      "z": 1,
+      "block": "casing_glass"
+    },
+    {
+      "x": -1,
+      "y": -5,
+      "z": 1,
+      "block": "casing_glass"
+    },
+    {
+      "x": 0,
+      "y": -5,
+      "z": 1,
+      "block": "casing_glass"
+    },
+    {
+      "x": 1,
+      "y": -5,
+      "z": 1,
+      "block": "casing_glass"
+    },
+    {
+      "x": 2,
+      "y": -5,
+      "z": 1,
+      "block": "casing_glass"
+    },
+    {
+      "x": 3,
+      "y": -5,
+      "z": 1,
+      "block": "casing_glass"
+    },
+    {
+      "x": 4,
+      "y": -5,
+      "z": 1,
+      "block": "tensor_casing"
+    },
+    {
+      "x": 5,
+      "y": -5,
+      "z": 1,
+      "block": "tensor_casing"
+    },
+    {
+      "x": -5,
+      "y": -5,
+      "z": 2,
+      "block": "tensor_casing"
+    },
+    {
+      "x": -4,
+      "y": -5,
+      "z": 2,
+      "block": "casing_glass"
+    },
+    {
+      "x": -3,
+      "y": -5,
+      "z": 2,
+      "block": "casing_glass"
+    },
+    {
+      "x": -2,
+      "y": -5,
+      "z": 2,
+      "block": "casing_glass"
+    },
+    {
+      "x": -1,
+      "y": -5,
+      "z": 2,
+      "block": "casing_glass"
+    },
+    {
+      "x": 0,
+      "y": -5,
+      "z": 2,
+      "block": "casing_glass"
+    },
+    {
+      "x": 1,
+      "y": -5,
+      "z": 2,
+      "block": "casing_glass"
+    },
+    {
+      "x": 2,
+      "y": -5,
+      "z": 2,
+      "block": "casing_glass"
+    },
+    {
+      "x": 3,
+      "y": -5,
+      "z": 2,
+      "block": "casing_glass"
+    },
+    {
+      "x": 4,
+      "y": -5,
+      "z": 2,
+      "block": "casing_glass"
+    },
+    {
+      "x": 5,
+      "y": -5,
+      "z": 2,
+      "block": "tensor_casing"
+    },
+    {
+      "x": -5,
+      "y": -5,
+      "z": 3,
+      "block": "spinor_casing"
+    },
+    {
+      "x": -4,
+      "y": -5,
+      "z": 3,
+      "block": "casing_glass"
+    },
+    {
+      "x": -3,
+      "y": -5,
+      "z": 3,
+      "block": "casing_glass"
+    },
+    {
+      "x": -2,
+      "y": -5,
+      "z": 3,
+      "block": "casing_glass"
+    },
+    {
+      "x": -1,
+      "y": -5,
+      "z": 3,
+      "block": "casing_glass"
+    },
+    {
+      "x": 0,
+      "y": -5,
+      "z": 3,
+      "block": "casing_glass"
+    },
+    {
+      "x": 1,
+      "y": -5,
+      "z": 3,
+      "block": "casing_glass"
+    },
+    {
+      "x": 2,
+      "y": -5,
+      "z": 3,
+      "block": "casing_glass"
+    },
+    {
+      "x": 3,
+      "y": -5,
+      "z": 3,
+      "block": "casing_glass"
+    },
+    {
+      "x": 4,
+      "y": -5,
+      "z": 3,
+      "block": "casing_glass"
+    },
+    {
+      "x": 5,
+      "y": -5,
+      "z": 3,
+      "block": "spinor_casing"
+    },
+    {
+      "x": -5,
+      "y": -5,
+      "z": 4,
+      "block": "spinor_casing"
+    },
+    {
+      "x": -4,
+      "y": -5,
+      "z": 4,
+      "block": "casing_glass"
+    },
+    {
+      "x": -3,
+      "y": -5,
+      "z": 4,
+      "block": "casing_glass"
+    },
+    {
+      "x": -2,
+      "y": -5,
+      "z": 4,
+      "block": "casing_glass"
+    },
+    {
+      "x": -1,
+      "y": -5,
+      "z": 4,
+      "block": "tensor_casing"
+    },
+    {
+      "x": 0,
+      "y": -5,
+      "z": 4,
+      "block": "spinor_casing"
+    },
+    {
+      "x": 1,
+      "y": -5,
+      "z": 4,
+      "block": "tensor_casing"
+    },
+    {
+      "x": 2,
+      "y": -5,
+      "z": 4,
+      "block": "casing_glass"
+    },
+    {
+      "x": 3,
+      "y": -5,
+      "z": 4,
+      "block": "casing_glass"
+    },
+    {
+      "x": 4,
+      "y": -5,
+      "z": 4,
+      "block": "casing_glass"
+    },
+    {
+      "x": 5,
+      "y": -5,
+      "z": 4,
+      "block": "spinor_casing"
+    },
+    {
+      "x": -5,
+      "y": -5,
+      "z": 5,
+      "block": "spinor_casing"
+    },
+    {
+      "x": -4,
+      "y": -5,
+      "z": 5,
+      "block": "casing_glass"
+    },
+    {
+      "x": -3,
+      "y": -5,
+      "z": 5,
+      "block": "casing_glass"
+    },
+    {
+      "x": -2,
+      "y": -5,
+      "z": 5,
+      "block": "casing_glass"
+    },
+    {
+      "x": -1,
+      "y": -5,
+      "z": 5,
+      "block": "spinor_casing"
+    },
+    {
+      "x": 0,
+      "y": -5,
+      "z": 5,
+      "block": "causal_anchor"
+    },
+    {
+      "x": 1,
+      "y": -5,
+      "z": 5,
+      "block": "spinor_casing"
+    },
+    {
+      "x": 2,
+      "y": -5,
+      "z": 5,
+      "block": "casing_glass"
+    },
+    {
+      "x": 3,
+      "y": -5,
+      "z": 5,
+      "block": "casing_glass"
+    },
+    {
+      "x": 4,
+      "y": -5,
+      "z": 5,
+      "block": "casing_glass"
+    },
+    {
+      "x": 5,
+      "y": -5,
+      "z": 5,
+      "block": "spinor_casing"
+    },
+    {
+      "x": -5,
+      "y": -5,
+      "z": 6,
+      "block": "spinor_casing"
+    },
+    {
+      "x": -4,
+      "y": -5,
+      "z": 6,
+      "block": "casing_glass"
+    },
+    {
+      "x": -3,
+      "y": -5,
+      "z": 6,
+      "block": "casing_glass"
+    },
+    {
+      "x": -2,
+      "y": -5,
+      "z": 6,
+      "block": "casing_glass"
+    },
+    {
+      "x": -1,
+      "y": -5,
+      "z": 6,
+      "block": "tensor_casing"
+    },
+    {
+      "x": 0,
+      "y": -5,
+      "z": 6,
+      "block": "spinor_casing"
+    },
+    {
+      "x": 1,
+      "y": -5,
+      "z": 6,
+      "block": "tensor_casing"
+    },
+    {
+      "x": 2,
+      "y": -5,
+      "z": 6,
+      "block": "casing_glass"
+    },
+    {
+      "x": 3,
+      "y": -5,
+      "z": 6,
+      "block": "casing_glass"
+    },
+    {
+      "x": 4,
+      "y": -5,
+      "z": 6,
+      "block": "casing_glass"
+    },
+    {
+      "x": 5,
+      "y": -5,
+      "z": 6,
+      "block": "spinor_casing"
+    },
+    {
+      "x": -5,
+      "y": -5,
+      "z": 7,
+      "block": "spinor_casing"
+    },
+    {
+      "x": -4,
+      "y": -5,
+      "z": 7,
+      "block": "casing_glass"
+    },
+    {
+      "x": -3,
+      "y": -5,
+      "z": 7,
+      "block": "casing_glass"
+    },
+    {
+      "x": -2,
+      "y": -5,
+      "z": 7,
+      "block": "casing_glass"
+    },
+    {
+      "x": -1,
+      "y": -5,
+      "z": 7,
+      "block": "casing_glass"
+    },
+    {
+      "x": 0,
+      "y": -5,
+      "z": 7,
+      "block": "casing_glass"
+    },
+    {
+      "x": 1,
+      "y": -5,
+      "z": 7,
+      "block": "casing_glass"
+    },
+    {
+      "x": 2,
+      "y": -5,
+      "z": 7,
+      "block": "casing_glass"
+    },
+    {
+      "x": 3,
+      "y": -5,
+      "z": 7,
+      "block": "casing_glass"
+    },
+    {
+      "x": 4,
+      "y": -5,
+      "z": 7,
+      "block": "casing_glass"
+    },
+    {
+      "x": 5,
+      "y": -5,
+      "z": 7,
+      "block": "spinor_casing"
+    },
+    {
+      "x": -5,
+      "y": -5,
+      "z": 8,
+      "block": "tensor_casing"
+    },
+    {
+      "x": -4,
+      "y": -5,
+      "z": 8,
+      "block": "casing_glass"
+    },
+    {
+      "x": -3,
+      "y": -5,
+      "z": 8,
+      "block": "casing_glass"
+    },
+    {
+      "x": -2,
+      "y": -5,
+      "z": 8,
+      "block": "casing_glass"
+    },
+    {
+      "x": -1,
+      "y": -5,
+      "z": 8,
+      "block": "casing_glass"
+    },
+    {
+      "x": 0,
+      "y": -5,
+      "z": 8,
+      "block": "casing_glass"
+    },
+    {
+      "x": 1,
+      "y": -5,
+      "z": 8,
+      "block": "casing_glass"
+    },
+    {
+      "x": 2,
+      "y": -5,
+      "z": 8,
+      "block": "casing_glass"
+    },
+    {
+      "x": 3,
+      "y": -5,
+      "z": 8,
+      "block": "casing_glass"
+    },
+    {
+      "x": 4,
+      "y": -5,
+      "z": 8,
+      "block": "casing_glass"
+    },
+    {
+      "x": 5,
+      "y": -5,
+      "z": 8,
+      "block": "tensor_casing"
+    },
+    {
+      "x": -5,
+      "y": -5,
+      "z": 9,
+      "block": "tensor_casing"
+    },
+    {
+      "x": -4,
+      "y": -5,
+      "z": 9,
+      "block": "tensor_casing"
+    },
+    {
+      "x": -3,
+      "y": -5,
+      "z": 9,
+      "block": "casing_glass"
+    },
+    {
+      "x": -2,
+      "y": -5,
+      "z": 9,
+      "block": "casing_glass"
+    },
+    {
+      "x": -1,
+      "y": -5,
+      "z": 9,
+      "block": "casing_glass"
+    },
+    {
+      "x": 0,
+      "y": -5,
+      "z": 9,
+      "block": "casing_glass"
+    },
+    {
+      "x": 1,
+      "y": -5,
+      "z": 9,
+      "block": "casing_glass"
+    },
+    {
+      "x": 2,
+      "y": -5,
+      "z": 9,
+      "block": "casing_glass"
+    },
+    {
+      "x": 3,
+      "y": -5,
+      "z": 9,
+      "block": "casing_glass"
+    },
+    {
+      "x": 4,
+      "y": -5,
+      "z": 9,
+      "block": "tensor_casing"
+    },
+    {
+      "x": 5,
+      "y": -5,
+      "z": 9,
+      "block": "tensor_casing"
+    },
+    {
+      "x": -4,
+      "y": -5,
+      "z": 10,
+      "block": "tensor_casing"
+    },
+    {
+      "x": -3,
+      "y": -5,
+      "z": 10,
+      "block": "tensor_casing"
+    },
+    {
+      "x": -2,
+      "y": -5,
+      "z": 10,
+      "block": "spinor_casing"
+    },
+    {
+      "x": -1,
+      "y": -5,
+      "z": 10,
+      "block": "spinor_casing"
+    },
+    {
+      "x": 0,
+      "y": -5,
+      "z": 10,
+      "block": "spinor_casing"
+    },
+    {
+      "x": 1,
+      "y": -5,
+      "z": 10,
+      "block": "spinor_casing"
+    },
+    {
+      "x": 2,
+      "y": -5,
+      "z": 10,
+      "block": "spinor_casing"
+    },
+    {
+      "x": 3,
+      "y": -5,
+      "z": 10,
+      "block": "tensor_casing"
+    },
+    {
+      "x": 4,
+      "y": -5,
+      "z": 10,
+      "block": "tensor_casing"
+    },
+    {
+      "x": -5,
+      "y": -4,
+      "z": 0,
+      "block": "tensor_casing"
+    },
+    {
+      "x": -4,
+      "y": -4,
+      "z": 0,
+      "block": "tensor_casing"
+    },
+    {
+      "x": -3,
+      "y": -4,
+      "z": 0,
+      "block": "casing_glass"
+    },
+    {
+      "x": -2,
+      "y": -4,
+      "z": 0,
+      "block": "casing_glass"
+    },
+    {
+      "x": -1,
+      "y": -4,
+      "z": 0,
+      "block": "casing_glass"
+    },
+    {
+      "x": 0,
+      "y": -4,
+      "z": 0,
+      "block": "casing_glass"
+    },
+    {
+      "x": 1,
+      "y": -4,
+      "z": 0,
+      "block": "casing_glass"
+    },
+    {
+      "x": 2,
+      "y": -4,
+      "z": 0,
+      "block": "casing_glass"
+    },
+    {
+      "x": 3,
+      "y": -4,
+      "z": 0,
+      "block": "casing_glass"
+    },
+    {
+      "x": 4,
+      "y": -4,
+      "z": 0,
+      "block": "tensor_casing"
+    },
+    {
+      "x": 5,
+      "y": -4,
+      "z": 0,
+      "block": "tensor_casing"
+    },
+    {
+      "x": -5,
+      "y": -4,
+      "z": 1,
+      "block": "tensor_casing"
+    },
+    {
+      "x": 5,
+      "y": -4,
+      "z": 1,
+      "block": "tensor_casing"
+    },
+    {
+      "x": -5,
+      "y": -4,
+      "z": 2,
+      "block": "casing_glass"
+    },
+    {
+      "x": 5,
+      "y": -4,
+      "z": 2,
+      "block": "casing_glass"
+    },
+    {
+      "x": -5,
+      "y": -4,
+      "z": 3,
+      "block": "casing_glass"
+    },
+    {
+      "x": 5,
+      "y": -4,
+      "z": 3,
+      "block": "casing_glass"
+    },
+    {
+      "x": -5,
+      "y": -4,
+      "z": 4,
+      "block": "casing_glass"
+    },
+    {
+      "x": 5,
+      "y": -4,
+      "z": 4,
+      "block": "casing_glass"
+    },
+    {
+      "x": -5,
+      "y": -4,
+      "z": 5,
+      "block": "casing_glass"
+    },
+    {
+      "x": 5,
+      "y": -4,
+      "z": 5,
+      "block": "casing_glass"
+    },
+    {
+      "x": -5,
+      "y": -4,
+      "z": 6,
+      "block": "casing_glass"
+    },
+    {
+      "x": 5,
+      "y": -4,
+      "z": 6,
+      "block": "casing_glass"
+    },
+    {
+      "x": -5,
+      "y": -4,
+      "z": 7,
+      "block": "casing_glass"
+    },
+    {
+      "x": 5,
+      "y": -4,
+      "z": 7,
+      "block": "casing_glass"
+    },
+    {
+      "x": -5,
+      "y": -4,
+      "z": 8,
+      "block": "casing_glass"
+    },
+    {
+      "x": 5,
+      "y": -4,
+      "z": 8,
+      "block": "casing_glass"
+    },
+    {
+      "x": -5,
+      "y": -4,
+      "z": 9,
+      "block": "tensor_casing"
+    },
+    {
+      "x": 5,
+      "y": -4,
+      "z": 9,
+      "block": "tensor_casing"
+    },
+    {
+      "x": -5,
+      "y": -4,
+      "z": 10,
+      "block": "tensor_casing"
+    },
+    {
+      "x": -4,
+      "y": -4,
+      "z": 10,
+      "block": "tensor_casing"
+    },
+    {
+      "x": -3,
+      "y": -4,
+      "z": 10,
+      "block": "casing_glass"
+    },
+    {
+      "x": -2,
+      "y": -4,
+      "z": 10,
+      "block": "casing_glass"
+    },
+    {
+      "x": -1,
+      "y": -4,
+      "z": 10,
+      "block": "casing_glass"
+    },
+    {
+      "x": 0,
+      "y": -4,
+      "z": 10,
+      "block": "casing_glass"
+    },
+    {
+      "x": 1,
+      "y": -4,
+      "z": 10,
+      "block": "casing_glass"
+    },
+    {
+      "x": 2,
+      "y": -4,
+      "z": 10,
+      "block": "casing_glass"
+    },
+    {
+      "x": 3,
+      "y": -4,
+      "z": 10,
+      "block": "casing_glass"
+    },
+    {
+      "x": 4,
+      "y": -4,
+      "z": 10,
+      "block": "tensor_casing"
+    },
+    {
+      "x": 5,
+      "y": -4,
+      "z": 10,
+      "block": "tensor_casing"
+    },
+    {
+      "x": -5,
+      "y": -3,
+      "z": 0,
+      "block": "tensor_casing"
+    },
+    {
+      "x": -4,
+      "y": -3,
+      "z": 0,
+      "block": "casing_glass"
+    },
+    {
+      "x": -3,
+      "y": -3,
+      "z": 0,
+      "block": "casing_glass"
+    },
+    {
+      "x": -2,
+      "y": -3,
+      "z": 0,
+      "block": "casing_glass"
+    },
+    {
+      "x": -1,
+      "y": -3,
+      "z": 0,
+      "block": "casing_glass"
+    },
+    {
+      "x": 0,
+      "y": -3,
+      "z": 0,
+      "block": "casing_glass"
+    },
+    {
+      "x": 1,
+      "y": -3,
+      "z": 0,
+      "block": "casing_glass"
+    },
+    {
+      "x": 2,
+      "y": -3,
+      "z": 0,
+      "block": "casing_glass"
+    },
+    {
+      "x": 3,
+      "y": -3,
+      "z": 0,
+      "block": "casing_glass"
+    },
+    {
+      "x": 4,
+      "y": -3,
+      "z": 0,
+      "block": "casing_glass"
+    },
+    {
+      "x": 5,
+      "y": -3,
+      "z": 0,
+      "block": "tensor_casing"
+    },
+    {
+      "x": -5,
+      "y": -3,
+      "z": 1,
+      "block": "casing_glass"
+    },
+    {
+      "x": 5,
+      "y": -3,
+      "z": 1,
+      "block": "casing_glass"
+    },
+    {
+      "x": -5,
+      "y": -3,
+      "z": 2,
+      "block": "casing_glass"
+    },
+    {
+      "x": 5,
+      "y": -3,
+      "z": 2,
+      "block": "casing_glass"
+    },
+    {
+      "x": -5,
+      "y": -3,
+      "z": 3,
+      "block": "casing_glass"
+    },
+    {
+      "x": 5,
+      "y": -3,
+      "z": 3,
+      "block": "casing_glass"
+    },
+    {
+      "x": -5,
+      "y": -3,
+      "z": 4,
+      "block": "casing_glass"
+    },
+    {
+      "x": 5,
+      "y": -3,
+      "z": 4,
+      "block": "casing_glass"
+    },
+    {
+      "x": -5,
+      "y": -3,
+      "z": 5,
+      "block": "casing_glass"
+    },
+    {
+      "x": 5,
+      "y": -3,
+      "z": 5,
+      "block": "casing_glass"
+    },
+    {
+      "x": -5,
+      "y": -3,
+      "z": 6,
+      "block": "casing_glass"
+    },
+    {
+      "x": 5,
+      "y": -3,
+      "z": 6,
+      "block": "casing_glass"
+    },
+    {
+      "x": -5,
+      "y": -3,
+      "z": 7,
+      "block": "casing_glass"
+    },
+    {
+      "x": 5,
+      "y": -3,
+      "z": 7,
+      "block": "casing_glass"
+    },
+    {
+      "x": -5,
+      "y": -3,
+      "z": 8,
+      "block": "casing_glass"
+    },
+    {
+      "x": 5,
+      "y": -3,
+      "z": 8,
+      "block": "casing_glass"
+    },
+    {
+      "x": -5,
+      "y": -3,
+      "z": 9,
+      "block": "casing_glass"
+    },
+    {
+      "x": 5,
+      "y": -3,
+      "z": 9,
+      "block": "casing_glass"
+    },
+    {
+      "x": -5,
+      "y": -3,
+      "z": 10,
+      "block": "tensor_casing"
+    },
+    {
+      "x": -4,
+      "y": -3,
+      "z": 10,
+      "block": "casing_glass"
+    },
+    {
+      "x": -3,
+      "y": -3,
+      "z": 10,
+      "block": "casing_glass"
+    },
+    {
+      "x": -2,
+      "y": -3,
+      "z": 10,
+      "block": "casing_glass"
+    },
+    {
+      "x": -1,
+      "y": -3,
+      "z": 10,
+      "block": "casing_glass"
+    },
+    {
+      "x": 0,
+      "y": -3,
+      "z": 10,
+      "block": "casing_glass"
+    },
+    {
+      "x": 1,
+      "y": -3,
+      "z": 10,
+      "block": "casing_glass"
+    },
+    {
+      "x": 2,
+      "y": -3,
+      "z": 10,
+      "block": "casing_glass"
+    },
+    {
+      "x": 3,
+      "y": -3,
+      "z": 10,
+      "block": "casing_glass"
+    },
+    {
+      "x": 4,
+      "y": -3,
+      "z": 10,
+      "block": "casing_glass"
+    },
+    {
+      "x": 5,
+      "y": -3,
+      "z": 10,
+      "block": "tensor_casing"
+    },
+    {
+      "x": -5,
+      "y": -2,
+      "z": 0,
+      "block": "spinor_casing"
+    },
+    {
+      "x": -4,
+      "y": -2,
+      "z": 0,
+      "block": "casing_glass"
+    },
+    {
+      "x": -3,
+      "y": -2,
+      "z": 0,
+      "block": "casing_glass"
+    },
+    {
+      "x": -2,
+      "y": -2,
+      "z": 0,
+      "block": "casing_glass"
+    },
+    {
+      "x": -1,
+      "y": -2,
+      "z": 0,
+      "block": "casing_glass"
+    },
+    {
+      "x": 0,
+      "y": -2,
+      "z": 0,
+      "block": "casing_glass"
+    },
+    {
+      "x": 1,
+      "y": -2,
+      "z": 0,
+      "block": "casing_glass"
+    },
+    {
+      "x": 2,
+      "y": -2,
+      "z": 0,
+      "block": "casing_glass"
+    },
+    {
+      "x": 3,
+      "y": -2,
+      "z": 0,
+      "block": "casing_glass"
+    },
+    {
+      "x": 4,
+      "y": -2,
+      "z": 0,
+      "block": "casing_glass"
+    },
+    {
+      "x": 5,
+      "y": -2,
+      "z": 0,
+      "block": "spinor_casing"
+    },
+    {
+      "x": -5,
+      "y": -2,
+      "z": 1,
+      "block": "casing_glass"
+    },
+    {
+      "x": 5,
+      "y": -2,
+      "z": 1,
+      "block": "casing_glass"
+    },
+    {
+      "x": -5,
+      "y": -2,
+      "z": 2,
+      "block": "casing_glass"
+    },
+    {
+      "x": 5,
+      "y": -2,
+      "z": 2,
+      "block": "casing_glass"
+    },
+    {
+      "x": -5,
+      "y": -2,
+      "z": 3,
+      "block": "casing_glass"
+    },
+    {
+      "x": 5,
+      "y": -2,
+      "z": 3,
+      "block": "casing_glass"
+    },
+    {
+      "x": -5,
+      "y": -2,
+      "z": 4,
+      "block": "casing_glass"
+    },
+    {
+      "x": 5,
+      "y": -2,
+      "z": 4,
+      "block": "casing_glass"
+    },
+    {
+      "x": -5,
+      "y": -2,
+      "z": 5,
+      "block": "casing_glass"
+    },
+    {
+      "x": 5,
+      "y": -2,
+      "z": 5,
+      "block": "casing_glass"
+    },
+    {
+      "x": -5,
+      "y": -2,
+      "z": 6,
+      "block": "casing_glass"
+    },
+    {
+      "x": 5,
+      "y": -2,
+      "z": 6,
+      "block": "casing_glass"
+    },
+    {
+      "x": -5,
+      "y": -2,
+      "z": 7,
+      "block": "casing_glass"
+    },
+    {
+      "x": 5,
+      "y": -2,
+      "z": 7,
+      "block": "casing_glass"
+    },
+    {
+      "x": -5,
+      "y": -2,
+      "z": 8,
+      "block": "casing_glass"
+    },
+    {
+      "x": 5,
+      "y": -2,
+      "z": 8,
+      "block": "casing_glass"
+    },
+    {
+      "x": -5,
+      "y": -2,
+      "z": 9,
+      "block": "casing_glass"
+    },
+    {
+      "x": 5,
+      "y": -2,
+      "z": 9,
+      "block": "casing_glass"
+    },
+    {
+      "x": -5,
+      "y": -2,
+      "z": 10,
+      "block": "spinor_casing"
+    },
+    {
+      "x": -4,
+      "y": -2,
+      "z": 10,
+      "block": "casing_glass"
+    },
+    {
+      "x": -3,
+      "y": -2,
+      "z": 10,
+      "block": "casing_glass"
+    },
+    {
+      "x": -2,
+      "y": -2,
+      "z": 10,
+      "block": "casing_glass"
+    },
+    {
+      "x": -1,
+      "y": -2,
+      "z": 10,
+      "block": "casing_glass"
+    },
+    {
+      "x": 0,
+      "y": -2,
+      "z": 10,
+      "block": "casing_glass"
+    },
+    {
+      "x": 1,
+      "y": -2,
+      "z": 10,
+      "block": "casing_glass"
+    },
+    {
+      "x": 2,
+      "y": -2,
+      "z": 10,
+      "block": "casing_glass"
+    },
+    {
+      "x": 3,
+      "y": -2,
+      "z": 10,
+      "block": "casing_glass"
+    },
+    {
+      "x": 4,
+      "y": -2,
+      "z": 10,
+      "block": "casing_glass"
+    },
+    {
+      "x": 5,
+      "y": -2,
+      "z": 10,
+      "block": "spinor_casing"
+    },
+    {
+      "x": -5,
+      "y": -1,
+      "z": 0,
+      "block": "spinor_casing"
+    },
+    {
+      "x": -4,
+      "y": -1,
+      "z": 0,
+      "block": "casing_glass"
+    },
+    {
+      "x": -3,
+      "y": -1,
+      "z": 0,
+      "block": "casing_glass"
+    },
+    {
+      "x": -2,
+      "y": -1,
+      "z": 0,
+      "block": "casing_glass"
+    },
+    {
+      "x": -1,
+      "y": -1,
+      "z": 0,
+      "block": "tensor_casing"
+    },
+    {
+      "x": 0,
+      "y": -1,
+      "z": 0,
+      "block": "spinor_casing"
+    },
+    {
+      "x": 1,
+      "y": -1,
+      "z": 0,
+      "block": "tensor_casing"
+    },
+    {
+      "x": 2,
+      "y": -1,
+      "z": 0,
+      "block": "casing_glass"
+    },
+    {
+      "x": 3,
+      "y": -1,
+      "z": 0,
+      "block": "casing_glass"
+    },
+    {
+      "x": 4,
+      "y": -1,
+      "z": 0,
+      "block": "casing_glass"
+    },
+    {
+      "x": 5,
+      "y": -1,
+      "z": 0,
+      "block": "spinor_casing"
+    },
+    {
+      "x": -5,
+      "y": -1,
+      "z": 1,
+      "block": "casing_glass"
+    },
+    {
+      "x": 5,
+      "y": -1,
+      "z": 1,
+      "block": "casing_glass"
+    },
+    {
+      "x": -5,
+      "y": -1,
+      "z": 2,
+      "block": "casing_glass"
+    },
+    {
+      "x": 5,
+      "y": -1,
+      "z": 2,
+      "block": "casing_glass"
+    },
+    {
+      "x": -5,
+      "y": -1,
+      "z": 3,
+      "block": "casing_glass"
+    },
+    {
+      "x": 5,
+      "y": -1,
+      "z": 3,
+      "block": "casing_glass"
+    },
+    {
+      "x": -5,
+      "y": -1,
+      "z": 4,
+      "block": "tensor_casing"
+    },
+    {
+      "x": 5,
+      "y": -1,
+      "z": 4,
+      "block": "tensor_casing"
+    },
+    {
+      "x": -5,
+      "y": -1,
+      "z": 5,
+      "block": "spinor_casing"
+    },
+    {
+      "x": 5,
+      "y": -1,
+      "z": 5,
+      "block": "spinor_casing"
+    },
+    {
+      "x": -5,
+      "y": -1,
+      "z": 6,
+      "block": "tensor_casing"
+    },
+    {
+      "x": 5,
+      "y": -1,
+      "z": 6,
+      "block": "tensor_casing"
+    },
+    {
+      "x": -5,
+      "y": -1,
+      "z": 7,
+      "block": "casing_glass"
+    },
+    {
+      "x": 5,
+      "y": -1,
+      "z": 7,
+      "block": "casing_glass"
+    },
+    {
+      "x": -5,
+      "y": -1,
+      "z": 8,
+      "block": "casing_glass"
+    },
+    {
+      "x": 5,
+      "y": -1,
+      "z": 8,
+      "block": "casing_glass"
+    },
+    {
+      "x": -5,
+      "y": -1,
+      "z": 9,
+      "block": "casing_glass"
+    },
+    {
+      "x": 5,
+      "y": -1,
+      "z": 9,
+      "block": "casing_glass"
+    },
+    {
+      "x": -5,
+      "y": -1,
+      "z": 10,
+      "block": "spinor_casing"
+    },
+    {
+      "x": -4,
+      "y": -1,
+      "z": 10,
+      "block": "casing_glass"
+    },
+    {
+      "x": -3,
+      "y": -1,
+      "z": 10,
+      "block": "casing_glass"
+    },
+    {
+      "x": -2,
+      "y": -1,
+      "z": 10,
+      "block": "casing_glass"
+    },
+    {
+      "x": -1,
+      "y": -1,
+      "z": 10,
+      "block": "tensor_casing"
+    },
+    {
+      "x": 0,
+      "y": -1,
+      "z": 10,
+      "block": "spinor_casing"
+    },
+    {
+      "x": 1,
+      "y": -1,
+      "z": 10,
+      "block": "tensor_casing"
+    },
+    {
+      "x": 2,
+      "y": -1,
+      "z": 10,
+      "block": "casing_glass"
+    },
+    {
+      "x": 3,
+      "y": -1,
+      "z": 10,
+      "block": "casing_glass"
+    },
+    {
+      "x": 4,
+      "y": -1,
+      "z": 10,
+      "block": "casing_glass"
+    },
+    {
+      "x": 5,
+      "y": -1,
+      "z": 10,
+      "block": "spinor_casing"
+    },
+    {
+      "x": -5,
+      "y": 0,
+      "z": 0,
+      "block": "spinor_casing"
+    },
+    {
+      "x": -4,
+      "y": 0,
+      "z": 0,
+      "block": "casing_glass"
+    },
+    {
+      "x": -3,
+      "y": 0,
+      "z": 0,
+      "block": "casing_glass"
+    },
+    {
+      "x": -2,
+      "y": 0,
+      "z": 0,
+      "block": "casing_glass"
+    },
+    {
+      "x": -1,
+      "y": 0,
+      "z": 0,
+      "block": "spinor_casing"
+    },
+    {
+      "x": 0,
+      "y": 0,
+      "z": 0,
+      "block": "controller"
+    },
+    {
+      "x": 1,
+      "y": 0,
+      "z": 0,
+      "block": "spinor_casing"
+    },
+    {
+      "x": 2,
+      "y": 0,
+      "z": 0,
+      "block": "casing_glass"
+    },
+    {
+      "x": 3,
+      "y": 0,
+      "z": 0,
+      "block": "casing_glass"
+    },
+    {
+      "x": 4,
+      "y": 0,
+      "z": 0,
+      "block": "casing_glass"
+    },
+    {
+      "x": 5,
+      "y": 0,
+      "z": 0,
+      "block": "spinor_casing"
+    },
+    {
+      "x": -5,
+      "y": 0,
+      "z": 1,
+      "block": "casing_glass"
+    },
+    {
+      "x": 5,
+      "y": 0,
+      "z": 1,
+      "block": "casing_glass"
+    },
+    {
+      "x": -5,
+      "y": 0,
+      "z": 2,
+      "block": "casing_glass"
+    },
+    {
+      "x": 5,
+      "y": 0,
+      "z": 2,
+      "block": "casing_glass"
+    },
+    {
+      "x": -5,
+      "y": 0,
+      "z": 3,
+      "block": "casing_glass"
+    },
+    {
+      "x": 5,
+      "y": 0,
+      "z": 3,
+      "block": "casing_glass"
+    },
+    {
+      "x": -5,
+      "y": 0,
+      "z": 4,
+      "block": "spinor_casing"
+    },
+    {
+      "x": 5,
+      "y": 0,
+      "z": 4,
+      "block": "spinor_casing"
+    },
+    {
+      "x": -5,
+      "y": 0,
+      "z": 5,
+      "block": "causal_anchor"
+    },
+    {
+      "x": 5,
+      "y": 0,
+      "z": 5,
+      "block": "causal_anchor"
+    },
+    {
+      "x": -5,
+      "y": 0,
+      "z": 6,
+      "block": "spinor_casing"
+    },
+    {
+      "x": 5,
+      "y": 0,
+      "z": 6,
+      "block": "spinor_casing"
+    },
+    {
+      "x": -5,
+      "y": 0,
+      "z": 7,
+      "block": "casing_glass"
+    },
+    {
+      "x": 5,
+      "y": 0,
+      "z": 7,
+      "block": "casing_glass"
+    },
+    {
+      "x": -5,
+      "y": 0,
+      "z": 8,
+      "block": "casing_glass"
+    },
+    {
+      "x": 5,
+      "y": 0,
+      "z": 8,
+      "block": "casing_glass"
+    },
+    {
+      "x": -5,
+      "y": 0,
+      "z": 9,
+      "block": "casing_glass"
+    },
+    {
+      "x": 5,
+      "y": 0,
+      "z": 9,
+      "block": "casing_glass"
+    },
+    {
+      "x": -5,
+      "y": 0,
+      "z": 10,
+      "block": "spinor_casing"
+    },
+    {
+      "x": -4,
+      "y": 0,
+      "z": 10,
+      "block": "casing_glass"
+    },
+    {
+      "x": -3,
+      "y": 0,
+      "z": 10,
+      "block": "casing_glass"
+    },
+    {
+      "x": -2,
+      "y": 0,
+      "z": 10,
+      "block": "casing_glass"
+    },
+    {
+      "x": -1,
+      "y": 0,
+      "z": 10,
+      "block": "spinor_casing"
+    },
+    {
+      "x": 0,
+      "y": 0,
+      "z": 10,
+      "block": "causal_anchor"
+    },
+    {
+      "x": 1,
+      "y": 0,
+      "z": 10,
+      "block": "spinor_casing"
+    },
+    {
+      "x": 2,
+      "y": 0,
+      "z": 10,
+      "block": "casing_glass"
+    },
+    {
+      "x": 3,
+      "y": 0,
+      "z": 10,
+      "block": "casing_glass"
+    },
+    {
+      "x": 4,
+      "y": 0,
+      "z": 10,
+      "block": "casing_glass"
+    },
+    {
+      "x": 5,
+      "y": 0,
+      "z": 10,
+      "block": "spinor_casing"
+    },
+    {
+      "x": -5,
+      "y": 1,
+      "z": 0,
+      "block": "spinor_casing"
+    },
+    {
+      "x": -4,
+      "y": 1,
+      "z": 0,
+      "block": "casing_glass"
+    },
+    {
+      "x": -3,
+      "y": 1,
+      "z": 0,
+      "block": "casing_glass"
+    },
+    {
+      "x": -2,
+      "y": 1,
+      "z": 0,
+      "block": "casing_glass"
+    },
+    {
+      "x": -1,
+      "y": 1,
+      "z": 0,
+      "block": "tensor_casing"
+    },
+    {
+      "x": 0,
+      "y": 1,
+      "z": 0,
+      "block": "spinor_casing"
+    },
+    {
+      "x": 1,
+      "y": 1,
+      "z": 0,
+      "block": "tensor_casing"
+    },
+    {
+      "x": 2,
+      "y": 1,
+      "z": 0,
+      "block": "casing_glass"
+    },
+    {
+      "x": 3,
+      "y": 1,
+      "z": 0,
+      "block": "casing_glass"
+    },
+    {
+      "x": 4,
+      "y": 1,
+      "z": 0,
+      "block": "casing_glass"
+    },
+    {
+      "x": 5,
+      "y": 1,
+      "z": 0,
+      "block": "spinor_casing"
+    },
+    {
+      "x": -5,
+      "y": 1,
+      "z": 1,
+      "block": "casing_glass"
+    },
+    {
+      "x": 5,
+      "y": 1,
+      "z": 1,
+      "block": "casing_glass"
+    },
+    {
+      "x": -5,
+      "y": 1,
+      "z": 2,
+      "block": "casing_glass"
+    },
+    {
+      "x": 5,
+      "y": 1,
+      "z": 2,
+      "block": "casing_glass"
+    },
+    {
+      "x": -5,
+      "y": 1,
+      "z": 3,
+      "block": "casing_glass"
+    },
+    {
+      "x": 5,
+      "y": 1,
+      "z": 3,
+      "block": "casing_glass"
+    },
+    {
+      "x": -5,
+      "y": 1,
+      "z": 4,
+      "block": "tensor_casing"
+    },
+    {
+      "x": 5,
+      "y": 1,
+      "z": 4,
+      "block": "tensor_casing"
+    },
+    {
+      "x": -5,
+      "y": 1,
+      "z": 5,
+      "block": "spinor_casing"
+    },
+    {
+      "x": 5,
+      "y": 1,
+      "z": 5,
+      "block": "spinor_casing"
+    },
+    {
+      "x": -5,
+      "y": 1,
+      "z": 6,
+      "block": "tensor_casing"
+    },
+    {
+      "x": 5,
+      "y": 1,
+      "z": 6,
+      "block": "tensor_casing"
+    },
+    {
+      "x": -5,
+      "y": 1,
+      "z": 7,
+      "block": "casing_glass"
+    },
+    {
+      "x": 5,
+      "y": 1,
+      "z": 7,
+      "block": "casing_glass"
+    },
+    {
+      "x": -5,
+      "y": 1,
+      "z": 8,
+      "block": "casing_glass"
+    },
+    {
+      "x": 5,
+      "y": 1,
+      "z": 8,
+      "block": "casing_glass"
+    },
+    {
+      "x": -5,
+      "y": 1,
+      "z": 9,
+      "block": "casing_glass"
+    },
+    {
+      "x": 5,
+      "y": 1,
+      "z": 9,
+      "block": "casing_glass"
+    },
+    {
+      "x": -5,
+      "y": 1,
+      "z": 10,
+      "block": "spinor_casing"
+    },
+    {
+      "x": -4,
+      "y": 1,
+      "z": 10,
+      "block": "casing_glass"
+    },
+    {
+      "x": -3,
+      "y": 1,
+      "z": 10,
+      "block": "casing_glass"
+    },
+    {
+      "x": -2,
+      "y": 1,
+      "z": 10,
+      "block": "casing_glass"
+    },
+    {
+      "x": -1,
+      "y": 1,
+      "z": 10,
+      "block": "tensor_casing"
+    },
+    {
+      "x": 0,
+      "y": 1,
+      "z": 10,
+      "block": "spinor_casing"
+    },
+    {
+      "x": 1,
+      "y": 1,
+      "z": 10,
+      "block": "tensor_casing"
+    },
+    {
+      "x": 2,
+      "y": 1,
+      "z": 10,
+      "block": "casing_glass"
+    },
+    {
+      "x": 3,
+      "y": 1,
+      "z": 10,
+      "block": "casing_glass"
+    },
+    {
+      "x": 4,
+      "y": 1,
+      "z": 10,
+      "block": "casing_glass"
+    },
+    {
+      "x": 5,
+      "y": 1,
+      "z": 10,
+      "block": "spinor_casing"
+    },
+    {
+      "x": -5,
+      "y": 2,
+      "z": 0,
+      "block": "spinor_casing"
+    },
+    {
+      "x": -4,
+      "y": 2,
+      "z": 0,
+      "block": "casing_glass"
+    },
+    {
+      "x": -3,
+      "y": 2,
+      "z": 0,
+      "block": "casing_glass"
+    },
+    {
+      "x": -2,
+      "y": 2,
+      "z": 0,
+      "block": "casing_glass"
+    },
+    {
+      "x": -1,
+      "y": 2,
+      "z": 0,
+      "block": "casing_glass"
+    },
+    {
+      "x": 0,
+      "y": 2,
+      "z": 0,
+      "block": "casing_glass"
+    },
+    {
+      "x": 1,
+      "y": 2,
+      "z": 0,
+      "block": "casing_glass"
+    },
+    {
+      "x": 2,
+      "y": 2,
+      "z": 0,
+      "block": "casing_glass"
+    },
+    {
+      "x": 3,
+      "y": 2,
+      "z": 0,
+      "block": "casing_glass"
+    },
+    {
+      "x": 4,
+      "y": 2,
+      "z": 0,
+      "block": "casing_glass"
+    },
+    {
+      "x": 5,
+      "y": 2,
+      "z": 0,
+      "block": "spinor_casing"
+    },
+    {
+      "x": -5,
+      "y": 2,
+      "z": 1,
+      "block": "casing_glass"
+    },
+    {
+      "x": 5,
+      "y": 2,
+      "z": 1,
+      "block": "casing_glass"
+    },
+    {
+      "x": -5,
+      "y": 2,
+      "z": 2,
+      "block": "casing_glass"
+    },
+    {
+      "x": 5,
+      "y": 2,
+      "z": 2,
+      "block": "casing_glass"
+    },
+    {
+      "x": -5,
+      "y": 2,
+      "z": 3,
+      "block": "casing_glass"
+    },
+    {
+      "x": 5,
+      "y": 2,
+      "z": 3,
+      "block": "casing_glass"
+    },
+    {
+      "x": -5,
+      "y": 2,
+      "z": 4,
+      "block": "casing_glass"
+    },
+    {
+      "x": 5,
+      "y": 2,
+      "z": 4,
+      "block": "casing_glass"
+    },
+    {
+      "x": -5,
+      "y": 2,
+      "z": 5,
+      "block": "casing_glass"
+    },
+    {
+      "x": 5,
+      "y": 2,
+      "z": 5,
+      "block": "casing_glass"
+    },
+    {
+      "x": -5,
+      "y": 2,
+      "z": 6,
+      "block": "casing_glass"
+    },
+    {
+      "x": 5,
+      "y": 2,
+      "z": 6,
+      "block": "casing_glass"
+    },
+    {
+      "x": -5,
+      "y": 2,
+      "z": 7,
+      "block": "casing_glass"
+    },
+    {
+      "x": 5,
+      "y": 2,
+      "z": 7,
+      "block": "casing_glass"
+    },
+    {
+      "x": -5,
+      "y": 2,
+      "z": 8,
+      "block": "casing_glass"
+    },
+    {
+      "x": 5,
+      "y": 2,
+      "z": 8,
+      "block": "casing_glass"
+    },
+    {
+      "x": -5,
+      "y": 2,
+      "z": 9,
+      "block": "casing_glass"
+    },
+    {
+      "x": 5,
+      "y": 2,
+      "z": 9,
+      "block": "casing_glass"
+    },
+    {
+      "x": -5,
+      "y": 2,
+      "z": 10,
+      "block": "spinor_casing"
+    },
+    {
+      "x": -4,
+      "y": 2,
+      "z": 10,
+      "block": "casing_glass"
+    },
+    {
+      "x": -3,
+      "y": 2,
+      "z": 10,
+      "block": "casing_glass"
+    },
+    {
+      "x": -2,
+      "y": 2,
+      "z": 10,
+      "block": "casing_glass"
+    },
+    {
+      "x": -1,
+      "y": 2,
+      "z": 10,
+      "block": "casing_glass"
+    },
+    {
+      "x": 0,
+      "y": 2,
+      "z": 10,
+      "block": "casing_glass"
+    },
+    {
+      "x": 1,
+      "y": 2,
+      "z": 10,
+      "block": "casing_glass"
+    },
+    {
+      "x": 2,
+      "y": 2,
+      "z": 10,
+      "block": "casing_glass"
+    },
+    {
+      "x": 3,
+      "y": 2,
+      "z": 10,
+      "block": "casing_glass"
+    },
+    {
+      "x": 4,
+      "y": 2,
+      "z": 10,
+      "block": "casing_glass"
+    },
+    {
+      "x": 5,
+      "y": 2,
+      "z": 10,
+      "block": "spinor_casing"
+    },
+    {
+      "x": -5,
+      "y": 3,
+      "z": 0,
+      "block": "tensor_casing"
+    },
+    {
+      "x": -4,
+      "y": 3,
+      "z": 0,
+      "block": "casing_glass"
+    },
+    {
+      "x": -3,
+      "y": 3,
+      "z": 0,
+      "block": "casing_glass"
+    },
+    {
+      "x": -2,
+      "y": 3,
+      "z": 0,
+      "block": "casing_glass"
+    },
+    {
+      "x": -1,
+      "y": 3,
+      "z": 0,
+      "block": "casing_glass"
+    },
+    {
+      "x": 0,
+      "y": 3,
+      "z": 0,
+      "block": "casing_glass"
+    },
+    {
+      "x": 1,
+      "y": 3,
+      "z": 0,
+      "block": "casing_glass"
+    },
+    {
+      "x": 2,
+      "y": 3,
+      "z": 0,
+      "block": "casing_glass"
+    },
+    {
+      "x": 3,
+      "y": 3,
+      "z": 0,
+      "block": "casing_glass"
+    },
+    {
+      "x": 4,
+      "y": 3,
+      "z": 0,
+      "block": "casing_glass"
+    },
+    {
+      "x": 5,
+      "y": 3,
+      "z": 0,
+      "block": "tensor_casing"
+    },
+    {
+      "x": -5,
+      "y": 3,
+      "z": 1,
+      "block": "casing_glass"
+    },
+    {
+      "x": 5,
+      "y": 3,
+      "z": 1,
+      "block": "casing_glass"
+    },
+    {
+      "x": -5,
+      "y": 3,
+      "z": 2,
+      "block": "casing_glass"
+    },
+    {
+      "x": 5,
+      "y": 3,
+      "z": 2,
+      "block": "casing_glass"
+    },
+    {
+      "x": -5,
+      "y": 3,
+      "z": 3,
+      "block": "casing_glass"
+    },
+    {
+      "x": 5,
+      "y": 3,
+      "z": 3,
+      "block": "casing_glass"
+    },
+    {
+      "x": -5,
+      "y": 3,
+      "z": 4,
+      "block": "casing_glass"
+    },
+    {
+      "x": 5,
+      "y": 3,
+      "z": 4,
+      "block": "casing_glass"
+    },
+    {
+      "x": -5,
+      "y": 3,
+      "z": 5,
+      "block": "casing_glass"
+    },
+    {
+      "x": 5,
+      "y": 3,
+      "z": 5,
+      "block": "casing_glass"
+    },
+    {
+      "x": -5,
+      "y": 3,
+      "z": 6,
+      "block": "casing_glass"
+    },
+    {
+      "x": 5,
+      "y": 3,
+      "z": 6,
+      "block": "casing_glass"
+    },
+    {
+      "x": -5,
+      "y": 3,
+      "z": 7,
+      "block": "casing_glass"
+    },
+    {
+      "x": 5,
+      "y": 3,
+      "z": 7,
+      "block": "casing_glass"
+    },
+    {
+      "x": -5,
+      "y": 3,
+      "z": 8,
+      "block": "casing_glass"
+    },
+    {
+      "x": 5,
+      "y": 3,
+      "z": 8,
+      "block": "casing_glass"
+    },
+    {
+      "x": -5,
+      "y": 3,
+      "z": 9,
+      "block": "casing_glass"
+    },
+    {
+      "x": 5,
+      "y": 3,
+      "z": 9,
+      "block": "casing_glass"
+    },
+    {
+      "x": -5,
+      "y": 3,
+      "z": 10,
+      "block": "tensor_casing"
+    },
+    {
+      "x": -4,
+      "y": 3,
+      "z": 10,
+      "block": "casing_glass"
+    },
+    {
+      "x": -3,
+      "y": 3,
+      "z": 10,
+      "block": "casing_glass"
+    },
+    {
+      "x": -2,
+      "y": 3,
+      "z": 10,
+      "block": "casing_glass"
+    },
+    {
+      "x": -1,
+      "y": 3,
+      "z": 10,
+      "block": "casing_glass"
+    },
+    {
+      "x": 0,
+      "y": 3,
+      "z": 10,
+      "block": "casing_glass"
+    },
+    {
+      "x": 1,
+      "y": 3,
+      "z": 10,
+      "block": "casing_glass"
+    },
+    {
+      "x": 2,
+      "y": 3,
+      "z": 10,
+      "block": "casing_glass"
+    },
+    {
+      "x": 3,
+      "y": 3,
+      "z": 10,
+      "block": "casing_glass"
+    },
+    {
+      "x": 4,
+      "y": 3,
+      "z": 10,
+      "block": "casing_glass"
+    },
+    {
+      "x": 5,
+      "y": 3,
+      "z": 10,
+      "block": "tensor_casing"
+    },
+    {
+      "x": -5,
+      "y": 4,
+      "z": 0,
+      "block": "tensor_casing"
+    },
+    {
+      "x": -4,
+      "y": 4,
+      "z": 0,
+      "block": "tensor_casing"
+    },
+    {
+      "x": -3,
+      "y": 4,
+      "z": 0,
+      "block": "casing_glass"
+    },
+    {
+      "x": -2,
+      "y": 4,
+      "z": 0,
+      "block": "casing_glass"
+    },
+    {
+      "x": -1,
+      "y": 4,
+      "z": 0,
+      "block": "casing_glass"
+    },
+    {
+      "x": 0,
+      "y": 4,
+      "z": 0,
+      "block": "casing_glass"
+    },
+    {
+      "x": 1,
+      "y": 4,
+      "z": 0,
+      "block": "casing_glass"
+    },
+    {
+      "x": 2,
+      "y": 4,
+      "z": 0,
+      "block": "casing_glass"
+    },
+    {
+      "x": 3,
+      "y": 4,
+      "z": 0,
+      "block": "casing_glass"
+    },
+    {
+      "x": 4,
+      "y": 4,
+      "z": 0,
+      "block": "tensor_casing"
+    },
+    {
+      "x": 5,
+      "y": 4,
+      "z": 0,
+      "block": "tensor_casing"
+    },
+    {
+      "x": -5,
+      "y": 4,
+      "z": 1,
+      "block": "tensor_casing"
+    },
+    {
+      "x": 5,
+      "y": 4,
+      "z": 1,
+      "block": "tensor_casing"
+    },
+    {
+      "x": -5,
+      "y": 4,
+      "z": 2,
+      "block": "casing_glass"
+    },
+    {
+      "x": 5,
+      "y": 4,
+      "z": 2,
+      "block": "casing_glass"
+    },
+    {
+      "x": -5,
+      "y": 4,
+      "z": 3,
+      "block": "casing_glass"
+    },
+    {
+      "x": 5,
+      "y": 4,
+      "z": 3,
+      "block": "casing_glass"
+    },
+    {
+      "x": -5,
+      "y": 4,
+      "z": 4,
+      "block": "casing_glass"
+    },
+    {
+      "x": 5,
+      "y": 4,
+      "z": 4,
+      "block": "casing_glass"
+    },
+    {
+      "x": -5,
+      "y": 4,
+      "z": 5,
+      "block": "casing_glass"
+    },
+    {
+      "x": 5,
+      "y": 4,
+      "z": 5,
+      "block": "casing_glass"
+    },
+    {
+      "x": -5,
+      "y": 4,
+      "z": 6,
+      "block": "casing_glass"
+    },
+    {
+      "x": 5,
+      "y": 4,
+      "z": 6,
+      "block": "casing_glass"
+    },
+    {
+      "x": -5,
+      "y": 4,
+      "z": 7,
+      "block": "casing_glass"
+    },
+    {
+      "x": 5,
+      "y": 4,
+      "z": 7,
+      "block": "casing_glass"
+    },
+    {
+      "x": -5,
+      "y": 4,
+      "z": 8,
+      "block": "casing_glass"
+    },
+    {
+      "x": 5,
+      "y": 4,
+      "z": 8,
+      "block": "casing_glass"
+    },
+    {
+      "x": -5,
+      "y": 4,
+      "z": 9,
+      "block": "tensor_casing"
+    },
+    {
+      "x": 5,
+      "y": 4,
+      "z": 9,
+      "block": "tensor_casing"
+    },
+    {
+      "x": -5,
+      "y": 4,
+      "z": 10,
+      "block": "tensor_casing"
+    },
+    {
+      "x": -4,
+      "y": 4,
+      "z": 10,
+      "block": "tensor_casing"
+    },
+    {
+      "x": -3,
+      "y": 4,
+      "z": 10,
+      "block": "casing_glass"
+    },
+    {
+      "x": -2,
+      "y": 4,
+      "z": 10,
+      "block": "casing_glass"
+    },
+    {
+      "x": -1,
+      "y": 4,
+      "z": 10,
+      "block": "casing_glass"
+    },
+    {
+      "x": 0,
+      "y": 4,
+      "z": 10,
+      "block": "casing_glass"
+    },
+    {
+      "x": 1,
+      "y": 4,
+      "z": 10,
+      "block": "casing_glass"
+    },
+    {
+      "x": 2,
+      "y": 4,
+      "z": 10,
+      "block": "casing_glass"
+    },
+    {
+      "x": 3,
+      "y": 4,
+      "z": 10,
+      "block": "casing_glass"
+    },
+    {
+      "x": 4,
+      "y": 4,
+      "z": 10,
+      "block": "tensor_casing"
+    },
+    {
+      "x": 5,
+      "y": 4,
+      "z": 10,
+      "block": "tensor_casing"
+    },
+    {
+      "x": -4,
+      "y": 5,
+      "z": 0,
+      "block": "tensor_casing"
+    },
+    {
+      "x": -3,
+      "y": 5,
+      "z": 0,
+      "block": "tensor_casing"
+    },
+    {
+      "x": -2,
+      "y": 5,
+      "z": 0,
+      "block": "spinor_casing"
+    },
+    {
+      "x": -1,
+      "y": 5,
+      "z": 0,
+      "block": "spinor_casing"
+    },
+    {
+      "x": 0,
+      "y": 5,
+      "z": 0,
+      "block": "spinor_casing"
+    },
+    {
+      "x": 1,
+      "y": 5,
+      "z": 0,
+      "block": "spinor_casing"
+    },
+    {
+      "x": 2,
+      "y": 5,
+      "z": 0,
+      "block": "spinor_casing"
+    },
+    {
+      "x": 3,
+      "y": 5,
+      "z": 0,
+      "block": "tensor_casing"
+    },
+    {
+      "x": 4,
+      "y": 5,
+      "z": 0,
+      "block": "tensor_casing"
+    },
+    {
+      "x": -5,
+      "y": 5,
+      "z": 1,
+      "block": "tensor_casing"
+    },
+    {
+      "x": -4,
+      "y": 5,
+      "z": 1,
+      "block": "tensor_casing"
+    },
+    {
+      "x": -3,
+      "y": 5,
+      "z": 1,
+      "block": "casing_glass"
+    },
+    {
+      "x": -2,
+      "y": 5,
+      "z": 1,
+      "block": "casing_glass"
+    },
+    {
+      "x": -1,
+      "y": 5,
+      "z": 1,
+      "block": "casing_glass"
+    },
+    {
+      "x": 0,
+      "y": 5,
+      "z": 1,
+      "block": "casing_glass"
+    },
+    {
+      "x": 1,
+      "y": 5,
+      "z": 1,
+      "block": "casing_glass"
+    },
+    {
+      "x": 2,
+      "y": 5,
+      "z": 1,
+      "block": "casing_glass"
+    },
+    {
+      "x": 3,
+      "y": 5,
+      "z": 1,
+      "block": "casing_glass"
+    },
+    {
+      "x": 4,
+      "y": 5,
+      "z": 1,
+      "block": "tensor_casing"
+    },
+    {
+      "x": 5,
+      "y": 5,
+      "z": 1,
+      "block": "tensor_casing"
+    },
+    {
+      "x": -5,
+      "y": 5,
+      "z": 2,
+      "block": "tensor_casing"
+    },
+    {
+      "x": -4,
+      "y": 5,
+      "z": 2,
+      "block": "casing_glass"
+    },
+    {
+      "x": -3,
+      "y": 5,
+      "z": 2,
+      "block": "casing_glass"
+    },
+    {
+      "x": -2,
+      "y": 5,
+      "z": 2,
+      "block": "casing_glass"
+    },
+    {
+      "x": -1,
+      "y": 5,
+      "z": 2,
+      "block": "casing_glass"
+    },
+    {
+      "x": 0,
+      "y": 5,
+      "z": 2,
+      "block": "casing_glass"
+    },
+    {
+      "x": 1,
+      "y": 5,
+      "z": 2,
+      "block": "casing_glass"
+    },
+    {
+      "x": 2,
+      "y": 5,
+      "z": 2,
+      "block": "casing_glass"
+    },
+    {
+      "x": 3,
+      "y": 5,
+      "z": 2,
+      "block": "casing_glass"
+    },
+    {
+      "x": 4,
+      "y": 5,
+      "z": 2,
+      "block": "casing_glass"
+    },
+    {
+      "x": 5,
+      "y": 5,
+      "z": 2,
+      "block": "tensor_casing"
+    },
+    {
+      "x": -5,
+      "y": 5,
+      "z": 3,
+      "block": "spinor_casing"
+    },
+    {
+      "x": -4,
+      "y": 5,
+      "z": 3,
+      "block": "casing_glass"
+    },
+    {
+      "x": -3,
+      "y": 5,
+      "z": 3,
+      "block": "casing_glass"
+    },
+    {
+      "x": -2,
+      "y": 5,
+      "z": 3,
+      "block": "casing_glass"
+    },
+    {
+      "x": -1,
+      "y": 5,
+      "z": 3,
+      "block": "casing_glass"
+    },
+    {
+      "x": 0,
+      "y": 5,
+      "z": 3,
+      "block": "casing_glass"
+    },
+    {
+      "x": 1,
+      "y": 5,
+      "z": 3,
+      "block": "casing_glass"
+    },
+    {
+      "x": 2,
+      "y": 5,
+      "z": 3,
+      "block": "casing_glass"
+    },
+    {
+      "x": 3,
+      "y": 5,
+      "z": 3,
+      "block": "casing_glass"
+    },
+    {
+      "x": 4,
+      "y": 5,
+      "z": 3,
+      "block": "casing_glass"
+    },
+    {
+      "x": 5,
+      "y": 5,
+      "z": 3,
+      "block": "spinor_casing"
+    },
+    {
+      "x": -5,
+      "y": 5,
+      "z": 4,
+      "block": "spinor_casing"
+    },
+    {
+      "x": -4,
+      "y": 5,
+      "z": 4,
+      "block": "casing_glass"
+    },
+    {
+      "x": -3,
+      "y": 5,
+      "z": 4,
+      "block": "casing_glass"
+    },
+    {
+      "x": -2,
+      "y": 5,
+      "z": 4,
+      "block": "casing_glass"
+    },
+    {
+      "x": -1,
+      "y": 5,
+      "z": 4,
+      "block": "tensor_casing"
+    },
+    {
+      "x": 0,
+      "y": 5,
+      "z": 4,
+      "block": "spinor_casing"
+    },
+    {
+      "x": 1,
+      "y": 5,
+      "z": 4,
+      "block": "tensor_casing"
+    },
+    {
+      "x": 2,
+      "y": 5,
+      "z": 4,
+      "block": "casing_glass"
+    },
+    {
+      "x": 3,
+      "y": 5,
+      "z": 4,
+      "block": "casing_glass"
+    },
+    {
+      "x": 4,
+      "y": 5,
+      "z": 4,
+      "block": "casing_glass"
+    },
+    {
+      "x": 5,
+      "y": 5,
+      "z": 4,
+      "block": "spinor_casing"
+    },
+    {
+      "x": -5,
+      "y": 5,
+      "z": 5,
+      "block": "spinor_casing"
+    },
+    {
+      "x": -4,
+      "y": 5,
+      "z": 5,
+      "block": "casing_glass"
+    },
+    {
+      "x": -3,
+      "y": 5,
+      "z": 5,
+      "block": "casing_glass"
+    },
+    {
+      "x": -2,
+      "y": 5,
+      "z": 5,
+      "block": "casing_glass"
+    },
+    {
+      "x": -1,
+      "y": 5,
+      "z": 5,
+      "block": "spinor_casing"
+    },
+    {
+      "x": 0,
+      "y": 5,
+      "z": 5,
+      "block": "causal_anchor"
+    },
+    {
+      "x": 1,
+      "y": 5,
+      "z": 5,
+      "block": "spinor_casing"
+    },
+    {
+      "x": 2,
+      "y": 5,
+      "z": 5,
+      "block": "casing_glass"
+    },
+    {
+      "x": 3,
+      "y": 5,
+      "z": 5,
+      "block": "casing_glass"
+    },
+    {
+      "x": 4,
+      "y": 5,
+      "z": 5,
+      "block": "casing_glass"
+    },
+    {
+      "x": 5,
+      "y": 5,
+      "z": 5,
+      "block": "spinor_casing"
+    },
+    {
+      "x": -5,
+      "y": 5,
+      "z": 6,
+      "block": "spinor_casing"
+    },
+    {
+      "x": -4,
+      "y": 5,
+      "z": 6,
+      "block": "casing_glass"
+    },
+    {
+      "x": -3,
+      "y": 5,
+      "z": 6,
+      "block": "casing_glass"
+    },
+    {
+      "x": -2,
+      "y": 5,
+      "z": 6,
+      "block": "casing_glass"
+    },
+    {
+      "x": -1,
+      "y": 5,
+      "z": 6,
+      "block": "tensor_casing"
+    },
+    {
+      "x": 0,
+      "y": 5,
+      "z": 6,
+      "block": "spinor_casing"
+    },
+    {
+      "x": 1,
+      "y": 5,
+      "z": 6,
+      "block": "tensor_casing"
+    },
+    {
+      "x": 2,
+      "y": 5,
+      "z": 6,
+      "block": "casing_glass"
+    },
+    {
+      "x": 3,
+      "y": 5,
+      "z": 6,
+      "block": "casing_glass"
+    },
+    {
+      "x": 4,
+      "y": 5,
+      "z": 6,
+      "block": "casing_glass"
+    },
+    {
+      "x": 5,
+      "y": 5,
+      "z": 6,
+      "block": "spinor_casing"
+    },
+    {
+      "x": -5,
+      "y": 5,
+      "z": 7,
+      "block": "spinor_casing"
+    },
+    {
+      "x": -4,
+      "y": 5,
+      "z": 7,
+      "block": "casing_glass"
+    },
+    {
+      "x": -3,
+      "y": 5,
+      "z": 7,
+      "block": "casing_glass"
+    },
+    {
+      "x": -2,
+      "y": 5,
+      "z": 7,
+      "block": "casing_glass"
+    },
+    {
+      "x": -1,
+      "y": 5,
+      "z": 7,
+      "block": "casing_glass"
+    },
+    {
+      "x": 0,
+      "y": 5,
+      "z": 7,
+      "block": "casing_glass"
+    },
+    {
+      "x": 1,
+      "y": 5,
+      "z": 7,
+      "block": "casing_glass"
+    },
+    {
+      "x": 2,
+      "y": 5,
+      "z": 7,
+      "block": "casing_glass"
+    },
+    {
+      "x": 3,
+      "y": 5,
+      "z": 7,
+      "block": "casing_glass"
+    },
+    {
+      "x": 4,
+      "y": 5,
+      "z": 7,
+      "block": "casing_glass"
+    },
+    {
+      "x": 5,
+      "y": 5,
+      "z": 7,
+      "block": "spinor_casing"
+    },
+    {
+      "x": -5,
+      "y": 5,
+      "z": 8,
+      "block": "tensor_casing"
+    },
+    {
+      "x": -4,
+      "y": 5,
+      "z": 8,
+      "block": "casing_glass"
+    },
+    {
+      "x": -3,
+      "y": 5,
+      "z": 8,
+      "block": "casing_glass"
+    },
+    {
+      "x": -2,
+      "y": 5,
+      "z": 8,
+      "block": "casing_glass"
+    },
+    {
+      "x": -1,
+      "y": 5,
+      "z": 8,
+      "block": "casing_glass"
+    },
+    {
+      "x": 0,
+      "y": 5,
+      "z": 8,
+      "block": "casing_glass"
+    },
+    {
+      "x": 1,
+      "y": 5,
+      "z": 8,
+      "block": "casing_glass"
+    },
+    {
+      "x": 2,
+      "y": 5,
+      "z": 8,
+      "block": "casing_glass"
+    },
+    {
+      "x": 3,
+      "y": 5,
+      "z": 8,
+      "block": "casing_glass"
+    },
+    {
+      "x": 4,
+      "y": 5,
+      "z": 8,
+      "block": "casing_glass"
+    },
+    {
+      "x": 5,
+      "y": 5,
+      "z": 8,
+      "block": "tensor_casing"
+    },
+    {
+      "x": -5,
+      "y": 5,
+      "z": 9,
+      "block": "tensor_casing"
+    },
+    {
+      "x": -4,
+      "y": 5,
+      "z": 9,
+      "block": "tensor_casing"
+    },
+    {
+      "x": -3,
+      "y": 5,
+      "z": 9,
+      "block": "casing_glass"
+    },
+    {
+      "x": -2,
+      "y": 5,
+      "z": 9,
+      "block": "casing_glass"
+    },
+    {
+      "x": -1,
+      "y": 5,
+      "z": 9,
+      "block": "casing_glass"
+    },
+    {
+      "x": 0,
+      "y": 5,
+      "z": 9,
+      "block": "casing_glass"
+    },
+    {
+      "x": 1,
+      "y": 5,
+      "z": 9,
+      "block": "casing_glass"
+    },
+    {
+      "x": 2,
+      "y": 5,
+      "z": 9,
+      "block": "casing_glass"
+    },
+    {
+      "x": 3,
+      "y": 5,
+      "z": 9,
+      "block": "casing_glass"
+    },
+    {
+      "x": 4,
+      "y": 5,
+      "z": 9,
+      "block": "tensor_casing"
+    },
+    {
+      "x": 5,
+      "y": 5,
+      "z": 9,
+      "block": "tensor_casing"
+    },
+    {
+      "x": -4,
+      "y": 5,
+      "z": 10,
+      "block": "tensor_casing"
+    },
+    {
+      "x": -3,
+      "y": 5,
+      "z": 10,
+      "block": "tensor_casing"
+    },
+    {
+      "x": -2,
+      "y": 5,
+      "z": 10,
+      "block": "spinor_casing"
+    },
+    {
+      "x": -1,
+      "y": 5,
+      "z": 10,
+      "block": "spinor_casing"
+    },
+    {
+      "x": 0,
+      "y": 5,
+      "z": 10,
+      "block": "spinor_casing"
+    },
+    {
+      "x": 1,
+      "y": 5,
+      "z": 10,
+      "block": "spinor_casing"
+    },
+    {
+      "x": 2,
+      "y": 5,
+      "z": 10,
+      "block": "spinor_casing"
+    },
+    {
+      "x": 3,
+      "y": 5,
+      "z": 10,
+      "block": "tensor_casing"
+    },
+    {
+      "x": 4,
+      "y": 5,
+      "z": 10,
+      "block": "tensor_casing"
+    }
+  ]
+}

@@ -1,0 +1,8 @@
+{
+  "loader": "ae2enhanced:connected",
+  "render_type": "cutout",
+  "textures": {
+    "texture": "ae2enhanced:block/casing_glass_ctm",
+    "particle": "ae2enhanced:block/casing_glass"
+  }
+}

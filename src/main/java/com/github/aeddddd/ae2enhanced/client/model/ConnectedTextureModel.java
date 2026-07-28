@@ -57,6 +57,7 @@ import com.github.aeddddd.ae2enhanced.AE2Enhanced;
  * {
  *     "loader": "ae2enhanced:connected",
  *     "connect": "class",          // 可选："class"（同类方块,默认）或 "block"（仅同种方块）
+ *     "render_type": "solid",      // 可选："solid"（默认）、"cutout" 或 "translucent"（含透明像素时使用）
  *     "textures": {
  *         "texture": "<命名空间:block/xxx_ctm>",
  *         "particle": "<命名空间:block/xxx>"
@@ -75,11 +76,19 @@ public final class ConnectedTextureModel {
         @Override
         public Unbaked read(JsonObject json, JsonDeserializationContext context) throws JsonParseException {
             boolean connectByClass = !"block".equals(GsonHelper.getAsString(json, "connect", "class"));
-            return new Unbaked(connectByClass);
+            String renderTypeName = GsonHelper.getAsString(json, "render_type", "solid");
+            net.minecraft.client.renderer.RenderType renderType = switch (renderTypeName) {
+                case "solid" -> net.minecraft.client.renderer.RenderType.solid();
+                case "cutout" -> net.minecraft.client.renderer.RenderType.cutout();
+                case "translucent" -> net.minecraft.client.renderer.RenderType.translucent();
+                default -> throw new JsonParseException("Unknown render_type: " + renderTypeName);
+            };
+            return new Unbaked(connectByClass, renderType);
         }
     }
 
-    public record Unbaked(boolean connectByClass) implements IUnbakedGeometry<Unbaked> {
+    public record Unbaked(boolean connectByClass,
+            net.minecraft.client.renderer.RenderType renderType) implements IUnbakedGeometry<Unbaked> {
         @Override
         public BakedModel bake(IGeometryBakingContext context, ModelBaker baker,
                 Function<Material, TextureAtlasSprite> spriteGetter, ModelState modelState,
@@ -89,7 +98,8 @@ public final class ConnectedTextureModel {
                     ? context.getMaterial("particle")
                     : context.getMaterial("texture");
             TextureAtlasSprite particle = spriteGetter.apply(particleMaterial);
-            return new Baked(texture, particle, connectByClass, context.useBlockLight(), modelState, modelLocation);
+            return new Baked(texture, particle, connectByClass, renderType, context.useBlockLight(), modelState,
+                    modelLocation);
         }
     }
 
@@ -124,13 +134,16 @@ public final class ConnectedTextureModel {
         private final EnumMap<Direction, List<BakedQuad>[]> quads = new EnumMap<>(Direction.class);
         private final TextureAtlasSprite particle;
         private final boolean connectByClass;
+        private final net.minecraft.client.renderer.RenderType renderType;
         private final boolean useBlockLight;
 
         @SuppressWarnings("unchecked")
         public Baked(TextureAtlasSprite texture, TextureAtlasSprite particle, boolean connectByClass,
-                boolean useBlockLight, ModelState modelState, ResourceLocation modelLocation) {
+                net.minecraft.client.renderer.RenderType renderType, boolean useBlockLight, ModelState modelState,
+                ResourceLocation modelLocation) {
             this.particle = particle;
             this.connectByClass = connectByClass;
+            this.renderType = renderType;
             this.useBlockLight = useBlockLight;
 
             FaceBakery faceBakery = new FaceBakery();
@@ -255,7 +268,7 @@ public final class ConnectedTextureModel {
 
         @Override
         public ChunkRenderTypeSet getRenderTypes(BlockState state, RandomSource rand, ModelData data) {
-            return ChunkRenderTypeSet.of(net.minecraft.client.renderer.RenderType.solid());
+            return ChunkRenderTypeSet.of(renderType);
         }
     }
 }
