@@ -13,6 +13,8 @@ import appeng.api.crafting.IPatternDetails;
 import appeng.api.networking.crafting.ICraftingService;
 import appeng.api.stacks.AEKey;
 
+import com.github.aeddddd.ae2enhanced.specialcrafting.CycleAnalyzer;
+
 /**
  * DAG 编译器:从样板索引把请求展开为计划图.
  * <ul>
@@ -133,6 +135,11 @@ public final class DagCompiler {
                 return new DagGraph.DagNode(DagGraph.Kind.EMITTER, key, 0, null);
             }
             return new DagGraph.DagNode(DagGraph.Kind.TERMINAL, key, 0, null);
+        }
+        // 选定样板本身是环步骤(含经副产物闭合的催化环)→ 本节点收缩为循环边界,
+        // 由 CycleBoundarySolver 联立求解(否则边界会错位落到环键上而不可解)
+        if (CycleAnalyzer.isCycleStep(craftingService, chosen)) {
+            return new DagGraph.DagNode(DagGraph.Kind.CYCLE, key, 0, null);
         }
         long outPer = 0;
         for (var output : chosen.getOutputs()) {

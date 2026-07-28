@@ -42,6 +42,33 @@ public final class CycleSolver {
     public static SolveResult trySolve(ICraftingService craftingService, CraftingCalculation job,
             CycleAnalyzer.Analysis analysis, ChildCraftingSimulationState inv, AEKey what, long target)
             throws InterruptedException {
+        return solveCore(craftingService, job, analysis, inv, what, target, analysis.netGain(),
+                analysis.seedsPerKey()[0]);
+    }
+
+    /**
+     * 尝试以催化环闭式解满足请求:what 不在环键上,是环每超轮发射的环外副产物
+     * (如 1A→1X+1B、1B→1A 请求 X).环键种子语义与增殖环一致;what 无种子、
+     * 每超轮净得 {@code xPerRound}.
+     */
+    public static SolveResult trySolveCatalytic(ICraftingService craftingService,
+            CraftingCalculation job, CycleAnalyzer.Analysis analysis, long xPerRound,
+            ChildCraftingSimulationState inv, AEKey what, long target) throws InterruptedException {
+        if (xPerRound <= 0) {
+            return SolveResult.FALLBACK;
+        }
+        return solveCore(craftingService, job, analysis, inv, what, target, xPerRound, 0);
+    }
+
+    /**
+     * 环闭式解共用内核.
+     *
+     * @param gainPerRound 每超轮交付键的净得数量(增殖环=环键净增益;催化环=副产物/轮)
+     * @param deliverSeed 交付键的保留种子(催化环为 0)
+     */
+    private static SolveResult solveCore(ICraftingService craftingService, CraftingCalculation job,
+            CycleAnalyzer.Analysis analysis, ChildCraftingSimulationState inv, AEKey what, long target,
+            long gainPerRound, long deliverSeed) throws InterruptedException {
         var keys = analysis.keys();
         var seeds = analysis.seedsPerKey();
         var batchSeeds = analysis.batchSeedPerKey();
@@ -54,7 +81,7 @@ public final class CycleSolver {
             return SolveResult.SUCCESS;
         }
 
-        long rounds = (remaining + analysis.netGain() - 1) / analysis.netGain();
+        long rounds = (remaining + gainPerRound - 1) / gainPerRound;
         // T_i = rounds × timesPerRound[i],任一溢出即天文数字订单
         long[] totalTimes = new long[times.length];
         for (int i = 0; i < totalTimes.length; i++) {
@@ -132,9 +159,9 @@ public final class CycleSolver {
             }
         }
 
-        // 3) 结算:模拟库存请求物 = 种子 + rounds×netGain,取走交付量,种子保留
+        // 3) 结算:模拟库存请求物 = 种子 + rounds×gainPerRound,取走交付量,种子保留
         long avail = inv.extract(what, Long.MAX_VALUE, Actionable.SIMULATE);
-        long keep = avail > remaining ? seeds[0] : 0;
+        long keep = avail > remaining ? deliverSeed : 0;
         long drain = inv.extract(what, Math.min(remaining, Math.max(0, avail - keep)),
                 Actionable.MODULATE);
         remaining -= drain;

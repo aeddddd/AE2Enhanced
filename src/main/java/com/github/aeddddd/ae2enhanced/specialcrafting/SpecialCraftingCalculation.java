@@ -246,9 +246,54 @@ public class SpecialCraftingCalculation extends CraftingCalculation {
                 return plan;
             }
         }
-        // 所有候选环均不适用 → 原生兜底(原生对环剪枝,快速失败,无回归)
+        // 所有候选环均不适用 → 尝试催化环(请求物是某中性/增殖环发射的环外副产物,
+        // 如 1A→1X+1B、1B→1A 请求 X——X 不在环键上,常规环枚举不可见)
+        for (var cycle : CycleAnalyzer.findCatalyticCycles(craftingService, what)) {
+            var analysis = CycleAnalyzer.analyze(cycle);
+            if (analysis == null || analysis.rateClass() == CycleAnalyzer.RateClass.DISSIPATIVE) {
+                continue;
+            }
+            long xPerRound = CycleAnalyzer.byproductPerRound(analysis, what);
+            if (xPerRound <= 0) {
+                continue;
+            }
+            var plan = tryCatalyticAnalysis(analysis, xPerRound, what, target);
+            if (plan != null) {
+                return plan;
+            }
+        }
+        // 均不适用 → 原生兜底(原生对环剪枝,快速失败,无回归)
         SpecialLog.info("[特殊配方] 无可用候选环,回落原生计算: {}×{}", what, target);
         return null;
+    }
+
+    /**
+     * 对催化环(中性/增殖环发射环外副产物)尝试求解并构建计划.
+     *
+     * @return 成功且已标记的计划;失败返回 null,溢出返回缺料计划.
+     */
+    @Nullable
+    private ICraftingPlan tryCatalyticAnalysis(CycleAnalyzer.Analysis analysis, long xPerRound,
+            AEKey what, long target) throws InterruptedException {
+        SpecialLog.info("[特殊配方] 尝试催化环({} 步):副产物 {} 每轮 +{}", analysis.steps().size(),
+                what, xPerRound);
+        ChildCraftingSimulationState inv = new ChildCraftingSimulationState(
+                Ae2CraftingReflect.getNetworkInv(this));
+        var result = CycleSolver.trySolveCatalytic(craftingService, this, analysis, xPerRound, inv,
+                what, target);
+        if (result == CycleSolver.SolveResult.OVERFLOW) {
+            return missingPlan(what, target, true);
+        }
+        if (result != CycleSolver.SolveResult.SUCCESS) {
+            return null;
+        }
+        SpecialLog.info("[特殊配方] 催化环求解成功: {}×{}", what, target);
+        inv.addBytes(8);
+        CraftingPlan base = CraftingSimulationState.buildCraftingPlan(inv, this, target);
+        ICraftingPlan plan = new CraftingPlan(base.finalOutput(), base.bytes(), base.simulation(), true,
+                base.usedItems(), base.emittedItems(), base.missingItems(), base.patternTimes());
+        SpecialPlanMarker.mark(plan);
+        return plan;
     }
 
     /**

@@ -39,6 +39,18 @@ public final class SpecialRecipeDetector {
             }
         }
         var union = CycleAnalyzer.analyzeUnion(cycles);
-        return union != null && union.rateClass() == CycleAnalyzer.RateClass.PRODUCTIVE;
+        if (union != null && union.rateClass() == CycleAnalyzer.RateClass.PRODUCTIVE) {
+            return true;
+        }
+        // 催化环:what 不在任何环上(否则按环键语义处理,中性环不接管,见 D8),
+        // 且生产 what 的样板本身是环步骤——环发射 what 为环外副产物
+        if (cycles.isEmpty()) {
+            for (var pattern : craftingService.getCraftingFor(what)) {
+                if (CycleAnalyzer.isCycleStep(craftingService, pattern)) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 }

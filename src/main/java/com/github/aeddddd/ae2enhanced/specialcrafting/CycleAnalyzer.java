@@ -75,6 +75,8 @@ public final class CycleAnalyzer {
     /**
      * 枚举经过 {@code root} 的所有简单环（长度 ≥ 2;自引用环由阶段 1 处理,此处跳过）,
      * 按环长度降序返回（长环的键集更完整,优先尝试）.
+     * <p>生产者发现含<b>副产物边</b>(1.1.0 起):root 作为样板的任意输出(不限主产出)
+     * 都视为被该样板生产——否则经副产物闭合的催化环(如 1A→1X+1B、1B→1A)不可见.</p>
      */
     public static List<List<CycleStep>> findCyclesThrough(ICraftingService craftingService, AEKey root) {
         int[] budget = { MAX_VISITED };
@@ -82,7 +84,8 @@ public final class CycleAnalyzer {
         Set<AEKey> onPath = new HashSet<>();
         onPath.add(root);
         LinkedHashMap<AEKey, CycleStep> chain = new LinkedHashMap<>();
-        dfs(craftingService, root, root, onPath, chain, budget, cycles);
+        Map<AEKey, List<IPatternDetails>> producerCache = new LinkedHashMap<>();
+        dfs(craftingService, root, root, onPath, chain, budget, cycles, producerCache);
         cycles.sort((a, b) -> Integer.compare(b.size(), a.size()));
         return cycles;
     }
@@ -97,18 +100,52 @@ public final class CycleAnalyzer {
     }
 
     /**
+     * 生产 {@code current} 的全部样板:主产出索引快路径 + 副产物全扫描(按请求缓存).
+     */
+    private static List<IPatternDetails> producersOf(ICraftingService craftingService, AEKey current,
+            Map<AEKey, List<IPatternDetails>> cache) {
+        return cache.computeIfAbsent(current, key -> {
+            List<IPatternDetails> out = new ArrayList<>();
+            for (var pattern : craftingService.getCraftingFor(key)) {
+                out.add(pattern);
+            }
+            // 副产物生产者:getCraftingFor 只按主产出索引,需全样板扫描补漏
+            for (var craftable : craftingService.getCraftables(k -> true)) {
+                if (craftable.equals(key)) {
+                    continue;
+                }
+                for (var pattern : craftingService.getCraftingFor(craftable)) {
+                    for (var output : pattern.getOutputs()) {
+                        if (key.equals(output.what())) {
+                            out.add(pattern);
+                            break;
+                        }
+                    }
+                }
+            }
+            return out;
+        });
+    }
+
+    /**
      * 沿"被产生"边回溯 DFS:current 由某 pattern 产生,其主输入 from 即反向边.
      * from == root 时闭合为环并记录（继续搜索其他环）.
      */
     private static void dfs(ICraftingService craftingService, AEKey root, AEKey current,
             Set<AEKey> onPath, LinkedHashMap<AEKey, CycleStep> chain, int[] budget,
-            List<List<CycleStep>> cycles) {
+            List<List<CycleStep>> cycles, Map<AEKey, List<IPatternDetails>> producerCache) {
         if (budget[0]-- <= 0 || cycles.size() >= MAX_CYCLES) {
             return;
         }
-        for (var pattern : craftingService.getCraftingFor(current)) {
-            var primaryOut = pattern.getPrimaryOutput();
-            if (primaryOut == null || !current.matches(primaryOut) || primaryOut.amount() <= 0) {
+        for (var pattern : producersOf(craftingService, current, producerCache)) {
+            boolean producesCurrent = false;
+            for (var output : pattern.getOutputs()) {
+                if (current.matches(output) && output.amount() > 0) {
+                    producesCurrent = true;
+                    break;
+                }
+            }
+            if (!producesCurrent) {
                 continue;
             }
             for (var input : pattern.getInputs()) {
@@ -143,11 +180,135 @@ public final class CycleAnalyzer {
                 }
                 onPath.add(from);
                 chain.put(from, step);
-                dfs(craftingService, root, from, onPath, chain, budget, cycles);
+                dfs(craftingService, root, from, onPath, chain, budget, cycles, producerCache);
                 chain.remove(from);
                 onPath.remove(from);
             }
         }
+    }
+
+    /**
+     * 样板是否"成环步骤":其某输入键可经"被产生"边回溯到该样板的某输出键
+     * (含副产物输出)——即该样板参与一个环(自身可在路径中).
+     * detector / DAG 编译器共用,预算受限.
+     */
+    public static boolean isCycleStep(ICraftingService craftingService, IPatternDetails pattern) {
+        Set<AEKey> outputs = new HashSet<>();
+        for (var output : pattern.getOutputs()) {
+            outputs.add(output.what());
+        }
+        int[] budget = { MAX_VISITED };
+        Map<AEKey, List<IPatternDetails>> producerCache = new LinkedHashMap<>();
+        for (var input : pattern.getInputs()) {
+            var possible = input.getPossibleInputs();
+            if (possible.length == 0) {
+                continue;
+            }
+            if (reachesOutputs(craftingService, possible[0].what(), outputs, budget, new HashSet<>(),
+                    producerCache)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** 沿"被产生"边回溯:current 的传递原料中是否出现 targets 中的键. */
+    private static boolean reachesOutputs(ICraftingService craftingService, AEKey current,
+            Set<AEKey> targets, int[] budget, Set<AEKey> visited,
+            Map<AEKey, List<IPatternDetails>> producerCache) {
+        if (!visited.add(current) || budget[0]-- <= 0) {
+            return false;
+        }
+        for (var producer : producersOf(craftingService, current, producerCache)) {
+            boolean produces = false;
+            for (var output : producer.getOutputs()) {
+                if (current.matches(output)) {
+                    produces = true;
+                    break;
+                }
+            }
+            if (!produces) {
+                continue;
+            }
+            for (var input : producer.getInputs()) {
+                var possible = input.getPossibleInputs();
+                if (possible.length == 0) {
+                    continue;
+                }
+                var from = possible[0].what();
+                if (targets.contains(from)) {
+                    return true;
+                }
+                if (reachesOutputs(craftingService, from, targets, budget, visited, producerCache)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /**
+     * 枚举"发射 what 作为环外副产物"的催化环:对生产 what 的每个样板
+     * (what 不在其输入中——否则是自引用/环键,走既有路径),以其输入键为 root
+     * 枚举环并筛出包含该样板的环,按环长降序去重返回.
+     */
+    public static List<List<CycleStep>> findCatalyticCycles(ICraftingService craftingService,
+            AEKey what) {
+        List<List<CycleStep>> out = new ArrayList<>();
+        Set<List<IPatternDetails>> seen = new HashSet<>();
+        for (var pattern : craftingService.getCraftingFor(what)) {
+            boolean selfInput = false;
+            for (var input : pattern.getInputs()) {
+                var possible = input.getPossibleInputs();
+                if (possible.length > 0 && what.equals(possible[0].what())) {
+                    selfInput = true;
+                    break;
+                }
+            }
+            if (selfInput) {
+                continue;
+            }
+            for (var input : pattern.getInputs()) {
+                var possible = input.getPossibleInputs();
+                if (possible.length == 0) {
+                    continue;
+                }
+                for (var cycle : findCyclesThrough(craftingService, possible[0].what())) {
+                    boolean contains = false;
+                    List<IPatternDetails> signature = new ArrayList<>();
+                    for (var step : cycle) {
+                        signature.add(step.pattern());
+                        if (step.pattern() == pattern) {
+                            contains = true;
+                        }
+                    }
+                    if (contains && seen.add(signature)) {
+                        out.add(cycle);
+                    }
+                }
+            }
+        }
+        out.sort((a, b) -> Integer.compare(b.size(), a.size()));
+        return out;
+    }
+
+    /**
+     * 催化环每超轮发射的环外副产物 what 数量(what 必须不在环键上).
+     */
+    public static long byproductPerRound(Analysis analysis, AEKey what) {
+        if (analysis.keys().contains(what)) {
+            return 0;
+        }
+        long perRound = 0;
+        var times = analysis.timesPerRound();
+        for (int i = 0; i < analysis.steps().size(); i++) {
+            for (var output : analysis.steps().get(i).pattern().getOutputs()) {
+                if (what.equals(output.what())) {
+                    perRound += output.amount() * times[i];
+                }
+            }
+        }
+        return perRound;
     }
 
     /**

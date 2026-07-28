@@ -55,6 +55,21 @@ public final class CycleBoundarySolver {
                 return true;
             }
         }
+        // ③ 催化环:边界 key 是某中性/增殖环发射的环外副产物(深层 A→X+B、B→A 中的 X)
+        for (var cycle : CycleAnalyzer.findCatalyticCycles(craftingService, what)) {
+            var analysis = CycleAnalyzer.analyze(cycle);
+            if (analysis == null || analysis.rateClass() == CycleAnalyzer.RateClass.DISSIPATIVE) {
+                continue;
+            }
+            long xPerRound = CycleAnalyzer.byproductPerRound(analysis, what);
+            if (xPerRound <= 0) {
+                continue;
+            }
+            if (CycleSolver.trySolveCatalytic(craftingService, calc, analysis, xPerRound, inv, what,
+                    target) == CycleSolver.SolveResult.SUCCESS) {
+                return true;
+            }
+        }
         SpecialLog.info("[DAG] 循环边界不可解: {}×{}", what, target);
         return false;
     }
