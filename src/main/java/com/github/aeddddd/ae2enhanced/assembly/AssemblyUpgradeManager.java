@@ -3,7 +3,7 @@ package com.github.aeddddd.ae2enhanced.assembly;
 import net.minecraft.world.item.ItemStack;
 import net.minecraftforge.items.ItemStackHandler;
 
-import com.github.aeddddd.ae2enhanced.assembly.blockentity.AssemblyControllerBlockEntity;
+import com.github.aeddddd.ae2enhanced.blockentity.AssemblyControllerBlockEntity;
 import com.github.aeddddd.ae2enhanced.registry.ModItems;
 
 /**

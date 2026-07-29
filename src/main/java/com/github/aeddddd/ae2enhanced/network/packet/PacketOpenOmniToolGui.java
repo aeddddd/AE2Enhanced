@@ -11,7 +11,7 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraftforge.network.NetworkEvent;
 import net.minecraftforge.network.NetworkHooks;
 
-import com.github.aeddddd.ae2enhanced.common.menu.OmniToolConfigMenu;
+import com.github.aeddddd.ae2enhanced.menu.OmniToolConfigMenu;
 import com.github.aeddddd.ae2enhanced.item.AdvancedMEOmniToolItem;
 
 /**

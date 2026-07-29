@@ -116,7 +116,7 @@ public final class ModFloorStyles {
      * 兜底马路单元:灰色混凝土路面 + 白色混凝土十字中线 + 外圈警示方块路缘.
      */
     private static FloorPreset createRoadTile() {
-        BlockState stripes = ModBlocks.YELLOW_STRIPES_BLOCK_B.get().defaultBlockState();
+        BlockState stripes = ModBlocks.CAUTION_BLOCK.get().defaultBlockState();
         BlockState asphalt = Blocks.GRAY_CONCRETE.defaultBlockState();
         BlockState line = Blocks.WHITE_CONCRETE.defaultBlockState();
         BlockState[] palette = { stripes, asphalt, line };

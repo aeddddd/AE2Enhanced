@@ -2,6 +2,8 @@ package com.github.aeddddd.ae2enhanced.multiblock;
 
 import appeng.api.networking.IGridNodeService;
 
+import com.github.aeddddd.ae2enhanced.blockentity.MultiblockMeInterfaceBlockEntity;
+
 /**
  * 标记一个网格节点可向 AE2 提供虚拟 Crafting CPU 的服务.
  * <p>由 {@link MultiblockMeInterfaceBlockEntity} 暴露,供 Phase 3 的

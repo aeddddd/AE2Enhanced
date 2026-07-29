@@ -9,7 +9,7 @@ import appeng.core.definitions.AEBlocks;
 import appeng.me.cluster.implementations.CraftingCPUCluster;
 
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
-import com.github.aeddddd.ae2enhanced.computation.blockentity.ComputationCoreBlockEntity;
+import com.github.aeddddd.ae2enhanced.blockentity.ComputationCoreBlockEntity;
 import com.github.aeddddd.ae2enhanced.mixin.accessor.CraftingCPUClusterInvoker;
 
 /**

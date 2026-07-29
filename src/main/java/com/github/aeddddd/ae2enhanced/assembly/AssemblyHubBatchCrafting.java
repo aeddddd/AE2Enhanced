@@ -21,11 +21,11 @@ import net.minecraft.world.level.Level;
 import org.jetbrains.annotations.Nullable;
 
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
-import com.github.aeddddd.ae2enhanced.assembly.blockentity.AssemblyControllerBlockEntity;
+import com.github.aeddddd.ae2enhanced.blockentity.AssemblyControllerBlockEntity;
 import com.github.aeddddd.ae2enhanced.client.gui.GuiConstants;
 import com.github.aeddddd.ae2enhanced.mixin.accessor.ElapsedTimeTrackerAccessor;
 import com.github.aeddddd.ae2enhanced.mixin.accessor.TaskProgressAccessor;
-import com.github.aeddddd.ae2enhanced.multiblock.MultiblockMeInterfaceBlockEntity;
+import com.github.aeddddd.ae2enhanced.blockentity.MultiblockMeInterfaceBlockEntity;
 import com.github.aeddddd.ae2enhanced.util.MathUtils;
 
 /**

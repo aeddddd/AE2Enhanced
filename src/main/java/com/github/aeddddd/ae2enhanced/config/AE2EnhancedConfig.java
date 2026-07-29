@@ -69,7 +69,7 @@ public final class AE2EnhancedConfig {
         CommonConfig(ForgeConfigSpec.Builder builder) {
             builder.push("computation");
             computationMaxParallel = builder
-                    .comment("超因果计算核心每个子 CPU 的并行线程数（协处理器数）")
+                    .comment("超因果计算核心每个子 CPU 的并行线程数")
                     .defineInRange("maxParallel", 16384, 1, Integer.MAX_VALUE);
             computationMaxCpus = builder
                     .comment("超因果计算核心子 CPU 池最大数量,提交任务时无空闲 CPU 将自动分裂新子 CPU,直至达到该上限")

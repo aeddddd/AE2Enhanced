@@ -1,6 +1,6 @@
 package com.github.aeddddd.ae2enhanced.client.gui;
 
-import com.github.aeddddd.ae2enhanced.common.menu.ComputationCoreMenu;
+import com.github.aeddddd.ae2enhanced.menu.ComputationCoreMenu;
 
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
@@ -9,7 +9,7 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.player.Inventory;
 
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
-import com.github.aeddddd.ae2enhanced.computation.blockentity.ComputationCoreBlockEntity;
+import com.github.aeddddd.ae2enhanced.blockentity.ComputationCoreBlockEntity;
 
 /**
  * 超因果计算核心成形状态 GUI.
@@ -19,7 +19,7 @@ import com.github.aeddddd.ae2enhanced.computation.blockentity.ComputationCoreBlo
 public class ComputationCoreScreen extends AbstractContainerScreen<ComputationCoreMenu> {
 
     private static final ResourceLocation TEXTURE =
-            new ResourceLocation(AE2Enhanced.MOD_ID, "textures/gui/2.png");
+            new ResourceLocation(AE2Enhanced.MOD_ID, "textures/gui/multiblock_status.png");
 
     public ComputationCoreScreen(ComputationCoreMenu menu, Inventory inv, Component title) {
         super(menu, inv, title);

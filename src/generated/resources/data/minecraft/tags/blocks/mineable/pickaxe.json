@@ -17,7 +17,7 @@
     "ae2enhanced:causal_anchor_core",
     "ae2enhanced:casing_glass",
     "ae2enhanced:personal_dimension_manager",
-    "ae2enhanced:yellow_stripes_block_b",
-    "ae2enhanced:test_crafting_cpu"
+    "ae2enhanced:caution_block",
+    "ae2enhanced:virtual_crafting_cpu"
   ]
 }

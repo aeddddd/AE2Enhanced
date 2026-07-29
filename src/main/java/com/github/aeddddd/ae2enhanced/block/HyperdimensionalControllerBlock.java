@@ -15,9 +15,9 @@ import net.minecraft.world.phys.BlockHitResult;
 import net.minecraftforge.network.NetworkHooks;
 
 import com.github.aeddddd.ae2enhanced.blockentity.HyperdimensionalControllerBlockEntity;
-import com.github.aeddddd.ae2enhanced.common.menu.HyperdimensionalNexusMenu;
-import com.github.aeddddd.ae2enhanced.common.menu.HyperdimensionalUnformedMenu;
-import com.github.aeddddd.ae2enhanced.multiblock.MultiblockControllerBlockEntity;
+import com.github.aeddddd.ae2enhanced.menu.HyperdimensionalNexusMenu;
+import com.github.aeddddd.ae2enhanced.menu.HyperdimensionalUnformedMenu;
+import com.github.aeddddd.ae2enhanced.blockentity.MultiblockControllerBlockEntity;
 import com.github.aeddddd.ae2enhanced.structure.ControllerIndex;
 import com.github.aeddddd.ae2enhanced.structure.HyperdimensionalStructure;
 import com.github.aeddddd.ae2enhanced.structure.IMultiblockStructure;

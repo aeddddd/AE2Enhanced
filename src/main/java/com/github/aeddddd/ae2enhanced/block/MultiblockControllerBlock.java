@@ -27,7 +27,7 @@ import net.minecraft.world.level.block.state.properties.BlockStateProperties;
 import net.minecraft.world.level.block.state.properties.DirectionProperty;
 import net.minecraft.ChatFormatting;
 
-import com.github.aeddddd.ae2enhanced.multiblock.MultiblockControllerBlockEntity;
+import com.github.aeddddd.ae2enhanced.blockentity.MultiblockControllerBlockEntity;
 import com.github.aeddddd.ae2enhanced.structure.IMultiblockStructure;
 import com.github.aeddddd.ae2enhanced.util.BlockEntityRemovalHelper;
 

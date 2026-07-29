@@ -12,7 +12,7 @@ import appeng.menu.me.items.PatternEncodingTermMenu;
 import appeng.menu.slot.RestrictedInputSlot;
 
 import com.github.aeddddd.ae2enhanced.assembly.AssemblyPatternManager;
-import com.github.aeddddd.ae2enhanced.assembly.blockentity.AssemblyControllerBlockEntity;
+import com.github.aeddddd.ae2enhanced.blockentity.AssemblyControllerBlockEntity;
 import com.github.aeddddd.ae2enhanced.structure.ControllerIndex;
 
 import org.spongepowered.asm.mixin.Final;

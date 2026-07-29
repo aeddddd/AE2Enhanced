@@ -1,6 +1,6 @@
 package com.github.aeddddd.ae2enhanced.client.gui;
 
-import com.github.aeddddd.ae2enhanced.common.menu.AssemblyPatternMenu;
+import com.github.aeddddd.ae2enhanced.menu.AssemblyPatternMenu;
 
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
@@ -18,7 +18,7 @@ import com.github.aeddddd.ae2enhanced.network.packet.AssemblyPagePacket;
 public class AssemblyPatternScreen extends AbstractContainerScreen<AssemblyPatternMenu> {
 
     private static final ResourceLocation TEXTURE =
-            new ResourceLocation(AE2Enhanced.MOD_ID, "textures/gui/3.png");
+            new ResourceLocation(AE2Enhanced.MOD_ID, "textures/gui/assembly_patterns.png");
 
     public AssemblyPatternScreen(AssemblyPatternMenu menu, Inventory inv, Component title) {
         super(menu, inv, title);

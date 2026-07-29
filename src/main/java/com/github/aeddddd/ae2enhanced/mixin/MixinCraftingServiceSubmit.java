@@ -18,7 +18,7 @@ import appeng.crafting.execution.CraftingSubmitResult;
 import appeng.me.cluster.implementations.CraftingCPUCluster;
 import appeng.me.service.CraftingService;
 
-import com.github.aeddddd.ae2enhanced.computation.blockentity.ComputationCoreBlockEntity;
+import com.github.aeddddd.ae2enhanced.blockentity.ComputationCoreBlockEntity;
 import com.github.aeddddd.ae2enhanced.computation.cpu.IVirtualCraftingCPU;
 import com.github.aeddddd.ae2enhanced.computation.cpu.VirtualCraftingCPU;
 import com.github.aeddddd.ae2enhanced.computation.cpu.VirtualCraftingCPURegistry;

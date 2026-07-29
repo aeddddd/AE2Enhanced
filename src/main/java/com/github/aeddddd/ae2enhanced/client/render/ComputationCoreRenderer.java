@@ -15,7 +15,7 @@ import net.minecraftforge.client.model.data.ModelData;
 
 import appeng.core.definitions.AEBlocks;
 
-import com.github.aeddddd.ae2enhanced.computation.blockentity.ComputationCoreBlockEntity;
+import com.github.aeddddd.ae2enhanced.blockentity.ComputationCoreBlockEntity;
 import com.github.aeddddd.ae2enhanced.structure.SupercausalStructure;
 
 /**

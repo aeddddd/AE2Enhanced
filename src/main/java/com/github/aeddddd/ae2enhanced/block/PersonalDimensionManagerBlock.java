@@ -22,7 +22,7 @@ import net.minecraftforge.network.NetworkHooks;
 import javax.annotation.Nullable;
 
 import com.github.aeddddd.ae2enhanced.blockentity.PersonalDimensionManagerBlockEntity;
-import com.github.aeddddd.ae2enhanced.common.menu.PersonalDimensionManagerMenu;
+import com.github.aeddddd.ae2enhanced.menu.PersonalDimensionManagerMenu;
 import com.github.aeddddd.ae2enhanced.dimension.PersonalDimensionManager;
 import com.github.aeddddd.ae2enhanced.network.ModNetwork;
 import com.github.aeddddd.ae2enhanced.network.packet.PersonalDimManagerStatePacket;

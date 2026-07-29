@@ -25,9 +25,9 @@ import net.minecraftforge.event.level.BlockEvent;
 import net.minecraftforge.event.level.ChunkEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 
-import com.github.aeddddd.ae2enhanced.assembly.block.AssemblyControllerBlock;
+import com.github.aeddddd.ae2enhanced.block.AssemblyControllerBlock;
 import com.github.aeddddd.ae2enhanced.block.HyperdimensionalControllerBlock;
-import com.github.aeddddd.ae2enhanced.computation.block.ComputationControllerBlock;
+import com.github.aeddddd.ae2enhanced.block.ComputationControllerBlock;
 import com.github.aeddddd.ae2enhanced.multiblock.IMultiblockController;
 import com.github.aeddddd.ae2enhanced.structure.AssemblyStructure;
 import com.github.aeddddd.ae2enhanced.structure.ComputationCoreIndex;

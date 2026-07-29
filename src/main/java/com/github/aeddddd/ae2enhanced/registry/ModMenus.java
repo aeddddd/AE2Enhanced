@@ -7,16 +7,16 @@ import net.minecraftforge.registries.DeferredRegister;
 import net.minecraftforge.registries.RegistryObject;
 
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
-import com.github.aeddddd.ae2enhanced.common.menu.AssemblyMenu;
-import com.github.aeddddd.ae2enhanced.common.menu.AssemblyPatternMenu;
-import com.github.aeddddd.ae2enhanced.common.menu.AssemblyUnformedMenu;
-import com.github.aeddddd.ae2enhanced.common.menu.ComputationCoreMenu;
-import com.github.aeddddd.ae2enhanced.common.menu.ComputationUnformedMenu;
-import com.github.aeddddd.ae2enhanced.common.menu.HyperdimensionalNexusMenu;
-import com.github.aeddddd.ae2enhanced.common.menu.HyperdimensionalUnformedMenu;
-import com.github.aeddddd.ae2enhanced.common.menu.OmniToolConfigMenu;
-import com.github.aeddddd.ae2enhanced.common.menu.PersonalDimensionCreateMenu;
-import com.github.aeddddd.ae2enhanced.common.menu.PersonalDimensionManagerMenu;
+import com.github.aeddddd.ae2enhanced.menu.AssemblyMenu;
+import com.github.aeddddd.ae2enhanced.menu.AssemblyPatternMenu;
+import com.github.aeddddd.ae2enhanced.menu.AssemblyUnformedMenu;
+import com.github.aeddddd.ae2enhanced.menu.ComputationCoreMenu;
+import com.github.aeddddd.ae2enhanced.menu.ComputationUnformedMenu;
+import com.github.aeddddd.ae2enhanced.menu.HyperdimensionalNexusMenu;
+import com.github.aeddddd.ae2enhanced.menu.HyperdimensionalUnformedMenu;
+import com.github.aeddddd.ae2enhanced.menu.OmniToolConfigMenu;
+import com.github.aeddddd.ae2enhanced.menu.PersonalDimensionCreateMenu;
+import com.github.aeddddd.ae2enhanced.menu.PersonalDimensionManagerMenu;
 
 /**
  * 菜单类型注册中心.

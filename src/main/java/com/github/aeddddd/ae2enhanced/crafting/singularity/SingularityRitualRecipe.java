@@ -20,7 +20,7 @@ import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
 
-import com.github.aeddddd.ae2enhanced.blackhole.blockentity.MicroSingularityBlockEntity;
+import com.github.aeddddd.ae2enhanced.blockentity.MicroSingularityBlockEntity;
 import com.github.aeddddd.ae2enhanced.registry.ModBlocks;
 import com.github.aeddddd.ae2enhanced.registry.ModRecipes;
 

@@ -1,6 +1,6 @@
 package com.github.aeddddd.ae2enhanced.client.gui;
 
-import com.github.aeddddd.ae2enhanced.common.menu.HyperdimensionalNexusMenu;
+import com.github.aeddddd.ae2enhanced.menu.HyperdimensionalNexusMenu;
 
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
@@ -18,7 +18,7 @@ import com.github.aeddddd.ae2enhanced.blockentity.HyperdimensionalControllerBloc
 public class HyperdimensionalNexusScreen extends AbstractContainerScreen<HyperdimensionalNexusMenu> {
 
     private static final ResourceLocation TEXTURE =
-            new ResourceLocation(AE2Enhanced.MOD_ID, "textures/gui/2.png");
+            new ResourceLocation(AE2Enhanced.MOD_ID, "textures/gui/multiblock_status.png");
 
     public HyperdimensionalNexusScreen(HyperdimensionalNexusMenu menu, Inventory inv, Component title) {
         super(menu, inv, title);

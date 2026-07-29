@@ -7,15 +7,15 @@ import net.minecraftforge.registries.RegistryObject;
 
 
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
-import com.github.aeddddd.ae2enhanced.assembly.blockentity.AssemblyCasingBlockEntity;
-import com.github.aeddddd.ae2enhanced.assembly.blockentity.AssemblyControllerBlockEntity;
-import com.github.aeddddd.ae2enhanced.blackhole.blockentity.MicroSingularityBlockEntity;
+import com.github.aeddddd.ae2enhanced.blockentity.AssemblyCasingBlockEntity;
+import com.github.aeddddd.ae2enhanced.blockentity.AssemblyControllerBlockEntity;
+import com.github.aeddddd.ae2enhanced.blockentity.MicroSingularityBlockEntity;
 import com.github.aeddddd.ae2enhanced.blockentity.HyperdimensionalControllerBlockEntity;
 import com.github.aeddddd.ae2enhanced.blockentity.PersonalDimensionManagerBlockEntity;
-import com.github.aeddddd.ae2enhanced.computation.blockentity.ComputationCasingBlockEntity;
-import com.github.aeddddd.ae2enhanced.computation.blockentity.ComputationCoreBlockEntity;
-import com.github.aeddddd.ae2enhanced.computation.blockentity.TestCraftingCpuBlockEntity;
-import com.github.aeddddd.ae2enhanced.multiblock.MultiblockMeInterfaceBlockEntity;
+import com.github.aeddddd.ae2enhanced.blockentity.ComputationCasingBlockEntity;
+import com.github.aeddddd.ae2enhanced.blockentity.ComputationCoreBlockEntity;
+import com.github.aeddddd.ae2enhanced.blockentity.VirtualCraftingCpuBlockEntity;
+import com.github.aeddddd.ae2enhanced.blockentity.MultiblockMeInterfaceBlockEntity;
 
 /**
  * 方块实体类型注册中心.
@@ -69,11 +69,11 @@ public final class ModBlockEntities {
                     () -> BlockEntityType.Builder.of(PersonalDimensionManagerBlockEntity::new,
                             ModBlocks.PERSONAL_DIMENSION_MANAGER.get()).build(null));
 
-    // 测试用单方块合成 CPU,与 ModBlocks.TEST_CRAFTING_CPU 同步注册(所有环境)
-    public static final RegistryObject<BlockEntityType<TestCraftingCpuBlockEntity>> TEST_CRAFTING_CPU = DR
-            .register("test_crafting_cpu",
-                    () -> BlockEntityType.Builder.of(TestCraftingCpuBlockEntity::new,
-                            ModBlocks.TEST_CRAFTING_CPU.get()).build(null));
+    // 单方块虚拟合成 CPU,与 ModBlocks.VIRTUAL_CRAFTING_CPU 同步注册(所有环境)
+    public static final RegistryObject<BlockEntityType<VirtualCraftingCpuBlockEntity>> VIRTUAL_CRAFTING_CPU = DR
+            .register("virtual_crafting_cpu",
+                    () -> BlockEntityType.Builder.of(VirtualCraftingCpuBlockEntity::new,
+                            ModBlocks.VIRTUAL_CRAFTING_CPU.get()).build(null));
 
     private ModBlockEntities() {
     }

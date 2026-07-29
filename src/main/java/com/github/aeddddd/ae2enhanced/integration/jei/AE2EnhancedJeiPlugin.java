@@ -62,8 +62,8 @@ public class AE2EnhancedJeiPlugin implements IModPlugin {
 
     @Override
     public void onRuntimeAvailable(IJeiRuntime jeiRuntime) {
-        // 测试用单方块合成 CPU 仅通过指令获取,在 JEI 物品列表中隐藏
+        // 单方块虚拟合成 CPU 仅通过指令获取,在 JEI 物品列表中隐藏
         jeiRuntime.getIngredientManager().removeIngredientsAtRuntime(VanillaTypes.ITEM_STACK,
-                List.of(new ItemStack(ModItems.TEST_CRAFTING_CPU.get())));
+                List.of(new ItemStack(ModItems.VIRTUAL_CRAFTING_CPU.get())));
     }
 }

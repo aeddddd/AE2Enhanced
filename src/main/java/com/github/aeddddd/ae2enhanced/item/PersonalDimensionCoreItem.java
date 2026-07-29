@@ -16,7 +16,7 @@ import net.minecraftforge.network.NetworkHooks;
 
 import net.minecraft.world.SimpleMenuProvider;
 
-import com.github.aeddddd.ae2enhanced.common.menu.PersonalDimensionCreateMenu;
+import com.github.aeddddd.ae2enhanced.menu.PersonalDimensionCreateMenu;
 import com.github.aeddddd.ae2enhanced.dimension.PersonalDimensionManager;
 import com.github.aeddddd.ae2enhanced.dimension.PlayerDimEntry;
 

@@ -16,7 +16,7 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.DyeColor;
 
-import com.github.aeddddd.ae2enhanced.common.menu.PersonalDimensionManagerMenu;
+import com.github.aeddddd.ae2enhanced.menu.PersonalDimensionManagerMenu;
 import com.github.aeddddd.ae2enhanced.dimension.PersonalDimPermission;
 import com.github.aeddddd.ae2enhanced.network.ModNetwork;
 import com.github.aeddddd.ae2enhanced.network.packet.PersonalDimColorSchemePacket;

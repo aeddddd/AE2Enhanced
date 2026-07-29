@@ -8,7 +8,7 @@ import net.minecraftforge.network.NetworkEvent;
 
 import appeng.menu.me.crafting.CraftAmountMenu;
 
-import com.github.aeddddd.ae2enhanced.crafting.CraftAmountMenuLongExt;
+import com.github.aeddddd.ae2enhanced.menu.CraftAmountMenuLongExt;
 
 /**
  * 突破 AE2 int 上限的下单请求包（最大 9.2E / Long.MAX_VALUE）.

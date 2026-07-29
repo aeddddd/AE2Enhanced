@@ -19,7 +19,7 @@ import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.registries.RegistryObject;
 
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
-import com.github.aeddddd.ae2enhanced.assembly.block.AssemblyControllerBlock;
+import com.github.aeddddd.ae2enhanced.block.AssemblyControllerBlock;
 import com.github.aeddddd.ae2enhanced.registry.ModBlocks;
 import com.github.aeddddd.ae2enhanced.util.StructureUtils;
 import com.google.gson.JsonArray;

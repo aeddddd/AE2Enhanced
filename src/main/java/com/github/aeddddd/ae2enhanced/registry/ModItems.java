@@ -8,7 +8,7 @@ import net.minecraftforge.registries.RegistryObject;
 
 
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
-import com.github.aeddddd.ae2enhanced.assembly.item.AssemblyUpgradeCardItem;
+import com.github.aeddddd.ae2enhanced.item.AssemblyUpgradeCardItem;
 import com.github.aeddddd.ae2enhanced.item.AdvancedMEOmniToolItem;
 import com.github.aeddddd.ae2enhanced.item.ConformalInvariantChargeItem;
 import com.github.aeddddd.ae2enhanced.item.GuideBookItem;
@@ -119,16 +119,16 @@ public final class ModItems {
             () -> new BlockItem(ModBlocks.PERSONAL_DIMENSION_MANAGER.get(), new Item.Properties()));
 
     // 警示方块(个人维度地板预设用)
-    public static final RegistryObject<Item> YELLOW_STRIPES_BLOCK_B = DR.register("yellow_stripes_block_b",
-            () -> new BlockItem(ModBlocks.YELLOW_STRIPES_BLOCK_B.get(), new Item.Properties()));
+    public static final RegistryObject<Item> CAUTION_BLOCK = DR.register("caution_block",
+            () -> new BlockItem(ModBlocks.CAUTION_BLOCK.get(), new Item.Properties()));
 
     // 先进 ME 全能工具
     public static final RegistryObject<Item> ME_OMNI_TOOL = DR.register("me_omni_tool",
             () -> new AdvancedMEOmniToolItem(new Item.Properties().stacksTo(1)));
 
-    // 测试用单方块合成 CPU：所有环境注册(可指令获取),但隐藏于创造栏与 JEI
-    public static final RegistryObject<Item> TEST_CRAFTING_CPU = DR.register("test_crafting_cpu",
-            () -> new BlockItem(ModBlocks.TEST_CRAFTING_CPU.get(), new Item.Properties()));
+    // 单方块虚拟合成 CPU：所有环境注册(可指令获取),但隐藏于创造栏与 JEI
+    public static final RegistryObject<Item> VIRTUAL_CRAFTING_CPU = DR.register("virtual_crafting_cpu",
+            () -> new BlockItem(ModBlocks.VIRTUAL_CRAFTING_CPU.get(), new Item.Properties()));
 
     private ModItems() {
     }

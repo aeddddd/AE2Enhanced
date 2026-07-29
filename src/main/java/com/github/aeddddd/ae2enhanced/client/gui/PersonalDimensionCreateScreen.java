@@ -12,7 +12,7 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.DyeColor;
 
-import com.github.aeddddd.ae2enhanced.common.menu.PersonalDimensionCreateMenu;
+import com.github.aeddddd.ae2enhanced.menu.PersonalDimensionCreateMenu;
 import com.github.aeddddd.ae2enhanced.network.ModNetwork;
 import com.github.aeddddd.ae2enhanced.network.packet.PersonalDimCreateSubmitPacket;
 

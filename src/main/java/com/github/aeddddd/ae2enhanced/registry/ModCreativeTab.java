@@ -36,7 +36,7 @@ public final class ModCreativeTab {
                         output.accept(new ItemStack(ModItems.CONFORMAL_INVARIANT_CHARGE.get()));
                         output.accept(new ItemStack(ModItems.SINGULARITY_CONSTRICTOR.get()));
                         output.accept(com.github.aeddddd.ae2enhanced.item.MicroSingularityItem.createStack(
-                                com.github.aeddddd.ae2enhanced.blackhole.blockentity.MicroSingularityBlockEntity.DEFAULT_LIFE_TICKS,
+                                com.github.aeddddd.ae2enhanced.blockentity.MicroSingularityBlockEntity.DEFAULT_LIFE_TICKS,
                                 false));
 
                         // Assembly Hub
@@ -55,7 +55,7 @@ public final class ModCreativeTab {
                         // 个人维度
                         output.accept(new ItemStack(ModItems.PERSONAL_DIMENSION.get()));
                         output.accept(new ItemStack(ModItems.PERSONAL_DIMENSION_MANAGER.get()));
-                        output.accept(new ItemStack(ModItems.YELLOW_STRIPES_BLOCK_B.get()));
+                        output.accept(new ItemStack(ModItems.CAUTION_BLOCK.get()));
 
                         // 先进 ME 全能工具
                         output.accept(new ItemStack(ModItems.ME_OMNI_TOOL.get()));
@@ -67,7 +67,7 @@ public final class ModCreativeTab {
                         output.accept(new ItemStack(ModItems.CASING_GLASS.get()));
                         output.accept(new ItemStack(ModItems.CAUSAL_ANCHOR_CORE.get()));
 
-                        // 测试用单方块合成 CPU 仅通过指令获取,不出现在创造栏(见 ModItems.TEST_CRAFTING_CPU)
+                        // 单方块虚拟合成 CPU 仅通过指令获取,不出现在创造栏(见 ModItems.VIRTUAL_CRAFTING_CPU)
                     })
                     .build());
 

@@ -8,8 +8,8 @@ import appeng.menu.me.crafting.CraftAmountMenu;
 import appeng.menu.me.crafting.CraftConfirmMenu;
 import appeng.api.storage.ISubMenuHost;
 
-import com.github.aeddddd.ae2enhanced.crafting.CraftAmountMenuLongExt;
-import com.github.aeddddd.ae2enhanced.crafting.CraftConfirmMenuLongExt;
+import com.github.aeddddd.ae2enhanced.menu.CraftAmountMenuLongExt;
+import com.github.aeddddd.ae2enhanced.menu.CraftConfirmMenuLongExt;
 import com.github.aeddddd.ae2enhanced.mixin.accessor.AEBaseMenuAccessor;
 
 import org.spongepowered.asm.mixin.Final;

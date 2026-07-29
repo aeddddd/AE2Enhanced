@@ -12,7 +12,7 @@ import net.minecraftforge.fml.ModList;
 
 import com.mojang.blaze3d.shaders.Uniform;
 
-import com.github.aeddddd.ae2enhanced.blackhole.blockentity.MicroSingularityBlockEntity;
+import com.github.aeddddd.ae2enhanced.blockentity.MicroSingularityBlockEntity;
 import com.github.aeddddd.ae2enhanced.config.AE2EnhancedConfig;
 
 /**

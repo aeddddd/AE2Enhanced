@@ -10,23 +10,23 @@ import net.minecraftforge.registries.RegistryObject;
 
 
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
-import com.github.aeddddd.ae2enhanced.assembly.block.AssemblyCasingBlock;
-import com.github.aeddddd.ae2enhanced.assembly.block.AssemblyControllerBlock;
-import com.github.aeddddd.ae2enhanced.assembly.block.AssemblyInnerWallBlock;
-import com.github.aeddddd.ae2enhanced.assembly.block.AssemblyStabilizerBlock;
+import com.github.aeddddd.ae2enhanced.block.AssemblyCasingBlock;
+import com.github.aeddddd.ae2enhanced.block.AssemblyControllerBlock;
+import com.github.aeddddd.ae2enhanced.block.AssemblyInnerWallBlock;
+import com.github.aeddddd.ae2enhanced.block.AssemblyStabilizerBlock;
 import com.github.aeddddd.ae2enhanced.block.HyperdimensionalCasingBlock;
-import com.github.aeddddd.ae2enhanced.computation.block.CausalAnchorCoreBlock;
-import com.github.aeddddd.ae2enhanced.computation.block.CasingGlassBlock;
-import com.github.aeddddd.ae2enhanced.computation.block.ComputationControllerBlock;
-import com.github.aeddddd.ae2enhanced.computation.block.ConstantSpinorFieldCasingBlock;
-import com.github.aeddddd.ae2enhanced.computation.block.ConstantTensorFieldCasingBlock;
-import com.github.aeddddd.ae2enhanced.computation.block.TestCraftingCpuBlock;
+import com.github.aeddddd.ae2enhanced.block.CausalAnchorCoreBlock;
+import com.github.aeddddd.ae2enhanced.block.CasingGlassBlock;
+import com.github.aeddddd.ae2enhanced.block.ComputationControllerBlock;
+import com.github.aeddddd.ae2enhanced.block.ConstantSpinorFieldCasingBlock;
+import com.github.aeddddd.ae2enhanced.block.ConstantTensorFieldCasingBlock;
+import com.github.aeddddd.ae2enhanced.block.VirtualCraftingCpuBlock;
 import com.github.aeddddd.ae2enhanced.block.HyperdimensionalControllerBlock;
 import com.github.aeddddd.ae2enhanced.block.HyperdimensionalSingularityCoreBlock;
 import com.github.aeddddd.ae2enhanced.block.MicroSingularityBlock;
 import com.github.aeddddd.ae2enhanced.block.PersonalDimensionManagerBlock;
-import com.github.aeddddd.ae2enhanced.block.YellowStripesBlockBBlock;
-import com.github.aeddddd.ae2enhanced.multiblock.MultiblockMeInterfaceBlock;
+import com.github.aeddddd.ae2enhanced.block.CautionBlock;
+import com.github.aeddddd.ae2enhanced.block.MultiblockMeInterfaceBlock;
 
 /**
  * 方块注册中心.
@@ -96,13 +96,13 @@ public final class ModBlocks {
             "personal_dimension_manager", () -> new PersonalDimensionManagerBlock(metalProperties()));
 
     // 警示方块(GTCEu yellow_stripes_block_b 替代,个人维度地板预设用)
-    public static final RegistryObject<Block> YELLOW_STRIPES_BLOCK_B = DR.register("yellow_stripes_block_b",
-            YellowStripesBlockBBlock::new);
+    public static final RegistryObject<Block> CAUTION_BLOCK = DR.register("caution_block",
+            CautionBlock::new);
 
-    // 测试用单方块合成 CPU：超因果计算核心多方块临时下线期间的替代测试手段.
+    // 单方块虚拟合成 CPU：超因果计算核心多方块临时下线期间的替代手段.
     // 所有环境均注册以便通过 /give 等指令获取,但不出现在创造模式物品栏和 JEI 中.
-    public static final RegistryObject<Block> TEST_CRAFTING_CPU = DR.register("test_crafting_cpu",
-            () -> new TestCraftingCpuBlock(metalProperties()));
+    public static final RegistryObject<Block> VIRTUAL_CRAFTING_CPU = DR.register("virtual_crafting_cpu",
+            () -> new VirtualCraftingCpuBlock(metalProperties()));
 
     private static BlockBehaviour.Properties metalProperties() {
         return BlockBehaviour.Properties.of()

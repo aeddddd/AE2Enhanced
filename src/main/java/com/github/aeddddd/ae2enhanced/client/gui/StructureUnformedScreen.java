@@ -14,7 +14,7 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.Block;
 
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
-import com.github.aeddddd.ae2enhanced.common.menu.StructureUnformedMenu;
+import com.github.aeddddd.ae2enhanced.menu.StructureUnformedMenu;
 import com.github.aeddddd.ae2enhanced.network.ModNetwork;
 import com.github.aeddddd.ae2enhanced.network.packet.RequestAssemblyPacket;
 
@@ -24,9 +24,9 @@ import com.github.aeddddd.ae2enhanced.network.packet.RequestAssemblyPacket;
  */
 public abstract class StructureUnformedScreen<T extends StructureUnformedMenu> extends AbstractContainerScreen<T> {
 
-    private static final ResourceLocation TEXTURE = new ResourceLocation(AE2Enhanced.MOD_ID, "textures/gui/2.png");
+    private static final ResourceLocation TEXTURE = new ResourceLocation(AE2Enhanced.MOD_ID, "textures/gui/multiblock_status.png");
 
-    // 布局(176x190,与 2.png 匹配;背包槽位于 y108/y166,由菜单注册)
+    // 布局(176x190,与 multiblock_status.png 匹配;背包槽位于 y108/y166,由菜单注册)
     private static final int TITLE_Y = 8;
     private static final int SUBTITLE_Y = 19;
     private static final int MISSING_TITLE_X = 20;

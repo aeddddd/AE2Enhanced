@@ -1,6 +1,6 @@
 package com.github.aeddddd.ae2enhanced.client.gui;
 
-import com.github.aeddddd.ae2enhanced.common.menu.HyperdimensionalUnformedMenu;
+import com.github.aeddddd.ae2enhanced.menu.HyperdimensionalUnformedMenu;
 
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.player.Inventory;

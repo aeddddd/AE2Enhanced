@@ -26,7 +26,7 @@ import net.minecraft.world.item.enchantment.Enchantment;
 import appeng.api.util.AEColor;
 
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
-import com.github.aeddddd.ae2enhanced.common.menu.OmniToolConfigMenu;
+import com.github.aeddddd.ae2enhanced.menu.OmniToolConfigMenu;
 import com.github.aeddddd.ae2enhanced.config.AE2EnhancedConfig;
 import com.github.aeddddd.ae2enhanced.item.AdvancedMEOmniToolItem;
 import com.github.aeddddd.ae2enhanced.network.ModNetwork;

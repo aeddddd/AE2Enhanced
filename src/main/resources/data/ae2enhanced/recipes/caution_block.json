@@ -1,0 +1,11 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "ingredients": [
+    { "item": "minecraft:black_concrete" },
+    { "item": "minecraft:yellow_dye" }
+  ],
+  "result": {
+    "item": "ae2enhanced:caution_block",
+    "count": 64
+  }
+}

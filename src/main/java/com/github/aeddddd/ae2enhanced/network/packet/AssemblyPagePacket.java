@@ -11,8 +11,8 @@ import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraftforge.network.NetworkEvent;
 import net.minecraftforge.network.NetworkHooks;
 
-import com.github.aeddddd.ae2enhanced.common.menu.AssemblyMenu;
-import com.github.aeddddd.ae2enhanced.common.menu.AssemblyPatternMenu;
+import com.github.aeddddd.ae2enhanced.menu.AssemblyMenu;
+import com.github.aeddddd.ae2enhanced.menu.AssemblyPatternMenu;
 
 /**
  * 客户端请求装配枢纽菜单切换到指定样板页的服务端包.
@@ -65,7 +65,7 @@ public class AssemblyPagePacket implements ServerboundPacket {
 
         int totalPages = 1;
         var be = player.serverLevel().getBlockEntity(pos);
-        if (be instanceof com.github.aeddddd.ae2enhanced.assembly.blockentity.AssemblyControllerBlockEntity controller) {
+        if (be instanceof com.github.aeddddd.ae2enhanced.blockentity.AssemblyControllerBlockEntity controller) {
             totalPages = Math.max(1, controller.getPatternPages());
         }
         int target = Math.max(0, Math.min(pageIndex, totalPages - 1));

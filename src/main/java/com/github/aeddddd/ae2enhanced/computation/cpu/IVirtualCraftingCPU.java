@@ -1,6 +1,6 @@
 package com.github.aeddddd.ae2enhanced.computation.cpu;
 
-import com.github.aeddddd.ae2enhanced.computation.blockentity.ComputationCoreBlockEntity;
+import com.github.aeddddd.ae2enhanced.blockentity.ComputationCoreBlockEntity;
 
 /**
  * 标记被超因果计算核心托管的虚拟 AE2 Crafting CPU 集群.

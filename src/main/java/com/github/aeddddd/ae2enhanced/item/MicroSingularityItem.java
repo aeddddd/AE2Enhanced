@@ -19,7 +19,7 @@ import net.minecraft.world.item.TooltipFlag;
 import net.minecraft.world.level.Level;
 import net.minecraftforge.client.extensions.common.IClientItemExtensions;
 
-import com.github.aeddddd.ae2enhanced.blackhole.blockentity.MicroSingularityBlockEntity;
+import com.github.aeddddd.ae2enhanced.blockentity.MicroSingularityBlockEntity;
 import com.github.aeddddd.ae2enhanced.client.render.MicroSingularityItemRenderer;
 import com.github.aeddddd.ae2enhanced.registry.ModBlocks;
 import com.github.aeddddd.ae2enhanced.registry.ModItems;

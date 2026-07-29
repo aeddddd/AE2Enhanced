@@ -1,6 +1,6 @@
 package com.github.aeddddd.ae2enhanced.client.gui;
 
-import com.github.aeddddd.ae2enhanced.common.menu.AssemblyUnformedMenu;
+import com.github.aeddddd.ae2enhanced.menu.AssemblyUnformedMenu;
 
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.player.Inventory;

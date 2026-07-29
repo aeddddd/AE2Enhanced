@@ -1,6 +1,6 @@
 package com.github.aeddddd.ae2enhanced.client.gui;
 
-import com.github.aeddddd.ae2enhanced.common.menu.AssemblyMenu;
+import com.github.aeddddd.ae2enhanced.menu.AssemblyMenu;
 
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
@@ -9,7 +9,7 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.player.Inventory;
 
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
-import com.github.aeddddd.ae2enhanced.assembly.blockentity.AssemblyControllerBlockEntity;
+import com.github.aeddddd.ae2enhanced.blockentity.AssemblyControllerBlockEntity;
 import com.github.aeddddd.ae2enhanced.network.ModNetwork;
 import com.github.aeddddd.ae2enhanced.network.packet.AssemblyPagePacket;
 
@@ -19,7 +19,7 @@ import com.github.aeddddd.ae2enhanced.network.packet.AssemblyPagePacket;
 public class AssemblyScreen extends AbstractContainerScreen<AssemblyMenu> {
 
     private static final ResourceLocation TEXTURE =
-            new ResourceLocation(AE2Enhanced.MOD_ID, "textures/gui/1.png");
+            new ResourceLocation(AE2Enhanced.MOD_ID, "textures/gui/assembly.png");
 
     public AssemblyScreen(AssemblyMenu menu, Inventory inv, Component title) {
         super(menu, inv, title);

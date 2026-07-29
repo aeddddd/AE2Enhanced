@@ -49,7 +49,7 @@ public class DataGenerators {
                     tag(BlockTags.MINEABLE_WITH_PICKAXE).add(block.get());
                 }
                 // 警示方块对齐 1.12 主分支 harvestLevel 1(石镐级)
-                tag(BlockTags.NEEDS_STONE_TOOL).add(ModBlocks.YELLOW_STRIPES_BLOCK_B.get());
+                tag(BlockTags.NEEDS_STONE_TOOL).add(ModBlocks.CAUTION_BLOCK.get());
             }
         };
         generator.addProvider(event.includeServer(), blockTags);

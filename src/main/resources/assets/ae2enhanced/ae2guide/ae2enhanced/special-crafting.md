@@ -2,10 +2,10 @@
 navigation:
   parent: ae2enhanced/index.md
   title: 特殊配方合成
-  icon: test_crafting_cpu
+  icon: virtual_crafting_cpu
   position: 30
 item_ids:
-- ae2enhanced:test_crafting_cpu
+- ae2enhanced:virtual_crafting_cpu
 ---
 
 # 特殊配方合成

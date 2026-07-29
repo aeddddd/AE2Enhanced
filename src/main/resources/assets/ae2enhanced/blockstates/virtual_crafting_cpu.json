@@ -1,0 +1,5 @@
+{
+  "variants": {
+    "": { "model": "ae2enhanced:block/virtual_crafting_cpu" }
+  }
+}

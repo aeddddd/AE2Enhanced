@@ -26,8 +26,8 @@ import com.github.aeddddd.ae2enhanced.hyperdimensional.storage.HyperdimensionalM
 import com.github.aeddddd.ae2enhanced.hyperdimensional.storage.HyperdimensionalStorage;
 import com.github.aeddddd.ae2enhanced.hyperdimensional.storage.HyperdimensionalStorageFile;
 import com.github.aeddddd.ae2enhanced.multiblock.IStorageHost;
-import com.github.aeddddd.ae2enhanced.multiblock.MultiblockControllerBlockEntity;
-import com.github.aeddddd.ae2enhanced.multiblock.MultiblockMeInterfaceBlockEntity;
+import com.github.aeddddd.ae2enhanced.blockentity.MultiblockControllerBlockEntity;
+import com.github.aeddddd.ae2enhanced.blockentity.MultiblockMeInterfaceBlockEntity;
 import com.github.aeddddd.ae2enhanced.registry.ModBlockEntities;
 import com.github.aeddddd.ae2enhanced.structure.IMultiblockStructure;
 

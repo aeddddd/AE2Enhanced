@@ -11,7 +11,7 @@ import appeng.api.networking.security.IActionSource;
 import appeng.api.stacks.AEKey;
 import appeng.menu.me.crafting.CraftConfirmMenu;
 
-import com.github.aeddddd.ae2enhanced.crafting.CraftConfirmMenuLongExt;
+import com.github.aeddddd.ae2enhanced.menu.CraftConfirmMenuLongExt;
 import com.github.aeddddd.ae2enhanced.network.ModNetwork;
 import com.github.aeddddd.ae2enhanced.network.packet.SpecialPlanInfoPacket;
 import com.github.aeddddd.ae2enhanced.specialcrafting.SpecialPlanInfo;

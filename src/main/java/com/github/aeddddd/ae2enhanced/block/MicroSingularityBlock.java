@@ -24,7 +24,7 @@ import net.minecraft.world.phys.shapes.CollisionContext;
 import net.minecraft.world.phys.shapes.Shapes;
 import net.minecraft.world.phys.shapes.VoxelShape;
 
-import com.github.aeddddd.ae2enhanced.blackhole.blockentity.MicroSingularityBlockEntity;
+import com.github.aeddddd.ae2enhanced.blockentity.MicroSingularityBlockEntity;
 import com.github.aeddddd.ae2enhanced.crafting.singularity.SingularityFuelRecipe;
 import com.github.aeddddd.ae2enhanced.item.MicroSingularityItem;
 import com.github.aeddddd.ae2enhanced.item.SingularityConstrictorItem;

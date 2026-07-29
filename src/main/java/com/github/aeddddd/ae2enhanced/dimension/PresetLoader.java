@@ -313,7 +313,7 @@ public final class PresetLoader {
 
     private static FloorPreset fallback() {
         // 对齐 1.12 主分支回退预设:96×96 全警示方块
-        BlockState[] palette = new BlockState[] { ModBlocks.YELLOW_STRIPES_BLOCK_B.get().defaultBlockState() };
+        BlockState[] palette = new BlockState[] { ModBlocks.CAUTION_BLOCK.get().defaultBlockState() };
         int[] states = new int[96 * 96];
         return new FloorPreset(96, 96, palette, states);
     }

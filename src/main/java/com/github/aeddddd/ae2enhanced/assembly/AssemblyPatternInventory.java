@@ -6,7 +6,7 @@ import net.minecraft.world.item.ItemStack;
 
 import appeng.api.inventories.InternalInventory;
 
-import com.github.aeddddd.ae2enhanced.assembly.blockentity.AssemblyControllerBlockEntity;
+import com.github.aeddddd.ae2enhanced.blockentity.AssemblyControllerBlockEntity;
 
 /**
  * 将装配枢纽的样板槽区域（升级槽之后）暴露为 AE2 的 {@link InternalInventory},
