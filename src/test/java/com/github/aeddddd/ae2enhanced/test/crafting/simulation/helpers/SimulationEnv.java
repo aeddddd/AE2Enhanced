@@ -104,22 +104,65 @@ public class SimulationEnv {
         return copy;
     }
 
+    /** 原生计算墙钟超时(步进喂时间片后仍未完成;计算线程已被中断,大树不会继续生长). */
+    public static final class SimulationTimeoutException extends RuntimeException {
+        public SimulationTimeoutException(String message) {
+            super(message);
+        }
+    }
+
     public ICraftingPlan runSimulation(GenericStack what, CalculationStrategy strategy) {
         return runSimulation(what, strategy, 1000);
     }
 
     /**
-     * 带超时的原生模拟(AE2Enhanced 扩展,大规模基准用:
-     * 原生递归树在超大交叉图上展开远超默认 1s 超时).
+     * 带墙钟超时的原生模拟(AE2Enhanced 扩展,大规模基准用):
+     * 小步进喂时间片(原生 handlePausing 每 ~101 次调用检查一次预算,暂停后由本线程
+     * 继续喂),直到计算完成或超过 timeoutMs;超时经 shutdownNow 中断计算线程
+     * (handlePausing 响应中断),防止超大递归树在后台继续生长耗尽堆.
      */
     public ICraftingPlan runSimulation(GenericStack what, CalculationStrategy strategy, long timeoutMs) {
         var calculation = new CraftingCalculation(mock(Level.class), gridMock, simulationRequester, what, strategy);
+        var executor = Executors.newSingleThreadExecutor();
+        long deadline = System.nanoTime() + timeoutMs * 1_000_000L;
         try {
-            var calculationFuture = Executors.newSingleThreadExecutor().submit(calculation::run);
-            calculation.simulateFor(1000000000);
-            return calculationFuture.get(timeoutMs, TimeUnit.MILLISECONDS);
+            var calculationFuture = executor.submit(calculation::run);
+            while (true) {
+                calculation.simulateFor(100_000); // 100ms 预算/步
+                if (calculationFuture.isDone()) {
+                    return calculationFuture.get(1000, TimeUnit.MILLISECONDS);
+                }
+                if (System.nanoTime() >= deadline) {
+                    throw new SimulationTimeoutException("原生模拟超过墙钟超时 " + timeoutMs + " ms");
+                }
+            }
+        } catch (SimulationTimeoutException e) {
+            throw e;
         } catch (Exception e) {
             throw new RuntimeException(e);
+        } finally {
+            executor.shutdownNow();
+            unregisterCraftingSimulation(calculation);
+        }
+    }
+
+    /**
+     * 从 TickHandler 注销已结束的合成计算(AE2Enhanced 扩展,防测试泄漏):
+     * 原生仅经 level tick 的 simulateCraftingJobs 清理 craftingJobs,
+     * JUnit 环境永无 tick——不注销的话每个计算(连同其递归树,大图下达数 GB)
+     * 都永久滞留注册表,跨用例累积撑爆堆.
+     */
+    private static void unregisterCraftingSimulation(CraftingCalculation calculation) {
+        try {
+            var handler = appeng.hooks.ticking.TickHandler.instance();
+            var field = appeng.hooks.ticking.TickHandler.class.getDeclaredField("craftingJobs");
+            field.setAccessible(true);
+            var jobs = (com.google.common.collect.Multimap<?, ?>) field.get(handler);
+            synchronized (jobs) {
+                jobs.values().remove(calculation);
+            }
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException("注销合成模拟失败", e);
         }
     }
 

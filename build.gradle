@@ -221,8 +221,9 @@ tasks.withType(JavaCompile).configureEach {
 tasks.named('test', Test) {
     useJUnitPlatform()
     // 极端规模合成计划基准(CrossCraftingScaleBenchmarkTest)的原生递归树
-    // 展开到约 7e6 节点,默认堆不足以容纳;4g 为峰值上限而非预占
-    maxHeapSize = '4g'
+    // 展开到千万级节点(超时组在墙钟超时前持续生长),默认堆不足以容纳;
+    // 6g 为峰值上限而非预占
+    maxHeapSize = '6g'
     testLogging {
         events 'passed', 'failed', 'skipped'
     }
