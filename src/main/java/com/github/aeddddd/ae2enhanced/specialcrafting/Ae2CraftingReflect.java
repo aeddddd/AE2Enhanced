@@ -23,6 +23,7 @@ public final class Ae2CraftingReflect {
 
     private static final Field NETWORK_INV;
     private static final Field SIMULATE;
+    private static final Field LEVEL;
     private static final Method COMPUTE_PLAN;
     private static final Method FINISH;
     private static final Method HANDLE_PAUSING;
@@ -35,6 +36,8 @@ public final class Ae2CraftingReflect {
             NETWORK_INV.setAccessible(true);
             SIMULATE = CraftingCalculation.class.getDeclaredField("simulate");
             SIMULATE.setAccessible(true);
+            LEVEL = CraftingCalculation.class.getDeclaredField("level");
+            LEVEL.setAccessible(true);
             COMPUTE_PLAN = CraftingCalculation.class.getDeclaredMethod("computePlan");
             COMPUTE_PLAN.setAccessible(true);
             FINISH = CraftingCalculation.class.getDeclaredMethod("finish");
@@ -60,6 +63,15 @@ public final class Ae2CraftingReflect {
             return (NetworkCraftingSimulationState) NETWORK_INV.get(calc);
         } catch (ReflectiveOperationException e) {
             throw new IllegalStateException("访问 CraftingCalculation.networkInv 失败", e);
+        }
+    }
+
+    /** 计算所在 level(模板 isValid 过滤等需要真实 level 的调用方使用). */
+    public static net.minecraft.world.level.Level getLevel(CraftingCalculation calc) {
+        try {
+            return (net.minecraft.world.level.Level) LEVEL.get(calc);
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException("访问 CraftingCalculation.level 失败", e);
         }
     }
 

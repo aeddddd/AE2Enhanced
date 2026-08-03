@@ -76,10 +76,10 @@ public final class DagExecutor {
             long taken;
             if (node.cutTerminal) {
                 long allowance = baselineLeft.getOrDefault(node.key, 0L);
-                taken = extractViaTemplates(inv, node.key, Math.min(need, allowance));
+                taken = extractViaTemplates(inv, node, calculation, Math.min(need, allowance));
                 baselineLeft.merge(node.key, -taken, SaturatedMath::add);
             } else {
-                taken = extractViaTemplates(inv, node.key, need);
+                taken = extractViaTemplates(inv, node, calculation, need);
             }
             long remaining = need - taken;
             if (remaining <= 0) {
@@ -196,15 +196,25 @@ public final class DagExecutor {
     }
 
     /**
-     * 经模糊模板提取库存(与原生 getValidItemTemplates 同语义):逐个变体提取直到满足.
+     * 经模糊模板提取库存(与原生 {@code getValidItemTemplates} 同语义):
+     * 按请求输入槽的 {@code isValid} 过滤后逐个模板提取——精确输入只认
+     * NBT 精确相等,受损工具等模糊输入才允许变体;根节点(无父输入)仅精确键.
+     * <p><b>回归教训</b>:曾缺少 isValid 过滤,含同基底物品 NBT 变体库存的
+     * 大图上会把别的物品误当本节点库存提取(少合成、计划失真).</p>
      *
      * @return 实际提取总量
      */
-    private static long extractViaTemplates(CraftingSimulationState inv, AEKey key, long amount) {
+    private static long extractViaTemplates(CraftingSimulationState inv, DagGraph.DagNode node,
+            CraftingCalculation calculation, long amount) {
         long extracted = 0;
-        for (var template : inv.findFuzzyTemplates(key)) {
+        var level = Ae2CraftingReflect.getLevel(calculation);
+        for (var template : inv.findFuzzyTemplates(node.key)) {
             if (extracted >= amount) {
                 break;
+            }
+            if (node.requestInput == null ? !template.equals(node.key)
+                    : !node.requestInput.isValid(template, level)) {
+                continue;
             }
             extracted += inv.extract(template, amount - extracted, Actionable.MODULATE);
         }

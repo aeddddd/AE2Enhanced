@@ -44,6 +44,14 @@ public final class DagGraph {
          * 产出"无中生有"的虚假可行计划).
          */
         public boolean cutTerminal;
+        /**
+         * 首个请求本节点的父输入槽(编译建边时写入,多父共享时先到先得):
+         * 库存模板提取的 {@code isValid} 过滤依据,镜像原生
+         * {@code CraftingTreeNode.parentInput}——精确输入只认 NBT 精确相等,
+         * 受损工具等模糊输入才允许变体;{@code null}(根节点)= 仅精确键.
+         */
+        @Nullable
+        public IPatternDetails.IInput requestInput;
 
         DagNode(Kind kind, AEKey key, long outputPerCraft, @Nullable IPatternDetails pattern) {
             this.kind = kind;

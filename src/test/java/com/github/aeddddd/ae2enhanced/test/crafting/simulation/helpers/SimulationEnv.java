@@ -6,7 +6,6 @@
 package com.github.aeddddd.ae2enhanced.test.crafting.simulation.helpers;
 
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -14,6 +13,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
@@ -25,14 +25,23 @@ import com.google.common.collect.ImmutableSet;
 
 import org.jetbrains.annotations.Nullable;
 
+import net.minecraft.CrashReportCategory;
+import net.minecraft.core.Direction;
 import net.minecraft.network.chat.Component;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.Level;
 
 import appeng.api.config.Actionable;
 import appeng.api.config.FuzzyMode;
 import appeng.api.crafting.IPatternDetails;
+import appeng.api.networking.GridFlags;
 import appeng.api.networking.IGrid;
+import appeng.api.networking.IGridConnection;
 import appeng.api.networking.IGridNode;
+import appeng.api.networking.IGridNodeService;
+import appeng.api.networking.IGridService;
+import appeng.api.networking.IGridVisitor;
+import appeng.api.networking.events.GridEvent;
 import appeng.api.networking.crafting.CalculationStrategy;
 import appeng.api.networking.crafting.ICraftingCPU;
 import appeng.api.networking.crafting.ICraftingPlan;
@@ -43,12 +52,14 @@ import appeng.api.networking.crafting.ICraftingSimulationRequester;
 import appeng.api.networking.crafting.ICraftingSubmitResult;
 import appeng.api.networking.security.IActionSource;
 import appeng.api.networking.storage.IStorageService;
+import appeng.api.stacks.AEItemKey;
 import appeng.api.stacks.AEKey;
 import appeng.api.stacks.GenericStack;
 import appeng.api.stacks.KeyCounter;
 import appeng.api.storage.AEKeyFilter;
 import appeng.api.storage.IStorageProvider;
 import appeng.api.storage.MEStorage;
+import appeng.api.util.AEColor;
 import appeng.crafting.CraftingCalculation;
 import appeng.me.helpers.BaseActionSource;
 
@@ -94,11 +105,19 @@ public class SimulationEnv {
     }
 
     public ICraftingPlan runSimulation(GenericStack what, CalculationStrategy strategy) {
+        return runSimulation(what, strategy, 1000);
+    }
+
+    /**
+     * 带超时的原生模拟(AE2Enhanced 扩展,大规模基准用:
+     * 原生递归树在超大交叉图上展开远超默认 1s 超时).
+     */
+    public ICraftingPlan runSimulation(GenericStack what, CalculationStrategy strategy, long timeoutMs) {
         var calculation = new CraftingCalculation(mock(Level.class), gridMock, simulationRequester, what, strategy);
         try {
             var calculationFuture = Executors.newSingleThreadExecutor().submit(calculation::run);
             calculation.simulateFor(1000000000);
-            return calculationFuture.get(1000, TimeUnit.MILLISECONDS);
+            return calculationFuture.get(timeoutMs, TimeUnit.MILLISECONDS);
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
@@ -230,12 +249,74 @@ public class SimulationEnv {
     };
 
     private IGrid createGridMock() {
-        IGrid mock = mock(IGrid.class);
-        ICraftingService craftingService = createCraftingServiceMock();
-        IStorageService storageService = createStorageServiceMock();
-        when(mock.getCraftingService()).thenReturn(craftingService);
-        when(mock.getStorageService()).thenReturn(storageService);
-        return mock;
+        return new StubGrid();
+    }
+
+    /**
+     * 手写 IGrid 桩(AE2Enhanced 扩展,大规模基准用):Mockito 内联 mock 每次调用
+     * 都要捕获栈帧,原生递归树每节点多次网格调用在大图下既拖慢计时又会撑爆堆.
+     * 仅合成/仓储服务可用(经 {@link IGrid#getService} 默认方法分发),其余一律不支持.
+     */
+    private final class StubGrid implements IGrid {
+        private final ICraftingService craftingService = createCraftingServiceMock();
+        private final IStorageService storageService = createStorageServiceMock();
+
+        @SuppressWarnings("unchecked")
+        @Override
+        public <C extends IGridService> C getService(Class<C> iface) {
+            if (iface == ICraftingService.class) {
+                return (C) craftingService;
+            }
+            if (iface == IStorageService.class) {
+                return (C) storageService;
+            }
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public <T extends GridEvent> T postEvent(T ev) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Iterable<Class<?>> getMachineClasses() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Iterable<IGridNode> getMachineNodes(Class<?> machineClass) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public <T> Set<T> getMachines(Class<T> machineClass) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public <T> Set<T> getActiveMachines(Class<T> machineClass) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Iterable<IGridNode> getNodes() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public boolean isEmpty() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public IGridNode getPivot() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public int size() {
+            throw new UnsupportedOperationException();
+        }
     }
 
     private ICraftingService createCraftingServiceMock() {
@@ -382,8 +463,109 @@ public class SimulationEnv {
     }
 
     private IGridNode createNodeMock() {
-        IGridNode mock = mock(IGridNode.class);
-        when(mock.getGrid()).thenReturn(gridMock);
-        return mock;
+        return new StubGridNode();
+    }
+
+    /** 手写 IGridNode 桩:仅 {@link #getGrid} 可用,动机见 {@link StubGrid}. */
+    private final class StubGridNode implements IGridNode {
+        @Override
+        public IGrid getGrid() {
+            return gridMock;
+        }
+
+        @Override
+        public <T extends IGridNodeService> T getService(Class<T> serviceClass) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Object getOwner() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void beginVisit(IGridVisitor visitor) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public ServerLevel getLevel() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Set<Direction> getConnectedSides() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Map<Direction, IGridConnection> getInWorldConnections() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public List<IGridConnection> getConnections() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public boolean hasGridBooted() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public boolean isPowered() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public boolean meetsChannelRequirements() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public boolean hasFlag(GridFlags flag) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public int getOwningPlayerId() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public UUID getOwningPlayerProfileId() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public double getIdlePowerUsage() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public AEItemKey getVisualRepresentation() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public AEColor getGridColor() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void fillCrashReportCategory(CrashReportCategory category) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public int getMaxChannels() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public int getUsedChannels() {
+            throw new UnsupportedOperationException();
+        }
     }
 }

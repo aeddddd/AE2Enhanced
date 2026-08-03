@@ -50,13 +50,19 @@ public final class DagCompiler {
      * 而非整单回落(压缩/解压对等中性转换环).
      */
     private final boolean cutCycles;
+    /**
+     * "被产生"索引(一次 compile 的两趟编译共享):isCycleStep 的高频全网络扫描
+     * 在此收敛为一次性预扫 + 查表,避免 O(N³) 编译退化.
+     */
+    private final CycleAnalyzer.ProducerIndex producerIndex;
 
     private DagCompiler(ICraftingService craftingService, Set<AEKey> boundaryKeys, boolean detectOnly,
-            boolean cutCycles) {
+            boolean cutCycles, CycleAnalyzer.ProducerIndex producerIndex) {
         this.craftingService = craftingService;
         this.boundaryKeys = boundaryKeys;
         this.detectOnly = detectOnly;
         this.cutCycles = cutCycles;
+        this.producerIndex = producerIndex;
     }
 
     /**
@@ -74,8 +80,9 @@ public final class DagCompiler {
     public static DagGraph compile(ICraftingService craftingService, AEKey root, boolean cutCycles)
             throws DagFallback {
         try {
+            var producerIndex = new CycleAnalyzer.ProducerIndex(craftingService);
             if (cutCycles) {
-                var compiler = new DagCompiler(craftingService, new HashSet<>(), false, true);
+                var compiler = new DagCompiler(craftingService, new HashSet<>(), false, true, producerIndex);
                 var rootNode = compiler.visit(root);
                 var graph = new DagGraph(rootNode);
                 for (int i = compiler.postOrder.size() - 1; i >= 0; i--) {
@@ -85,11 +92,11 @@ public final class DagCompiler {
             }
             Set<AEKey> boundaryKeys = new HashSet<>();
             try {
-                new DagCompiler(craftingService, boundaryKeys, true, false).visit(root);
+                new DagCompiler(craftingService, boundaryKeys, true, false, producerIndex).visit(root);
             } catch (DagFallback ignored) {
                 // 第一遍只负责发现边界;分支编译失败不影响(第二遍做真正的校验)
             }
-            var compiler = new DagCompiler(craftingService, boundaryKeys, false, false);
+            var compiler = new DagCompiler(craftingService, boundaryKeys, false, false, producerIndex);
             var rootNode = compiler.visit(root);
             var graph = new DagGraph(rootNode);
             // 逆后序:父节点(需求方)先于子节点(原料方)
@@ -148,7 +155,12 @@ public final class DagCompiler {
                 var input = inputs[i];
                 var possible = input.getPossibleInputs();
                 long perCraft = SaturatedMath.multiply(possible[0].amount(), input.getMultiplier());
-                edges[i] = new DagGraph.Edge(visit(possible[0].what()), perCraft);
+                var child = visit(possible[0].what());
+                // 记录首个请求输入槽:执行器库存模板提取的 isValid 过滤依据
+                if (child.requestInput == null) {
+                    child.requestInput = input;
+                }
+                edges[i] = new DagGraph.Edge(child, perCraft);
             }
             java.util.Collections.addAll(node.edges, edges);
         }
@@ -180,7 +192,7 @@ public final class DagCompiler {
         // 选定样板本身是环步骤(含经副产物闭合的催化环)→ 本节点收缩为循环边界,
         // 由 CycleBoundarySolver 联立求解(否则边界会错位落到环键上而不可解);
         // 切边模式禁用此标记——切边的目的就是剪断环,不能再收缩回求解器
-        if (!cutCycles && CycleAnalyzer.isCycleStep(craftingService, chosen)) {
+        if (!cutCycles && CycleAnalyzer.isCycleStep(craftingService, chosen, producerIndex)) {
             return new DagGraph.DagNode(DagGraph.Kind.CYCLE, key, 0, null);
         }
         long outPer = 0;
