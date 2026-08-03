@@ -400,7 +400,7 @@ public final class HyperdimensionalStorageFile {
         }
         try {
             ensureDirectory();
-            CompoundTag root = NbtIo.read(legacyPath.toFile());
+            CompoundTag root = readPossiblyCompressed(legacyPath);
             if (root == null) {
                 return;
             }
@@ -416,12 +416,12 @@ public final class HyperdimensionalStorageFile {
                     if (type == null) {
                         continue;
                     }
-                    Map<AEKey, BigInteger> entries = loadEntriesFromNbt(channelsTag.getCompound(key));
+                    Map<AEKey, BigInteger> entries = loadEntriesFromNbt(channelsTag.getCompound(key), type);
                     grouped.put(type, entries);
                 }
             } else if (version == 1) {
                 ListTag list = root.getList(TAG_CONTENTS, Tag.TAG_COMPOUND);
-                Map<AEKey, BigInteger> entries = loadEntriesFromNbt(list);
+                Map<AEKey, BigInteger> entries = loadEntriesFromNbt(list, null);
                 for (Map.Entry<AEKey, BigInteger> entry : entries.entrySet()) {
                     grouped.computeIfAbsent(entry.getKey().getType(), k -> new HashMap<>())
                             .put(entry.getKey(), entry.getValue());
@@ -832,21 +832,39 @@ public final class HyperdimensionalStorageFile {
 
     // ===== 旧版 NBT 加载辅助 =====
 
-    private Map<AEKey, BigInteger> loadEntriesFromNbt(CompoundTag channelTag) {
+    /**
+     * 读取旧版 NBT 文件,兼容非压缩与 gzip 压缩两种格式.
+     * <p>1.12 时代的存档由 {@code CompressedStreamTools} 写出（gzip 压缩）,
+     * 而早期 1.20.1 版本使用非压缩格式；此处先按非压缩解析,失败后回退压缩格式.</p>
+     */
+    @Nullable
+    private static CompoundTag readPossiblyCompressed(Path path) throws IOException {
+        try {
+            return NbtIo.read(path.toFile());
+        } catch (Exception notUncompressed) {
+            return NbtIo.readCompressed(path.toFile());
+        }
+    }
+
+    private Map<AEKey, BigInteger> loadEntriesFromNbt(CompoundTag channelTag, @Nullable AEKeyType channelType) {
         if (!channelTag.contains(TAG_CONTENTS, Tag.TAG_LIST)) {
             return new HashMap<>();
         }
-        return loadEntriesFromNbt(channelTag.getList(TAG_CONTENTS, Tag.TAG_COMPOUND));
+        return loadEntriesFromNbt(channelTag.getList(TAG_CONTENTS, Tag.TAG_COMPOUND), channelType);
     }
 
-    private Map<AEKey, BigInteger> loadEntriesFromNbt(ListTag list) {
+    private Map<AEKey, BigInteger> loadEntriesFromNbt(ListTag list, @Nullable AEKeyType channelType) {
         Map<AEKey, BigInteger> result = new HashMap<>();
         for (int i = 0; i < list.size(); i++) {
             CompoundTag entry = list.getCompound(i);
             if (!entry.contains(TAG_KEY, Tag.TAG_COMPOUND) || !entry.contains(TAG_AMOUNT, Tag.TAG_STRING)) {
                 continue;
             }
-            AEKey key = AEKey.fromTagGeneric(entry.getCompound(TAG_KEY));
+            CompoundTag keyTag = entry.getCompound(TAG_KEY);
+            AEKey key = AEKey.fromTagGeneric(keyTag);
+            if (key == null) {
+                key = parseLegacyEnergyKey(keyTag, channelType);
+            }
             if (key == null) {
                 continue;
             }
@@ -856,5 +874,22 @@ public final class HyperdimensionalStorageFile {
             }
         }
         return result;
+    }
+
+    /**
+     * 旧版能量条目兜底解析.
+     * <p>能量 key type 刻意不注册进 AE2 注册表（避免暴露给 AE2 网络）,
+     * 因此 {@link AEKey#fromTagGeneric} 永远无法解析能量条目；按类型标记
+     * （{@code #c}/{@code id} 字段）或所属通道类型回退为 {@link EnergyKey} 单例,
+     * 否则旧版存档中的能量数据会在迁移时静默丢失.</p>
+     */
+    @Nullable
+    private static AEKey parseLegacyEnergyKey(CompoundTag keyTag, @Nullable AEKeyType channelType) {
+        String energyId = EnergyKey.ID.toString();
+        if (energyId.equals(keyTag.getString("#c")) || energyId.equals(keyTag.getString("id"))
+                || channelType == EnergyKey.ENERGY_KEY_TYPE) {
+            return EnergyKey.INSTANCE;
+        }
+        return null;
     }
 }

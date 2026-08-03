@@ -13,6 +13,7 @@ import net.minecraft.util.Mth;
 import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.client.model.data.ModelData;
 
+import appeng.block.networking.ControllerBlock;
 import appeng.core.definitions.AEBlocks;
 
 import com.github.aeddddd.ae2enhanced.blockentity.ComputationCoreBlockEntity;
@@ -22,7 +23,7 @@ import com.github.aeddddd.ae2enhanced.structure.SupercausalStructure;
  * 超因果计算核心结构中心渲染器.
  * <p>渲染中心为立方体结构的几何中心（控制器背面 5 格）,位于 9x9x9 玻璃腔内,
  * 透过全透明的 casing_glass 可见.</p>
- * <p>渲染内容：中央悬浮一台缓慢自旋的实际合成 CPU（64k 合成存储器）,
+ * <p>渲染内容：中央悬浮一台缓慢自旋的实际 ME 控制器（在线状态）,
  * 外围两道异面轨道环环绕,表现"超因果计算"的核心意象.</p>
  */
 public class ComputationCoreRenderer extends AbstractMultiblockRenderer<ComputationCoreBlockEntity> {
@@ -30,8 +31,16 @@ public class ComputationCoreRenderer extends AbstractMultiblockRenderer<Computat
     /** 渲染内容半径上限：完全收在 9x9x9 玻璃腔内. */
     private static final double RENDER_RADIUS = 4.0;
 
+    /** 中央控制器缩放（方块边长 1.8,收在腔内）. */
+    private static final float CORE_SCALE = 1.8f;
+
     /** 轨道环颜色（项目青色主色调）. */
     private static final int RING_COLOR = 0x50C8FF;
+
+    /** 在线状态的 ME 控制器外观. */
+    private static final net.minecraft.world.level.block.state.BlockState CORE_STATE =
+            AEBlocks.CONTROLLER.block().defaultBlockState()
+                    .setValue(ControllerBlock.CONTROLLER_STATE, ControllerBlock.ControllerBlockState.online);
 
     public ComputationCoreRenderer(BlockEntityRendererProvider.Context context) {
         super(context);
@@ -46,16 +55,16 @@ public class ComputationCoreRenderer extends AbstractMultiblockRenderer<Computat
         poseStack.pushPose();
         poseStack.translate(center.x, center.y, center.z);
 
-        // 中央悬浮 CPU:64k 合成存储器,缓慢自旋 + 轻微上下浮动,全亮度使其在密封腔内可见
+        // 中央悬浮 ME 控制器:缓慢自旋 + 轻微上下浮动,全亮度使其在密封腔内可见
         poseStack.pushPose();
         float bob = Mth.sin(time * 0.06f) * 0.08f;
         float spin = (time * 1.5f) % 360.0f;
         poseStack.translate(0, bob, 0);
         poseStack.mulPose(Axis.YP.rotationDegrees(spin));
-        poseStack.scale(1.25f, 1.25f, 1.25f);
+        poseStack.scale(CORE_SCALE, CORE_SCALE, CORE_SCALE);
         poseStack.translate(-0.5, -0.5, -0.5);
         Minecraft.getInstance().getBlockRenderer().renderSingleBlock(
-                AEBlocks.CRAFTING_STORAGE_64K.block().defaultBlockState(),
+                CORE_STATE,
                 poseStack, bufferSource, LightTexture.FULL_BRIGHT, packedOverlay,
                 ModelData.EMPTY, null);
         poseStack.popPose();
@@ -68,13 +77,13 @@ public class ComputationCoreRenderer extends AbstractMultiblockRenderer<Computat
         poseStack.pushPose();
         poseStack.mulPose(Axis.YP.rotationDegrees((time * 2.0f) % 360.0f));
         poseStack.mulPose(Axis.XP.rotationDegrees(20.0f));
-        RenderHelper.drawRing(lines, poseStack, 1.7f, RING_COLOR, 0.85f, segments);
+        RenderHelper.drawRing(lines, poseStack, 2.0f, RING_COLOR, 0.85f, segments);
         poseStack.popPose();
 
         poseStack.pushPose();
         poseStack.mulPose(Axis.YP.rotationDegrees(-(time * 1.2f) % 360.0f));
         poseStack.mulPose(Axis.ZP.rotationDegrees(65.0f));
-        RenderHelper.drawRing(lines, poseStack, 2.1f, RING_COLOR, 0.6f, segments);
+        RenderHelper.drawRing(lines, poseStack, 2.5f, RING_COLOR, 0.6f, segments);
         poseStack.popPose();
 
         poseStack.popPose();

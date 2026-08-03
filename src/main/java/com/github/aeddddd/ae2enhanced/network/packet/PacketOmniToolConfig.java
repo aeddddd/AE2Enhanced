@@ -2,14 +2,17 @@ package com.github.aeddddd.ae2enhanced.network.packet;
 
 import java.util.function.Supplier;
 
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.util.Mth;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.enchantment.Enchantments;
 import net.minecraftforge.network.NetworkEvent;
 
 import appeng.api.util.AEColor;
@@ -32,9 +35,11 @@ public class PacketOmniToolConfig implements ServerboundPacket {
     private final int mode;
     private final int dropMode;
     private final boolean silkTouch;
+    private final int fortune;
     private final double blinkDistance;
     private final int breakCooldown;
     private final int paramEnabled;
+    private final boolean chaosForceKill;
     private final boolean conformalEnabled;
     private final boolean advancedSilkTouch;
     private final boolean wallPhase;
@@ -44,15 +49,17 @@ public class PacketOmniToolConfig implements ServerboundPacket {
     private final ListTag enchantments;
 
     public PacketOmniToolConfig(int mode, int dropMode, boolean silkTouch,
-            double blinkDistance, int breakCooldown, int paramEnabled,
-            boolean conformalEnabled, boolean advancedSilkTouch, boolean wallPhase,
+            int fortune, double blinkDistance, int breakCooldown, int paramEnabled,
+            boolean chaosForceKill, boolean conformalEnabled, boolean advancedSilkTouch, boolean wallPhase,
             int cableColor, float reachDistance, int placementRestriction, ListTag enchantments) {
         this.mode = mode;
         this.dropMode = dropMode;
         this.silkTouch = silkTouch;
+        this.fortune = fortune;
         this.blinkDistance = blinkDistance;
         this.breakCooldown = breakCooldown;
         this.paramEnabled = paramEnabled;
+        this.chaosForceKill = chaosForceKill;
         this.conformalEnabled = conformalEnabled;
         this.advancedSilkTouch = advancedSilkTouch;
         this.wallPhase = wallPhase;
@@ -66,9 +73,11 @@ public class PacketOmniToolConfig implements ServerboundPacket {
         int mode = buffer.readByte();
         int dropMode = buffer.readByte();
         boolean silkTouch = buffer.readBoolean();
+        int fortune = buffer.readVarInt();
         double blinkDistance = buffer.readDouble();
         int breakCooldown = buffer.readByte();
         int paramEnabled = buffer.readShort();
+        boolean chaosForceKill = buffer.readBoolean();
         boolean conformalEnabled = buffer.readBoolean();
         boolean advancedSilkTouch = buffer.readBoolean();
         boolean wallPhase = buffer.readBoolean();
@@ -80,18 +89,20 @@ public class PacketOmniToolConfig implements ServerboundPacket {
         if (wrapper != null && wrapper.contains("ench", Tag.TAG_LIST)) {
             enchantments = wrapper.getList("ench", Tag.TAG_COMPOUND);
         }
-        return new PacketOmniToolConfig(mode, dropMode, silkTouch, blinkDistance, breakCooldown, paramEnabled,
-                conformalEnabled, advancedSilkTouch, wallPhase, cableColor, reachDistance, placementRestriction,
-                enchantments);
+        return new PacketOmniToolConfig(mode, dropMode, silkTouch, fortune, blinkDistance, breakCooldown, paramEnabled,
+                chaosForceKill, conformalEnabled, advancedSilkTouch, wallPhase, cableColor, reachDistance,
+                placementRestriction, enchantments);
     }
 
     public static void encode(PacketOmniToolConfig packet, FriendlyByteBuf buffer) {
         buffer.writeByte(packet.mode);
         buffer.writeByte(packet.dropMode);
         buffer.writeBoolean(packet.silkTouch);
+        buffer.writeVarInt(packet.fortune);
         buffer.writeDouble(packet.blinkDistance);
         buffer.writeByte(packet.breakCooldown);
         buffer.writeShort(packet.paramEnabled & 0xFFF); // 只写低 12 位
+        buffer.writeBoolean(packet.chaosForceKill);
         buffer.writeBoolean(packet.conformalEnabled);
         buffer.writeBoolean(packet.advancedSilkTouch);
         buffer.writeBoolean(packet.wallPhase);
@@ -131,6 +142,7 @@ public class PacketOmniToolConfig implements ServerboundPacket {
             for (int i = 0; i < PARAM_MASK_BITS; i++) {
                 OmniToolUpgrades.setParamEnabled(stack, i, (paramEnabled & (1 << i)) != 0);
             }
+            OmniToolUpgrades.setChaosForceKillEnabled(stack, chaosForceKill);
             OmniToolUpgrades.setConformalCharge(stack, conformalEnabled);
             OmniToolUpgrades.setAdvancedSilkTouchEnabled(stack, advancedSilkTouch);
             OmniToolUpgrades.setWallPhaseEnabled(stack, wallPhase);
@@ -142,6 +154,10 @@ public class PacketOmniToolConfig implements ServerboundPacket {
             }
             placementConfig.setReachDistance(reachDistance);
             placementConfig.setPlacementRestriction(PlacementRestriction.fromOrdinal(placementRestriction));
+
+            // 时运滑条：先记录当前 source 上限（附魔列表应用后会丢失时运条目）
+            ResourceLocation fortuneId = BuiltInRegistries.ENCHANTMENT.getKey(Enchantments.BLOCK_FORTUNE);
+            int fortuneSource = OmniToolEnchantments.getEnchantmentSourceLevel(stack, fortuneId);
 
             // 同步附魔存储,并按已有 source 等级上限进行钳制
             ListTag ench = enchantments != null ? enchantments : new ListTag();
@@ -157,6 +173,9 @@ public class PacketOmniToolConfig implements ServerboundPacket {
                 }
             }
             OmniToolEnchantments.setStoredEnchantments(stack, ench);
+
+            // 应用时运滑条（受合成时附魔书的 source 等级钳制）
+            OmniToolUpgrades.setFortuneLevel(stack, Mth.clamp(fortune, 0, fortuneSource));
 
             // 强制同步 NBT 到客户端
             player.setItemInHand(hand, stack);

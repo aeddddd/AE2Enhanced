@@ -9,7 +9,7 @@ import net.minecraft.world.item.crafting.RecipeSerializer;
 
 /**
  * 全能工具升级配方序列化器。
- * JSON 格式：{ "type": "ae2enhanced:omni_tool_upgrade", "upgrade": "enchanted_book|bedrock|conformal_charge" }
+ * JSON 格式：{ "type": "ae2enhanced:omni_tool_upgrade", "upgrade": "enchanted_book|bedrock|conformal_charge|chaos" }
  */
 public class OmniToolUpgradeRecipeSerializer implements RecipeSerializer<OmniToolUpgradeRecipe> {
 
@@ -20,6 +20,7 @@ public class OmniToolUpgradeRecipeSerializer implements RecipeSerializer<OmniToo
             case "enchanted_book" -> OmniToolUpgradeRecipe.Type.ENCHANTED_BOOK;
             case "bedrock" -> OmniToolUpgradeRecipe.Type.BEDROCK;
             case "conformal_charge" -> OmniToolUpgradeRecipe.Type.CONFORMAL_CHARGE;
+            case "chaos" -> OmniToolUpgradeRecipe.Type.CHAOS;
             default -> throw new IllegalArgumentException("Unknown omni tool upgrade type: " + upgrade);
         };
         return new OmniToolUpgradeRecipe(recipeId, type);

@@ -101,7 +101,9 @@ public abstract class AbstractStorageChannel<T extends AEKey, D extends Descript
         ListTag list = new ListTag();
         for (Map.Entry<D, BigInteger> entry : adapter.getStorageMap().entrySet()) {
             CompoundTag item = new CompoundTag();
-            item.put(TAG_KEY, entry.getKey().toNBT());
+            // 必须写 toTagGeneric(含 #c 类型标记),与 load 的 AEKey.fromTagGeneric 对称;
+            // 直接写 descriptor.toNBT() 会丢类型标记,导致回读时条目被静默丢弃
+            item.put(TAG_KEY, entry.getKey().getAEKey().toTagGeneric());
             item.putString(TAG_AMOUNT, entry.getValue().toString());
             list.add(item);
         }
@@ -121,6 +123,11 @@ public abstract class AbstractStorageChannel<T extends AEKey, D extends Descript
                 continue;
             }
             AEKey key = AEKey.fromTagGeneric(entry.getCompound(TAG_KEY));
+            if (key == null && adapter.getKeyType() == EnergyKey.ENERGY_KEY_TYPE) {
+                // 能量 key type 刻意不注册进 AE2 注册表,fromTagGeneric 无法解析,
+                // 能量为单例,按通道类型兜底
+                key = EnergyKey.INSTANCE;
+            }
             if (key == null) {
                 continue;
             }

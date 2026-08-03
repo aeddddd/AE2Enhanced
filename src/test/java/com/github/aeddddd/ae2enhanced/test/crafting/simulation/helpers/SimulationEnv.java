@@ -113,6 +113,16 @@ public class SimulationEnv {
         return gridMock.getCraftingService();
     }
 
+    /** 暴露网格 mock,供按量尝试测试构造原生计算. */
+    public IGrid grid() {
+        return gridMock;
+    }
+
+    /** 暴露模拟请求方,供按量尝试测试构造原生计算. */
+    public ICraftingSimulationRequester requester() {
+        return simulationRequester;
+    }
+
     /**
      * 以 {@link SpecialCraftingCalculation} 运行模拟（路由命中后的实际执行路径）.
      */
@@ -129,17 +139,79 @@ public class SimulationEnv {
     }
 
     /**
-     * 以 {@code DagCraftingCalculation} 运行模拟(DAG 引擎 parity 测试用).
+     * 以 DAG 引擎执行按量尝试,策略流程镜像原生 computePlan:
+     * 全量尝试 → (CRAFT_LESS:二分搜索最大可产量) → 模拟尝试收缺料;FALLBACK 走原生.
+     * 与游戏内 DEFAULT 模式的尝试级 hook 同路径(mixin 在单测中不生效,直接调助手).
      */
     public ICraftingPlan runDagSimulation(GenericStack what, CalculationStrategy strategy) {
-        var calculation = new com.github.aeddddd.ae2enhanced.craftingplan.dag.DagCraftingCalculation(
+        var calculation = new appeng.crafting.CraftingCalculation(
                 mock(Level.class), gridMock, simulationRequester, what, strategy);
+
+        var result = attempt(calculation, what, what.amount(), false);
+        if (result.outcome() == com.github.aeddddd.ae2enhanced.craftingplan.dag.DagPlanAttempt.Outcome.SUCCESS) {
+            return result.plan();
+        }
+        if (result.outcome() == com.github.aeddddd.ae2enhanced.craftingplan.dag.DagPlanAttempt.Outcome.FALLBACK) {
+            return runSimulation(what, strategy);
+        }
+        // INFEASIBLE:CRAFT_LESS 二分搜索最大可产量(与原生 computePlan 同构)
+        if (strategy == CalculationStrategy.CRAFT_LESS) {
+            long successfulAmount = 0;
+            ICraftingPlan successfulPlan = null;
+            for (long increment = Long.highestOneBit(what.amount()); increment > 0; increment /= 2) {
+                long testAmount = successfulAmount + increment;
+                if (testAmount < what.amount()) {
+                    var r = attempt(calculation, what, testAmount, false);
+                    if (r.outcome() == com.github.aeddddd.ae2enhanced.craftingplan.dag.DagPlanAttempt.Outcome.SUCCESS) {
+                        successfulAmount = testAmount;
+                        successfulPlan = r.plan();
+                    } else if (r.outcome() == com.github.aeddddd.ae2enhanced.craftingplan.dag.DagPlanAttempt.Outcome.FALLBACK) {
+                        return runSimulation(what, strategy);
+                    }
+                }
+            }
+            if (successfulPlan != null) {
+                return successfulPlan;
+            }
+        }
+        // 模拟尝试收缺料
+        result = attempt(calculation, what, what.amount(), true);
+        if (result.outcome() == com.github.aeddddd.ae2enhanced.craftingplan.dag.DagPlanAttempt.Outcome.SUCCESS) {
+            return result.plan();
+        }
+        return runSimulation(what, strategy); // FALLBACK:原生完整计算
+    }
+
+    private com.github.aeddddd.ae2enhanced.craftingplan.dag.DagPlanAttempt.Result attempt(
+            appeng.crafting.CraftingCalculation calculation, GenericStack what, long amount, boolean simulate) {
+        return withSimulationFeed(calculation,
+                () -> com.github.aeddddd.ae2enhanced.craftingplan.dag.DagPlanAttempt.tryPlan(
+                        calculation, craftingService(), what.what(), amount, simulate));
+    }
+
+    /**
+     * 直接调用按量尝试助手时的双线程时间片契约:
+     * {@code simulateFor} 会阻塞到预算被消费或计算 finish,因此由 feeder 线程循环喂时间,
+     * 主线程执行计算体,结束后经 {@code finish} 唤醒 feeder 退出.
+     */
+    public static <T> T withSimulationFeed(appeng.crafting.CraftingCalculation calculation,
+            java.util.function.Supplier<T> body) {
+        var feeder = new Thread(() -> {
+            while (calculation.simulateFor(1000000)) {
+                // 循环喂时间直到 finish(done 后 simulateFor 返回 false)
+            }
+        });
+        feeder.setDaemon(true);
+        feeder.start();
         try {
-            var calculationFuture = Executors.newSingleThreadExecutor().submit(calculation::run);
-            calculation.simulateFor(1000000000);
-            return calculationFuture.get(1000, TimeUnit.MILLISECONDS);
-        } catch (Exception e) {
-            throw new RuntimeException(e);
+            return body.get();
+        } finally {
+            com.github.aeddddd.ae2enhanced.specialcrafting.Ae2CraftingReflect.finish(calculation);
+            try {
+                feeder.join(2000);
+            } catch (InterruptedException ignored) {
+                Thread.currentThread().interrupt();
+            }
         }
     }
 

@@ -19,10 +19,12 @@ import net.minecraft.world.phys.Vec3;
 import com.github.aeddddd.ae2enhanced.config.AE2EnhancedConfig;
 import com.github.aeddddd.ae2enhanced.crafting.blackhole.BlackHoleCraftingHelper;
 import com.github.aeddddd.ae2enhanced.registry.ModBlockEntities;
+import com.github.aeddddd.ae2enhanced.util.ForceKillHelper;
 
 /**
  * 微型奇点的方块实体.
- * 默认 300 秒（6000 ticks）后自动坍缩消失；喂入共形不变荷类永久燃料后不再倒计时.
+ * 默认 300 秒（6000 ticks）后自动坍缩消失；喂入燃料可追加存在时间,
+ * 当剩余存在时间超过 {@link Integer#MAX_VALUE} tick 时,奇点转变为永久存在,不再倒计时.
  * 期间对 3×3×3 范围内的生物执行稳定击杀.
  * 周期性吸入附近可参与黑洞合成的物品实体,并并行完成所有匹配配方；
  * 玩家右键方块也可主动触发一次合成.
@@ -52,10 +54,35 @@ public class MicroSingularityBlockEntity extends BlockEntity {
         return lifeTicks;
     }
 
-    /** 追加存在时间（燃料喂入）. */
+    /**
+     * 追加存在时间（燃料喂入）.
+     * 追加后剩余时间超过 {@link Integer#MAX_VALUE} tick 时,奇点转变为永久存在.
+     */
     public void addLifetimeTicks(int ticks) {
-        this.lifeTicks += Math.max(0, ticks);
-        setChanged();
+        if (this.permanent) {
+            return;
+        }
+        long total = (long) this.lifeTicks + Math.max(0, ticks);
+        if (total > Integer.MAX_VALUE) {
+            setPermanent(true);
+            onBecomePermanent();
+        } else {
+            this.lifeTicks = (int) total;
+            setChanged();
+        }
+    }
+
+    /** 剩余时间溢出转为永久存在时的反馈：音效 + 粒子. */
+    private void onBecomePermanent() {
+        if (level == null || level.isClientSide()) {
+            return;
+        }
+        Vec3 center = Vec3.atCenterOf(worldPosition);
+        ((ServerLevel) level).sendParticles(
+                net.minecraft.core.particles.ParticleTypes.END_ROD,
+                center.x, center.y, center.z, 64, 1.0, 1.0, 1.0, 0.05);
+        level.playSound(null, worldPosition, SoundEvents.UI_TOAST_CHALLENGE_COMPLETE,
+                SoundSource.BLOCKS, 1.5f, 1.0f);
     }
 
     public boolean isPermanent() {
@@ -78,7 +105,7 @@ public class MicroSingularityBlockEntity extends BlockEntity {
                     pos.getX() - HORIZON_RADIUS, pos.getY() - HORIZON_RADIUS, pos.getZ() - HORIZON_RADIUS,
                     pos.getX() + HORIZON_RADIUS + 1, pos.getY() + HORIZON_RADIUS + 1, pos.getZ() + HORIZON_RADIUS + 1);
             List<LivingEntity> entities = level.getEntitiesOfClass(LivingEntity.class, horizon);
-            DamageSource spacetime = level.damageSources().generic();
+            DamageSource vacuumDecay = ForceKillHelper.vacuumDecay(level);
             for (LivingEntity living : entities) {
                 if (!living.isAlive()) {
                     continue;
@@ -88,8 +115,8 @@ public class MicroSingularityBlockEntity extends BlockEntity {
                         continue;
                     }
                 }
-                // 强制击杀：造成极大伤害
-                living.hurt(spacetime, Float.MAX_VALUE);
+                // 真空衰变环境强杀：玩家与非玩家分策略,受保护实体也可被彻底移除
+                ForceKillHelper.applyEnvironmentDamage(living, vacuumDecay, Float.MAX_VALUE);
             }
         }
 

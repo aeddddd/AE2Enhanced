@@ -38,6 +38,12 @@ public final class DagGraph {
         @Nullable
         public final IPatternDetails pattern;
         public final List<Edge> edges = new ArrayList<>();
+        /**
+         * 切边终端(④):回边被剪断生成的独立 TERMINAL 节点——只允许消耗
+         * 计划启动前的基线库存,不得使用计划内产出(否则循环自我供养,
+         * 产出"无中生有"的虚假可行计划).
+         */
+        public boolean cutTerminal;
 
         DagNode(Kind kind, AEKey key, long outputPerCraft, @Nullable IPatternDetails pattern) {
             this.kind = kind;

@@ -45,6 +45,7 @@ import com.github.aeddddd.ae2enhanced.omnitool.OmniToolUpgrades;
 import com.github.aeddddd.ae2enhanced.omnitool.module.CombatModule;
 import com.github.aeddddd.ae2enhanced.omnitool.module.OmniToolModules;
 import com.github.aeddddd.ae2enhanced.omnitool.network.OmniToolNetworkLink;
+import com.github.aeddddd.ae2enhanced.util.ForceKillHelper;
 
 /**
  * 先进 ME 全能工具。
@@ -72,6 +73,8 @@ public class AdvancedMEOmniToolItem extends Item {
     // ---- Damage Type ----
     public static final ResourceKey<DamageType> OMNITOOL_DAMAGE_TYPE = ResourceKey.create(Registries.DAMAGE_TYPE,
             new ResourceLocation(AE2Enhanced.MOD_ID, "omnitool"));
+    /** 混沌核心伤害类型：真空衰变,与黑洞 / 微型奇点事件视界共用（统一定义在 ForceKillHelper）. */
+    public static final ResourceKey<DamageType> CHAOS_DAMAGE_TYPE = ForceKillHelper.VACUUM_DECAY_DAMAGE_TYPE;
 
     public AdvancedMEOmniToolItem(Properties properties) {
         super(properties);
@@ -223,6 +226,22 @@ public class AdvancedMEOmniToolItem extends Item {
 
     // ==================== Upgrades ====================
 
+    public static boolean hasChaosCore(ItemStack stack) {
+        return OmniToolUpgrades.hasChaosCore(stack);
+    }
+
+    public static void setChaosCore(ItemStack stack, boolean has) {
+        OmniToolUpgrades.setChaosCore(stack, has);
+    }
+
+    public static boolean isChaosForceKillEnabled(ItemStack stack) {
+        return OmniToolUpgrades.isChaosForceKillEnabled(stack);
+    }
+
+    public static void setChaosForceKillEnabled(ItemStack stack, boolean enabled) {
+        OmniToolUpgrades.setChaosForceKillEnabled(stack, enabled);
+    }
+
     public static boolean hasConformalCharge(ItemStack stack) {
         return OmniToolUpgrades.hasConformalCharge(stack);
     }
@@ -285,6 +304,11 @@ public class AdvancedMEOmniToolItem extends Item {
         tooltip.add(Component.literal("━━━━━━━━━━━━━━━━━━━━").withStyle(ChatFormatting.AQUA));
 
         boolean hasUpgrades = false;
+        if (hasChaosCore(stack)) {
+            tooltip.add(upgradeLine(Component.translatable("item.ae2enhanced.me_omni_tool.upgrade.chaos"),
+                    ChatFormatting.GOLD));
+            hasUpgrades = true;
+        }
         if (hasBedrockBreaker(stack)) {
             tooltip.add(upgradeLine(Component.translatable("item.ae2enhanced.me_omni_tool.upgrade.bedrock"),
                     ChatFormatting.DARK_RED));

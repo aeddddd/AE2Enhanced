@@ -3,33 +3,36 @@ package com.github.aeddddd.ae2enhanced.event;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Set;
 
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.crafting.Recipe;
 import net.minecraft.world.level.block.state.BlockState;
-import net.minecraftforge.client.event.RecipesUpdatedEvent;
+import net.minecraftforge.event.TickEvent;
+import net.minecraftforge.event.entity.EntityJoinLevelEvent;
 import net.minecraftforge.event.entity.item.ItemExpireEvent;
 import net.minecraftforge.event.entity.living.LivingDropsEvent;
+import net.minecraftforge.event.entity.living.LivingHealEvent;
 import net.minecraftforge.event.entity.player.PlayerEvent;
 import net.minecraftforge.event.entity.player.PlayerInteractEvent;
 import net.minecraftforge.eventbus.api.EventPriority;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 
-import com.github.aeddddd.ae2enhanced.AE2Enhanced;
-import com.github.aeddddd.ae2enhanced.config.AE2EnhancedConfig;
-import com.github.aeddddd.ae2enhanced.crafting.omnitool.OmniToolUpgradeRecipe;
 import com.github.aeddddd.ae2enhanced.item.AdvancedMEOmniToolItem;
 import com.github.aeddddd.ae2enhanced.network.ModNetwork;
 import com.github.aeddddd.ae2enhanced.network.packet.PacketPlacementUndo;
 import com.github.aeddddd.ae2enhanced.omnitool.OmniToolNBT;
 import com.github.aeddddd.ae2enhanced.omnitool.OmniToolUpgrades;
+import com.github.aeddddd.ae2enhanced.omnitool.module.CombatModule;
 import com.github.aeddddd.ae2enhanced.omnitool.module.MiningModule;
+import com.github.aeddddd.ae2enhanced.util.ForceKillHelper;
 
 /**
  * 先进 ME 全能工具全局事件处理器。
@@ -86,6 +89,48 @@ public final class OmniToolEventHandler {
     // 注：NeoForge 1.20.1 已移除 BlockDropsEvent，普通挖掘掉落改写由
     // MixinBlockOmniToolDrops 拦截 Block.dropResources 实现。
 
+    // ==================== 禁疗（混沌核心） ====================
+
+    @SubscribeEvent
+    public static void onLivingHeal(LivingHealEvent event) {
+        if (CombatModule.hasAntiHeal(event.getEntity())) {
+            event.setCanceled(true);
+        }
+    }
+
+    /**
+     * 兜底：每 tick 末强制把带禁疗标记且未被移除的实体标记为已移除。
+     * 防止某些具有自定义存活逻辑的实体通过覆盖存活判定等手段
+     * 阻止自身被 level 的实体管理器移除。
+     * 仅遍历 CombatModule 的禁疗追踪集合（施加时登记）,不做全维度实体扫描。
+     */
+    @SubscribeEvent
+    public static void onLevelTick(TickEvent.LevelTickEvent event) {
+        if (event.phase != TickEvent.Phase.END || !(event.level instanceof ServerLevel serverLevel)) return;
+        // 追踪集合跨维度共享,只在主世界 tick 处理一次
+        if (serverLevel != serverLevel.getServer().overworld()) return;
+        Set<LivingEntity> tracked = CombatModule.getAntiHealTracked();
+        if (tracked.isEmpty()) return;
+        for (LivingEntity living : new ArrayList<>(tracked)) {
+            if (living.isRemoved()) {
+                tracked.remove(living);
+            } else {
+                ForceKillHelper.forceSetRemoved(living);
+            }
+        }
+    }
+
+    /**
+     * 存档重载/跨维度后,依据持久 NBT 重新登记禁疗实体到追踪集合。
+     */
+    @SubscribeEvent
+    public static void onEntityJoinLevel(EntityJoinLevelEvent event) {
+        if (event.getLevel().isClientSide()) return;
+        if (event.getEntity() instanceof LivingEntity living && CombatModule.hasAntiHeal(living)) {
+            CombatModule.trackAntiHeal(living);
+        }
+    }
+
     // ==================== 共形不变荷：掉落物不消失 ====================
 
     @SubscribeEvent
@@ -120,6 +165,8 @@ public final class OmniToolEventHandler {
     @SubscribeEvent
     public static void onPlayerRespawn(PlayerEvent.PlayerRespawnEvent event) {
         Player player = event.getEntity();
+        // 玩家重生时清除禁疗标记,防止 persistentData 继承导致的重生后持续强制移除
+        CombatModule.clearAntiHeal(player);
         CompoundTag data = player.getPersistentData();
         if (!data.contains(OmniToolNBT.CONFORMAL_PRESERVED, Tag.TAG_LIST)) return;
         ListTag preserved = data.getList(OmniToolNBT.CONFORMAL_PRESERVED, Tag.TAG_COMPOUND);
@@ -130,30 +177,5 @@ public final class OmniToolEventHandler {
             }
         }
         data.remove(OmniToolNBT.CONFORMAL_PRESERVED);
-    }
-
-    // ==================== 升级配方注册（代码注入，无需 JSON） ====================
-
-    @SubscribeEvent
-    public static void onRecipesUpdated(RecipesUpdatedEvent event) {
-        List<Recipe<?>> recipes = new ArrayList<>(event.getRecipeManager().getRecipes());
-        addUpgradeRecipeIfMissing(recipes, "omni_tool_enchant_upgrade",
-                OmniToolUpgradeRecipe.Type.ENCHANTED_BOOK);
-        if (AE2EnhancedConfig.COMMON.omniToolEnableBedrockBreakerUpgrade.get()) {
-            addUpgradeRecipeIfMissing(recipes, "omni_tool_bedrock_upgrade",
-                    OmniToolUpgradeRecipe.Type.BEDROCK);
-        }
-        addUpgradeRecipeIfMissing(recipes, "omni_tool_conformal_upgrade",
-                OmniToolUpgradeRecipe.Type.CONFORMAL_CHARGE);
-        event.getRecipeManager().replaceRecipes(recipes);
-    }
-
-    private static void addUpgradeRecipeIfMissing(List<Recipe<?>> recipes, String name,
-            OmniToolUpgradeRecipe.Type type) {
-        ResourceLocation id = new ResourceLocation(AE2Enhanced.MOD_ID, name);
-        for (Recipe<?> recipe : recipes) {
-            if (recipe.getId().equals(id)) return;
-        }
-        recipes.add(new OmniToolUpgradeRecipe(id, type));
     }
 }

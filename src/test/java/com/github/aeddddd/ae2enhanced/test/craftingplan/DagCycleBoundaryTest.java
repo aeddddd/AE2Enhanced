@@ -139,4 +139,46 @@ public class DagCycleBoundaryTest {
         assertThat(times.get(c.what())).isEqualTo(8); // dup ×8 满足 4+4
         assertThat(plan.usedItems().get(c.what())).isEqualTo(1);
     }
+
+    /**
+     * Z5:切边重试(④)——中性转换对(1 块 ⇄ 9 锭)请求锭:边界不可解(θ=1 且锭非副产物),
+     * 切边重编译后产出诚实缺料计划(锭的循环投入记缺料),而非整单回落.
+     */
+    @Test
+    public void testConversionPairCutEdgeHonestMissing() {
+        var env = new SimulationEnv();
+        var block = item(Items.IRON_BLOCK);
+        var ingot = item(Items.IRON_INGOT);
+        env.addPattern(new ProcessingPatternBuilder(mult(ingot, 9)).addPreciseInput(1, block).build());
+        env.addPattern(new ProcessingPatternBuilder(block).addPreciseInput(9, ingot).build());
+
+        var plan = env.runDagSimulation(mult(ingot, 9), REPORT);
+
+        assertThat(plan.simulation()).as("无锭库存,缺料计划").isTrue();
+        var times = primaryMap(plan);
+        assertThat(times).as("patternTimes 全量").containsKey(ingot.what());
+        assertThat(times.get(ingot.what())).as("锭样板次数,times=%s missing=%s", times, plan.missingItems())
+                .isEqualTo(1); // 1 块 → 9 锭
+        assertThat(times.get(block.what())).as("块样板次数,times=%s missing=%s", times, plan.missingItems())
+                .isEqualTo(1); // 块的循环合成被计入
+        assertThat(plan.missingItems().get(ingot.what())).isEqualTo(9); // 切边终端记缺料
+    }
+
+    /** Z6:切边后的可行侧——请求块且有 9 锭库存:切边终端从库存满足,计划可行. */
+    @Test
+    public void testConversionPairCutEdgeFeasibleWithStock() {
+        var env = new SimulationEnv();
+        var block = item(Items.IRON_BLOCK);
+        var ingot = item(Items.IRON_INGOT);
+        env.addPattern(new ProcessingPatternBuilder(mult(ingot, 9)).addPreciseInput(1, block).build());
+        env.addPattern(new ProcessingPatternBuilder(block).addPreciseInput(9, ingot).build());
+        env.addStoredItem(mult(ingot, 9));
+
+        var plan = env.runDagSimulation(block, REPORT);
+
+        assertThat(plan.simulation()).as("9 锭足够合成 1 块").isFalse();
+        var times = primaryMap(plan);
+        assertThat(times.get(block.what())).isEqualTo(1);
+        assertThat(plan.usedItems().get(ingot.what())).isEqualTo(9);
+    }
 }

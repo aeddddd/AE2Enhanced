@@ -100,6 +100,10 @@ public class MicroSingularityBlock extends Block implements EntityBlock {
      */
     private static void feedFuel(Level level, BlockPos pos, Player player, ItemStack held,
             MicroSingularityBlockEntity microSingularity, SingularityFuelRecipe fuel) {
+        // 已永久存在的奇点无需再喂燃料,避免白白消耗
+        if (microSingularity.isPermanent()) {
+            return;
+        }
         if (!player.isCreative()) {
             held.shrink(1);
         }

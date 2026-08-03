@@ -10,13 +10,11 @@ import appeng.api.networking.crafting.ICraftingPlan;
 import appeng.api.networking.crafting.ICraftingSimulationRequester;
 import appeng.api.stacks.GenericStack;
 import appeng.crafting.CraftingCalculation;
-import appeng.crafting.inv.ChildCraftingSimulationState;
-import appeng.crafting.inv.CraftingSimulationState;
 import appeng.hooks.ticking.TickHandler;
 
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
 import com.github.aeddddd.ae2enhanced.specialcrafting.Ae2CraftingReflect;
-import com.github.aeddddd.ae2enhanced.specialcrafting.SpecialLog;
+import com.github.aeddddd.ae2enhanced.specialcrafting.SpecialPlanMarker;
 
 /**
  * DAG 合成计算器(阶段 4):以"编译 DAG + 拓扑单趟扫描"取代原生递归树.
@@ -73,37 +71,22 @@ public class DagCraftingCalculation extends CraftingCalculation {
     @Nullable
     private ICraftingPlan computeDagPlan() throws InterruptedException {
         if (this.strategy != CalculationStrategy.REPORT_MISSING_ITEMS) {
-            return null; // CRAFT_LESS 等策略 v1 不接管
+            return null; // CRAFT_LESS 等策略不由本类接管(DEFAULT 模式下经尝试级 hook 覆盖)
         }
-        DagGraph graph;
-        try {
-            graph = DagCompiler.compile(craftingService, getOutput());
-        } catch (DagFallback fallback) {
-            SpecialLog.info("[DAG] 编译回落({}): {}", fallback.reason, getOutput());
+        // 契约两步:先非模拟尝试,缺料则模拟尝试收缺料(与原生 computePlan 同构)
+        var result = DagPlanAttempt.tryPlan(this, craftingService, getOutput(), outputStack.amount(),
+                false);
+        if (result.outcome() == DagPlanAttempt.Outcome.INFEASIBLE) {
+            result = DagPlanAttempt.tryPlan(this, craftingService, getOutput(), outputStack.amount(),
+                    true);
+        }
+        if (result.outcome() != DagPlanAttempt.Outcome.SUCCESS) {
             return null;
         }
-
-        var networkInv = Ae2CraftingReflect.getNetworkInv(this);
-        var inv = new ChildCraftingSimulationState(networkInv);
-        inv.ignore(getOutput()); // 镜像原生:请求物自身库存不参与计划扣除
-        boolean hasCycleBoundary = false;
-        for (var node : graph.topoOrder) {
-            if (node.kind == DagGraph.Kind.CYCLE) {
-                hasCycleBoundary = true;
-                break;
-            }
-        }
-        try {
-            DagExecutor.execute(graph, outputStack.amount(), inv, this, craftingService);
-        } catch (DagFallback fallback) {
-            SpecialLog.info("[DAG] 执行回落({}): {}", fallback.reason, getOutput());
-            return null;
-        }
-        var plan = CraftingSimulationState.buildCraftingPlan(inv, this, outputStack.amount());
-        if (hasCycleBoundary) {
+        if (result.hasCycleBoundary()) {
             // 含循环内容的计划硬路由到模组虚拟 CPU(无限库存 + 门控/配额调度在场)
-            com.github.aeddddd.ae2enhanced.specialcrafting.SpecialPlanMarker.mark(plan);
+            SpecialPlanMarker.mark(result.plan());
         }
-        return plan;
+        return result.plan();
     }
 }

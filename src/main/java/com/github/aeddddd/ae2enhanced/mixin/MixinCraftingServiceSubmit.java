@@ -31,8 +31,15 @@ import com.github.aeddddd.ae2enhanced.specialcrafting.SpecialPlanMarker;
  * （测试 CPU / 超因果计算核心）,不回落普通 CPU,防止语义错误的执行;
  * 普通计划优先分配给超因果计算核心的子 CPU,无空闲时<b>立即分裂</b>新子 CPU
  * （参考 AAE 量子计算机）,池满才回落原生分配.</p>
+ * <p>{@code priority = 1100}:NeoECOAE(1.20.1）在 submitJob HEAD 以默认优先级
+ * 1000 抢占任务（{@code NeoECOCraftingServiceBridge.submitJob},target==null 且
+ * ECO 集群可用时直接取消）.同优先级下 mixin 按 mod id 顺序应用、后应用者先运行,
+ * ae2enhanced 先于 neoecoae 应用会导致 ECO 抢跑,本路由永远轮不到,
+ * 计算核心收不到任何任务（含特殊计划被错误送往 ECO CPU）.提高优先级保证
+ * 本路由先运行:特殊计划独占（ECO 无法执行）,普通计划池满才放行 ECO/原生,
+ * 手动指定 ECO CPU 时不取消、照常交还 ECO 处理.</p>
  */
-@Mixin(value = CraftingService.class, remap = false)
+@Mixin(value = CraftingService.class, priority = 1100, remap = false)
 public class MixinCraftingServiceSubmit {
 
     @Shadow(remap = false)

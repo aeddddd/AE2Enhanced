@@ -44,11 +44,19 @@ public final class DagCompiler {
     private final Set<AEKey> boundaryKeys;
     /** true = 第一遍(只探环,容忍回落);false = 第二遍(正式编译). */
     private final boolean detectOnly;
+    /**
+     * true = 切边模式(④):回边不再收缩为循环边界,而是生成独立终端节点
+     * (库存/缺料满足)——用于边界求解失败后的重试编译,产出诚实的缺料计划
+     * 而非整单回落(压缩/解压对等中性转换环).
+     */
+    private final boolean cutCycles;
 
-    private DagCompiler(ICraftingService craftingService, Set<AEKey> boundaryKeys, boolean detectOnly) {
+    private DagCompiler(ICraftingService craftingService, Set<AEKey> boundaryKeys, boolean detectOnly,
+            boolean cutCycles) {
         this.craftingService = craftingService;
         this.boundaryKeys = boundaryKeys;
         this.detectOnly = detectOnly;
+        this.cutCycles = cutCycles;
     }
 
     /**
@@ -56,14 +64,32 @@ public final class DagCompiler {
      * 第二遍把边界 key 当 CYCLE 叶子正式编译;出现边界外的新环 → 回落.
      */
     public static DagGraph compile(ICraftingService craftingService, AEKey root) throws DagFallback {
+        return compile(craftingService, root, false);
+    }
+
+    /**
+     * @param cutCycles true = 切边模式:回边生成独立终端节点(库存/缺料满足),
+     *        图必然无环;用于边界求解失败后的重试(见 DagPlanAttempt)
+     */
+    public static DagGraph compile(ICraftingService craftingService, AEKey root, boolean cutCycles)
+            throws DagFallback {
         try {
+            if (cutCycles) {
+                var compiler = new DagCompiler(craftingService, new HashSet<>(), false, true);
+                var rootNode = compiler.visit(root);
+                var graph = new DagGraph(rootNode);
+                for (int i = compiler.postOrder.size() - 1; i >= 0; i--) {
+                    graph.topoOrder.add(compiler.postOrder.get(i));
+                }
+                return graph;
+            }
             Set<AEKey> boundaryKeys = new HashSet<>();
             try {
-                new DagCompiler(craftingService, boundaryKeys, true).visit(root);
+                new DagCompiler(craftingService, boundaryKeys, true, false).visit(root);
             } catch (DagFallback ignored) {
                 // 第一遍只负责发现边界;分支编译失败不影响(第二遍做真正的校验)
             }
-            var compiler = new DagCompiler(craftingService, boundaryKeys, false);
+            var compiler = new DagCompiler(craftingService, boundaryKeys, false, false);
             var rootNode = compiler.visit(root);
             var graph = new DagGraph(rootNode);
             // 逆后序:父节点(需求方)先于子节点(原料方)
@@ -85,6 +111,14 @@ public final class DagCompiler {
                     boundaryKeys.add(key);
                     return existing;
                 }
+                if (cutCycles) {
+                    // 切边(④):生成独立终端节点(不进合并表),仅基线库存/缺料满足,
+                    // 循环被剪断、图保持无环;多次回边各自独立、共享同一基线额度
+                    var cut = new DagGraph.DagNode(DagGraph.Kind.TERMINAL, key, 0, null);
+                    cut.cutTerminal = true;
+                    postOrder.add(cut);
+                    return cut;
+                }
                 throw new DagFallback("cycle_in_dag:" + key);
             }
             return existing; // BLACK:已编译,直接共享
@@ -105,11 +139,18 @@ public final class DagCompiler {
         var node = buildNode(key);
         nodes.put(key, node);
         if (node.kind == DagGraph.Kind.NORMAL) {
-            for (var input : node.pattern.getInputs()) {
+            var inputs = node.pattern.getInputs();
+            // 逆输入序 DFS:postOrder 整体反转后,兄弟分支在 topoOrder 中的相对顺序
+            // 恰好还原为样板输入槽位顺序,与原生 CraftingTreeNode 的逐槽位处理一致
+            // (否则"副产物供兄弟分支"场景会在 DAG 下误报缺料);edges 仍按输入序落盘
+            var edges = new DagGraph.Edge[inputs.length];
+            for (int i = inputs.length - 1; i >= 0; i--) {
+                var input = inputs[i];
                 var possible = input.getPossibleInputs();
                 long perCraft = SaturatedMath.multiply(possible[0].amount(), input.getMultiplier());
-                node.edges.add(new DagGraph.Edge(visit(possible[0].what()), perCraft));
+                edges[i] = new DagGraph.Edge(visit(possible[0].what()), perCraft);
             }
+            java.util.Collections.addAll(node.edges, edges);
         }
         colors.put(key, BLACK);
         postOrder.add(node);
@@ -137,8 +178,9 @@ public final class DagCompiler {
             return new DagGraph.DagNode(DagGraph.Kind.TERMINAL, key, 0, null);
         }
         // 选定样板本身是环步骤(含经副产物闭合的催化环)→ 本节点收缩为循环边界,
-        // 由 CycleBoundarySolver 联立求解(否则边界会错位落到环键上而不可解)
-        if (CycleAnalyzer.isCycleStep(craftingService, chosen)) {
+        // 由 CycleBoundarySolver 联立求解(否则边界会错位落到环键上而不可解);
+        // 切边模式禁用此标记——切边的目的就是剪断环,不能再收缩回求解器
+        if (!cutCycles && CycleAnalyzer.isCycleStep(craftingService, chosen)) {
             return new DagGraph.DagNode(DagGraph.Kind.CYCLE, key, 0, null);
         }
         long outPer = 0;
@@ -154,15 +196,15 @@ public final class DagCompiler {
     }
 
     /**
-     * 干净样板:每个输入单一候选(无 tag/替代展开)且无容器物返还.
+     * 干净样板:每个输入单一候选(无 tag/替代展开).
+     * <p>容器物返还不再是限制(1.1.0):原生对容器样板逐次(times=1)循环,
+     * 但"消耗输入→回记容器"在批量记账下完全等价(消耗 N 份、回记 N 份容器,
+     * 下游复用经拓扑序自然衔接),执行器统一回记,见 DagExecutor.</p>
      */
     private static boolean isClean(IPatternDetails pattern) {
         for (var input : pattern.getInputs()) {
             var possible = input.getPossibleInputs();
             if (possible.length != 1) {
-                return false;
-            }
-            if (input.getRemainingKey(possible[0].what()) != null) {
                 return false;
             }
         }

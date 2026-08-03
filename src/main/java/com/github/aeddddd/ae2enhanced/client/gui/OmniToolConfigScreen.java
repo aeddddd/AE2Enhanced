@@ -22,6 +22,7 @@ import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.enchantment.Enchantment;
+import net.minecraft.world.item.enchantment.Enchantments;
 
 import appeng.api.util.AEColor;
 
@@ -57,13 +58,18 @@ public class OmniToolConfigScreen extends AbstractContainerScreen<OmniToolConfig
     private static final int PID_SILK = 2;
     private static final int PID_BLINK = 3;
     private static final int PID_COOLDOWN = 4;
+    private static final int PID_CHAOS_KILL = 5;
     private static final int PID_CONFORMAL = 6;
     private static final int PID_ADVANCED_SILK = 7;
     private static final int PID_WALL_PHASE = 8;
     private static final int PID_CABLE_COLOR = 9;
     private static final int PID_REACH_DISTANCE = 10;
     private static final int PID_PLACEMENT_RESTRICTION = 11;
-    private static final int PID_COUNT = 12;
+    /** 独立时运滑条：不参与 paramEnabled 掩码（始终启用,对应 1.12 附魔滑条中的时运项）. */
+    private static final int PID_FORTUNE = 12;
+    private static final int PID_COUNT = 13;
+    /** paramEnabled 掩码位数（PID 0~11,与网络包 12 位掩码一致）. */
+    private static final int PARAM_MASK_COUNT = 12;
     private static final int PID_ENCHANT_BASE = 1000;
 
     // ---- UV坐标：顶部按钮区 ----
@@ -176,6 +182,11 @@ public class OmniToolConfigScreen extends AbstractContainerScreen<OmniToolConfig
                 0, () -> Math.min(100, AE2EnhancedConfig.COMMON.omniToolMaxBreakCooldown.get()), s -> true,
                 OmniToolUpgrades::getBreakCooldown,
                 OmniToolUpgrades::setBreakCooldown),
+        new ParamDef(PID_CHAOS_KILL, "gui.ae2enhanced.omni_tool_config.chaos_force_kill",
+                "gui.ae2enhanced.omni_tool_config.chaos_force_kill.desc",
+                0, 1, OmniToolUpgrades::hasChaosCore,
+                s -> OmniToolUpgrades.isChaosForceKillEnabled(s) ? 1 : 0,
+                (s, v) -> OmniToolUpgrades.setChaosForceKillEnabled(s, v > 0)),
         new ParamDef(PID_CONFORMAL, "gui.ae2enhanced.omni_tool_config.conformal",
                 "gui.ae2enhanced.omni_tool_config.conformal.desc",
                 0, 1, OmniToolUpgrades::hasConformalCharge,
@@ -257,7 +268,9 @@ public class OmniToolConfigScreen extends AbstractContainerScreen<OmniToolConfig
         values[PID_SILK] = OmniToolUpgrades.isSilkTouchEnabled(toolStack) ? 1 : 0;
         values[PID_BLINK] = (int) OmniToolUpgrades.getBlinkDistance(toolStack);
         values[PID_COOLDOWN] = OmniToolUpgrades.getBreakCooldown(toolStack);
+        values[PID_CHAOS_KILL] = OmniToolUpgrades.isChaosForceKillEnabled(toolStack) ? 1 : 0;
         values[PID_CONFORMAL] = OmniToolUpgrades.hasConformalCharge(toolStack) ? 1 : 0;
+        values[PID_FORTUNE] = OmniToolUpgrades.getFortuneLevel(toolStack);
         values[PID_ADVANCED_SILK] = OmniToolUpgrades.isAdvancedSilkTouchEnabled(toolStack) ? 1 : 0;
         values[PID_WALL_PHASE] = OmniToolUpgrades.isWallPhaseEnabled(toolStack) ? 1 : 0;
         values[PID_CABLE_COLOR] = new PlacementConfig(toolStack).getCableColor().ordinal();
@@ -265,7 +278,7 @@ public class OmniToolConfigScreen extends AbstractContainerScreen<OmniToolConfig
         values[PID_PLACEMENT_RESTRICTION] = new PlacementConfig(toolStack).getPlacementRestriction().ordinal();
 
         paramEnabledMask = 0;
-        for (int i = 0; i < PID_COUNT; i++) {
+        for (int i = 0; i < PARAM_MASK_COUNT; i++) {
             if (OmniToolUpgrades.isParamEnabled(toolStack, i)) {
                 paramEnabledMask |= (1 << i);
             }
@@ -286,6 +299,20 @@ public class OmniToolConfigScreen extends AbstractContainerScreen<OmniToolConfig
             if (p.visibleWhen.test(toolStack)) {
                 activeParams.add(p);
             }
+        }
+
+        // 独立时运滑条：时运由专用滑条控制,不再出现在附魔分页中
+        ResourceLocation fortuneId = BuiltInRegistries.ENCHANTMENT.getKey(Enchantments.BLOCK_FORTUNE);
+        int fortuneSource = OmniToolEnchantments.getEnchantmentSourceLevel(toolStack, fortuneId);
+        enchantValues.remove(fortuneId);
+        if (fortuneSource > 0) {
+            activeParams.add(new ParamDef(PID_FORTUNE, "gui.ae2enhanced.omni_tool_config.fortune",
+                    "gui.ae2enhanced.omni_tool_config.fortune.desc",
+                    0, fortuneSource, null,
+                    s -> true,
+                    s -> values[PID_FORTUNE],
+                    (s, v) -> values[PID_FORTUNE] = v,
+                    null));
         }
 
         // 附魔调整参数统一放在基础参数后面
@@ -507,6 +534,7 @@ public class OmniToolConfigScreen extends AbstractContainerScreen<OmniToolConfig
             case PID_DROP:
                 return Component.translatable(AdvancedMEOmniToolItem.getDropModeNameKey(getValue(p)));
             case PID_SILK:
+            case PID_CHAOS_KILL:
             case PID_CONFORMAL:
             case PID_ADVANCED_SILK:
             case PID_WALL_PHASE:
@@ -542,11 +570,13 @@ public class OmniToolConfigScreen extends AbstractContainerScreen<OmniToolConfig
 
     private boolean isParamEnabled(int paramId) {
         if (paramId >= PID_ENCHANT_BASE) return true; // 附魔参数始终启用
+        if (paramId == PID_FORTUNE) return true; // 独立时运滑条始终启用
         return (paramEnabledMask & (1 << paramId)) != 0;
     }
 
     private void setParamEnabled(int paramId, boolean enabled) {
         if (paramId >= PID_ENCHANT_BASE) return;
+        if (paramId == PID_FORTUNE) return;
         if (enabled) paramEnabledMask |= (1 << paramId);
         else paramEnabledMask &= ~(1 << paramId);
     }
@@ -596,8 +626,9 @@ public class OmniToolConfigScreen extends AbstractContainerScreen<OmniToolConfig
         if (activeParams.isEmpty()) return true;
         ParamDef p = activeParams.get(selParam);
 
-        // Bar1 — 切换启用/禁用（附魔参数无效）
-        if (!p.isEnchantment() && in(mouseX, mouseY, this.leftPos + BAR1_X, this.topPos + BAR1_Y, BAR_W, BAR_H)) {
+        // Bar1 — 切换启用/禁用（附魔参数与独立时运滑条无效）
+        if (!p.isEnchantment() && p.id != PID_FORTUNE
+                && in(mouseX, mouseY, this.leftPos + BAR1_X, this.topPos + BAR1_Y, BAR_W, BAR_H)) {
             setParamEnabled(p.id, !isParamEnabled(p.id));
             return true;
         }
@@ -657,6 +688,7 @@ public class OmniToolConfigScreen extends AbstractContainerScreen<OmniToolConfig
         OmniToolUpgrades.setSilkTouchEnabled(toolStack, values[PID_SILK] > 0);
         OmniToolUpgrades.setBlinkDistance(toolStack, values[PID_BLINK]);
         OmniToolUpgrades.setBreakCooldown(toolStack, values[PID_COOLDOWN]);
+        OmniToolUpgrades.setChaosForceKillEnabled(toolStack, values[PID_CHAOS_KILL] > 0);
         OmniToolUpgrades.setConformalCharge(toolStack, values[PID_CONFORMAL] > 0);
         OmniToolUpgrades.setAdvancedSilkTouchEnabled(toolStack, values[PID_ADVANCED_SILK] > 0);
         OmniToolUpgrades.setWallPhaseEnabled(toolStack, values[PID_WALL_PHASE] > 0);
@@ -669,7 +701,7 @@ public class OmniToolConfigScreen extends AbstractContainerScreen<OmniToolConfig
         placementConfig.setReachDistance(values[PID_REACH_DISTANCE]);
         placementConfig.setPlacementRestriction(PlacementRestriction.fromOrdinal(values[PID_PLACEMENT_RESTRICTION]));
 
-        for (int i = 0; i < PID_COUNT; i++) {
+        for (int i = 0; i < PARAM_MASK_COUNT; i++) {
             OmniToolUpgrades.setParamEnabled(toolStack, i, (paramEnabledMask & (1 << i)) != 0);
         }
 
@@ -688,10 +720,13 @@ public class OmniToolConfigScreen extends AbstractContainerScreen<OmniToolConfig
         }
         OmniToolEnchantments.setStoredEnchantments(toolStack, enchList);
 
+        // 独立时运滑条：附魔列表应用后单独写入时运（服务端按 source 上限钳制）
+        OmniToolUpgrades.setFortuneLevel(toolStack, values[PID_FORTUNE]);
+
         ModNetwork.CHANNEL.sendToServer(new PacketOmniToolConfig(
                 values[PID_MODE], values[PID_DROP], values[PID_SILK] > 0,
-                values[PID_BLINK], values[PID_COOLDOWN],
-                paramEnabledMask, values[PID_CONFORMAL] > 0,
+                values[PID_FORTUNE], values[PID_BLINK], values[PID_COOLDOWN],
+                paramEnabledMask, values[PID_CHAOS_KILL] > 0, values[PID_CONFORMAL] > 0,
                 values[PID_ADVANCED_SILK] > 0, values[PID_WALL_PHASE] > 0,
                 values[PID_CABLE_COLOR], values[PID_REACH_DISTANCE],
                 values[PID_PLACEMENT_RESTRICTION], enchList));

@@ -172,6 +172,7 @@ public class DagParityTest {
         var nativePlan = env.runSimulation(request, REPORT);
         var dagPlan = env.runDagSimulation(request, REPORT);
 
+        assertThat(dagPlan.simulation()).as("simulation").isEqualTo(nativePlan.simulation());
         assertThat(patternMap(dagPlan)).as("patternTimes").isEqualTo(patternMap(nativePlan));
         assertThat(counterMap(dagPlan.usedItems())).as("usedItems").isEqualTo(counterMap(nativePlan.usedItems()));
         assertThat(counterMap(dagPlan.missingItems())).as("missingItems")

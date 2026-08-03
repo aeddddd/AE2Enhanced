@@ -1,6 +1,9 @@
 package com.github.aeddddd.ae2enhanced.testutil;
 
+import java.lang.reflect.Method;
+
 import net.minecraft.SharedConstants;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.Bootstrap;
 
 /**
@@ -32,7 +35,25 @@ public final class MinecraftTestBootstrap {
             // 注入版本信息并触发原版注册表初始化（内部同样幂等）
             SharedConstants.tryDetectVersion();
             Bootstrap.bootStrap();
+            // 原版引导结束后内置注册表处于冻结状态,此时 new Item(...)/new Block(...) 会在
+            // Forge 的注册表包装层抛出 IllegalStateException: Registry is already frozen.
+            // 包装类包私有,通过反射调用其公开的 unfreeze() 解冻,使测试可自由构造物品/方块.
+            unfreeze(BuiltInRegistries.ITEM);
+            unfreeze(BuiltInRegistries.BLOCK);
             bootstrapped = true;
+        }
+    }
+
+    /**
+     * 反射调用 Forge 注册表包装层（包私有类）的 {@code unfreeze()} 方法.
+     */
+    private static void unfreeze(Object registry) {
+        try {
+            Method unfreeze = registry.getClass().getMethod("unfreeze");
+            unfreeze.setAccessible(true);
+            unfreeze.invoke(registry);
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException("无法在测试环境中解冻注册表: " + registry, e);
         }
     }
 }

@@ -34,7 +34,6 @@ import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.event.RenderLevelStageEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
-import net.minecraftforge.fml.ModList;
 import net.minecraftforge.fml.common.Mod;
 
 import org.joml.Matrix4f;
@@ -65,14 +64,14 @@ public class AE2EnhancedPostProcessor {
     }
 
     /**
-     * 后处理是否处于激活状态（配置 + 环境 + shader 加载）.
-     * <p>对象空间渲染器据此跳过黑洞本体,保证任意配置组合下只渲染一个黑洞.</p>
+     * 后处理是否处于激活状态（配置 + shader 加载）。
+     * <p>默认始终启用（包括加载光影时），只能通过配置回退；
+     * 对象空间渲染器据此跳过黑洞本体，保证任意配置组合下只渲染一个黑洞。</p>
      */
     public static boolean isPostActive() {
         return AE2EnhancedConfig.CLIENT.enableAssemblyPostProcessing.get()
                 && AE2EnhancedConfig.CLIENT.enableAssemblyShader.get()
                 && !AE2EnhancedConfig.CLIENT.forceCompatibilityMode.get()
-                && !ModList.get().isLoaded("oculus")
                 && AE2EnhancedShaders.isAssemblyBlackHolePostLoaded();
     }
 
@@ -271,6 +270,11 @@ public class AE2EnhancedPostProcessor {
         // 动画时间与对象空间路径一致（gameTime + partialTick 后乘 0.05）
         float animTime = time * 0.05f;
 
+        // 顶点经 pose 变换后为相机空间坐标（含相机旋转），uCenter 必须施加同一旋转，
+        // 否则 vPos 随视角变化，程序化胞格图案会扭曲
+        Vector3f centerCamSpace = new Vector3f((float) rel.x, (float) rel.y, (float) rel.z);
+        eventPose.last().pose().transformDirection(centerCamSpace);
+
         Uniform uTime = shader.getUniform("uTime");
         Uniform uIntensity = shader.getUniform("uIntensity");
         Uniform uScale = shader.getUniform("uScale");
@@ -286,7 +290,7 @@ public class AE2EnhancedPostProcessor {
             uScale.set(1.0f);
         }
         if (uCenter != null) {
-            uCenter.set((float) rel.x, (float) rel.y, (float) rel.z);
+            uCenter.set(centerCamSpace.x, centerCamSpace.y, centerCamSpace.z);
         }
 
         // 事件 pose 只含相机旋转、不含平移,补上相对平移后顶点即为相机空间坐标

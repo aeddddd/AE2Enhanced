@@ -3,11 +3,13 @@ package com.github.aeddddd.ae2enhanced.omnitool;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.nbt.Tag;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.enchantment.Enchantments;
 
 import com.github.aeddddd.ae2enhanced.config.AE2EnhancedConfig;
 import com.github.aeddddd.ae2enhanced.item.AdvancedMEOmniToolItem;
+import com.github.aeddddd.ae2enhanced.omnitool.module.CombatModule;
 
 /**
  * 先进 ME 全能工具的升级、模式与状态读写中心。
@@ -78,6 +80,26 @@ public final class OmniToolUpgrades {
         stack.getOrCreateTag().putBoolean(OmniToolNBT.BEDROCK_BREAKER, has);
     }
 
+    // ==================== Chaos Core ====================
+
+    public static boolean hasChaosCore(ItemStack stack) {
+        return stack.hasTag() && stack.getTag().getBoolean(OmniToolNBT.CHAOS_CORE);
+    }
+
+    public static void setChaosCore(ItemStack stack, boolean has) {
+        stack.getOrCreateTag().putBoolean(OmniToolNBT.CHAOS_CORE, has);
+    }
+
+    public static boolean isChaosForceKillEnabled(ItemStack stack) {
+        if (!stack.hasTag()) return true;
+        if (!stack.getTag().contains(OmniToolNBT.CHAOS_FORCE_KILL)) return true;
+        return stack.getTag().getBoolean(OmniToolNBT.CHAOS_FORCE_KILL);
+    }
+
+    public static void setChaosForceKillEnabled(ItemStack stack, boolean enabled) {
+        stack.getOrCreateTag().putBoolean(OmniToolNBT.CHAOS_FORCE_KILL, enabled);
+    }
+
     // ==================== Conformal Charge ====================
 
     public static boolean hasConformalCharge(ItemStack stack) {
@@ -116,10 +138,12 @@ public final class OmniToolUpgrades {
 
     public static void setParamEnabled(ItemStack stack, int paramIdx, boolean enabled) {
         if (paramIdx < 0 || paramIdx > 31) return;
-        int mask = stack.getOrCreateTag().getInt(OmniToolNBT.PARAM_ENABLED);
+        var tag = stack.getOrCreateTag();
+        // 键不存在时语义为全开,初始掩码须为 -1,否则关闭单个参数会把所有参数一并关闭
+        int mask = tag.contains(OmniToolNBT.PARAM_ENABLED) ? tag.getInt(OmniToolNBT.PARAM_ENABLED) : -1;
         if (enabled) mask |= (1 << paramIdx);
         else mask &= ~(1 << paramIdx);
-        stack.getOrCreateTag().putInt(OmniToolNBT.PARAM_ENABLED, mask);
+        tag.putInt(OmniToolNBT.PARAM_ENABLED, mask);
     }
 
     // ==================== Break Cooldown ====================
@@ -183,5 +207,19 @@ public final class OmniToolUpgrades {
 
     public static void setFortuneLevel(ItemStack stack, int level) {
         OmniToolEnchantments.setStoredEnchantmentLevel(stack, fortuneId(), level);
+    }
+
+    // ==================== Anti-Heal ====================
+
+    public static boolean hasAntiHeal(LivingEntity entity) {
+        return CombatModule.hasAntiHeal(entity);
+    }
+
+    public static void applyAntiHeal(LivingEntity entity) {
+        CombatModule.applyAntiHeal(entity);
+    }
+
+    public static void clearAntiHeal(LivingEntity entity) {
+        CombatModule.clearAntiHeal(entity);
     }
 }

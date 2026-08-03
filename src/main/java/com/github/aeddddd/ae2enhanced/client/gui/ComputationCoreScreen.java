@@ -10,6 +10,7 @@ import net.minecraft.world.entity.player.Inventory;
 
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
 import com.github.aeddddd.ae2enhanced.blockentity.ComputationCoreBlockEntity;
+import com.github.aeddddd.ae2enhanced.config.AE2EnhancedConfig;
 
 /**
  * 超因果计算核心成形状态 GUI.
@@ -83,10 +84,12 @@ public class ComputationCoreScreen extends AbstractContainerScreen<ComputationCo
         graphics.drawString(this.font, Component.translatable("gui.ae2enhanced.computation.label.network", networkStr), x, y, GuiConstants.DARK_TEXT_COLOR, false);
         y += lineHeight;
 
-        graphics.drawString(this.font, Component.translatable("gui.ae2enhanced.computation.label.pool", controller.getClientPoolSize()), x, y, GuiConstants.DARK_TEXT_COLOR, false);
+        int poolSize = controller.getClientPoolSize();
+        int maxCpus = AE2EnhancedConfig.COMMON.computationMaxCpus.get();
+        graphics.drawString(this.font, Component.translatable("gui.ae2enhanced.computation.label.pool", poolSize, maxCpus), x, y, GuiConstants.DARK_TEXT_COLOR, false);
         y += lineHeight;
 
-        graphics.drawString(this.font, Component.translatable("gui.ae2enhanced.computation.label.active_jobs", controller.getClientActiveJobs()), x, y, GuiConstants.DARK_TEXT_COLOR, false);
+        graphics.drawString(this.font, Component.translatable("gui.ae2enhanced.computation.label.active_jobs", controller.getClientActiveJobs(), poolSize), x, y, GuiConstants.DARK_TEXT_COLOR, false);
         y += lineHeight;
 
         graphics.drawString(this.font, Component.translatable("gui.ae2enhanced.computation.label.parallel", controller.getParallelLimit()), x, y, GuiConstants.DARK_TEXT_COLOR, false);

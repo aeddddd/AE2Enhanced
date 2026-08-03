@@ -21,14 +21,17 @@ public final class SpecialPlanTooltip {
 
     /**
      * 行内描述(列表每行数量区):发配轮次/调用次数.
-     * <p>注意单元格仅 67px 宽(0.5 倍缩放),文案必须短小;灰色避免过亮.</p>
+     * <p>注意单元格仅 67px 宽(0.5 倍缩放),文案必须短小;灰色避免过亮;
+     * 大数字一律 K/M/G/T/P 缩写(与 AE2 数量列同款).</p>
      */
     public static Component descriptionLine(AEKey key, SpecialPlanInfo.Entry entry) {
         if (entry.kind() == SpecialPlanInfo.KIND_SELF_DUP) {
-            return Component.translatable("gui.ae2enhanced.special_plan.dup_desc", entry.totalCrafts())
+            return Component.translatable("gui.ae2enhanced.special_plan.dup_desc",
+                    compact(entry.totalCrafts()))
                     .withStyle(ChatFormatting.GRAY);
         }
-        return Component.translatable("gui.ae2enhanced.special_plan.rounds_desc", entry.rounds())
+        return Component.translatable("gui.ae2enhanced.special_plan.rounds_desc",
+                compact(entry.rounds()))
                 .withStyle(ChatFormatting.GRAY);
     }
 
@@ -39,7 +42,8 @@ public final class SpecialPlanTooltip {
      */
     public static Component normalDescriptionLine(long calls, long pushesPerRound) {
         long rounds = Math.max(1, (calls + pushesPerRound - 1) / pushesPerRound);
-        return Component.translatable("gui.ae2enhanced.special_plan.normal_calls", calls, rounds)
+        return Component.translatable("gui.ae2enhanced.special_plan.normal_calls",
+                compact(calls), compact(rounds))
                 .withStyle(ChatFormatting.GRAY);
     }
 
@@ -56,9 +60,10 @@ public final class SpecialPlanTooltip {
                     format(key, entry.perRoundProduce()),
                     format(key, entry.perRoundProduce() - entry.perRoundConsume())));
             lines.add(Component.translatable("gui.ae2enhanced.special_plan.dup_total",
-                    entry.totalCrafts(), format(key, entry.initialExtract())));
+                    compact(entry.totalCrafts()), format(key, entry.initialExtract())));
         } else {
-            lines.add(Component.translatable("gui.ae2enhanced.special_plan.cycle_header", entry.rounds())
+            lines.add(Component.translatable("gui.ae2enhanced.special_plan.cycle_header",
+                    compact(entry.rounds()))
                     .withStyle(ChatFormatting.GOLD));
             lines.add(Component.translatable("gui.ae2enhanced.special_plan.cycle_per_round",
                     format(key, entry.perRoundConsume()),
@@ -73,5 +78,10 @@ public final class SpecialPlanTooltip {
 
     private static String format(AEKey key, long amount) {
         return key.formatAmount(amount, AmountFormat.FULL);
+    }
+
+    /** 大数字缩写(K/M/G/T/P),与 AE2 数量列同源. */
+    private static String compact(long number) {
+        return appeng.util.ReadableNumberConverter.format(number, 4);
     }
 }

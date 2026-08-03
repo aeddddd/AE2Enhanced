@@ -76,6 +76,7 @@ public final class ConnectedTextureModel {
         @Override
         public Unbaked read(JsonObject json, JsonDeserializationContext context) throws JsonParseException {
             boolean connectByClass = !"block".equals(GsonHelper.getAsString(json, "connect", "class"));
+            boolean ambientOcclusion = GsonHelper.getAsBoolean(json, "ambient_occlusion", true);
             String renderTypeName = GsonHelper.getAsString(json, "render_type", "solid");
             net.minecraft.client.renderer.RenderType renderType = switch (renderTypeName) {
                 case "solid" -> net.minecraft.client.renderer.RenderType.solid();
@@ -83,11 +84,11 @@ public final class ConnectedTextureModel {
                 case "translucent" -> net.minecraft.client.renderer.RenderType.translucent();
                 default -> throw new JsonParseException("Unknown render_type: " + renderTypeName);
             };
-            return new Unbaked(connectByClass, renderType);
+            return new Unbaked(connectByClass, ambientOcclusion, renderType);
         }
     }
 
-    public record Unbaked(boolean connectByClass,
+    public record Unbaked(boolean connectByClass, boolean ambientOcclusion,
             net.minecraft.client.renderer.RenderType renderType) implements IUnbakedGeometry<Unbaked> {
         @Override
         public BakedModel bake(IGeometryBakingContext context, ModelBaker baker,
@@ -98,8 +99,8 @@ public final class ConnectedTextureModel {
                     ? context.getMaterial("particle")
                     : context.getMaterial("texture");
             TextureAtlasSprite particle = spriteGetter.apply(particleMaterial);
-            return new Baked(texture, particle, connectByClass, renderType, context.useBlockLight(), modelState,
-                    modelLocation);
+            return new Baked(texture, particle, connectByClass, ambientOcclusion, renderType, context.useBlockLight(),
+                    modelState, modelLocation);
         }
     }
 
@@ -134,15 +135,17 @@ public final class ConnectedTextureModel {
         private final EnumMap<Direction, List<BakedQuad>[]> quads = new EnumMap<>(Direction.class);
         private final TextureAtlasSprite particle;
         private final boolean connectByClass;
+        private final boolean ambientOcclusion;
         private final net.minecraft.client.renderer.RenderType renderType;
         private final boolean useBlockLight;
 
         @SuppressWarnings("unchecked")
         public Baked(TextureAtlasSprite texture, TextureAtlasSprite particle, boolean connectByClass,
-                net.minecraft.client.renderer.RenderType renderType, boolean useBlockLight, ModelState modelState,
-                ResourceLocation modelLocation) {
+                boolean ambientOcclusion, net.minecraft.client.renderer.RenderType renderType, boolean useBlockLight,
+                ModelState modelState, ResourceLocation modelLocation) {
             this.particle = particle;
             this.connectByClass = connectByClass;
+            this.ambientOcclusion = ambientOcclusion;
             this.renderType = renderType;
             this.useBlockLight = useBlockLight;
 
@@ -233,7 +236,7 @@ public final class ConnectedTextureModel {
 
         @Override
         public boolean useAmbientOcclusion() {
-            return true;
+            return ambientOcclusion;
         }
 
         @Override

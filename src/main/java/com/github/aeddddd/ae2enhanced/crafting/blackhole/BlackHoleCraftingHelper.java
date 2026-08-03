@@ -11,6 +11,7 @@ import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.item.ItemEntity;
+import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
@@ -19,6 +20,7 @@ import net.minecraft.world.phys.Vec3;
 
 import com.github.aeddddd.ae2enhanced.config.AE2EnhancedConfig;
 import com.github.aeddddd.ae2enhanced.registry.ModRecipes;
+import com.github.aeddddd.ae2enhanced.util.ForceKillHelper;
 
 /**
  * 黑洞合成辅助类.
@@ -246,18 +248,26 @@ public class BlackHoleCraftingHelper {
      * 装配枢纽黑洞：击杀 5×5×5 范围内的生物.
      */
     public static void killLivingEntities(Level level, BlockPos center) {
+        // 事件视界伤害模式配置（与微型奇点一致,1.12 装配枢纽同样检查该配置）
+        AE2EnhancedConfig.BlackHoleDamageMode mode = AE2EnhancedConfig.COMMON.blackHoleDamageMode.get();
+        if (mode == AE2EnhancedConfig.BlackHoleDamageMode.NONE) {
+            return;
+        }
         AABB area = new AABB(
                 center.getX() - 2, center.getY() - 2, center.getZ() - 2,
                 center.getX() + 3, center.getY() + 3, center.getZ() + 3);
         List<LivingEntity> entities = level.getEntitiesOfClass(LivingEntity.class, area);
+        DamageSource vacuumDecay = ForceKillHelper.vacuumDecay(level);
         for (LivingEntity living : entities) {
             if (!living.isAlive()) {
                 continue;
             }
-            if (living instanceof Player player && player.isCreative()) {
+            if (mode == AE2EnhancedConfig.BlackHoleDamageMode.NON_CREATIVE
+                    && living instanceof Player player && player.isCreative()) {
                 continue;
             }
-            living.hurt(level.damageSources().generic(), Float.MAX_VALUE);
+            // 真空衰变环境强杀：玩家与非玩家分策略,受保护实体也可被彻底移除
+            ForceKillHelper.applyEnvironmentDamage(living, vacuumDecay, Float.MAX_VALUE);
         }
     }
 

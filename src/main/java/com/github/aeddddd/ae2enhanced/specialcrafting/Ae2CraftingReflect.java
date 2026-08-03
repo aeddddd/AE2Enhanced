@@ -22,6 +22,7 @@ import appeng.crafting.inv.NetworkCraftingSimulationState;
 public final class Ae2CraftingReflect {
 
     private static final Field NETWORK_INV;
+    private static final Field SIMULATE;
     private static final Method COMPUTE_PLAN;
     private static final Method FINISH;
     private static final Method HANDLE_PAUSING;
@@ -32,6 +33,8 @@ public final class Ae2CraftingReflect {
         try {
             NETWORK_INV = CraftingCalculation.class.getDeclaredField("networkInv");
             NETWORK_INV.setAccessible(true);
+            SIMULATE = CraftingCalculation.class.getDeclaredField("simulate");
+            SIMULATE.setAccessible(true);
             COMPUTE_PLAN = CraftingCalculation.class.getDeclaredMethod("computePlan");
             COMPUTE_PLAN.setAccessible(true);
             FINISH = CraftingCalculation.class.getDeclaredMethod("finish");
@@ -57,6 +60,19 @@ public final class Ae2CraftingReflect {
             return (NetworkCraftingSimulationState) NETWORK_INV.get(calc);
         } catch (ReflectiveOperationException e) {
             throw new IllegalStateException("访问 CraftingCalculation.networkInv 失败", e);
+        }
+    }
+
+    /**
+     * 置位 simulation 标志.原生由失败重试(runCraftAttempt(true, ...))置位;
+     * 自有求解器缺料不抛异常,记录缺料后须显式置位,
+     * 否则产出"有缺料却标记可提交"的不一致计划.
+     */
+    public static void setSimulate(CraftingCalculation calc, boolean value) {
+        try {
+            SIMULATE.setBoolean(calc, value);
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException("访问 CraftingCalculation.simulate 失败", e);
         }
     }
 

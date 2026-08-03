@@ -13,23 +13,27 @@ import net.minecraft.world.item.crafting.CustomRecipe;
 import net.minecraft.world.item.crafting.RecipeSerializer;
 import net.minecraft.world.level.Level;
 
+import com.github.aeddddd.ae2enhanced.config.AE2EnhancedConfig;
 import com.github.aeddddd.ae2enhanced.item.AdvancedMEOmniToolItem;
+import com.github.aeddddd.ae2enhanced.item.MicroSingularityItem;
 import com.github.aeddddd.ae2enhanced.omnitool.OmniToolEnchantments;
 import com.github.aeddddd.ae2enhanced.omnitool.OmniToolUpgrades;
 import com.github.aeddddd.ae2enhanced.registry.ModItems;
 import com.github.aeddddd.ae2enhanced.registry.ModRecipes;
 
 /**
- * 先进 ME 全能工具升级配方：工具 + 升级物品（附魔书/基岩/共形不变荷）→ 升级后的工具副本。
+ * 先进 ME 全能工具升级配方：工具 + 升级物品（附魔书/基岩/共形不变荷/永久微型奇点）→ 升级后的工具副本。
  * <p>附魔书：把 StoredEnchantments 合并进工具的 {@code AE2E_Enchantments} 存储区，
  * 同 id 取 max(lvl)、max(max)，max 受配置上限钳制；书中附魔已全部达到 source 上限时不匹配。</p>
+ * <p>混沌核心：消耗一个永久存在的被约束微型奇点（对应 1.12 的 DE 混沌核心,已解除龙之研究绑定）。</p>
  */
 public class OmniToolUpgradeRecipe extends CustomRecipe {
 
     public enum Type {
         ENCHANTED_BOOK,
         BEDROCK,
-        CONFORMAL_CHARGE
+        CONFORMAL_CHARGE,
+        CHAOS
     }
 
     private final Type type;
@@ -45,6 +49,11 @@ public class OmniToolUpgradeRecipe extends CustomRecipe {
 
     @Override
     public boolean matches(CraftingContainer container, Level level) {
+        // 基岩破坏者升级受配置开关门控（原 RecipesUpdatedEvent 注入时的开关迁移至此）
+        if (type == Type.BEDROCK && !AE2EnhancedConfig.COMMON.omniToolEnableBedrockBreakerUpgrade.get()) {
+            return false;
+        }
+
         ItemStack omniTool = ItemStack.EMPTY;
         ItemStack upgradeItem = ItemStack.EMPTY;
         int nonEmptyCount = 0;
@@ -74,6 +83,9 @@ public class OmniToolUpgradeRecipe extends CustomRecipe {
             return false;
         }
         if (type == Type.CONFORMAL_CHARGE && OmniToolUpgrades.hasConformalCharge(omniTool)) {
+            return false;
+        }
+        if (type == Type.CHAOS && OmniToolUpgrades.hasChaosCore(omniTool)) {
             return false;
         }
         if (type == Type.ENCHANTED_BOOK && !bookWouldChangeAnything(omniTool, upgradeItem)) {
@@ -118,6 +130,7 @@ public class OmniToolUpgradeRecipe extends CustomRecipe {
                     && OmniToolEnchantments.copyEnchantmentsFromBook(stack).size() > 0;
             case BEDROCK -> stack.is(Items.BEDROCK);
             case CONFORMAL_CHARGE -> stack.is(ModItems.CONFORMAL_INVARIANT_CHARGE.get());
+            case CHAOS -> stack.is(ModItems.MICRO_SINGULARITY.get()) && MicroSingularityItem.isPermanent(stack);
         };
     }
 
@@ -141,6 +154,7 @@ public class OmniToolUpgradeRecipe extends CustomRecipe {
         switch (type) {
             case BEDROCK -> OmniToolUpgrades.setBedrockBreaker(result, true);
             case CONFORMAL_CHARGE -> OmniToolUpgrades.setConformalCharge(result, true);
+            case CHAOS -> OmniToolUpgrades.setChaosCore(result, true);
             case ENCHANTED_BOOK -> mergeBookEnchantments(result, upgradeItem);
         }
         return result;

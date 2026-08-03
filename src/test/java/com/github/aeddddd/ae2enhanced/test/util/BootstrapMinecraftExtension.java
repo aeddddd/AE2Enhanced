@@ -28,7 +28,10 @@ public class BootstrapMinecraftExtension implements Extension, BeforeAllCallback
             Bootstrap.bootStrap();
             // AE2 15.4.10 的合成模拟在 NetworkCraftingSimulationState 构造时读取 AEConfig.instance(),
             // 单元测试无 Forge 环境,需调用公开的静态 load(会构造并注册静态实例,使用临时目录避免写盘污染)
-            AEConfig.load(Files.createTempDirectory("ae2enhanced-test-config"));
+            // 注意:AE2ItemTestBootstrap 可能已加载过配置,load 重复调用会抛 IllegalStateException
+            if (AEConfig.instance() == null) {
+                AEConfig.load(Files.createTempDirectory("ae2enhanced-test-config"));
+            }
         }
     }
 }

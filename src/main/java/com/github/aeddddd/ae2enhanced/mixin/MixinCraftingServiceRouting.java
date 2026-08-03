@@ -33,15 +33,21 @@ import com.github.aeddddd.ae2enhanced.specialcrafting.SpecialRecipeDetector;
  * 原生 {@code beginCraftingCalculation} 行为零改动.</p>
  * <p>{@code require = 0}:该方法若被其他附属 mod 改写,本注入静默失效,
  * 功能退化为"无特殊配方支持"而非崩溃.</p>
+ * <p>{@code priority = 1100}:NeoECOAE 的规划器劫持（默认优先级 1000,
+ * 存在 ECO 计算系统时接管全部计算请求）,而 ECO 求解器不认识自循环/催化等
+ * 特殊配方,只会产出缺料模拟计划,导致特殊配方永远无法提交到计算核心.
+ * 特殊配方只能由本项目求解器处理,故必须以更高优先级（同点注入先运行）
+ * 抢在 ECO 之前判定;未命中时照常放行,ECO 规划行为不受影响.</p>
  */
-@Mixin(value = CraftingService.class, remap = false)
+@Mixin(value = CraftingService.class, priority = 1100, remap = false)
 public class MixinCraftingServiceRouting {
 
     @Shadow(remap = false)
     @Final
     private IGrid grid;
 
-    @Inject(method = "beginCraftingCalculation", at = @At("HEAD"), cancellable = true, require = 0, remap = false)
+    @Inject(method = "beginCraftingCalculation", at = @At("HEAD"), cancellable = true, require = 0,
+            remap = false)
     private void ae2e$routeSpecialCalculation(Level level, ICraftingSimulationRequester simRequester,
             AEKey what, long amount, CalculationStrategy strategy,
             CallbackInfoReturnable<Future<ICraftingPlan>> cir) {
@@ -88,8 +94,10 @@ public class MixinCraftingServiceRouting {
             }
             // 特殊根请求已由上一注入接管;此处只有非特殊请求
             if (mode == AE2EnhancedConfig.DagPlannerMode.DEFAULT) {
-                var job = new com.github.aeddddd.ae2enhanced.craftingplan.dag.DagCraftingCalculation(
-                        level, this.grid, simRequester, new GenericStack(what, amount), strategy);
+                // DEFAULT:提交原生计算,由尝试级 hook(MixinCraftingCalculationDag)
+                // 将每次按量尝试替换为 DAG 引擎——CRAFT_LESS 二分搜索随之获得支持
+                var job = new appeng.crafting.CraftingCalculation(level, this.grid, simRequester,
+                        new GenericStack(what, amount), strategy);
                 cir.setReturnValue(CraftingServiceAccessor.getCraftingPool().submit(job::run));
                 return;
             }

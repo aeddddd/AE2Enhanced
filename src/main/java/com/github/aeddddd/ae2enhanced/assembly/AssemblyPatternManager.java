@@ -78,8 +78,8 @@ public class AssemblyPatternManager {
         if (patternsDirty) {
             patternsDirty = false;
             patternRefreshTicks = 1;
-        }
-        if (patternRefreshTicks > 0) {
+        } else if (patternRefreshTicks > 0) {
+            // 仅在非脏 tick 递减倒计时,保证脏标记消费后至少延迟 1 tick 再通知刷新
             if (--patternRefreshTicks == 0) {
                 controller.refreshInterfaceServices();
             }

@@ -76,6 +76,18 @@ public class MiningModule implements IOmniToolModule {
             return false;
         }
 
+        // 混沌核心：允许破坏 DE 混沌水晶（即使硬度为 -1）
+        if (AdvancedMEOmniToolItem.hasChaosCore(stack) && isChaosCrystal(player.level(), pos)) {
+            BlockState state = player.level().getBlockState(pos);
+            if (!player.level().isClientSide() && player.level() instanceof ServerLevel serverLevel) {
+                List<ItemStack> drops = getDrops(state, serverLevel, pos, serverLevel.getBlockEntity(pos), player,
+                        stack);
+                handleDrops(player.level(), player, pos, drops, stack);
+                player.level().destroyBlock(pos, false);
+            }
+            return true;
+        }
+
         int cooldown = getBreakCooldown(stack);
         if (cooldown > 0) {
             long now = player.level().getGameTime();
@@ -333,6 +345,14 @@ public class MiningModule implements IOmniToolModule {
         }
         ResourceLocation reg = net.minecraftforge.registries.ForgeRegistries.BLOCKS.getKey(block);
         return reg != null && blacklistCache.contains(reg);
+    }
+
+    /**
+     * 类名字符串检测 DE 混沌水晶（软兼容,不产生龙之研究硬依赖）.
+     */
+    private static boolean isChaosCrystal(Level level, BlockPos pos) {
+        Block block = level.getBlockState(pos).getBlock();
+        return "com.brandon3055.draconicevolution.blocks.ChaosCrystal".equals(block.getClass().getName());
     }
 
     // ==================== Break Cooldown ====================

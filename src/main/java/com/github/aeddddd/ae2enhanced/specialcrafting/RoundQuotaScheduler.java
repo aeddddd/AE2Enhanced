@@ -69,7 +69,8 @@ public final class RoundQuotaScheduler {
      * 逐次推送否决（游戏适配层,每次推送前由 extractPatternInputs 的注入点调用）.
      * <p>超配额时返回 true,注入点令输入提取返回 null——原生视同"输入不足"自然
      * 跳过该 pattern（空容器 reinject 安全）,下一拍配额前进后自动恢复.</p>
-     * 非我们的虚拟 CPU / 无快照 / 非自消耗 job / 闭包外 pattern 一律 false（零影响）.
+     * 非我们的虚拟 CPU / 非自消耗 job / 闭包外 pattern 一律 false（零影响）;
+     * NBT 恢复的任务以剩余量惰性重建配额（⑤）,限推不中断.
      */
     public static boolean shouldVetoPush(CraftingCpuLogic logic, IPatternDetails details) {
         var logicAcc = (CraftingCpuLogicAccessor) logic;
@@ -79,10 +80,19 @@ public final class RoundQuotaScheduler {
         }
         Map<IPatternDetails, Long> totals;
         synchronized (RoundQuotaScheduler.class) {
-            totals = TOTALS.get(job);
+            totals = TOTALS.computeIfAbsent(job, j -> {
+                // NBT 恢复(⑤):提交时快照丢失,以任务剩余量惰性重建——配额语义只依赖
+                // 闭包内比例(GCD 约分),剩余量比例与原计划一致,恢复后限推不间断;
+                // 某 pattern 剩余为 0 时 GCD 为 0 → 配额空,退化原生(安全)
+                Map<IPatternDetails, Long> rebuilt = new LinkedHashMap<>();
+                for (var entry : ((ExecutingCraftingJobAccessor) j).getTasks().entrySet()) {
+                    rebuilt.put(entry.getKey(), ((TaskProgressAccessor) entry.getValue()).getValue());
+                }
+                return rebuilt;
+            });
         }
-        if (totals == null || !totals.containsKey(details)) {
-            return false; // NBT 恢复任务:退化原生推送
+        if (totals.isEmpty() || !totals.containsKey(details)) {
+            return false;
         }
         Quota quota;
         synchronized (RoundQuotaScheduler.class) {

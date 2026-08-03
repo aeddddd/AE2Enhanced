@@ -7,6 +7,7 @@ import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import com.mojang.math.Axis;
 import org.joml.Quaternionf;
+import org.joml.Vector3f;
 
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.ShaderInstance;
@@ -17,7 +18,6 @@ import com.mojang.blaze3d.shaders.Uniform;
 
 import net.minecraft.util.Mth;
 import net.minecraft.world.phys.Vec3;
-import net.minecraftforge.fml.ModList;
 
 import com.github.aeddddd.ae2enhanced.blockentity.AssemblyControllerBlockEntity;
 import com.github.aeddddd.ae2enhanced.config.AE2EnhancedConfig;
@@ -132,17 +132,14 @@ public class AssemblyHubRenderer extends AbstractMultiblockRenderer<AssemblyCont
     }
 
     /**
-     * 是否使用自定义 shader 路径.
+     * 是否使用自定义 shader 路径。
+     * <p>默认始终使用 shader（包括加载光影时）；只能通过配置 forceCompatibilityMode
+     * 或 enableAssemblyShader 回退到旧版渲染。</p>
      */
     private static boolean shouldUseShader() {
         return AE2EnhancedConfig.CLIENT.enableAssemblyShader.get()
                 && !AE2EnhancedConfig.CLIENT.forceCompatibilityMode.get()
-                && !isOculusLoaded()
                 && AE2EnhancedShaders.isAssemblyBlackHoleLoaded();
-    }
-
-    private static boolean isOculusLoaded() {
-        return ModList.get().isLoaded("oculus");
     }
 
     /**
@@ -159,14 +156,16 @@ public class AssemblyHubRenderer extends AbstractMultiblockRenderer<AssemblyCont
         float time = (be.getLevel().getGameTime() + partialTicks) * 0.05f;
         float intensity = AE2EnhancedConfig.CLIENT.dynamicRenderIntensity.get().floatValue();
 
-        // 顶点缓冲中的 Position 已是相机空间坐标（CPU 侧乘过 pose 平移）,
-        // 上传相机空间的特效中心,供顶点着色器还原黑洞局部坐标
+        // 顶点缓冲中的 Position 经 pose 变换后为相机空间坐标（含相机旋转），
+        // uCenter 必须施加同一旋转，否则 vPos 随视角变化，程序化胞格图案会扭曲
         Vec3 cameraPos = context.getBlockEntityRenderDispatcher().camera.getPosition();
         Vec3 centerCam = getEffectCenterWorld(be).subtract(cameraPos);
+        Vector3f centerCamSpace = new Vector3f((float) centerCam.x, (float) centerCam.y, (float) centerCam.z);
+        poseStack.last().pose().transformDirection(centerCamSpace);
 
         // RenderType 的 ShaderStateShard 会在实际绘制时绑定 shader 并上传 uniform
         ShaderInstance shader = AE2EnhancedShaders.getAssemblyBlackHole();
-        applyUniforms(shader, time, intensity, (float) scale, centerCam);
+        applyUniforms(shader, time, intensity, (float) scale, centerCamSpace);
 
         if (!AE2EnhancedPostProcessor.isPostActive()) {
             // 后处理不可用时才绘制对象空间黑洞几何；激活时由光线步进承担,避免双重渲染
@@ -225,7 +224,7 @@ public class AssemblyHubRenderer extends AbstractMultiblockRenderer<AssemblyCont
      * <p>由 RenderType 的 ShaderStateShard 在实际绘制时负责绑定与上传；此处仅设置 uniform 值.</p>
      */
     private static void applyUniforms(ShaderInstance shader, float time, float intensity, float scale,
-            Vec3 centerCam) {
+            Vector3f centerCamSpace) {
         Uniform uTime = shader.getUniform("uTime");
         Uniform uIntensity = shader.getUniform("uIntensity");
         Uniform uScale = shader.getUniform("uScale");
@@ -240,7 +239,7 @@ public class AssemblyHubRenderer extends AbstractMultiblockRenderer<AssemblyCont
             uScale.set(scale);
         }
         if (uCenter != null) {
-            uCenter.set((float) centerCam.x, (float) centerCam.y, (float) centerCam.z);
+            uCenter.set(centerCamSpace.x, centerCamSpace.y, centerCamSpace.z);
         }
     }
 
