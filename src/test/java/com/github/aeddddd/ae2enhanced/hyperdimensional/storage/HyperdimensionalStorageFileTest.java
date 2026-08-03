@@ -9,6 +9,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -53,6 +54,15 @@ class HyperdimensionalStorageFileTest {
 
     @TempDir
     Path worldDir;
+
+    /**
+     * 等待静态异步 I/O 线程排空:异步写入未结束时文件句柄仍被占用,
+     * Windows 下 @TempDir 清理会失败(负载相关偶发);执行器为懒重建,关停无副作用.
+     */
+    @AfterEach
+    void awaitAsyncWrites() {
+        HyperdimensionalStorageFile.shutdown();
+    }
 
     private MinecraftServer server;
     private UUID nexusId;
