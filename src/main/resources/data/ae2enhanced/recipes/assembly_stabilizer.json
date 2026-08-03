@@ -1,14 +1,15 @@
 {
   "type": "minecraft:crafting_shaped",
   "pattern": [
-    "DAD",
+    "LEL",
     "ACA",
-    "DAD"
+    "LEL"
   ],
   "key": {
-    "D": { "item": "ae2enhanced:differential_form_stabilizer" },
-    "A": { "item": "ae2:spatial_anchor" },
-    "C": { "item": "ae2enhanced:assembly_casing_1" }
+    "L": { "item": "ae2:logic_processor" },
+    "E": { "item": "ae2:engineering_processor" },
+    "A": { "item": "ae2:calculation_processor" },
+    "C": { "item": "ae2enhanced:assembly_casing" }
   },
   "result": {
     "item": "ae2enhanced:assembly_stabilizer",

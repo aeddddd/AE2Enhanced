@@ -19,15 +19,12 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.EntityBlock;
 import net.minecraft.world.level.block.entity.BlockEntity;
-import net.minecraft.world.level.block.entity.BlockEntityTicker;
-import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.StateDefinition;
 import net.minecraft.world.level.block.state.properties.BlockStateProperties;
 import net.minecraft.world.level.block.state.properties.DirectionProperty;
 import net.minecraft.ChatFormatting;
 
-import com.github.aeddddd.ae2enhanced.blockentity.MultiblockControllerBlockEntity;
 import com.github.aeddddd.ae2enhanced.structure.IMultiblockStructure;
 import com.github.aeddddd.ae2enhanced.util.BlockEntityRemovalHelper;
 
@@ -58,21 +55,6 @@ public abstract class MultiblockControllerBlock extends Block implements EntityB
 
     @Override
     public abstract BlockEntity newBlockEntity(BlockPos pos, BlockState state);
-
-    @Override
-    @Nullable
-    public <T extends BlockEntity> BlockEntityTicker<T> getTicker(Level level, BlockState state,
-            BlockEntityType<T> blockEntityType) {
-        return (lvl, p, st, be) -> {
-            if (be instanceof MultiblockControllerBlockEntity controller) {
-                if (lvl.isClientSide()) {
-                    controller.clientTick();
-                } else {
-                    controller.serverTick();
-                }
-            }
-        };
-    }
 
     @Override
     public void setPlacedBy(Level level, BlockPos pos, BlockState state, @Nullable LivingEntity placer,

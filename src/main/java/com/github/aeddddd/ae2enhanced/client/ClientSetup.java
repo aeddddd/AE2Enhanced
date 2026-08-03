@@ -25,6 +25,7 @@ import com.github.aeddddd.ae2enhanced.client.gui.HyperdimensionalUnformedScreen;
 import com.github.aeddddd.ae2enhanced.client.gui.OmniToolConfigScreen;
 import com.github.aeddddd.ae2enhanced.client.gui.PersonalDimensionCreateScreen;
 import com.github.aeddddd.ae2enhanced.client.gui.PersonalDimensionManagerScreen;
+import com.github.aeddddd.ae2enhanced.client.gui.UniversalMemoryCardScreen;
 import com.github.aeddddd.ae2enhanced.client.handler.KeyHandlerOmniTool;
 import com.github.aeddddd.ae2enhanced.client.model.ConnectedTextureModel;
 import com.github.aeddddd.ae2enhanced.client.render.AE2EnhancedShaders;
@@ -56,6 +57,7 @@ public final class ClientSetup {
             MenuScreens.register(ModMenus.PERSONAL_DIMENSION_MANAGER.get(), PersonalDimensionManagerScreen::new);
             MenuScreens.register(ModMenus.PERSONAL_DIMENSION_CREATE.get(), PersonalDimensionCreateScreen::new);
             MenuScreens.register(ModMenus.OMNI_TOOL_CONFIG.get(), OmniToolConfigScreen::new);
+            MenuScreens.register(ModMenus.UNIVERSAL_MEMORY_CARD.get(), UniversalMemoryCardScreen::new);
 
             BlockEntityRenderers.register(ModBlockEntities.ASSEMBLY_CONTROLLER.get(), AssemblyHubRenderer::new);
             BlockEntityRenderers.register(ModBlockEntities.HYPERDIMENSIONAL_CONTROLLER.get(),

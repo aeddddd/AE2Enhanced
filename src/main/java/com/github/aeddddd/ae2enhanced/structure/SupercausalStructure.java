@@ -117,7 +117,7 @@ public class SupercausalStructure {
         BLOCK_SETS = Collections.unmodifiableMap(unmodifiableSets);
         ALL_SET = Collections.unmodifiableSet(all);
         // 计算核心采用任意结构方块接入网络方案,不使用通用 ME 接口
-        INSTANCE = new Impl(StructureDefinition.of(BLOCK_SETS, null));
+        INSTANCE = new Impl(StructureDefinition.of(BLOCK_SETS));
     }
 
     private static void ensureInitialized() {

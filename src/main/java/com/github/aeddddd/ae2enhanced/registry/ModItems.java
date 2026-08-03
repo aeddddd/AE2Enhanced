@@ -17,6 +17,7 @@ import com.github.aeddddd.ae2enhanced.item.PersonalDimensionCoreItem;
 import com.github.aeddddd.ae2enhanced.item.SingularityConstrictorItem;
 import com.github.aeddddd.ae2enhanced.item.DifferentialFormStabilizerItem;
 import com.github.aeddddd.ae2enhanced.item.StableSpacetimeManifoldItem;
+import com.github.aeddddd.ae2enhanced.item.UniversalMemoryCardItem;
 
 /**
  * 物品注册中心.
@@ -38,9 +39,6 @@ public final class ModItems {
     public static final RegistryObject<Item> HYPERDIMENSIONAL_SINGULARITY_CORE = DR.register(
             "hyperdimensional_singularity_core",
             () -> new BlockItem(ModBlocks.HYPERDIMENSIONAL_SINGULARITY_CORE.get(), new Item.Properties()));
-
-    public static final RegistryObject<Item> MULTIBLOCK_ME_INTERFACE = DR.register("multiblock_me_interface",
-            () -> new BlockItem(ModBlocks.MULTIBLOCK_ME_INTERFACE.get(), new Item.Properties()));
 
     // Black Hole advanced materials
     public static final RegistryObject<Item> STABLE_SPACETIME_MANIFOLD = DR.register("stable_spacetime_manifold",
@@ -64,17 +62,11 @@ public final class ModItems {
     public static final RegistryObject<Item> ASSEMBLY_CONTROLLER = DR.register("assembly_controller",
             () -> new BlockItem(ModBlocks.ASSEMBLY_CONTROLLER.get(), new Item.Properties()));
 
-    public static final RegistryObject<Item> ASSEMBLY_CASING_1 = DR.register("assembly_casing_1",
-            () -> new BlockItem(ModBlocks.ASSEMBLY_CASING_1.get(), new Item.Properties()));
+    public static final RegistryObject<Item> ASSEMBLY_CASING = DR.register("assembly_casing",
+            () -> new BlockItem(ModBlocks.ASSEMBLY_CASING.get(), new Item.Properties()));
 
-    public static final RegistryObject<Item> ASSEMBLY_CASING_2 = DR.register("assembly_casing_2",
-            () -> new BlockItem(ModBlocks.ASSEMBLY_CASING_2.get(), new Item.Properties()));
-
-    public static final RegistryObject<Item> ASSEMBLY_CASING_3 = DR.register("assembly_casing_3",
-            () -> new BlockItem(ModBlocks.ASSEMBLY_CASING_3.get(), new Item.Properties()));
-
-    public static final RegistryObject<Item> ASSEMBLY_CASING_4 = DR.register("assembly_casing_4",
-            () -> new BlockItem(ModBlocks.ASSEMBLY_CASING_4.get(), new Item.Properties()));
+    public static final RegistryObject<Item> ASSEMBLY_FRAME = DR.register("assembly_frame",
+            () -> new BlockItem(ModBlocks.ASSEMBLY_FRAME.get(), new Item.Properties()));
 
     public static final RegistryObject<Item> ASSEMBLY_INNER_WALL = DR.register("assembly_inner_wall",
             () -> new BlockItem(ModBlocks.ASSEMBLY_INNER_WALL.get(), new Item.Properties()));
@@ -125,6 +117,10 @@ public final class ModItems {
     // 先进 ME 全能工具
     public static final RegistryObject<Item> ME_OMNI_TOOL = DR.register("me_omni_tool",
             () -> new AdvancedMEOmniToolItem(new Item.Properties().stacksTo(1)));
+
+    // 通用内存卡(复制/粘贴 AE2 设备配置,含升级卡)
+    public static final RegistryObject<Item> UNIVERSAL_MEMORY_CARD = DR.register("universal_memory_card",
+            () -> new UniversalMemoryCardItem(new Item.Properties().stacksTo(1)));
 
     // 单方块虚拟合成 CPU：所有环境注册(可指令获取),但隐藏于创造栏与 JEI
     public static final RegistryObject<Item> VIRTUAL_CRAFTING_CPU = DR.register("virtual_crafting_cpu",

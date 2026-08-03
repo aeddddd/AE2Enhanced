@@ -8,20 +8,17 @@ categories:
 - multiblocks
 item_ids:
 - ae2enhanced:assembly_controller
-- ae2enhanced:assembly_casing_1
-- ae2enhanced:assembly_casing_2
-- ae2enhanced:assembly_casing_3
-- ae2enhanced:assembly_casing_4
+- ae2enhanced:assembly_casing
+- ae2enhanced:assembly_frame
 - ae2enhanced:assembly_inner_wall
 - ae2enhanced:assembly_stabilizer
-- ae2enhanced:multiblock_me_interface
 ---
 
 # 超因果装配枢纽
 
 <Row>
   <BlockImage id="assembly_controller" scale="4" />
-  <BlockImage id="assembly_casing_1" scale="4" />
+  <BlockImage id="assembly_casing" scale="4" />
   <BlockImage id="assembly_inner_wall" scale="4" />
   <BlockImage id="assembly_stabilizer" scale="4" />
 </Row>
@@ -40,7 +37,7 @@ item_ids:
 
 ## 搭建
 
-结构由装配控制器, 四种装配外壳, 装配内壁与装配稳定器组成.
+结构由装配控制器, 装配外壳, 装配框架, 装配内壁与装配稳定器组成.
 任意结构方块均可连接 ME 网络.
 
 未成型时右键控制器可打开结构界面, 使用**自动搭建**功能查看/放置结构预览;

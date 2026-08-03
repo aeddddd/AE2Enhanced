@@ -7,7 +7,7 @@
   ],
   "key": {
     "S": { "item": "ae2enhanced:assembly_stabilizer" },
-    "C": { "item": "ae2enhanced:assembly_casing_4" },
+    "C": { "item": "ae2enhanced:assembly_stabilizer" },
     "H": { "item": "ae2enhanced:conformal_invariant_charge" }
   },
   "result": {

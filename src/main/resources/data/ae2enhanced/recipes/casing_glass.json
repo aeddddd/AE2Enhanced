@@ -1,0 +1,16 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "QQQ",
+    "QCQ",
+    "QQQ"
+  ],
+  "key": {
+    "Q": { "item": "ae2:quartz_glass" },
+    "C": { "item": "ae2enhanced:constant_tensor_field_casing" }
+  },
+  "result": {
+    "item": "ae2enhanced:casing_glass",
+    "count": 8
+  }
+}

@@ -146,7 +146,7 @@ public class AssemblyControllerBlockEntity extends AENetworkBlockEntity
     }
 
     /**
-     * 当前可用样板页数.基础 5 页,每张扩容升级卡 +5 页,上限 30 页.
+     * 当前可用样板页数.基础 5 页,每张扩容升级卡 +10 页,上限 100 页.
      */
     public int getPatternPages() {
         return upgradeManager.getPatternPages();
@@ -354,16 +354,6 @@ public class AssemblyControllerBlockEntity extends AENetworkBlockEntity
         double radius = AbstractMultiblockRenderer.computeRadius(bounds) + 15.0;
         Vec3 worldCenter = new Vec3(pos.getX() + center.x, pos.getY() + center.y, pos.getZ() + center.z);
         return new net.minecraft.world.phys.AABB(worldCenter, worldCenter).inflate(radius);
-    }
-
-    @Override
-    public void attachInterface(BlockPos interfacePos) {
-        // 装配枢纽采用任意结构方块接入网络方案,不依赖通用 ME 接口方块.
-    }
-
-    @Override
-    public void detachInterface(BlockPos interfacePos) {
-        // 装配枢纽采用任意结构方块接入网络方案,不依赖通用 ME 接口方块.
     }
 
     @Override

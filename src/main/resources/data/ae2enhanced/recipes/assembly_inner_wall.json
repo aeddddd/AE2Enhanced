@@ -1,14 +1,14 @@
 {
   "type": "minecraft:crafting_shaped",
   "pattern": [
-    "MDM",
-    "DHD",
-    "MDM"
+    "FPF",
+    "PCP",
+    "FPF"
   ],
   "key": {
-    "M": { "item": "ae2enhanced:stable_spacetime_manifold" },
-    "D": { "item": "ae2enhanced:differential_form_stabilizer" },
-    "H": { "item": "ae2enhanced:conformal_invariant_charge" }
+    "F": { "item": "ae2:fluix_crystal" },
+    "P": { "item": "ae2:fluix_pearl" },
+    "C": { "item": "ae2enhanced:assembly_casing" }
   },
   "result": {
     "item": "ae2enhanced:assembly_inner_wall",

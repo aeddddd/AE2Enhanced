@@ -26,7 +26,6 @@ public final class ModCreativeTab {
 
                         // Hyperdimensional Storage
                         output.accept(new ItemStack(ModItems.HYPERDIMENSIONAL_CONTROLLER.get()));
-                        output.accept(new ItemStack(ModItems.MULTIBLOCK_ME_INTERFACE.get()));
                         output.accept(new ItemStack(ModItems.HYPERDIMENSIONAL_CASING.get()));
                         output.accept(new ItemStack(ModItems.HYPERDIMENSIONAL_SINGULARITY_CORE.get()));
 
@@ -41,10 +40,8 @@ public final class ModCreativeTab {
 
                         // Assembly Hub
                         output.accept(new ItemStack(ModItems.ASSEMBLY_CONTROLLER.get()));
-                        output.accept(new ItemStack(ModItems.ASSEMBLY_CASING_1.get()));
-                        output.accept(new ItemStack(ModItems.ASSEMBLY_CASING_2.get()));
-                        output.accept(new ItemStack(ModItems.ASSEMBLY_CASING_3.get()));
-                        output.accept(new ItemStack(ModItems.ASSEMBLY_CASING_4.get()));
+                        output.accept(new ItemStack(ModItems.ASSEMBLY_CASING.get()));
+                        output.accept(new ItemStack(ModItems.ASSEMBLY_FRAME.get()));
                         output.accept(new ItemStack(ModItems.ASSEMBLY_INNER_WALL.get()));
                         output.accept(new ItemStack(ModItems.ASSEMBLY_STABILIZER.get()));
                         output.accept(new ItemStack(ModItems.ASSEMBLY_PARALLEL_UPGRADE.get()));
@@ -59,6 +56,9 @@ public final class ModCreativeTab {
 
                         // 先进 ME 全能工具
                         output.accept(new ItemStack(ModItems.ME_OMNI_TOOL.get()));
+
+                        // 通用内存卡
+                        output.accept(new ItemStack(ModItems.UNIVERSAL_MEMORY_CARD.get()));
 
                         // Supercausal Computation Core
                         output.accept(new ItemStack(ModItems.COMPUTATION_CONTROLLER.get()));

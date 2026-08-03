@@ -10,7 +10,8 @@ import appeng.api.networking.security.IActionSource;
 
 /**
  * 多方块控制器标记接口.
- * <p>所有控制器方块实体（超维度、装配、计算核心）均实现此接口,供通用 ME 接口查找与委托.</p>
+ * <p>所有控制器方块实体（超维度、装配、计算核心）均实现此接口,
+ * 控制器自身作为 AE2 网络节点,任意结构方块均可并网.</p>
  */
 public interface IMultiblockController {
 
@@ -23,16 +24,6 @@ public interface IMultiblockController {
      * @return 控制器所在位置.
      */
     BlockPos getControllerPos();
-
-    /**
-     * 结构装配时调用,记录某个接口位置属于本控制器.
-     */
-    void attachInterface(BlockPos interfacePos);
-
-    /**
-     * 结构拆解时调用,移除接口位置记录.
-     */
-    void detachInterface(BlockPos interfacePos);
 
     /**
      * @return 是否正在显示结构投影.
@@ -96,7 +87,7 @@ public interface IMultiblockController {
 
     /**
      * 返回用于 AE2 网络操作的动作来源.
-     * <p>默认由绑定的通用 ME 接口节点提供；没有可用接口时返回空源.</p>
+     * <p>默认返回空源；作为网络节点的控制器应返回自身的机器源.</p>
      */
     default IActionSource getActionSource() {
         return IActionSource.empty();

@@ -12,8 +12,6 @@ import net.minecraftforge.registries.RegistryObject;
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
 import com.github.aeddddd.ae2enhanced.block.AssemblyCasingBlock;
 import com.github.aeddddd.ae2enhanced.block.AssemblyControllerBlock;
-import com.github.aeddddd.ae2enhanced.block.AssemblyInnerWallBlock;
-import com.github.aeddddd.ae2enhanced.block.AssemblyStabilizerBlock;
 import com.github.aeddddd.ae2enhanced.block.HyperdimensionalCasingBlock;
 import com.github.aeddddd.ae2enhanced.block.CausalAnchorCoreBlock;
 import com.github.aeddddd.ae2enhanced.block.CasingGlassBlock;
@@ -26,7 +24,6 @@ import com.github.aeddddd.ae2enhanced.block.HyperdimensionalSingularityCoreBlock
 import com.github.aeddddd.ae2enhanced.block.MicroSingularityBlock;
 import com.github.aeddddd.ae2enhanced.block.PersonalDimensionManagerBlock;
 import com.github.aeddddd.ae2enhanced.block.CautionBlock;
-import com.github.aeddddd.ae2enhanced.block.MultiblockMeInterfaceBlock;
 
 /**
  * 方块注册中心.
@@ -45,10 +42,6 @@ public final class ModBlocks {
             "hyperdimensional_singularity_core",
             () -> new HyperdimensionalSingularityCoreBlock(metalProperties().lightLevel(state -> 8)));
 
-    // Common multiblock ME interface
-    public static final RegistryObject<Block> MULTIBLOCK_ME_INTERFACE = DR.register("multiblock_me_interface",
-            () -> new MultiblockMeInterfaceBlock(metalProperties()));
-
     // Micro Singularity (black hole ritual)
     public static final RegistryObject<Block> MICRO_SINGULARITY = DR.register("micro_singularity",
             () -> new MicroSingularityBlock(microSingularityProperties()));
@@ -57,23 +50,17 @@ public final class ModBlocks {
     public static final RegistryObject<Block> ASSEMBLY_CONTROLLER = DR.register("assembly_controller",
             () -> new AssemblyControllerBlock(metalProperties()));
 
-    public static final RegistryObject<Block> ASSEMBLY_CASING_1 = DR.register("assembly_casing_1",
+    public static final RegistryObject<Block> ASSEMBLY_CASING = DR.register("assembly_casing",
             () -> new AssemblyCasingBlock(metalProperties()));
 
-    public static final RegistryObject<Block> ASSEMBLY_CASING_2 = DR.register("assembly_casing_2",
-            () -> new AssemblyCasingBlock(metalProperties()));
-
-    public static final RegistryObject<Block> ASSEMBLY_CASING_3 = DR.register("assembly_casing_3",
-            () -> new AssemblyCasingBlock(metalProperties()));
-
-    public static final RegistryObject<Block> ASSEMBLY_CASING_4 = DR.register("assembly_casing_4",
+    public static final RegistryObject<Block> ASSEMBLY_FRAME = DR.register("assembly_frame",
             () -> new AssemblyCasingBlock(metalProperties()));
 
     public static final RegistryObject<Block> ASSEMBLY_INNER_WALL = DR.register("assembly_inner_wall",
-            () -> new AssemblyInnerWallBlock(metalProperties()));
+            () -> new AssemblyCasingBlock(metalProperties()));
 
     public static final RegistryObject<Block> ASSEMBLY_STABILIZER = DR.register("assembly_stabilizer",
-            () -> new AssemblyStabilizerBlock(metalProperties()));
+            () -> new AssemblyCasingBlock(metalProperties()));
 
     // Supercausal Computation Core
     public static final RegistryObject<Block> COMPUTATION_CONTROLLER = DR.register("computation_controller",

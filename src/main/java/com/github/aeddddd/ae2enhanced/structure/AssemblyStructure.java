@@ -45,10 +45,10 @@ public class AssemblyStructure {
     private static final Map<String, Set<BlockPos>> RAW_POSITIONS = new LinkedHashMap<>();
 
     static {
-        BLOCK_REGISTRY_MAP.put("casing_1", ModBlocks.ASSEMBLY_CASING_1);
-        BLOCK_REGISTRY_MAP.put("casing_2", ModBlocks.ASSEMBLY_CASING_2);
-        BLOCK_REGISTRY_MAP.put("casing_3", ModBlocks.ASSEMBLY_CASING_3);
-        BLOCK_REGISTRY_MAP.put("casing_4", ModBlocks.ASSEMBLY_CASING_4);
+        BLOCK_REGISTRY_MAP.put("casing", ModBlocks.ASSEMBLY_CASING);
+        BLOCK_REGISTRY_MAP.put("frame", ModBlocks.ASSEMBLY_FRAME);
+        BLOCK_REGISTRY_MAP.put("inner_wall", ModBlocks.ASSEMBLY_INNER_WALL);
+        BLOCK_REGISTRY_MAP.put("stabilizer", ModBlocks.ASSEMBLY_STABILIZER);
         BLOCK_REGISTRY_MAP.put("controller", ModBlocks.ASSEMBLY_CONTROLLER);
 
         loadRawPositions();
@@ -115,7 +115,7 @@ public class AssemblyStructure {
         }
         BLOCK_SETS = Collections.unmodifiableMap(unmodifiableSets);
         ALL_SET = Collections.unmodifiableSet(all);
-        INSTANCE = new Impl(StructureDefinition.of(BLOCK_SETS, null));
+        INSTANCE = new Impl(StructureDefinition.of(BLOCK_SETS));
     }
 
     private static void ensureInitialized() {

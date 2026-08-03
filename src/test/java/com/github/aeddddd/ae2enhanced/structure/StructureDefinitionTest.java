@@ -60,20 +60,6 @@ class StructureDefinitionTest {
     }
 
     @Test
-    void testInterfaceRelativePos() {
-        StructureDefinition withInterface = StructureDefinition.builder()
-                .add(Blocks.STONE, P1)
-                .interfacePos(P2)
-                .build();
-        assertEquals(P2, withInterface.getInterfaceRelativePos());
-
-        StructureDefinition withoutInterface = StructureDefinition.builder()
-                .add(Blocks.STONE, P1)
-                .build();
-        assertNull(withoutInterface.getInterfaceRelativePos());
-    }
-
-    @Test
     void testDuplicatePositionForSameBlock() {
         // 同一方块同一位置重复添加只计一次
         StructureDefinition def = StructureDefinition.builder()
@@ -112,7 +98,7 @@ class StructureDefinitionTest {
     void testOfDefensiveCopy() {
         Set<BlockPos> positions = new HashSet<>();
         positions.add(P1);
-        StructureDefinition def = StructureDefinition.of(Map.of(Blocks.STONE, positions), null);
+        StructureDefinition def = StructureDefinition.of(Map.of(Blocks.STONE, positions));
         // 修改源集合不应影响定义
         positions.add(P2);
         assertEquals(1, def.getAllPositions().size());
@@ -138,7 +124,6 @@ class StructureDefinitionTest {
         StructureDefinition.Builder builder = StructureDefinition.builder();
         assertNotNull(builder.add(Blocks.STONE, P1));
         assertNotNull(builder.addAll(Blocks.DIRT, Set.of(P2)));
-        assertNotNull(builder.interfacePos(P3));
         assertNotNull(builder.build());
     }
 
@@ -148,7 +133,6 @@ class StructureDefinitionTest {
         assertTrue(def.getBlockSets().isEmpty());
         assertTrue(def.getAllPositions().isEmpty());
         assertTrue(def.getExpectedBlocks().isEmpty());
-        assertNull(def.getInterfaceRelativePos());
         assertFalse(def.getAllPositions().contains(P1));
     }
 }

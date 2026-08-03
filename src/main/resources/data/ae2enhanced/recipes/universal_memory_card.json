@@ -1,0 +1,18 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    " G ",
+    "EME",
+    " D "
+  ],
+  "key": {
+    "G": { "item": "minecraft:gold_ingot" },
+    "E": { "item": "ae2:engineering_processor" },
+    "M": { "item": "ae2:memory_card" },
+    "D": { "item": "minecraft:diamond" }
+  },
+  "result": {
+    "item": "ae2enhanced:universal_memory_card",
+    "count": 1
+  }
+}

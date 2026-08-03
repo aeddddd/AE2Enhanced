@@ -37,6 +37,9 @@ public class MixinCraftingCPUCluster implements IVirtualCraftingCPU {
     @Override
     public void ae2enhanced$setHost(ComputationCoreBlockEntity host) {
         this.ae2enhanced$host = host;
+        // updateName 仅由 AE2 在集群 done() 时调用,虚拟集群永不触发,
+        // 故在托管时直接写入专有名称,使终端 CPU 列表显示本地化名称而非默认名
+        this.myName = Component.translatable("block.ae2enhanced.computation_core");
     }
 
     @Override

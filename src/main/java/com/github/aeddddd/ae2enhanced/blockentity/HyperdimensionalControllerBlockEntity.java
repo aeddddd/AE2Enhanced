@@ -19,24 +19,29 @@ import appeng.api.networking.IGrid;
 import appeng.api.networking.IManagedGridNode;
 import appeng.api.networking.energy.IEnergyService;
 import appeng.api.networking.security.IActionSource;
+import appeng.api.storage.IStorageMounts;
+import appeng.api.storage.IStorageProvider;
 import appeng.api.storage.MEStorage;
+import appeng.api.util.AECableType;
+import appeng.blockentity.grid.AENetworkBlockEntity;
 
 import com.github.aeddddd.ae2enhanced.config.AE2EnhancedConfig;
 import com.github.aeddddd.ae2enhanced.hyperdimensional.storage.HyperdimensionalMEStorage;
 import com.github.aeddddd.ae2enhanced.hyperdimensional.storage.HyperdimensionalStorage;
 import com.github.aeddddd.ae2enhanced.hyperdimensional.storage.HyperdimensionalStorageFile;
-import com.github.aeddddd.ae2enhanced.multiblock.IStorageHost;
-import com.github.aeddddd.ae2enhanced.blockentity.MultiblockControllerBlockEntity;
-import com.github.aeddddd.ae2enhanced.blockentity.MultiblockMeInterfaceBlockEntity;
+import com.github.aeddddd.ae2enhanced.multiblock.IMultiblockController;
 import com.github.aeddddd.ae2enhanced.registry.ModBlockEntities;
+import com.github.aeddddd.ae2enhanced.registry.ModItems;
 import com.github.aeddddd.ae2enhanced.structure.IMultiblockStructure;
+import com.github.aeddddd.ae2enhanced.util.BlockEntityRemovalHelper;
 
 /**
  * 超维度仓储中枢控制器方块实体.
- * <p>持有 Nexus UUID 与 BigInteger 外部存储,通过通用 ME 接口挂载到 AE2 网络.</p>
+ * <p>自身作为 AE2 网络节点（任意结构方块均可并网）,成形后通过自身节点向网络提供
+ * IStorageProvider 服务,挂载 Nexus UUID 对应的 BigInteger 外部存储.</p>
  */
-public class HyperdimensionalControllerBlockEntity extends MultiblockControllerBlockEntity
-        implements IStorageHost {
+public class HyperdimensionalControllerBlockEntity extends AENetworkBlockEntity
+        implements IMultiblockController, IStorageProvider {
 
     private static final String TAG_NEXUS_ID = "nexusId";
     private static final String TAG_NETWORK_ACTIVE = "networkActive";
@@ -51,6 +56,9 @@ public class HyperdimensionalControllerBlockEntity extends MultiblockControllerB
     private HyperdimensionalStorage storage;
     @Nullable
     private HyperdimensionalMEStorage meStorage;
+
+    private boolean formed = false;
+    private boolean showingStructureProjection = false;
 
     private int validationCooldown = 0;
     private int saveCooldown = 0;
@@ -67,6 +75,19 @@ public class HyperdimensionalControllerBlockEntity extends MultiblockControllerB
 
     public HyperdimensionalControllerBlockEntity(BlockPos pos, BlockState blockState) {
         super(ModBlockEntities.HYPERDIMENSIONAL_CONTROLLER.get(), pos, blockState);
+    }
+
+    @Override
+    protected IManagedGridNode createMainNode() {
+        return super.createMainNode()
+                .setIdlePowerUsage(1.0)
+                .setVisualRepresentation(ModItems.HYPERDIMENSIONAL_CONTROLLER.get())
+                .addService(IStorageProvider.class, this);
+    }
+
+    @Override
+    public AECableType getCableConnectionType(Direction dir) {
+        return AECableType.SMART;
     }
 
     @Nullable
@@ -133,11 +154,96 @@ public class HyperdimensionalControllerBlockEntity extends MultiblockControllerB
         };
     }
 
+    // ---- IMultiblockController ----
+
+    @Override
+    public boolean isFormed() {
+        return formed;
+    }
+
+    @Override
+    public boolean isShowingStructureProjection() {
+        return showingStructureProjection;
+    }
+
+    @Override
+    public void toggleStructureProjection() {
+        if (formed) {
+            showingStructureProjection = false;
+            return;
+        }
+        showingStructureProjection = !showingStructureProjection;
+        setChanged();
+        markForUpdate();
+    }
+
+    @Override
+    public void setFormed(boolean formed) {
+        if (this.formed != formed) {
+            this.formed = formed;
+            setChanged();
+            markForUpdate();
+        }
+    }
+
+    @Override
+    public void assemble() {
+        if (isFormed()) {
+            return;
+        }
+        onAssemble();
+        setFormed(true);
+        requestStorageUpdate();
+    }
+
+    @Override
+    public void disassemble() {
+        if (!isFormed()) {
+            return;
+        }
+        onDisassemble();
+        setFormed(false);
+        requestStorageUpdate();
+    }
+
     @Override
     public void onAssemble() {
         initStorage();
-        updateCableConnections();
     }
+
+    @Override
+    public void onDisassemble() {
+        flushStorage();
+        networkActive = false;
+        networkPowered = false;
+        storageTypes = 0;
+        storageTotal = 0;
+    }
+
+    @Override
+    public BlockPos getControllerPos() {
+        return worldPosition;
+    }
+
+    @Override
+    @Nullable
+    public IMultiblockStructure getStructure() {
+        if (level == null) {
+            return null;
+        }
+        BlockState state = level.getBlockState(worldPosition);
+        if (state.getBlock() instanceof com.github.aeddddd.ae2enhanced.block.MultiblockControllerBlock controllerBlock) {
+            return controllerBlock.getStructure();
+        }
+        return null;
+    }
+
+    @Override
+    public IActionSource getActionSource() {
+        return IActionSource.ofMachine(this);
+    }
+
+    // ---- 存储生命周期 ----
 
     @Override
     public void onLoad() {
@@ -157,12 +263,14 @@ public class HyperdimensionalControllerBlockEntity extends MultiblockControllerB
     }
 
     @Override
-    public void onDisassemble() {
-        flushStorage();
-        networkActive = false;
-        networkPowered = false;
-        storageTypes = 0;
-        storageTotal = 0;
+    public void setRemoved() {
+        if (level != null && !level.isClientSide() && isFormed()
+                && BlockEntityRemovalHelper.isBlockBeingBroken(this)) {
+            // 仅在控制器方块真正被破坏时解散；
+            // 区块卸载或关服时触发 setRemoved 不应执行完整拆解,避免额外 IO 与状态异常.
+            disassemble();
+        }
+        super.setRemoved();
     }
 
     private void initStorage() {
@@ -196,7 +304,7 @@ public class HyperdimensionalControllerBlockEntity extends MultiblockControllerB
 
     /**
      * 当内部存储变化时通知 AE2 网络刷新.
-     * <p>为避免高频写入时反复调用 requestNetworkUpdate,这里仅标记 pending；
+     * <p>为避免高频写入时反复调用 requestUpdate,这里仅标记 pending；
      * 由 {@link #serverTick()} 以最低 5 tick 的间隔统一触发一次.</p>
      */
     private void onStorageContentChanged() {
@@ -206,16 +314,14 @@ public class HyperdimensionalControllerBlockEntity extends MultiblockControllerB
         pendingNetworkUpdate = true;
     }
 
-    @Override
-    public void attachInterface(BlockPos interfacePos) {
-        super.attachInterface(interfacePos);
-        refreshMeStorageSource();
-    }
-
-    @Override
-    public void detachInterface(BlockPos interfacePos) {
-        super.detachInterface(interfacePos);
-        refreshMeStorageSource();
+    /**
+     * 通知网络重新挂载存储（成形状态变化或内容变化时调用）.
+     */
+    private void requestStorageUpdate() {
+        IManagedGridNode node = getMainNode();
+        if (node != null) {
+            IStorageProvider.requestUpdate(node);
+        }
     }
 
     public void flushStorage() {
@@ -225,6 +331,16 @@ public class HyperdimensionalControllerBlockEntity extends MultiblockControllerB
         storage.persist();
     }
 
+    // ---- IStorageProvider ----
+
+    @Override
+    public void mountInventories(IStorageMounts mounts) {
+        if (isFormed() && meStorage != null) {
+            mounts.mount(meStorage);
+        }
+    }
+
+    // ---- Tick ----
 
     public void serverTick() {
         if (level == null || level.isClientSide()) {
@@ -254,11 +370,7 @@ public class HyperdimensionalControllerBlockEntity extends MultiblockControllerB
         if (networkUpdateCooldown-- <= 0 && pendingNetworkUpdate) {
             networkUpdateCooldown = 5;
             pendingNetworkUpdate = false;
-            for (BlockPos pos : getInterfaces()) {
-                if (level.getBlockEntity(pos) instanceof MultiblockMeInterfaceBlockEntity me) {
-                    me.requestNetworkUpdate();
-                }
-            }
+            requestStorageUpdate();
         }
     }
 
@@ -266,7 +378,6 @@ public class HyperdimensionalControllerBlockEntity extends MultiblockControllerB
      * 客户端 tick：移植自 1.12 TileHyperdimensionalController#update 的客户端分支.
      * <p>成形且网络活跃时,生成向结构中心汇聚的附魔粒子(能量流动效果).</p>
      */
-    @Override
     public void clientTick() {
         if (level == null || !level.isClientSide()) {
             return;
@@ -299,44 +410,19 @@ public class HyperdimensionalControllerBlockEntity extends MultiblockControllerB
                 (cx - px) * 0.05, (cy - py) * 0.05, (cz - pz) * 0.05);
     }
 
-    /**
-     * 强制刷新接口相邻位置的 AE2 线缆连接,修复线缆连接时序问题.
-     */
-    private void updateCableConnections() {
-        if (level == null || level.isClientSide()) {
-            return;
-        }
-        for (BlockPos pos : getInterfaces()) {
-            for (Direction dir : Direction.values()) {
-                BlockPos neighborPos = pos.relative(dir);
-                if (level.getBlockEntity(neighborPos) instanceof appeng.blockentity.networking.CableBusBlockEntity cableBe) {
-                    appeng.parts.CableBusContainer cbc = cableBe.getCableBus();
-                    if (cbc != null) {
-                        cbc.updateConnections();
-                    }
-                }
-            }
-        }
-    }
-
     private void refreshNetworkStatus() {
         if (level == null || level.isClientSide()) {
             return;
         }
         boolean active = false;
         boolean powered = false;
-        for (BlockPos pos : getInterfaces()) {
-            if (level.getBlockEntity(pos) instanceof MultiblockMeInterfaceBlockEntity me) {
-                IManagedGridNode node = me.getMainNode();
-                if (node != null) {
-                    active = node.isActive();
-                    IGrid grid = node.getGrid();
-                    if (grid != null) {
-                        IEnergyService energy = grid.getEnergyService();
-                        powered = energy != null && energy.isNetworkPowered();
-                    }
-                    break;
-                }
+        IManagedGridNode node = getMainNode();
+        if (node != null) {
+            active = node.isActive();
+            IGrid grid = node.getGrid();
+            if (grid != null) {
+                IEnergyService energy = grid.getEnergyService();
+                powered = energy != null && energy.isNetworkPowered();
             }
         }
         boolean changed = networkActive != active || networkPowered != powered;
@@ -371,22 +457,13 @@ public class HyperdimensionalControllerBlockEntity extends MultiblockControllerB
         }
     }
 
-    // ---- IStorageHost ----
-
-    @Nullable
-    @Override
-    public MEStorage getStorage() {
-        if (!isFormed() || meStorage == null) {
-            return null;
-        }
-        return meStorage;
-    }
-
     // ---- NBT / 客户端同步 ----
 
     @Override
     public CompoundTag getUpdateTag() {
         CompoundTag tag = super.getUpdateTag();
+        tag.putBoolean("formed", formed);
+        tag.putBoolean("showProjection", showingStructureProjection);
         tag.putBoolean(TAG_NETWORK_ACTIVE, networkActive);
         tag.putBoolean(TAG_NETWORK_POWERED, networkPowered);
         tag.putInt(TAG_STORAGE_TYPES, storageTypes);
@@ -398,6 +475,12 @@ public class HyperdimensionalControllerBlockEntity extends MultiblockControllerB
     @Override
     public void handleUpdateTag(CompoundTag tag) {
         super.handleUpdateTag(tag);
+        if (tag.contains("formed", Tag.TAG_BYTE)) {
+            this.formed = tag.getBoolean("formed");
+        }
+        if (tag.contains("showProjection", Tag.TAG_BYTE)) {
+            this.showingStructureProjection = tag.getBoolean("showProjection");
+        }
         if (tag.contains(TAG_NETWORK_ACTIVE, Tag.TAG_BYTE)) {
             networkActive = tag.getBoolean(TAG_NETWORK_ACTIVE);
         }
@@ -418,6 +501,8 @@ public class HyperdimensionalControllerBlockEntity extends MultiblockControllerB
     @Override
     public void loadTag(CompoundTag data) {
         super.loadTag(data);
+        formed = data.getBoolean("formed");
+        showingStructureProjection = data.getBoolean("showProjection");
         if (data.hasUUID(TAG_NEXUS_ID)) {
             nexusId = data.getUUID(TAG_NEXUS_ID);
         } else {
@@ -433,6 +518,8 @@ public class HyperdimensionalControllerBlockEntity extends MultiblockControllerB
     @Override
     public void saveAdditional(CompoundTag data) {
         super.saveAdditional(data);
+        data.putBoolean("formed", formed);
+        data.putBoolean("showProjection", showingStructureProjection);
         if (nexusId != null) {
             data.putUUID(TAG_NEXUS_ID, nexusId);
         }

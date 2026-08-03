@@ -20,7 +20,6 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.BlockStateProperties;
 
 import com.github.aeddddd.ae2enhanced.multiblock.IMultiblockController;
-import com.github.aeddddd.ae2enhanced.blockentity.MultiblockMeInterfaceBlockEntity;
 import com.github.aeddddd.ae2enhanced.util.StructureUtils;
 
 /**
@@ -171,22 +170,12 @@ public abstract class AbstractMultiblockStructure implements IMultiblockStructur
     }
 
     @Override
-    @Nullable
-    public BlockPos getInterfaceRelativePos() {
-        return definition.getInterfaceRelativePos();
-    }
-
-    @Override
     public void assemble(Level level, BlockPos controllerPos) {
         if (level.isClientSide()) {
             return;
         }
         if (!(level.getBlockEntity(controllerPos) instanceof IMultiblockController controller)) {
             return;
-        }
-        BlockPos interfacePos = findInterfacePos(level, controllerPos);
-        if (interfacePos != null && level.getBlockEntity(interfacePos) instanceof MultiblockMeInterfaceBlockEntity interfaceBe) {
-            interfaceBe.setControllerPos(controllerPos);
         }
         controller.assemble();
     }
@@ -200,19 +189,6 @@ public abstract class AbstractMultiblockStructure implements IMultiblockStructur
             return;
         }
         controller.disassemble();
-        BlockPos interfacePos = findInterfacePos(level, controllerPos);
-        if (interfacePos != null && level.getBlockEntity(interfacePos) instanceof MultiblockMeInterfaceBlockEntity interfaceBe) {
-            interfaceBe.setControllerPos(null);
-        }
-    }
-
-    @Nullable
-    protected BlockPos findInterfacePos(Level level, BlockPos controllerPos) {
-        BlockPos rel = getInterfaceRelativePos();
-        if (rel == null) {
-            return null;
-        }
-        return controllerPos.offset(StructureUtils.rotate(rel, getRotation(level, controllerPos)));
     }
 
     @Override

@@ -122,7 +122,7 @@ void main() {
         vec2 suv = vec2(theta * cos(phi), phi);
 
         vec2 cellId;
-        float d = hexCell(suv * 6.5, cellId);
+        float d = hexCell(suv * 4.5, cellId);
         // 细核心亮线 + 极窄柔光过渡
         float line = 1.0 - smoothstep(0.0, 0.055, d);
         float glow = 1.0 - smoothstep(0.02, 0.20, d);

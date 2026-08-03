@@ -1,0 +1,7 @@
+{
+  "loader": "ae2enhanced:connected",
+  "textures": {
+    "particle": "ae2enhanced:block/assembly_frame",
+    "texture": "ae2enhanced:block/assembly_frame_ctm"
+  }
+}

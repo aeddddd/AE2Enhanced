@@ -32,12 +32,12 @@ public interface IMultiblockStructure {
     ValidationResult validateDetailed(Level level, BlockPos controllerPos);
 
     /**
-     * 装配结构：更新控制器与接口状态.
+     * 装配结构：更新控制器状态.
      */
     void assemble(Level level, BlockPos controllerPos);
 
     /**
-     * 拆解结构：清理控制器与接口状态.
+     * 拆解结构：清理控制器状态.
      */
     void disassemble(Level level, BlockPos controllerPos);
 
@@ -89,10 +89,4 @@ public interface IMultiblockStructure {
      * @return (旋转后的相对坐标, 方块类型) 集合
      */
     Set<Map.Entry<BlockPos, Block>> getExpectedBlocks(Level level, BlockPos controllerPos);
-
-    /**
-     * 获取通用 ME 接口相对坐标；若该结构不使用通用 ME 接口则返回 {@code null}.
-     */
-    @Nullable
-    BlockPos getInterfaceRelativePos();
 }

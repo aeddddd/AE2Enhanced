@@ -10,12 +10,12 @@ import com.github.aeddddd.ae2enhanced.AE2Enhanced;
 import com.github.aeddddd.ae2enhanced.blockentity.AssemblyCasingBlockEntity;
 import com.github.aeddddd.ae2enhanced.blockentity.AssemblyControllerBlockEntity;
 import com.github.aeddddd.ae2enhanced.blockentity.MicroSingularityBlockEntity;
+import com.github.aeddddd.ae2enhanced.blockentity.HyperdimensionalCasingBlockEntity;
 import com.github.aeddddd.ae2enhanced.blockentity.HyperdimensionalControllerBlockEntity;
 import com.github.aeddddd.ae2enhanced.blockentity.PersonalDimensionManagerBlockEntity;
 import com.github.aeddddd.ae2enhanced.blockentity.ComputationCasingBlockEntity;
 import com.github.aeddddd.ae2enhanced.blockentity.ComputationCoreBlockEntity;
 import com.github.aeddddd.ae2enhanced.blockentity.VirtualCraftingCpuBlockEntity;
-import com.github.aeddddd.ae2enhanced.blockentity.MultiblockMeInterfaceBlockEntity;
 
 /**
  * 方块实体类型注册中心.
@@ -29,10 +29,11 @@ public final class ModBlockEntities {
                     () -> BlockEntityType.Builder.of(HyperdimensionalControllerBlockEntity::new,
                             ModBlocks.HYPERDIMENSIONAL_CONTROLLER.get()).build(null));
 
-    public static final RegistryObject<BlockEntityType<MultiblockMeInterfaceBlockEntity>> MULTIBLOCK_ME_INTERFACE = DR
-            .register("multiblock_me_interface",
-                    () -> BlockEntityType.Builder.of(MultiblockMeInterfaceBlockEntity::new,
-                            ModBlocks.MULTIBLOCK_ME_INTERFACE.get()).build(null));
+    public static final RegistryObject<BlockEntityType<HyperdimensionalCasingBlockEntity>> HYPERDIMENSIONAL_CASING = DR
+            .register("hyperdimensional_casing",
+                    () -> BlockEntityType.Builder.of(HyperdimensionalCasingBlockEntity::new,
+                            ModBlocks.HYPERDIMENSIONAL_CASING.get(),
+                            ModBlocks.HYPERDIMENSIONAL_SINGULARITY_CORE.get()).build(null));
 
     public static final RegistryObject<BlockEntityType<MicroSingularityBlockEntity>> MICRO_SINGULARITY = DR.register(
             "micro_singularity",
@@ -47,8 +48,8 @@ public final class ModBlockEntities {
     public static final RegistryObject<BlockEntityType<AssemblyCasingBlockEntity>> ASSEMBLY_CASING = DR
             .register("assembly_casing",
                     () -> BlockEntityType.Builder.of(AssemblyCasingBlockEntity::new,
-                            ModBlocks.ASSEMBLY_CASING_1.get(), ModBlocks.ASSEMBLY_CASING_2.get(),
-                            ModBlocks.ASSEMBLY_CASING_3.get(), ModBlocks.ASSEMBLY_CASING_4.get()).build(null));
+                            ModBlocks.ASSEMBLY_CASING.get(), ModBlocks.ASSEMBLY_FRAME.get(),
+                            ModBlocks.ASSEMBLY_INNER_WALL.get(), ModBlocks.ASSEMBLY_STABILIZER.get()).build(null));
 
     public static final RegistryObject<BlockEntityType<ComputationCoreBlockEntity>> COMPUTATION_CONTROLLER = DR
             .register("computation_controller",

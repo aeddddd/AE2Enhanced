@@ -16,6 +16,7 @@ import com.github.aeddddd.ae2enhanced.network.packet.PacketOmniToolSilkTouch;
 import com.github.aeddddd.ae2enhanced.network.packet.PacketPlacementCablePlace;
 import com.github.aeddddd.ae2enhanced.network.packet.PacketPlacementSelectPreset;
 import com.github.aeddddd.ae2enhanced.network.packet.PacketPlacementUndo;
+import com.github.aeddddd.ae2enhanced.network.packet.PacketUMCAction;
 import com.github.aeddddd.ae2enhanced.network.packet.PersonalDimColorSchemePacket;
 import com.github.aeddddd.ae2enhanced.network.packet.PersonalDimCreateSubmitPacket;
 import com.github.aeddddd.ae2enhanced.network.packet.PersonalDimManagerStatePacket;
@@ -147,6 +148,12 @@ public final class ModNetwork {
                 .encoder(SpecialPlanInfoPacket::encode)
                 .decoder(SpecialPlanInfoPacket::decode)
                 .consumerMainThread(SpecialPlanInfoPacket::handle)
+                .add();
+
+        CHANNEL.messageBuilder(PacketUMCAction.class, nextId())
+                .encoder(PacketUMCAction::encode)
+                .decoder(PacketUMCAction::decode)
+                .consumerMainThread(PacketUMCAction::handle)
                 .add();
     }
 

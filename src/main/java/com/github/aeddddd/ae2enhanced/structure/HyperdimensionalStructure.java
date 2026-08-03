@@ -24,7 +24,6 @@ import com.github.aeddddd.ae2enhanced.util.StructureUtils;
 public final class HyperdimensionalStructure {
 
     public static final Set<BlockPos> CONTROLLER_SET;
-    public static final Set<BlockPos> INTERFACE_SET;
     public static final Set<BlockPos> CASING_SET;
     public static final Set<BlockPos> CORE_SET;
     public static final Set<BlockPos> ALL_SET;
@@ -37,10 +36,6 @@ public final class HyperdimensionalStructure {
         controller.add(new BlockPos(0, 0, 0));
         CONTROLLER_SET = Collections.unmodifiableSet(controller);
 
-        Set<BlockPos> meInterface = new HashSet<>();
-        meInterface.add(new BlockPos(0, 0, 4));
-        INTERFACE_SET = Collections.unmodifiableSet(meInterface);
-
         Set<BlockPos> core = new HashSet<>();
         core.add(new BlockPos(0, 0, 3));
         core.add(new BlockPos(-1, 0, 2));
@@ -50,6 +45,7 @@ public final class HyperdimensionalStructure {
         CORE_SET = Collections.unmodifiableSet(core);
 
         Set<BlockPos> casing = new HashSet<>();
+        casing.add(new BlockPos(0, 0, 4));
         casing.add(new BlockPos(-1, 0, 3));
         casing.add(new BlockPos(-2, 0, 3));
         casing.add(new BlockPos(1, 0, 4));
@@ -68,7 +64,6 @@ public final class HyperdimensionalStructure {
 
         Set<BlockPos> all = new HashSet<>();
         all.addAll(CONTROLLER_SET);
-        all.addAll(INTERFACE_SET);
         all.addAll(CORE_SET);
         all.addAll(CASING_SET);
         ALL_SET = Collections.unmodifiableSet(all);
@@ -85,10 +80,8 @@ public final class HyperdimensionalStructure {
 
         StructureDefinition definition = StructureDefinition.builder()
                 .addAll(ModBlocks.HYPERDIMENSIONAL_CONTROLLER.get(), CONTROLLER_SET)
-                .addAll(ModBlocks.MULTIBLOCK_ME_INTERFACE.get(), INTERFACE_SET)
                 .addAll(ModBlocks.HYPERDIMENSIONAL_SINGULARITY_CORE.get(), CORE_SET)
                 .addAll(ModBlocks.HYPERDIMENSIONAL_CASING.get(), CASING_SET)
-                .interfacePos(new BlockPos(0, 0, 4))
                 .build();
         INSTANCE = new Impl(definition);
     }

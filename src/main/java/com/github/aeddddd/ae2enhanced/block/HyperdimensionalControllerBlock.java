@@ -17,7 +17,6 @@ import net.minecraftforge.network.NetworkHooks;
 import com.github.aeddddd.ae2enhanced.blockentity.HyperdimensionalControllerBlockEntity;
 import com.github.aeddddd.ae2enhanced.menu.HyperdimensionalNexusMenu;
 import com.github.aeddddd.ae2enhanced.menu.HyperdimensionalUnformedMenu;
-import com.github.aeddddd.ae2enhanced.blockentity.MultiblockControllerBlockEntity;
 import com.github.aeddddd.ae2enhanced.structure.ControllerIndex;
 import com.github.aeddddd.ae2enhanced.structure.HyperdimensionalStructure;
 import com.github.aeddddd.ae2enhanced.structure.IMultiblockStructure;
@@ -35,7 +34,7 @@ public class HyperdimensionalControllerBlock extends MultiblockControllerBlock {
     public InteractionResult use(BlockState state, Level level, BlockPos pos, Player player,
             InteractionHand hand, BlockHitResult hitResult) {
         if (player.isShiftKeyDown()) {
-            if (level.getBlockEntity(pos) instanceof MultiblockControllerBlockEntity controller) {
+            if (level.getBlockEntity(pos) instanceof HyperdimensionalControllerBlockEntity controller) {
                 if (!controller.isFormed()) {
                     if (!level.isClientSide()) {
                         controller.toggleStructureProjection();
@@ -71,6 +70,21 @@ public class HyperdimensionalControllerBlock extends MultiblockControllerBlock {
     @Override
     public BlockEntity newBlockEntity(BlockPos pos, BlockState state) {
         return new HyperdimensionalControllerBlockEntity(pos, state);
+    }
+
+    @Override
+    @javax.annotation.Nullable
+    public <T extends BlockEntity> net.minecraft.world.level.block.entity.BlockEntityTicker<T> getTicker(
+            Level level, BlockState state, net.minecraft.world.level.block.entity.BlockEntityType<T> blockEntityType) {
+        return (lvl, p, st, be) -> {
+            if (be instanceof HyperdimensionalControllerBlockEntity controller) {
+                if (lvl.isClientSide()) {
+                    controller.clientTick();
+                } else {
+                    controller.serverTick();
+                }
+            }
+        };
     }
 
     @Override

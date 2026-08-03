@@ -17,6 +17,7 @@ import com.github.aeddddd.ae2enhanced.menu.HyperdimensionalUnformedMenu;
 import com.github.aeddddd.ae2enhanced.menu.OmniToolConfigMenu;
 import com.github.aeddddd.ae2enhanced.menu.PersonalDimensionCreateMenu;
 import com.github.aeddddd.ae2enhanced.menu.PersonalDimensionManagerMenu;
+import com.github.aeddddd.ae2enhanced.menu.UniversalMemoryCardMenu;
 
 /**
  * 菜单类型注册中心.
@@ -53,6 +54,9 @@ public final class ModMenus {
 
     public static final RegistryObject<MenuType<OmniToolConfigMenu>> OMNI_TOOL_CONFIG = DR
             .register("omni_tool_config", () -> IForgeMenuType.create(OmniToolConfigMenu::create));
+
+    public static final RegistryObject<MenuType<UniversalMemoryCardMenu>> UNIVERSAL_MEMORY_CARD = DR
+            .register("universal_memory_card", () -> IForgeMenuType.create(UniversalMemoryCardMenu::create));
 
     private ModMenus() {
     }

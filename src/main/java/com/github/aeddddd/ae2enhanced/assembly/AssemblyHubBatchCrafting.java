@@ -25,7 +25,6 @@ import com.github.aeddddd.ae2enhanced.blockentity.AssemblyControllerBlockEntity;
 import com.github.aeddddd.ae2enhanced.client.gui.GuiConstants;
 import com.github.aeddddd.ae2enhanced.mixin.accessor.ElapsedTimeTrackerAccessor;
 import com.github.aeddddd.ae2enhanced.mixin.accessor.TaskProgressAccessor;
-import com.github.aeddddd.ae2enhanced.blockentity.MultiblockMeInterfaceBlockEntity;
 import com.github.aeddddd.ae2enhanced.util.MathUtils;
 
 /**
@@ -136,16 +135,7 @@ public final class AssemblyHubBatchCrafting {
                     }
 
                     for (ICraftingProvider provider : providers) {
-                        AssemblyControllerBlockEntity hub = null;
-                        if (provider instanceof AssemblyControllerBlockEntity controller) {
-                            hub = controller;
-                        } else if (provider instanceof MultiblockMeInterfaceBlockEntity meInterface) {
-                            var controller = meInterface.getController();
-                            if (controller instanceof AssemblyControllerBlockEntity) {
-                                hub = (AssemblyControllerBlockEntity) controller;
-                            }
-                        }
-                        if (hub == null) {
+                        if (!(provider instanceof AssemblyControllerBlockEntity hub)) {
                             continue;
                         }
                         if (!hub.isFormed() || !hub.canBatch()) {

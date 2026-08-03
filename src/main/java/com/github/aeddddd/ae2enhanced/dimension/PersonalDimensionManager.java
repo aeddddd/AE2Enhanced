@@ -7,6 +7,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -45,6 +46,8 @@ import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.event.entity.living.LivingDeathEvent;
 import net.minecraftforge.event.entity.living.MobSpawnEvent;
+import net.minecraftforge.event.entity.player.AttackEntityEvent;
+import net.minecraftforge.event.entity.player.FillBucketEvent;
 import net.minecraftforge.event.entity.player.PlayerEvent;
 import net.minecraftforge.event.entity.player.PlayerInteractEvent;
 import net.minecraftforge.event.level.BlockEvent;
@@ -704,6 +707,30 @@ public final class PersonalDimensionManager {
         return entry.hasPermission(player.getUUID(), permission);
     }
 
+    /**
+     * 拒绝提示的发送冷却,防止连续点击时聊天栏刷屏(移植自 1.12 PersonalDimensionProtection).
+     */
+    private static final Map<UUID, Long> DENY_MESSAGE_COOLDOWN = new ConcurrentHashMap<>();
+    private static final long DENY_MESSAGE_INTERVAL_TICKS = 20L;
+
+    /**
+     * 发送拒绝提示,20 tick 冷却内重复触发不再发送.
+     */
+    private static void sendDenyMessage(ServerPlayer player, String langKey) {
+        long now = player.level().getGameTime();
+        Long last = DENY_MESSAGE_COOLDOWN.get(player.getUUID());
+        if (last != null && now - last < DENY_MESSAGE_INTERVAL_TICKS) {
+            return;
+        }
+        DENY_MESSAGE_COOLDOWN.put(player.getUUID(), now);
+        player.sendSystemMessage(Component.translatable(langKey), true);
+    }
+
+    @SubscribeEvent
+    public static void onPlayerLoggedOut(PlayerEvent.PlayerLoggedOutEvent event) {
+        DENY_MESSAGE_COOLDOWN.remove(event.getEntity().getUUID());
+    }
+
     @SubscribeEvent
     public static void onBreakBlock(BlockEvent.BreakEvent event) {
         if (!(event.getPlayer() instanceof ServerPlayer player)) {
@@ -711,7 +738,7 @@ public final class PersonalDimensionManager {
         }
         if (!hasPermission(player, player.level().dimension(), PersonalDimPermission.BUILD)) {
             event.setCanceled(true);
-            player.sendSystemMessage(Component.translatable("chat.ae2enhanced.personal_dimension.no_build"), true);
+            sendDenyMessage(player, "chat.ae2enhanced.personal_dimension.no_build");
         }
     }
 
@@ -722,7 +749,21 @@ public final class PersonalDimensionManager {
         }
         if (!hasPermission(player, player.level().dimension(), PersonalDimPermission.BUILD)) {
             event.setCanceled(true);
-            player.sendSystemMessage(Component.translatable("chat.ae2enhanced.personal_dimension.no_build"), true);
+            sendDenyMessage(player, "chat.ae2enhanced.personal_dimension.no_build");
+        }
+    }
+
+    /**
+     * 桶的装取都会改变世界的流体状态,归入 BUILD(对齐 1.12 逻辑).
+     */
+    @SubscribeEvent
+    public static void onFillBucket(FillBucketEvent event) {
+        if (!(event.getEntity() instanceof ServerPlayer player)) {
+            return;
+        }
+        if (!hasPermission(player, player.level().dimension(), PersonalDimPermission.BUILD)) {
+            event.setCanceled(true);
+            sendDenyMessage(player, "chat.ae2enhanced.personal_dimension.no_build");
         }
     }
 
@@ -733,8 +774,7 @@ public final class PersonalDimensionManager {
         }
         if (!hasPermission(player, event.getLevel().dimension(), PersonalDimPermission.INTERACT)) {
             event.setCanceled(true);
-            player.sendSystemMessage(Component.translatable("chat.ae2enhanced.personal_dimension.no_interact"),
-                    true);
+            sendDenyMessage(player, "chat.ae2enhanced.personal_dimension.no_interact");
         }
     }
 
@@ -745,8 +785,21 @@ public final class PersonalDimensionManager {
         }
         if (!hasPermission(player, event.getLevel().dimension(), PersonalDimPermission.INTERACT)) {
             event.setCanceled(true);
-            player.sendSystemMessage(Component.translatable("chat.ae2enhanced.personal_dimension.no_interact"),
-                    true);
+            sendDenyMessage(player, "chat.ae2enhanced.personal_dimension.no_interact");
+        }
+    }
+
+    /**
+     * 攻击实体按 INTERACT 判定(对齐 1.12 逻辑).
+     */
+    @SubscribeEvent
+    public static void onAttackEntity(AttackEntityEvent event) {
+        if (!(event.getEntity() instanceof ServerPlayer player)) {
+            return;
+        }
+        if (!hasPermission(player, player.level().dimension(), PersonalDimPermission.INTERACT)) {
+            event.setCanceled(true);
+            sendDenyMessage(player, "chat.ae2enhanced.personal_dimension.no_interact");
         }
     }
 }

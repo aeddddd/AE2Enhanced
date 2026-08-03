@@ -28,11 +28,8 @@ public class AE2EBlockStateProvider extends BlockStateProvider {
     protected void registerStatesAndModels() {
         connectedBlock(ModBlocks.HYPERDIMENSIONAL_CASING);
         simpleBlock(ModBlocks.HYPERDIMENSIONAL_SINGULARITY_CORE.get());
-        simpleBlock(ModBlocks.MULTIBLOCK_ME_INTERFACE.get());
-        connectedBlock(ModBlocks.ASSEMBLY_CASING_1);
-        connectedBlock(ModBlocks.ASSEMBLY_CASING_2);
-        connectedBlock(ModBlocks.ASSEMBLY_CASING_3);
-        connectedBlock(ModBlocks.ASSEMBLY_CASING_4);
+        connectedBlock(ModBlocks.ASSEMBLY_CASING);
+        connectedBlock(ModBlocks.ASSEMBLY_FRAME);
         connectedBlock(ModBlocks.ASSEMBLY_INNER_WALL);
         connectedBlock(ModBlocks.ASSEMBLY_STABILIZER);
         simpleBlock(ModBlocks.CONSTANT_TENSOR_FIELD_CASING.get());

@@ -22,6 +22,7 @@ import com.github.aeddddd.ae2enhanced.dimension.PresetLoader;
 import com.github.aeddddd.ae2enhanced.event.OmniToolEventHandler;
 import com.github.aeddddd.ae2enhanced.event.StructureEventHandler;
 import com.github.aeddddd.ae2enhanced.network.ModNetwork;
+import com.github.aeddddd.ae2enhanced.memorycard.network.UMCNetworkLink;
 import com.github.aeddddd.ae2enhanced.omnitool.network.OmniToolNetworkLink;
 import com.github.aeddddd.ae2enhanced.registry.ModBlockEntities;
 import com.github.aeddddd.ae2enhanced.registry.ModBlocks;
@@ -83,6 +84,8 @@ public class AE2Enhanced {
             PresetLoader.registerBuiltinDefault();
             // 全能工具:注册到 AE2 可链接物品表,使其可在无线访问点 GUI 中绑定网络
             GridLinkables.register(ModItems.ME_OMNI_TOOL.get(), OmniToolNetworkLink.LINKABLE_HANDLER);
+            // 通用内存卡:同样注册到可链接物品表,支持在无线访问点 GUI 中绑定网络
+            GridLinkables.register(ModItems.UNIVERSAL_MEMORY_CARD.get(), UMCNetworkLink.LINKABLE_HANDLER);
         });
     }
 }

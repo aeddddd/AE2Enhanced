@@ -202,16 +202,6 @@ public class ComputationCoreBlockEntity extends AENetworkBlockEntity implements 
     }
 
     @Override
-    public void attachInterface(BlockPos interfacePos) {
-        // 计算核心采用任意结构方块接入网络方案,不依赖通用 ME 接口方块.
-    }
-
-    @Override
-    public void detachInterface(BlockPos interfacePos) {
-        // 计算核心采用任意结构方块接入网络方案,不依赖通用 ME 接口方块.
-    }
-
-    @Override
     public boolean isVirtualCpuAvailable() {
         return isFormed();
     }

@@ -11,3067 +11,3067 @@
       "x": -12,
       "y": -7,
       "z": -9,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -12,
       "y": -7,
       "z": -8,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -21,
       "y": -7,
       "z": 0,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -20,
       "y": -7,
       "z": 0,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -4,
       "y": -7,
       "z": 0,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -3,
       "y": -7,
       "z": 0,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -12,
       "y": -7,
       "z": 8,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -12,
       "y": -7,
       "z": 9,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -12,
       "y": -6,
       "z": -10,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -13,
       "y": -6,
       "z": -9,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -12,
       "y": -6,
       "z": -9,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -11,
       "y": -6,
       "z": -9,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -13,
       "y": -6,
       "z": -8,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -12,
       "y": -6,
       "z": -8,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -11,
       "y": -6,
       "z": -8,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -12,
       "y": -6,
       "z": -7,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -21,
       "y": -6,
       "z": -1,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -20,
       "y": -6,
       "z": -1,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -4,
       "y": -6,
       "z": -1,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -3,
       "y": -6,
       "z": -1,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -22,
       "y": -6,
       "z": 0,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -21,
       "y": -6,
       "z": 0,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -20,
       "y": -6,
       "z": 0,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -19,
       "y": -6,
       "z": 0,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -5,
       "y": -6,
       "z": 0,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -4,
       "y": -6,
       "z": 0,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -3,
       "y": -6,
       "z": 0,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -2,
       "y": -6,
       "z": 0,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -21,
       "y": -6,
       "z": 1,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -20,
       "y": -6,
       "z": 1,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -4,
       "y": -6,
       "z": 1,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -3,
       "y": -6,
       "z": 1,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -12,
       "y": -6,
       "z": 7,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -13,
       "y": -6,
       "z": 8,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -12,
       "y": -6,
       "z": 8,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -11,
       "y": -6,
       "z": 8,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -13,
       "y": -6,
       "z": 9,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -12,
       "y": -6,
       "z": 9,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -11,
       "y": -6,
       "z": 9,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -12,
       "y": -6,
       "z": 10,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -12,
       "y": -5,
       "z": -11,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -13,
       "y": -5,
       "z": -10,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -12,
       "y": -5,
       "z": -10,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -11,
       "y": -5,
       "z": -10,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -13,
       "y": -5,
       "z": -9,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -12,
       "y": -5,
       "z": -9,
-      "block": "casing_4"
+      "block": "stabilizer"
     },
     {
       "x": -11,
       "y": -5,
       "z": -9,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -12,
       "y": -5,
       "z": -8,
-      "block": "casing_4"
+      "block": "stabilizer"
     },
     {
       "x": -22,
       "y": -5,
       "z": -1,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -21,
       "y": -5,
       "z": -1,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -3,
       "y": -5,
       "z": -1,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -2,
       "y": -5,
       "z": -1,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -23,
       "y": -5,
       "z": 0,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -22,
       "y": -5,
       "z": 0,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -21,
       "y": -5,
       "z": 0,
-      "block": "casing_4"
+      "block": "stabilizer"
     },
     {
       "x": -20,
       "y": -5,
       "z": 0,
-      "block": "casing_4"
+      "block": "stabilizer"
     },
     {
       "x": -4,
       "y": -5,
       "z": 0,
-      "block": "casing_4"
+      "block": "stabilizer"
     },
     {
       "x": -3,
       "y": -5,
       "z": 0,
-      "block": "casing_4"
+      "block": "stabilizer"
     },
     {
       "x": -2,
       "y": -5,
       "z": 0,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -1,
       "y": -5,
       "z": 0,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -22,
       "y": -5,
       "z": 1,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -21,
       "y": -5,
       "z": 1,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -3,
       "y": -5,
       "z": 1,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -2,
       "y": -5,
       "z": 1,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -12,
       "y": -5,
       "z": 8,
-      "block": "casing_4"
+      "block": "stabilizer"
     },
     {
       "x": -13,
       "y": -5,
       "z": 9,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -12,
       "y": -5,
       "z": 9,
-      "block": "casing_4"
+      "block": "stabilizer"
     },
     {
       "x": -11,
       "y": -5,
       "z": 9,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -13,
       "y": -5,
       "z": 10,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -12,
       "y": -5,
       "z": 10,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -11,
       "y": -5,
       "z": 10,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -12,
       "y": -5,
       "z": 11,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -12,
       "y": -4,
       "z": -12,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -13,
       "y": -4,
       "z": -11,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -12,
       "y": -4,
       "z": -11,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -11,
       "y": -4,
       "z": -11,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -13,
       "y": -4,
       "z": -10,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -12,
       "y": -4,
       "z": -10,
-      "block": "casing_4"
+      "block": "stabilizer"
     },
     {
       "x": -11,
       "y": -4,
       "z": -10,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -23,
       "y": -4,
       "z": -1,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -22,
       "y": -4,
       "z": -1,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -2,
       "y": -4,
       "z": -1,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -1,
       "y": -4,
       "z": -1,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -24,
       "y": -4,
       "z": 0,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -23,
       "y": -4,
       "z": 0,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -22,
       "y": -4,
       "z": 0,
-      "block": "casing_4"
+      "block": "stabilizer"
     },
     {
       "x": -2,
       "y": -4,
       "z": 0,
-      "block": "casing_4"
+      "block": "stabilizer"
     },
     {
       "x": -1,
       "y": -4,
       "z": 0,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": 0,
       "y": -4,
       "z": 0,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -23,
       "y": -4,
       "z": 1,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -22,
       "y": -4,
       "z": 1,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -2,
       "y": -4,
       "z": 1,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -1,
       "y": -4,
       "z": 1,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -13,
       "y": -4,
       "z": 10,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -12,
       "y": -4,
       "z": 10,
-      "block": "casing_4"
+      "block": "stabilizer"
     },
     {
       "x": -11,
       "y": -4,
       "z": 10,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -13,
       "y": -4,
       "z": 11,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -12,
       "y": -4,
       "z": 11,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -11,
       "y": -4,
       "z": 11,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -12,
       "y": -4,
       "z": 12,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -12,
       "y": -3,
       "z": -12,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -13,
       "y": -3,
       "z": -11,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -12,
       "y": -3,
       "z": -11,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -11,
       "y": -3,
       "z": -11,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -12,
       "y": -3,
       "z": -10,
-      "block": "casing_4"
+      "block": "stabilizer"
     },
     {
       "x": -23,
       "y": -3,
       "z": -1,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -1,
       "y": -3,
       "z": -1,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -24,
       "y": -3,
       "z": 0,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -23,
       "y": -3,
       "z": 0,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -22,
       "y": -3,
       "z": 0,
-      "block": "casing_4"
+      "block": "stabilizer"
     },
     {
       "x": -2,
       "y": -3,
       "z": 0,
-      "block": "casing_4"
+      "block": "stabilizer"
     },
     {
       "x": -1,
       "y": -3,
       "z": 0,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": 0,
       "y": -3,
       "z": 0,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -23,
       "y": -3,
       "z": 1,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -1,
       "y": -3,
       "z": 1,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -12,
       "y": -3,
       "z": 10,
-      "block": "casing_4"
+      "block": "stabilizer"
     },
     {
       "x": -13,
       "y": -3,
       "z": 11,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -12,
       "y": -3,
       "z": 11,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -11,
       "y": -3,
       "z": 11,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -12,
       "y": -3,
       "z": 12,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -12,
       "y": -2,
       "z": -13,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -12,
       "y": -2,
       "z": -12,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -14,
       "y": -2,
       "z": -11,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -13,
       "y": -2,
       "z": -11,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -12,
       "y": -2,
       "z": -11,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -11,
       "y": -2,
       "z": -11,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -10,
       "y": -2,
       "z": -11,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -16,
       "y": -2,
       "z": -10,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -15,
       "y": -2,
       "z": -10,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -12,
       "y": -2,
       "z": -10,
-      "block": "casing_4"
+      "block": "stabilizer"
     },
     {
       "x": -9,
       "y": -2,
       "z": -10,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -8,
       "y": -2,
       "z": -10,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -18,
       "y": -2,
       "z": -9,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -17,
       "y": -2,
       "z": -9,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -7,
       "y": -2,
       "z": -9,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -6,
       "y": -2,
       "z": -9,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -19,
       "y": -2,
       "z": -8,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -5,
       "y": -2,
       "z": -8,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -20,
       "y": -2,
       "z": -7,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -4,
       "y": -2,
       "z": -7,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -21,
       "y": -2,
       "z": -6,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -3,
       "y": -2,
       "z": -6,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -21,
       "y": -2,
       "z": -5,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -3,
       "y": -2,
       "z": -5,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -22,
       "y": -2,
       "z": -4,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -2,
       "y": -2,
       "z": -4,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -22,
       "y": -2,
       "z": -3,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -2,
       "y": -2,
       "z": -3,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -23,
       "y": -2,
       "z": -2,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -1,
       "y": -2,
       "z": -2,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -23,
       "y": -2,
       "z": -1,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -1,
       "y": -2,
       "z": -1,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -25,
       "y": -2,
       "z": 0,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -24,
       "y": -2,
       "z": 0,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -23,
       "y": -2,
       "z": 0,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -22,
       "y": -2,
       "z": 0,
-      "block": "casing_4"
+      "block": "stabilizer"
     },
     {
       "x": -2,
       "y": -2,
       "z": 0,
-      "block": "casing_4"
+      "block": "stabilizer"
     },
     {
       "x": -1,
       "y": -2,
       "z": 0,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": 0,
       "y": -2,
       "z": 0,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -23,
       "y": -2,
       "z": 1,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -1,
       "y": -2,
       "z": 1,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -23,
       "y": -2,
       "z": 2,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -1,
       "y": -2,
       "z": 2,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -22,
       "y": -2,
       "z": 3,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -2,
       "y": -2,
       "z": 3,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -22,
       "y": -2,
       "z": 4,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -2,
       "y": -2,
       "z": 4,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -21,
       "y": -2,
       "z": 5,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -3,
       "y": -2,
       "z": 5,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -21,
       "y": -2,
       "z": 6,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -3,
       "y": -2,
       "z": 6,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -20,
       "y": -2,
       "z": 7,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -4,
       "y": -2,
       "z": 7,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -19,
       "y": -2,
       "z": 8,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -5,
       "y": -2,
       "z": 8,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -18,
       "y": -2,
       "z": 9,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -17,
       "y": -2,
       "z": 9,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -7,
       "y": -2,
       "z": 9,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -6,
       "y": -2,
       "z": 9,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -16,
       "y": -2,
       "z": 10,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -15,
       "y": -2,
       "z": 10,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -12,
       "y": -2,
       "z": 10,
-      "block": "casing_4"
+      "block": "stabilizer"
     },
     {
       "x": -9,
       "y": -2,
       "z": 10,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -8,
       "y": -2,
       "z": 10,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -14,
       "y": -2,
       "z": 11,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -13,
       "y": -2,
       "z": 11,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -12,
       "y": -2,
       "z": 11,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -11,
       "y": -2,
       "z": 11,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -10,
       "y": -2,
       "z": 11,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -12,
       "y": -2,
       "z": 12,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -12,
       "y": -2,
       "z": 13,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -12,
       "y": -1,
       "z": -13,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -14,
       "y": -1,
       "z": -12,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -13,
       "y": -1,
       "z": -12,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -12,
       "y": -1,
       "z": -12,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -11,
       "y": -1,
       "z": -12,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -10,
       "y": -1,
       "z": -12,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -16,
       "y": -1,
       "z": -11,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -15,
       "y": -1,
       "z": -11,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -14,
       "y": -1,
       "z": -11,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -13,
       "y": -1,
       "z": -11,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -12,
       "y": -1,
       "z": -11,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -11,
       "y": -1,
       "z": -11,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -10,
       "y": -1,
       "z": -11,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -9,
       "y": -1,
       "z": -11,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -8,
       "y": -1,
       "z": -11,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -18,
       "y": -1,
       "z": -10,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -17,
       "y": -1,
       "z": -10,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -16,
       "y": -1,
       "z": -10,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -15,
       "y": -1,
       "z": -10,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -14,
       "y": -1,
       "z": -10,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -13,
       "y": -1,
       "z": -10,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -12,
       "y": -1,
       "z": -10,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -11,
       "y": -1,
       "z": -10,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -10,
       "y": -1,
       "z": -10,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -9,
       "y": -1,
       "z": -10,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -8,
       "y": -1,
       "z": -10,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -7,
       "y": -1,
       "z": -10,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -6,
       "y": -1,
       "z": -10,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -19,
       "y": -1,
       "z": -9,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -18,
       "y": -1,
       "z": -9,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -17,
       "y": -1,
       "z": -9,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -16,
       "y": -1,
       "z": -9,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -15,
       "y": -1,
       "z": -9,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -9,
       "y": -1,
       "z": -9,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -8,
       "y": -1,
       "z": -9,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -7,
       "y": -1,
       "z": -9,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -6,
       "y": -1,
       "z": -9,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -5,
       "y": -1,
       "z": -9,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -20,
       "y": -1,
       "z": -8,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -19,
       "y": -1,
       "z": -8,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -18,
       "y": -1,
       "z": -8,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -17,
       "y": -1,
       "z": -8,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -7,
       "y": -1,
       "z": -8,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -6,
       "y": -1,
       "z": -8,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -5,
       "y": -1,
       "z": -8,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -4,
       "y": -1,
       "z": -8,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -21,
       "y": -1,
       "z": -7,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -20,
       "y": -1,
       "z": -7,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -19,
       "y": -1,
       "z": -7,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -5,
       "y": -1,
       "z": -7,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -4,
       "y": -1,
       "z": -7,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -3,
       "y": -1,
       "z": -7,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -22,
       "y": -1,
       "z": -6,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -21,
       "y": -1,
       "z": -6,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -20,
       "y": -1,
       "z": -6,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -4,
       "y": -1,
       "z": -6,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -3,
       "y": -1,
       "z": -6,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -2,
       "y": -1,
       "z": -6,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -22,
       "y": -1,
       "z": -5,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -21,
       "y": -1,
       "z": -5,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -20,
       "y": -1,
       "z": -5,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -4,
       "y": -1,
       "z": -5,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -3,
       "y": -1,
       "z": -5,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -2,
       "y": -1,
       "z": -5,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -23,
       "y": -1,
       "z": -4,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -22,
       "y": -1,
       "z": -4,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -21,
       "y": -1,
       "z": -4,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -3,
       "y": -1,
       "z": -4,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -2,
       "y": -1,
       "z": -4,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -1,
       "y": -1,
       "z": -4,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -23,
       "y": -1,
       "z": -3,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -22,
       "y": -1,
       "z": -3,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -21,
       "y": -1,
       "z": -3,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -3,
       "y": -1,
       "z": -3,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -2,
       "y": -1,
       "z": -3,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -1,
       "y": -1,
       "z": -3,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -24,
       "y": -1,
       "z": -2,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -23,
       "y": -1,
       "z": -2,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -22,
       "y": -1,
       "z": -2,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -2,
       "y": -1,
       "z": -2,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -1,
       "y": -1,
       "z": -2,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": 0,
       "y": -1,
       "z": -2,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -24,
       "y": -1,
       "z": -1,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -23,
       "y": -1,
       "z": -1,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -22,
       "y": -1,
       "z": -1,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -2,
       "y": -1,
       "z": -1,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -1,
       "y": -1,
       "z": -1,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": 0,
       "y": -1,
       "z": -1,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -25,
       "y": -1,
       "z": 0,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -24,
       "y": -1,
       "z": 0,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -23,
       "y": -1,
       "z": 0,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -22,
       "y": -1,
       "z": 0,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -2,
       "y": -1,
       "z": 0,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -1,
       "y": -1,
       "z": 0,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": 0,
       "y": -1,
       "z": 0,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -24,
       "y": -1,
       "z": 1,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -23,
       "y": -1,
       "z": 1,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -22,
       "y": -1,
       "z": 1,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -2,
       "y": -1,
       "z": 1,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -1,
       "y": -1,
       "z": 1,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": 0,
       "y": -1,
       "z": 1,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -24,
       "y": -1,
       "z": 2,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -23,
       "y": -1,
       "z": 2,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -22,
       "y": -1,
       "z": 2,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -2,
       "y": -1,
       "z": 2,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -1,
       "y": -1,
       "z": 2,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": 0,
       "y": -1,
       "z": 2,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -23,
       "y": -1,
       "z": 3,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -22,
       "y": -1,
       "z": 3,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -21,
       "y": -1,
       "z": 3,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -3,
       "y": -1,
       "z": 3,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -2,
       "y": -1,
       "z": 3,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -1,
       "y": -1,
       "z": 3,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -23,
       "y": -1,
       "z": 4,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -22,
       "y": -1,
       "z": 4,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -21,
       "y": -1,
       "z": 4,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -3,
       "y": -1,
       "z": 4,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -2,
       "y": -1,
       "z": 4,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -1,
       "y": -1,
       "z": 4,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -22,
       "y": -1,
       "z": 5,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -21,
       "y": -1,
       "z": 5,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -20,
       "y": -1,
       "z": 5,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -4,
       "y": -1,
       "z": 5,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -3,
       "y": -1,
       "z": 5,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -2,
       "y": -1,
       "z": 5,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -22,
       "y": -1,
       "z": 6,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -21,
       "y": -1,
       "z": 6,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -20,
       "y": -1,
       "z": 6,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -4,
       "y": -1,
       "z": 6,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -3,
       "y": -1,
       "z": 6,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -2,
       "y": -1,
       "z": 6,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -21,
       "y": -1,
       "z": 7,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -20,
       "y": -1,
       "z": 7,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -19,
       "y": -1,
       "z": 7,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -5,
       "y": -1,
       "z": 7,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -4,
       "y": -1,
       "z": 7,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -3,
       "y": -1,
       "z": 7,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -20,
       "y": -1,
       "z": 8,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -19,
       "y": -1,
       "z": 8,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -18,
       "y": -1,
       "z": 8,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -17,
       "y": -1,
       "z": 8,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -7,
       "y": -1,
       "z": 8,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -6,
       "y": -1,
       "z": 8,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -5,
       "y": -1,
       "z": 8,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -4,
       "y": -1,
       "z": 8,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -19,
       "y": -1,
       "z": 9,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -18,
       "y": -1,
       "z": 9,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -17,
       "y": -1,
       "z": 9,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -16,
       "y": -1,
       "z": 9,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -15,
       "y": -1,
       "z": 9,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -9,
       "y": -1,
       "z": 9,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -8,
       "y": -1,
       "z": 9,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -7,
       "y": -1,
       "z": 9,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -6,
       "y": -1,
       "z": 9,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -5,
       "y": -1,
       "z": 9,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -18,
       "y": -1,
       "z": 10,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -17,
       "y": -1,
       "z": 10,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -16,
       "y": -1,
       "z": 10,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -15,
       "y": -1,
       "z": 10,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -14,
       "y": -1,
       "z": 10,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -13,
       "y": -1,
       "z": 10,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -12,
       "y": -1,
       "z": 10,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -11,
       "y": -1,
       "z": 10,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -10,
       "y": -1,
       "z": 10,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -9,
       "y": -1,
       "z": 10,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -8,
       "y": -1,
       "z": 10,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -7,
       "y": -1,
       "z": 10,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -6,
       "y": -1,
       "z": 10,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -16,
       "y": -1,
       "z": 11,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -15,
       "y": -1,
       "z": 11,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -14,
       "y": -1,
       "z": 11,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -13,
       "y": -1,
       "z": 11,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -12,
       "y": -1,
       "z": 11,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -11,
       "y": -1,
       "z": 11,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -10,
       "y": -1,
       "z": 11,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -9,
       "y": -1,
       "z": 11,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -8,
       "y": -1,
       "z": 11,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -14,
       "y": -1,
       "z": 12,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -13,
       "y": -1,
       "z": 12,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -12,
       "y": -1,
       "z": 12,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -11,
       "y": -1,
       "z": 12,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -10,
       "y": -1,
       "z": 12,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -12,
       "y": -1,
       "z": 13,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -12,
       "y": 0,
       "z": -13,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -15,
       "y": 0,
       "z": -12,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -14,
       "y": 0,
       "z": -12,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -13,
       "y": 0,
       "z": -12,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -12,
       "y": 0,
       "z": -12,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -11,
       "y": 0,
       "z": -12,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -10,
       "y": 0,
       "z": -12,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -9,
       "y": 0,
       "z": -12,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -17,
       "y": 0,
       "z": -11,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -16,
       "y": 0,
       "z": -11,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -15,
       "y": 0,
       "z": -11,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -14,
       "y": 0,
       "z": -11,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -13,
       "y": 0,
       "z": -11,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -12,
       "y": 0,
       "z": -11,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -11,
       "y": 0,
       "z": -11,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -10,
       "y": 0,
       "z": -11,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -9,
       "y": 0,
       "z": -11,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -8,
       "y": 0,
       "z": -11,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -7,
       "y": 0,
       "z": -11,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -19,
       "y": 0,
       "z": -10,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -18,
       "y": 0,
       "z": -10,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -17,
       "y": 0,
       "z": -10,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -16,
       "y": 0,
       "z": -10,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -15,
       "y": 0,
       "z": -10,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -14,
       "y": 0,
       "z": -10,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -13,
       "y": 0,
       "z": -10,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -12,
       "y": 0,
       "z": -10,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -11,
       "y": 0,
       "z": -10,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -10,
       "y": 0,
       "z": -10,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -9,
       "y": 0,
       "z": -10,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -8,
       "y": 0,
       "z": -10,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -7,
       "y": 0,
       "z": -10,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -6,
       "y": 0,
       "z": -10,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -5,
       "y": 0,
       "z": -10,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -20,
       "y": 0,
       "z": -9,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -19,
       "y": 0,
       "z": -9,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -18,
       "y": 0,
       "z": -9,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -17,
       "y": 0,
       "z": -9,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -16,
       "y": 0,
       "z": -9,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -15,
       "y": 0,
       "z": -9,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -14,
       "y": 0,
       "z": -9,
-      "block": "casing_4"
+      "block": "stabilizer"
     },
     {
       "x": -13,
       "y": 0,
       "z": -9,
-      "block": "casing_4"
+      "block": "stabilizer"
     },
     {
       "x": -12,
       "y": 0,
       "z": -9,
-      "block": "casing_4"
+      "block": "stabilizer"
     },
     {
       "x": -11,
       "y": 0,
       "z": -9,
-      "block": "casing_4"
+      "block": "stabilizer"
     },
     {
       "x": -10,
       "y": 0,
       "z": -9,
-      "block": "casing_4"
+      "block": "stabilizer"
     },
     {
       "x": -9,
       "y": 0,
       "z": -9,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -8,
       "y": 0,
       "z": -9,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -7,
       "y": 0,
       "z": -9,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -6,
       "y": 0,
       "z": -9,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -5,
       "y": 0,
       "z": -9,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -4,
       "y": 0,
       "z": -9,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -21,
       "y": 0,
       "z": -8,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -20,
       "y": 0,
       "z": -8,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -19,
       "y": 0,
       "z": -8,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -18,
       "y": 0,
       "z": -8,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -17,
       "y": 0,
       "z": -8,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -16,
       "y": 0,
       "z": -8,
-      "block": "casing_4"
+      "block": "stabilizer"
     },
     {
       "x": -15,
       "y": 0,
       "z": -8,
-      "block": "casing_4"
+      "block": "stabilizer"
     },
     {
       "x": -9,
       "y": 0,
       "z": -8,
-      "block": "casing_4"
+      "block": "stabilizer"
     },
     {
       "x": -8,
       "y": 0,
       "z": -8,
-      "block": "casing_4"
+      "block": "stabilizer"
     },
     {
       "x": -7,
       "y": 0,
       "z": -8,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -6,
       "y": 0,
       "z": -8,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -5,
       "y": 0,
       "z": -8,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -4,
       "y": 0,
       "z": -8,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -3,
       "y": 0,
       "z": -8,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -22,
       "y": 0,
       "z": -7,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -21,
       "y": 0,
       "z": -7,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -20,
       "y": 0,
       "z": -7,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -19,
       "y": 0,
       "z": -7,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -18,
       "y": 0,
       "z": -7,
-      "block": "casing_4"
+      "block": "stabilizer"
     },
     {
       "x": -17,
       "y": 0,
       "z": -7,
-      "block": "casing_4"
+      "block": "stabilizer"
     },
     {
       "x": -7,
       "y": 0,
       "z": -7,
-      "block": "casing_4"
+      "block": "stabilizer"
     },
     {
       "x": -6,
       "y": 0,
       "z": -7,
-      "block": "casing_4"
+      "block": "stabilizer"
     },
     {
       "x": -5,
       "y": 0,
       "z": -7,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -4,
       "y": 0,
       "z": -7,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -3,
       "y": 0,
       "z": -7,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -2,
       "y": 0,
       "z": -7,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -22,
       "y": 0,
       "z": -6,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -21,
       "y": 0,
       "z": -6,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -20,
       "y": 0,
       "z": -6,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -19,
       "y": 0,
       "z": -6,
-      "block": "casing_4"
+      "block": "stabilizer"
     },
     {
       "x": -5,
       "y": 0,
       "z": -6,
-      "block": "casing_4"
+      "block": "stabilizer"
     },
     {
       "x": -4,
       "y": 0,
       "z": -6,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -3,
       "y": 0,
       "z": -6,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -2,
       "y": 0,
       "z": -6,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -23,
       "y": 0,
       "z": -5,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -22,
       "y": 0,
       "z": -5,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -21,
       "y": 0,
       "z": -5,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -20,
       "y": 0,
       "z": -5,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -19,
       "y": 0,
       "z": -5,
-      "block": "casing_4"
+      "block": "stabilizer"
     },
     {
       "x": -5,
       "y": 0,
       "z": -5,
-      "block": "casing_4"
+      "block": "stabilizer"
     },
     {
       "x": -4,
       "y": 0,
       "z": -5,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -3,
       "y": 0,
       "z": -5,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -2,
       "y": 0,
       "z": -5,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -1,
       "y": 0,
       "z": -5,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -23,
       "y": 0,
       "z": -4,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -22,
       "y": 0,
       "z": -4,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -21,
       "y": 0,
       "z": -4,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -20,
       "y": 0,
       "z": -4,
-      "block": "casing_4"
+      "block": "stabilizer"
     },
     {
       "x": -4,
       "y": 0,
       "z": -4,
-      "block": "casing_4"
+      "block": "stabilizer"
     },
     {
       "x": -3,
       "y": 0,
       "z": -4,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -2,
       "y": 0,
       "z": -4,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -1,
       "y": 0,
       "z": -4,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -24,
       "y": 0,
       "z": -3,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -23,
       "y": 0,
       "z": -3,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -22,
       "y": 0,
       "z": -3,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -21,
       "y": 0,
       "z": -3,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -20,
       "y": 0,
       "z": -3,
-      "block": "casing_4"
+      "block": "stabilizer"
     },
     {
       "x": -4,
       "y": 0,
       "z": -3,
-      "block": "casing_4"
+      "block": "stabilizer"
     },
     {
       "x": -3,
       "y": 0,
       "z": -3,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -2,
       "y": 0,
       "z": -3,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -1,
       "y": 0,
       "z": -3,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": 0,
       "y": 0,
       "z": -3,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -24,
       "y": 0,
       "z": -2,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -23,
       "y": 0,
       "z": -2,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -22,
       "y": 0,
       "z": -2,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -21,
       "y": 0,
       "z": -2,
-      "block": "casing_4"
+      "block": "stabilizer"
     },
     {
       "x": -3,
       "y": 0,
       "z": -2,
-      "block": "casing_4"
+      "block": "stabilizer"
     },
     {
       "x": -2,
       "y": 0,
       "z": -2,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -1,
       "y": 0,
       "z": -2,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": 0,
       "y": 0,
       "z": -2,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -24,
       "y": 0,
       "z": -1,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -23,
       "y": 0,
       "z": -1,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -22,
       "y": 0,
       "z": -1,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -21,
       "y": 0,
       "z": -1,
-      "block": "casing_4"
+      "block": "stabilizer"
     },
     {
       "x": -3,
       "y": 0,
       "z": -1,
-      "block": "casing_4"
+      "block": "stabilizer"
     },
     {
       "x": -2,
       "y": 0,
       "z": -1,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -1,
       "y": 0,
       "z": -1,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": 0,
       "y": 0,
       "z": -1,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -25,
       "y": 0,
       "z": 0,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -24,
       "y": 0,
       "z": 0,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -23,
       "y": 0,
       "z": 0,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -22,
       "y": 0,
       "z": 0,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -21,
       "y": 0,
       "z": 0,
-      "block": "casing_4"
+      "block": "stabilizer"
     },
     {
       "x": -3,
       "y": 0,
       "z": 0,
-      "block": "casing_4"
+      "block": "stabilizer"
     },
     {
       "x": -2,
       "y": 0,
       "z": 0,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -1,
       "y": 0,
       "z": 0,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": 0,
@@ -3083,3026 +3083,3026 @@
       "x": -24,
       "y": 0,
       "z": 1,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -23,
       "y": 0,
       "z": 1,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -22,
       "y": 0,
       "z": 1,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -21,
       "y": 0,
       "z": 1,
-      "block": "casing_4"
+      "block": "stabilizer"
     },
     {
       "x": -3,
       "y": 0,
       "z": 1,
-      "block": "casing_4"
+      "block": "stabilizer"
     },
     {
       "x": -2,
       "y": 0,
       "z": 1,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -1,
       "y": 0,
       "z": 1,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": 0,
       "y": 0,
       "z": 1,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -24,
       "y": 0,
       "z": 2,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -23,
       "y": 0,
       "z": 2,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -22,
       "y": 0,
       "z": 2,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -21,
       "y": 0,
       "z": 2,
-      "block": "casing_4"
+      "block": "stabilizer"
     },
     {
       "x": -3,
       "y": 0,
       "z": 2,
-      "block": "casing_4"
+      "block": "stabilizer"
     },
     {
       "x": -2,
       "y": 0,
       "z": 2,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -1,
       "y": 0,
       "z": 2,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": 0,
       "y": 0,
       "z": 2,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -24,
       "y": 0,
       "z": 3,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -23,
       "y": 0,
       "z": 3,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -22,
       "y": 0,
       "z": 3,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -21,
       "y": 0,
       "z": 3,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -20,
       "y": 0,
       "z": 3,
-      "block": "casing_4"
+      "block": "stabilizer"
     },
     {
       "x": -4,
       "y": 0,
       "z": 3,
-      "block": "casing_4"
+      "block": "stabilizer"
     },
     {
       "x": -3,
       "y": 0,
       "z": 3,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -2,
       "y": 0,
       "z": 3,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -1,
       "y": 0,
       "z": 3,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": 0,
       "y": 0,
       "z": 3,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -23,
       "y": 0,
       "z": 4,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -22,
       "y": 0,
       "z": 4,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -21,
       "y": 0,
       "z": 4,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -20,
       "y": 0,
       "z": 4,
-      "block": "casing_4"
+      "block": "stabilizer"
     },
     {
       "x": -4,
       "y": 0,
       "z": 4,
-      "block": "casing_4"
+      "block": "stabilizer"
     },
     {
       "x": -3,
       "y": 0,
       "z": 4,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -2,
       "y": 0,
       "z": 4,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -1,
       "y": 0,
       "z": 4,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -23,
       "y": 0,
       "z": 5,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -22,
       "y": 0,
       "z": 5,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -21,
       "y": 0,
       "z": 5,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -20,
       "y": 0,
       "z": 5,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -19,
       "y": 0,
       "z": 5,
-      "block": "casing_4"
+      "block": "stabilizer"
     },
     {
       "x": -5,
       "y": 0,
       "z": 5,
-      "block": "casing_4"
+      "block": "stabilizer"
     },
     {
       "x": -4,
       "y": 0,
       "z": 5,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -3,
       "y": 0,
       "z": 5,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -2,
       "y": 0,
       "z": 5,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -1,
       "y": 0,
       "z": 5,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -22,
       "y": 0,
       "z": 6,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -21,
       "y": 0,
       "z": 6,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -20,
       "y": 0,
       "z": 6,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -19,
       "y": 0,
       "z": 6,
-      "block": "casing_4"
+      "block": "stabilizer"
     },
     {
       "x": -5,
       "y": 0,
       "z": 6,
-      "block": "casing_4"
+      "block": "stabilizer"
     },
     {
       "x": -4,
       "y": 0,
       "z": 6,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -3,
       "y": 0,
       "z": 6,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -2,
       "y": 0,
       "z": 6,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -22,
       "y": 0,
       "z": 7,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -21,
       "y": 0,
       "z": 7,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -20,
       "y": 0,
       "z": 7,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -19,
       "y": 0,
       "z": 7,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -18,
       "y": 0,
       "z": 7,
-      "block": "casing_4"
+      "block": "stabilizer"
     },
     {
       "x": -17,
       "y": 0,
       "z": 7,
-      "block": "casing_4"
+      "block": "stabilizer"
     },
     {
       "x": -7,
       "y": 0,
       "z": 7,
-      "block": "casing_4"
+      "block": "stabilizer"
     },
     {
       "x": -6,
       "y": 0,
       "z": 7,
-      "block": "casing_4"
+      "block": "stabilizer"
     },
     {
       "x": -5,
       "y": 0,
       "z": 7,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -4,
       "y": 0,
       "z": 7,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -3,
       "y": 0,
       "z": 7,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -2,
       "y": 0,
       "z": 7,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -21,
       "y": 0,
       "z": 8,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -20,
       "y": 0,
       "z": 8,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -19,
       "y": 0,
       "z": 8,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -18,
       "y": 0,
       "z": 8,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -17,
       "y": 0,
       "z": 8,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -16,
       "y": 0,
       "z": 8,
-      "block": "casing_4"
+      "block": "stabilizer"
     },
     {
       "x": -15,
       "y": 0,
       "z": 8,
-      "block": "casing_4"
+      "block": "stabilizer"
     },
     {
       "x": -9,
       "y": 0,
       "z": 8,
-      "block": "casing_4"
+      "block": "stabilizer"
     },
     {
       "x": -8,
       "y": 0,
       "z": 8,
-      "block": "casing_4"
+      "block": "stabilizer"
     },
     {
       "x": -7,
       "y": 0,
       "z": 8,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -6,
       "y": 0,
       "z": 8,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -5,
       "y": 0,
       "z": 8,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -4,
       "y": 0,
       "z": 8,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -3,
       "y": 0,
       "z": 8,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -20,
       "y": 0,
       "z": 9,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -19,
       "y": 0,
       "z": 9,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -18,
       "y": 0,
       "z": 9,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -17,
       "y": 0,
       "z": 9,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -16,
       "y": 0,
       "z": 9,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -15,
       "y": 0,
       "z": 9,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -14,
       "y": 0,
       "z": 9,
-      "block": "casing_4"
+      "block": "stabilizer"
     },
     {
       "x": -13,
       "y": 0,
       "z": 9,
-      "block": "casing_4"
+      "block": "stabilizer"
     },
     {
       "x": -12,
       "y": 0,
       "z": 9,
-      "block": "casing_4"
+      "block": "stabilizer"
     },
     {
       "x": -11,
       "y": 0,
       "z": 9,
-      "block": "casing_4"
+      "block": "stabilizer"
     },
     {
       "x": -10,
       "y": 0,
       "z": 9,
-      "block": "casing_4"
+      "block": "stabilizer"
     },
     {
       "x": -9,
       "y": 0,
       "z": 9,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -8,
       "y": 0,
       "z": 9,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -7,
       "y": 0,
       "z": 9,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -6,
       "y": 0,
       "z": 9,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -5,
       "y": 0,
       "z": 9,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -4,
       "y": 0,
       "z": 9,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -19,
       "y": 0,
       "z": 10,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -18,
       "y": 0,
       "z": 10,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -17,
       "y": 0,
       "z": 10,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -16,
       "y": 0,
       "z": 10,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -15,
       "y": 0,
       "z": 10,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -14,
       "y": 0,
       "z": 10,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -13,
       "y": 0,
       "z": 10,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -12,
       "y": 0,
       "z": 10,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -11,
       "y": 0,
       "z": 10,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -10,
       "y": 0,
       "z": 10,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -9,
       "y": 0,
       "z": 10,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -8,
       "y": 0,
       "z": 10,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -7,
       "y": 0,
       "z": 10,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -6,
       "y": 0,
       "z": 10,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -5,
       "y": 0,
       "z": 10,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -17,
       "y": 0,
       "z": 11,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -16,
       "y": 0,
       "z": 11,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -15,
       "y": 0,
       "z": 11,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -14,
       "y": 0,
       "z": 11,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -13,
       "y": 0,
       "z": 11,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -12,
       "y": 0,
       "z": 11,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -11,
       "y": 0,
       "z": 11,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -10,
       "y": 0,
       "z": 11,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -9,
       "y": 0,
       "z": 11,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -8,
       "y": 0,
       "z": 11,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -7,
       "y": 0,
       "z": 11,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -15,
       "y": 0,
       "z": 12,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -14,
       "y": 0,
       "z": 12,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -13,
       "y": 0,
       "z": 12,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -12,
       "y": 0,
       "z": 12,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -11,
       "y": 0,
       "z": 12,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -10,
       "y": 0,
       "z": 12,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -9,
       "y": 0,
       "z": 12,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -12,
       "y": 0,
       "z": 13,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -12,
       "y": 1,
       "z": -13,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -14,
       "y": 1,
       "z": -12,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -13,
       "y": 1,
       "z": -12,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -12,
       "y": 1,
       "z": -12,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -11,
       "y": 1,
       "z": -12,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -10,
       "y": 1,
       "z": -12,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -16,
       "y": 1,
       "z": -11,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -15,
       "y": 1,
       "z": -11,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -14,
       "y": 1,
       "z": -11,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -13,
       "y": 1,
       "z": -11,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -12,
       "y": 1,
       "z": -11,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -11,
       "y": 1,
       "z": -11,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -10,
       "y": 1,
       "z": -11,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -9,
       "y": 1,
       "z": -11,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -8,
       "y": 1,
       "z": -11,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -18,
       "y": 1,
       "z": -10,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -17,
       "y": 1,
       "z": -10,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -16,
       "y": 1,
       "z": -10,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -15,
       "y": 1,
       "z": -10,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -14,
       "y": 1,
       "z": -10,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -13,
       "y": 1,
       "z": -10,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -12,
       "y": 1,
       "z": -10,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -11,
       "y": 1,
       "z": -10,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -10,
       "y": 1,
       "z": -10,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -9,
       "y": 1,
       "z": -10,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -8,
       "y": 1,
       "z": -10,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -7,
       "y": 1,
       "z": -10,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -6,
       "y": 1,
       "z": -10,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -19,
       "y": 1,
       "z": -9,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -18,
       "y": 1,
       "z": -9,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -17,
       "y": 1,
       "z": -9,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -16,
       "y": 1,
       "z": -9,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -15,
       "y": 1,
       "z": -9,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -9,
       "y": 1,
       "z": -9,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -8,
       "y": 1,
       "z": -9,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -7,
       "y": 1,
       "z": -9,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -6,
       "y": 1,
       "z": -9,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -5,
       "y": 1,
       "z": -9,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -20,
       "y": 1,
       "z": -8,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -19,
       "y": 1,
       "z": -8,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -18,
       "y": 1,
       "z": -8,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -17,
       "y": 1,
       "z": -8,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -7,
       "y": 1,
       "z": -8,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -6,
       "y": 1,
       "z": -8,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -5,
       "y": 1,
       "z": -8,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -4,
       "y": 1,
       "z": -8,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -21,
       "y": 1,
       "z": -7,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -20,
       "y": 1,
       "z": -7,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -19,
       "y": 1,
       "z": -7,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -5,
       "y": 1,
       "z": -7,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -4,
       "y": 1,
       "z": -7,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -3,
       "y": 1,
       "z": -7,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -22,
       "y": 1,
       "z": -6,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -21,
       "y": 1,
       "z": -6,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -20,
       "y": 1,
       "z": -6,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -4,
       "y": 1,
       "z": -6,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -3,
       "y": 1,
       "z": -6,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -2,
       "y": 1,
       "z": -6,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -22,
       "y": 1,
       "z": -5,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -21,
       "y": 1,
       "z": -5,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -20,
       "y": 1,
       "z": -5,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -4,
       "y": 1,
       "z": -5,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -3,
       "y": 1,
       "z": -5,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -2,
       "y": 1,
       "z": -5,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -23,
       "y": 1,
       "z": -4,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -22,
       "y": 1,
       "z": -4,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -21,
       "y": 1,
       "z": -4,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -3,
       "y": 1,
       "z": -4,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -2,
       "y": 1,
       "z": -4,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -1,
       "y": 1,
       "z": -4,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -23,
       "y": 1,
       "z": -3,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -22,
       "y": 1,
       "z": -3,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -21,
       "y": 1,
       "z": -3,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -3,
       "y": 1,
       "z": -3,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -2,
       "y": 1,
       "z": -3,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -1,
       "y": 1,
       "z": -3,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -24,
       "y": 1,
       "z": -2,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -23,
       "y": 1,
       "z": -2,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -22,
       "y": 1,
       "z": -2,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -2,
       "y": 1,
       "z": -2,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -1,
       "y": 1,
       "z": -2,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": 0,
       "y": 1,
       "z": -2,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -24,
       "y": 1,
       "z": -1,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -23,
       "y": 1,
       "z": -1,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -22,
       "y": 1,
       "z": -1,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -2,
       "y": 1,
       "z": -1,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -1,
       "y": 1,
       "z": -1,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": 0,
       "y": 1,
       "z": -1,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -25,
       "y": 1,
       "z": 0,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -24,
       "y": 1,
       "z": 0,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -23,
       "y": 1,
       "z": 0,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -22,
       "y": 1,
       "z": 0,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -2,
       "y": 1,
       "z": 0,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -1,
       "y": 1,
       "z": 0,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": 0,
       "y": 1,
       "z": 0,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -24,
       "y": 1,
       "z": 1,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -23,
       "y": 1,
       "z": 1,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -22,
       "y": 1,
       "z": 1,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -2,
       "y": 1,
       "z": 1,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -1,
       "y": 1,
       "z": 1,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": 0,
       "y": 1,
       "z": 1,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -24,
       "y": 1,
       "z": 2,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -23,
       "y": 1,
       "z": 2,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -22,
       "y": 1,
       "z": 2,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -2,
       "y": 1,
       "z": 2,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -1,
       "y": 1,
       "z": 2,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": 0,
       "y": 1,
       "z": 2,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -23,
       "y": 1,
       "z": 3,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -22,
       "y": 1,
       "z": 3,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -21,
       "y": 1,
       "z": 3,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -3,
       "y": 1,
       "z": 3,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -2,
       "y": 1,
       "z": 3,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -1,
       "y": 1,
       "z": 3,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -23,
       "y": 1,
       "z": 4,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -22,
       "y": 1,
       "z": 4,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -21,
       "y": 1,
       "z": 4,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -3,
       "y": 1,
       "z": 4,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -2,
       "y": 1,
       "z": 4,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -1,
       "y": 1,
       "z": 4,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -22,
       "y": 1,
       "z": 5,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -21,
       "y": 1,
       "z": 5,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -20,
       "y": 1,
       "z": 5,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -4,
       "y": 1,
       "z": 5,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -3,
       "y": 1,
       "z": 5,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -2,
       "y": 1,
       "z": 5,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -22,
       "y": 1,
       "z": 6,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -21,
       "y": 1,
       "z": 6,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -20,
       "y": 1,
       "z": 6,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -4,
       "y": 1,
       "z": 6,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -3,
       "y": 1,
       "z": 6,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -2,
       "y": 1,
       "z": 6,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -21,
       "y": 1,
       "z": 7,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -20,
       "y": 1,
       "z": 7,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -19,
       "y": 1,
       "z": 7,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -5,
       "y": 1,
       "z": 7,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -4,
       "y": 1,
       "z": 7,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -3,
       "y": 1,
       "z": 7,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -20,
       "y": 1,
       "z": 8,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -19,
       "y": 1,
       "z": 8,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -18,
       "y": 1,
       "z": 8,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -17,
       "y": 1,
       "z": 8,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -7,
       "y": 1,
       "z": 8,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -6,
       "y": 1,
       "z": 8,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -5,
       "y": 1,
       "z": 8,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -4,
       "y": 1,
       "z": 8,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -19,
       "y": 1,
       "z": 9,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -18,
       "y": 1,
       "z": 9,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -17,
       "y": 1,
       "z": 9,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -16,
       "y": 1,
       "z": 9,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -15,
       "y": 1,
       "z": 9,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -9,
       "y": 1,
       "z": 9,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -8,
       "y": 1,
       "z": 9,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -7,
       "y": 1,
       "z": 9,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -6,
       "y": 1,
       "z": 9,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -5,
       "y": 1,
       "z": 9,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -18,
       "y": 1,
       "z": 10,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -17,
       "y": 1,
       "z": 10,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -16,
       "y": 1,
       "z": 10,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -15,
       "y": 1,
       "z": 10,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -14,
       "y": 1,
       "z": 10,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -13,
       "y": 1,
       "z": 10,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -12,
       "y": 1,
       "z": 10,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -11,
       "y": 1,
       "z": 10,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -10,
       "y": 1,
       "z": 10,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -9,
       "y": 1,
       "z": 10,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -8,
       "y": 1,
       "z": 10,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -7,
       "y": 1,
       "z": 10,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -6,
       "y": 1,
       "z": 10,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -16,
       "y": 1,
       "z": 11,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -15,
       "y": 1,
       "z": 11,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -14,
       "y": 1,
       "z": 11,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -13,
       "y": 1,
       "z": 11,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -12,
       "y": 1,
       "z": 11,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -11,
       "y": 1,
       "z": 11,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -10,
       "y": 1,
       "z": 11,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -9,
       "y": 1,
       "z": 11,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -8,
       "y": 1,
       "z": 11,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -14,
       "y": 1,
       "z": 12,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -13,
       "y": 1,
       "z": 12,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -12,
       "y": 1,
       "z": 12,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -11,
       "y": 1,
       "z": 12,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -10,
       "y": 1,
       "z": 12,
-      "block": "casing_2"
+      "block": "frame"
     },
     {
       "x": -12,
       "y": 1,
       "z": 13,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -12,
       "y": 2,
       "z": -13,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -12,
       "y": 2,
       "z": -12,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -14,
       "y": 2,
       "z": -11,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -13,
       "y": 2,
       "z": -11,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -12,
       "y": 2,
       "z": -11,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -11,
       "y": 2,
       "z": -11,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -10,
       "y": 2,
       "z": -11,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -16,
       "y": 2,
       "z": -10,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -15,
       "y": 2,
       "z": -10,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -12,
       "y": 2,
       "z": -10,
-      "block": "casing_4"
+      "block": "stabilizer"
     },
     {
       "x": -9,
       "y": 2,
       "z": -10,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -8,
       "y": 2,
       "z": -10,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -18,
       "y": 2,
       "z": -9,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -17,
       "y": 2,
       "z": -9,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -7,
       "y": 2,
       "z": -9,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -6,
       "y": 2,
       "z": -9,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -19,
       "y": 2,
       "z": -8,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -5,
       "y": 2,
       "z": -8,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -20,
       "y": 2,
       "z": -7,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -4,
       "y": 2,
       "z": -7,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -21,
       "y": 2,
       "z": -6,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -3,
       "y": 2,
       "z": -6,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -21,
       "y": 2,
       "z": -5,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -3,
       "y": 2,
       "z": -5,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -22,
       "y": 2,
       "z": -4,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -2,
       "y": 2,
       "z": -4,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -22,
       "y": 2,
       "z": -3,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -2,
       "y": 2,
       "z": -3,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -23,
       "y": 2,
       "z": -2,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -1,
       "y": 2,
       "z": -2,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -23,
       "y": 2,
       "z": -1,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -1,
       "y": 2,
       "z": -1,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -25,
       "y": 2,
       "z": 0,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -24,
       "y": 2,
       "z": 0,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -23,
       "y": 2,
       "z": 0,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -22,
       "y": 2,
       "z": 0,
-      "block": "casing_4"
+      "block": "stabilizer"
     },
     {
       "x": -2,
       "y": 2,
       "z": 0,
-      "block": "casing_4"
+      "block": "stabilizer"
     },
     {
       "x": -1,
       "y": 2,
       "z": 0,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": 0,
       "y": 2,
       "z": 0,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -23,
       "y": 2,
       "z": 1,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -1,
       "y": 2,
       "z": 1,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -23,
       "y": 2,
       "z": 2,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -1,
       "y": 2,
       "z": 2,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -22,
       "y": 2,
       "z": 3,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -2,
       "y": 2,
       "z": 3,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -22,
       "y": 2,
       "z": 4,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -2,
       "y": 2,
       "z": 4,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -21,
       "y": 2,
       "z": 5,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -3,
       "y": 2,
       "z": 5,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -21,
       "y": 2,
       "z": 6,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -3,
       "y": 2,
       "z": 6,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -20,
       "y": 2,
       "z": 7,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -4,
       "y": 2,
       "z": 7,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -19,
       "y": 2,
       "z": 8,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -5,
       "y": 2,
       "z": 8,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -18,
       "y": 2,
       "z": 9,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -17,
       "y": 2,
       "z": 9,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -7,
       "y": 2,
       "z": 9,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -6,
       "y": 2,
       "z": 9,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -16,
       "y": 2,
       "z": 10,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -15,
       "y": 2,
       "z": 10,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -12,
       "y": 2,
       "z": 10,
-      "block": "casing_4"
+      "block": "stabilizer"
     },
     {
       "x": -9,
       "y": 2,
       "z": 10,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -8,
       "y": 2,
       "z": 10,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -14,
       "y": 2,
       "z": 11,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -13,
       "y": 2,
       "z": 11,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -12,
       "y": 2,
       "z": 11,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -11,
       "y": 2,
       "z": 11,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -10,
       "y": 2,
       "z": 11,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -12,
       "y": 2,
       "z": 12,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -12,
       "y": 2,
       "z": 13,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -12,
       "y": 3,
       "z": -12,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -13,
       "y": 3,
       "z": -11,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -12,
       "y": 3,
       "z": -11,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -11,
       "y": 3,
       "z": -11,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -12,
       "y": 3,
       "z": -10,
-      "block": "casing_4"
+      "block": "stabilizer"
     },
     {
       "x": -23,
       "y": 3,
       "z": -1,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -1,
       "y": 3,
       "z": -1,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -24,
       "y": 3,
       "z": 0,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -23,
       "y": 3,
       "z": 0,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -22,
       "y": 3,
       "z": 0,
-      "block": "casing_4"
+      "block": "stabilizer"
     },
     {
       "x": -2,
       "y": 3,
       "z": 0,
-      "block": "casing_4"
+      "block": "stabilizer"
     },
     {
       "x": -1,
       "y": 3,
       "z": 0,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": 0,
       "y": 3,
       "z": 0,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -23,
       "y": 3,
       "z": 1,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -1,
       "y": 3,
       "z": 1,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -12,
       "y": 3,
       "z": 10,
-      "block": "casing_4"
+      "block": "stabilizer"
     },
     {
       "x": -13,
       "y": 3,
       "z": 11,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -12,
       "y": 3,
       "z": 11,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -11,
       "y": 3,
       "z": 11,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -12,
       "y": 3,
       "z": 12,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -12,
       "y": 4,
       "z": -12,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -13,
       "y": 4,
       "z": -11,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -12,
       "y": 4,
       "z": -11,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -11,
       "y": 4,
       "z": -11,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -13,
       "y": 4,
       "z": -10,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -12,
       "y": 4,
       "z": -10,
-      "block": "casing_4"
+      "block": "stabilizer"
     },
     {
       "x": -11,
       "y": 4,
       "z": -10,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -23,
       "y": 4,
       "z": -1,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -22,
       "y": 4,
       "z": -1,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -2,
       "y": 4,
       "z": -1,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -1,
       "y": 4,
       "z": -1,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -24,
       "y": 4,
       "z": 0,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -23,
       "y": 4,
       "z": 0,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -22,
       "y": 4,
       "z": 0,
-      "block": "casing_4"
+      "block": "stabilizer"
     },
     {
       "x": -2,
       "y": 4,
       "z": 0,
-      "block": "casing_4"
+      "block": "stabilizer"
     },
     {
       "x": -1,
       "y": 4,
       "z": 0,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": 0,
       "y": 4,
       "z": 0,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -23,
       "y": 4,
       "z": 1,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -22,
       "y": 4,
       "z": 1,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -2,
       "y": 4,
       "z": 1,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -1,
       "y": 4,
       "z": 1,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -13,
       "y": 4,
       "z": 10,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -12,
       "y": 4,
       "z": 10,
-      "block": "casing_4"
+      "block": "stabilizer"
     },
     {
       "x": -11,
       "y": 4,
       "z": 10,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -13,
       "y": 4,
       "z": 11,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -12,
       "y": 4,
       "z": 11,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -11,
       "y": 4,
       "z": 11,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -12,
       "y": 4,
       "z": 12,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -12,
       "y": 5,
       "z": -11,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -13,
       "y": 5,
       "z": -10,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -12,
       "y": 5,
       "z": -10,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -11,
       "y": 5,
       "z": -10,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -13,
       "y": 5,
       "z": -9,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -12,
       "y": 5,
       "z": -9,
-      "block": "casing_4"
+      "block": "stabilizer"
     },
     {
       "x": -11,
       "y": 5,
       "z": -9,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -12,
       "y": 5,
       "z": -8,
-      "block": "casing_4"
+      "block": "stabilizer"
     },
     {
       "x": -22,
       "y": 5,
       "z": -1,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -21,
       "y": 5,
       "z": -1,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -3,
       "y": 5,
       "z": -1,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -2,
       "y": 5,
       "z": -1,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -23,
       "y": 5,
       "z": 0,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -22,
       "y": 5,
       "z": 0,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -21,
       "y": 5,
       "z": 0,
-      "block": "casing_4"
+      "block": "stabilizer"
     },
     {
       "x": -20,
       "y": 5,
       "z": 0,
-      "block": "casing_4"
+      "block": "stabilizer"
     },
     {
       "x": -4,
       "y": 5,
       "z": 0,
-      "block": "casing_4"
+      "block": "stabilizer"
     },
     {
       "x": -3,
       "y": 5,
       "z": 0,
-      "block": "casing_4"
+      "block": "stabilizer"
     },
     {
       "x": -2,
       "y": 5,
       "z": 0,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -1,
       "y": 5,
       "z": 0,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -22,
       "y": 5,
       "z": 1,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -21,
       "y": 5,
       "z": 1,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -3,
       "y": 5,
       "z": 1,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -2,
       "y": 5,
       "z": 1,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -12,
       "y": 5,
       "z": 8,
-      "block": "casing_4"
+      "block": "stabilizer"
     },
     {
       "x": -13,
       "y": 5,
       "z": 9,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -12,
       "y": 5,
       "z": 9,
-      "block": "casing_4"
+      "block": "stabilizer"
     },
     {
       "x": -11,
       "y": 5,
       "z": 9,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -13,
       "y": 5,
       "z": 10,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -12,
       "y": 5,
       "z": 10,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -11,
       "y": 5,
       "z": 10,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -12,
       "y": 5,
       "z": 11,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -12,
       "y": 6,
       "z": -10,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -13,
       "y": 6,
       "z": -9,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -12,
       "y": 6,
       "z": -9,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -11,
       "y": 6,
       "z": -9,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -13,
       "y": 6,
       "z": -8,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -12,
       "y": 6,
       "z": -8,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -11,
       "y": 6,
       "z": -8,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -12,
       "y": 6,
       "z": -7,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -21,
       "y": 6,
       "z": -1,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -20,
       "y": 6,
       "z": -1,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -4,
       "y": 6,
       "z": -1,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -3,
       "y": 6,
       "z": -1,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -22,
       "y": 6,
       "z": 0,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -21,
       "y": 6,
       "z": 0,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -20,
       "y": 6,
       "z": 0,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -19,
       "y": 6,
       "z": 0,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -5,
       "y": 6,
       "z": 0,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -4,
       "y": 6,
       "z": 0,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -3,
       "y": 6,
       "z": 0,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -2,
       "y": 6,
       "z": 0,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -21,
       "y": 6,
       "z": 1,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -20,
       "y": 6,
       "z": 1,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -4,
       "y": 6,
       "z": 1,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -3,
       "y": 6,
       "z": 1,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -12,
       "y": 6,
       "z": 7,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -13,
       "y": 6,
       "z": 8,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -12,
       "y": 6,
       "z": 8,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -11,
       "y": 6,
       "z": 8,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -13,
       "y": 6,
       "z": 9,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -12,
       "y": 6,
       "z": 9,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -11,
       "y": 6,
       "z": 9,
-      "block": "casing_3"
+      "block": "inner_wall"
     },
     {
       "x": -12,
       "y": 6,
       "z": 10,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -12,
       "y": 7,
       "z": -9,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -12,
       "y": 7,
       "z": -8,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -21,
       "y": 7,
       "z": 0,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -20,
       "y": 7,
       "z": 0,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -4,
       "y": 7,
       "z": 0,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -3,
       "y": 7,
       "z": 0,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -12,
       "y": 7,
       "z": 8,
-      "block": "casing_1"
+      "block": "casing"
     },
     {
       "x": -12,
       "y": 7,
       "z": 9,
-      "block": "casing_1"
+      "block": "casing"
     }
   ],
   "requiredItems": {
-    "casing_1": 347,
-    "casing_3": 352,
-    "casing_4": 92,
-    "casing_2": 223,
+    "casing": 347,
+    "inner_wall": 352,
+    "stabilizer": 92,
+    "frame": 223,
     "controller": 1
   }
 }
