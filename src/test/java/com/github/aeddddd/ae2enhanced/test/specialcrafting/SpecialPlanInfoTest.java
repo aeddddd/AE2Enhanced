@@ -2,6 +2,7 @@ package com.github.aeddddd.ae2enhanced.test.specialcrafting;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
@@ -25,6 +26,12 @@ import io.netty.buffer.Unpooled;
  */
 @ExtendWith(BootstrapMinecraftExtension.class)
 public class SpecialPlanInfoTest {
+
+    /** 编解码路径依赖 AE2 key type 注册表(纯 JUnit 环境需手动引导,幂等). */
+    @BeforeAll
+    static void bootstrapKeyTypes() {
+        com.github.aeddddd.ae2enhanced.testutil.AE2KeyTypeTestBootstrap.bootstrap();
+    }
 
     private static GenericStack item(Item item) {
         return GenericStack.fromItemStack(new ItemStack(item));
