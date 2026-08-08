@@ -24,6 +24,11 @@ base {
 // Mojang ships Java 17 to end users in 1.20.1, so mods should target Java 17.
 java.toolchain.languageVersion = JavaLanguageVersion.of(17)
 
+// 仅开发环境的资源（测试配方等）：绑定到 dev 运行时的 mod 源集,不打入发布 jar.
+sourceSets {
+    dev
+}
+
 legacyForge {
     // Specify the version of NeoForge to use for 1.20.1.
     enable {
@@ -93,6 +98,8 @@ legacyForge {
         // but multi mod projects should define one per mod
         "${mod_id}" {
             sourceSet(sourceSets.main)
+            // dev 源集（src/dev/resources）仅在 dev 运行中加载,不进入发布 jar
+            sourceSet(sourceSets.dev)
         }
     }
 }

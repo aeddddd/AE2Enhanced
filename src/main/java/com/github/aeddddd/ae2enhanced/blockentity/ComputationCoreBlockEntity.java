@@ -2,6 +2,7 @@ package com.github.aeddddd.ae2enhanced.blockentity;
 
 import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -10,14 +11,20 @@ import javax.annotation.Nullable;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 
 import appeng.api.networking.IGridNode;
 import appeng.api.networking.IManagedGridNode;
+import appeng.api.networking.crafting.CraftingJobStatus;
 import appeng.api.networking.security.IActionSource;
+import appeng.api.stacks.AEFluidKey;
+import appeng.api.stacks.AEItemKey;
+import appeng.api.stacks.AEKey;
 import appeng.api.util.AECableType;
 import appeng.blockentity.grid.AENetworkBlockEntity;
 
@@ -42,6 +49,10 @@ public class ComputationCoreBlockEntity extends AENetworkBlockEntity implements 
 
     private static final String PARALLEL_LIMIT_TAG = "parallelLimit";
     private static final String POOL_SIZE_TAG = "poolSize";
+    private static final String CRAFTING_TARGETS_TAG = "craftingTargets";
+
+    /** 腔内渲染的合成目标数量上限,避免目标过多时视觉拥挤. */
+    private static final int MAX_RENDER_TARGETS = 8;
 
     private final List<VirtualCraftingCPU> cpuPool = new ArrayList<>();
     private int parallelLimit = 0;
@@ -56,6 +67,10 @@ public class ComputationCoreBlockEntity extends AENetworkBlockEntity implements 
     private int lastSyncedPoolSize = -1;
     private int lastSyncedActiveJobs = -1;
     private boolean lastSyncedNetworkActive = false;
+    private List<ItemStack> lastSyncedTargets = List.of();
+
+    /** 客户端缓存的合成目标（volatile 保证渲染线程可见性）. */
+    private volatile List<ItemStack> clientTargets = List.of();
 
     public ComputationCoreBlockEntity(BlockPos pos, BlockState state) {
         super(ModBlockEntities.COMPUTATION_CONTROLLER.get(), pos, state);
@@ -99,6 +114,48 @@ public class ComputationCoreBlockEntity extends AENetworkBlockEntity implements 
 
     public boolean isClientNetworkActive() {
         return clientNetworkActive;
+    }
+
+    /**
+     * 客户端缓存的当前合成目标集合（仅渲染使用,已去重并按数量截断）.
+     */
+    public List<ItemStack> getClientCraftingTargets() {
+        return clientTargets;
+    }
+
+    /**
+     * 采集服务端当前所有忙碌虚拟 CPU 的合成目标,按目标去重（同一目标多个任务只显示一次）.
+     * <p>仅保留可转为物品展示的目标：物品直接展示,流体展示为对应桶,其余 key 类型跳过.</p>
+     */
+    private List<ItemStack> collectCraftingTargets() {
+        Set<AEKey> seen = new LinkedHashSet<>();
+        List<ItemStack> targets = new ArrayList<>();
+        for (VirtualCraftingCPU cpu : cpuPool) {
+            CraftingJobStatus status = cpu.getCluster().getJobStatus();
+            if (status == null || !seen.add(status.crafting().what())) {
+                continue;
+            }
+            ItemStack display = toDisplayStack(status.crafting().what());
+            if (display.isEmpty()) {
+                continue;
+            }
+            targets.add(display);
+            if (targets.size() >= MAX_RENDER_TARGETS) {
+                break;
+            }
+        }
+        return targets;
+    }
+
+    private static ItemStack toDisplayStack(AEKey key) {
+        if (key instanceof AEItemKey itemKey) {
+            // getReadOnlyStack 返回共享实例,必须复制后再用于 NBT 序列化与渲染
+            return itemKey.getReadOnlyStack().copy();
+        }
+        if (key instanceof AEFluidKey fluidKey) {
+            return new ItemStack(fluidKey.getFluid().getBucket());
+        }
+        return ItemStack.EMPTY;
     }
 
     /**
@@ -240,18 +297,34 @@ public class ComputationCoreBlockEntity extends AENetworkBlockEntity implements 
                 structure.disassemble(level, worldPosition);
             }
 
-            // 池规模/活跃任务/网络状态变化时同步客户端显示数据
+            // 池规模/活跃任务/网络状态/合成目标变化时同步客户端显示数据
             int activeJobs = getActiveJobs();
             IManagedGridNode node = getMainNode();
             boolean networkActive = node != null && node.isActive();
+            List<ItemStack> targets = collectCraftingTargets();
             if (cpuPool.size() != lastSyncedPoolSize || activeJobs != lastSyncedActiveJobs
-                    || networkActive != lastSyncedNetworkActive) {
+                    || networkActive != lastSyncedNetworkActive
+                    || !itemStackListMatches(lastSyncedTargets, targets)) {
                 lastSyncedPoolSize = cpuPool.size();
                 lastSyncedActiveJobs = activeJobs;
                 lastSyncedNetworkActive = networkActive;
+                lastSyncedTargets = targets;
                 markForUpdate();
             }
         }
+    }
+
+    /** 逐项比较两个 ItemStack 列表（1.20.1 无 ItemStack.listMatches）. */
+    private static boolean itemStackListMatches(List<ItemStack> a, List<ItemStack> b) {
+        if (a == null || b == null || a.size() != b.size()) {
+            return a == b;
+        }
+        for (int i = 0; i < a.size(); i++) {
+            if (!ItemStack.matches(a.get(i), b.get(i))) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private void managePool() {
@@ -266,7 +339,10 @@ public class ComputationCoreBlockEntity extends AENetworkBlockEntity implements 
         Iterator<VirtualCraftingCPU> iterator = cpuPool.iterator();
         while (iterator.hasNext() && idleCount > 1) {
             VirtualCraftingCPU cpu = iterator.next();
-            if (cpu.isBusy()) {
+            // 库存仍有残余材料的 CPU 暂不回收：任务在网络回流调用栈内完成时,
+            // finishJob→storeItems 会被网络存储重入保护静默拒绝,残余要等
+            // tickCraftingLogic 重试归还;带残余销毁集群会让材料永久丢失
+            if (cpu.isBusy() || cpu.hasStoredItems()) {
                 continue;
             }
             VirtualCraftingCPURegistry.unregister(cpu.getCluster());
@@ -332,6 +408,12 @@ public class ComputationCoreBlockEntity extends AENetworkBlockEntity implements 
     private void unbindVirtualCpu() {
         for (VirtualCraftingCPU cpu : cpuPool) {
             VirtualCraftingCPURegistry.unregister(cpu.getCluster());
+            // 销毁前尽力归还库存：原生 destroy 不清空合成库存,残余材料会随集群丢失.
+            // 仅空闲 CPU 可调用 storeItems（原生对 job != null 有状态检查）;
+            // 网络离线导致归还失败时残余随集群丢弃,与原生 CPU 拆毁行为一致
+            if (!cpu.isBusy()) {
+                cpu.getCluster().craftingLogic.storeItems();
+            }
             cpu.destroy();
         }
         cpuPool.clear();
@@ -403,6 +485,14 @@ public class ComputationCoreBlockEntity extends AENetworkBlockEntity implements 
         tag.putInt("clientActiveJobs", getActiveJobs());
         IManagedGridNode node = getMainNode();
         tag.putBoolean("clientNetworkActive", node != null && node.isActive());
+        // 合成目标列表（仅服务端有 cpuPool,直接实时采集,保证区块加载时也非陈旧数据）
+        ListTag targetList = new ListTag();
+        if (level != null && !level.isClientSide()) {
+            for (ItemStack target : collectCraftingTargets()) {
+                targetList.add(target.save(new CompoundTag()));
+            }
+        }
+        tag.put(CRAFTING_TARGETS_TAG, targetList);
         return tag;
     }
 
@@ -426,6 +516,14 @@ public class ComputationCoreBlockEntity extends AENetworkBlockEntity implements 
         }
         if (tag.contains("clientNetworkActive", Tag.TAG_BYTE)) {
             this.clientNetworkActive = tag.getBoolean("clientNetworkActive");
+        }
+        if (tag.contains(CRAFTING_TARGETS_TAG, Tag.TAG_LIST)) {
+            ListTag targetList = tag.getList(CRAFTING_TARGETS_TAG, Tag.TAG_COMPOUND);
+            List<ItemStack> targets = new ArrayList<>(targetList.size());
+            for (int i = 0; i < targetList.size(); i++) {
+                targets.add(ItemStack.of(targetList.getCompound(i)));
+            }
+            this.clientTargets = targets;
         }
     }
 }

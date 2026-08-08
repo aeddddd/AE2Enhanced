@@ -70,6 +70,17 @@ public class VirtualCraftingCPU {
         return cluster.isBusy();
     }
 
+    /**
+     * CPU 库存是否仍有残余材料（任务结束后待归还网络的物品）.
+     * <p>任务在网络回流调用栈内完成时,原生 {@code finishJob → storeItems} 会被
+     * {@code NetworkStorage} 的 mountsInUse 重入保护静默拒绝,残余材料要等下一拍
+     * {@code tickCraftingLogic} 重试才能归还;而原生 {@code destroy()} 不清空合成库存,
+     * 带残余销毁集群会让材料随集群对象一并丢失.池回收/解绑销毁前必须先检查本方法.</p>
+     */
+    public boolean hasStoredItems() {
+        return !cluster.craftingLogic.getInventory().list.isEmpty();
+    }
+
     public ComputationCoreBlockEntity getHost() {
         return host;
     }

@@ -22,6 +22,7 @@ import com.github.aeddddd.ae2enhanced.network.packet.PersonalDimCreateSubmitPack
 import com.github.aeddddd.ae2enhanced.network.packet.PersonalDimManagerStatePacket;
 import com.github.aeddddd.ae2enhanced.network.packet.PersonalDimPermissionPacket;
 import com.github.aeddddd.ae2enhanced.network.packet.PersonalDimRulesSubmitPacket;
+import com.github.aeddddd.ae2enhanced.network.packet.PersonalDimRulesSyncPacket;
 import com.github.aeddddd.ae2enhanced.network.packet.RequestAssemblyPacket;
 import com.github.aeddddd.ae2enhanced.network.packet.SpecialPlanInfoPacket;
 
@@ -154,6 +155,12 @@ public final class ModNetwork {
                 .encoder(PacketUMCAction::encode)
                 .decoder(PacketUMCAction::decode)
                 .consumerMainThread(PacketUMCAction::handle)
+                .add();
+
+        CHANNEL.messageBuilder(PersonalDimRulesSyncPacket.class, nextId())
+                .encoder(PersonalDimRulesSyncPacket::encode)
+                .decoder(PersonalDimRulesSyncPacket::decode)
+                .consumerMainThread(PersonalDimRulesSyncPacket::handle)
                 .add();
     }
 

@@ -6,8 +6,13 @@ import net.minecraftforge.fml.config.ModConfig;
 
 /**
  * AE2Enhanced 配置中心.
+ * <p>
+ * 所有配置项均通过 {@link ForgeConfigSpec.Builder#translation(String)} 绑定
+ * {@code ae2enhanced.configuration.<key>} 形式的本地化键,配合 lang 文件在配置界面中显示.
  */
 public final class AE2EnhancedConfig {
+
+    private static final String TRANSLATION_PREFIX = "ae2enhanced.configuration.";
 
     public enum BlackHoleDamageMode {
         ALL, NON_CREATIVE, NONE
@@ -46,6 +51,10 @@ public final class AE2EnhancedConfig {
         ModLoadingContext.get().registerConfig(ModConfig.Type.CLIENT, CLIENT_SPEC);
     }
 
+    private static ForgeConfigSpec.Builder translation(ForgeConfigSpec.Builder builder, String key) {
+        return builder.translation(TRANSLATION_PREFIX + key);
+    }
+
     public static class CommonConfig {
         public final ForgeConfigSpec.IntValue computationMaxParallel;
         public final ForgeConfigSpec.IntValue computationMaxCpus;
@@ -53,8 +62,6 @@ public final class AE2EnhancedConfig {
         public final ForgeConfigSpec.IntValue assemblyMaxPendingOutputs;
         public final ForgeConfigSpec.BooleanValue enableBlackHole;
         public final ForgeConfigSpec.EnumValue<BlackHoleDamageMode> blackHoleDamageMode;
-        public final ForgeConfigSpec.BooleanValue debugMode;
-        public final ForgeConfigSpec.EnumValue<DagPlannerMode> dagPlannerMode;
         public final ForgeConfigSpec.IntValue personalDimensionFloorY;
         public final ForgeConfigSpec.IntValue personalDimensionEntryY;
         public final ForgeConfigSpec.ConfigValue<String> personalDimensionPresetPath;
@@ -65,85 +72,87 @@ public final class AE2EnhancedConfig {
         public final ForgeConfigSpec.BooleanValue omniToolEnableWallPhase;
         public final ForgeConfigSpec.ConfigValue<java.util.List<? extends String>> omniToolBreakableBlacklist;
         public final ForgeConfigSpec.IntValue omniToolMaxEnchantmentLevel;
+        public final ForgeConfigSpec.EnumValue<DagPlannerMode> dagPlannerMode;
+        public final ForgeConfigSpec.BooleanValue debugMode;
 
         CommonConfig(ForgeConfigSpec.Builder builder) {
             builder.push("computation");
-            computationMaxParallel = builder
-                    .comment("超因果计算核心每个子 CPU 的并行线程数")
+            computationMaxParallel = translation(builder, "maxParallel")
+                    .comment("超因果计算核心每个子 CPU 的并行数")
                     .defineInRange("maxParallel", 16384, 1, Integer.MAX_VALUE);
-            computationMaxCpus = builder
+            computationMaxCpus = translation(builder, "maxCpus")
                     .comment("超因果计算核心子 CPU 池最大数量,提交任务时无空闲 CPU 将自动分裂新子 CPU,直至达到该上限")
                     .defineInRange("maxCpus", 256, 1, 4096);
             builder.pop();
 
             builder.push("hyperdimensional");
-            hyperdimensionalFlushIntervalSeconds = builder
+            hyperdimensionalFlushIntervalSeconds = translation(builder, "flushIntervalSeconds")
                     .comment("超维度仓储文件刷新间隔（秒）")
                     .defineInRange("flushIntervalSeconds", 30, 1, 3600);
             builder.pop();
 
             builder.push("assembly");
-            assemblyMaxPendingOutputs = builder
+            assemblyMaxPendingOutputs = translation(builder, "maxPendingOutputs")
                     .comment("装配枢纽产物缓冲上限")
                     .defineInRange("maxPendingOutputs", 4096, 1, 100000);
-            enableBlackHole = builder
-                    .comment("是否启用装配枢纽黑洞事件视界（服务端逻辑开关）")
-                    .define("enableBlackHole", true);
             builder.pop();
 
             builder.push("blackHole");
-            blackHoleDamageMode = builder
+            enableBlackHole = translation(builder, "enableBlackHole")
+                    .comment("是否启用装配枢纽黑洞事件视界")
+                    .define("enableBlackHole", true);
+            blackHoleDamageMode = translation(builder, "damageMode")
                     .comment("微型奇点事件视界伤害模式：ALL 击杀所有实体,NON_CREATIVE 不击杀创造玩家,NONE 关闭伤害")
                     .defineEnum("damageMode", BlackHoleDamageMode.ALL);
             builder.pop();
 
             builder.push("personalDimension");
-            personalDimensionFloorY = builder
+            personalDimensionFloorY = translation(builder, "floorY")
                     .comment("个人维度地板高度")
                     .defineInRange("floorY", 64, 1, 250);
-            personalDimensionEntryY = builder
+            personalDimensionEntryY = translation(builder, "entryY")
                     .comment("个人维度默认进入高度")
                     .defineInRange("entryY", 65, 2, 255);
-            personalDimensionPresetPath = builder
-                    .comment("个人维度地板样式：API 注册的命名样式 id（默认 ae2enhanced:default 为马路+平台组合样式），或预设 JSON 路径（相对 config 目录，如 ae2enhanced/personal_dimension_floor.json）")
+            personalDimensionPresetPath = translation(builder, "presetPath")
+                    .comment("个人维度地板样式：API 注册的命名样式 id")
                     .define("presetPath", "ae2enhanced:default");
             builder.pop();
 
             builder.push("omniTool");
-            omniToolEnableBedrockBreakerUpgrade = builder
+            omniToolEnableBedrockBreakerUpgrade = translation(builder, "enableBedrockBreakerUpgrade")
                     .comment("是否启用基岩破坏者升级配方（工具 + 基岩）,允许工具破坏所有不可破坏方块（硬度 < 0）")
                     .define("enableBedrockBreakerUpgrade", true);
-            omniToolMaxBlinkDistance = builder
+            omniToolMaxBlinkDistance = translation(builder, "maxBlinkDistance")
                     .comment("旅行模式闪现（blink）最大距离（格）")
                     .defineInRange("maxBlinkDistance", 256, 1, 1000);
-            omniToolMaxBreakCooldown = builder
+            omniToolMaxBreakCooldown = translation(builder, "maxBreakCooldown")
                     .comment("挖掘冷却上限（tick）,0 表示无冷却")
                     .defineInRange("maxBreakCooldown", 20, 0, 200);
-            omniToolBaseAttackDamage = builder
-                    .comment("全能工具真实伤害基础攻击力")
+            omniToolBaseAttackDamage = translation(builder, "baseAttackDamage")
+                    .comment("先进ME工具攻击力")
                     .defineInRange("baseAttackDamage", 6.0, 0.0, 10000.0);
-            omniToolEnableWallPhase = builder
+            omniToolEnableWallPhase = translation(builder, "enableWallPhase")
                     .comment("闪现默认是否允许穿墙（可逐工具覆盖）")
                     .define("enableWallPhase", true);
-            omniToolBreakableBlacklist = builder
-                    .comment("不可破坏黑名单（注册名列表,如 minecraft:bedrock）,工具无法破坏列表中的方块")
+            omniToolBreakableBlacklist = translation(builder, "breakableBlacklist")
+                    .comment("不可破坏黑名单,工具无法破坏列表中的方块")
                     .defineList("breakableBlacklist", java.util.List.of(), obj -> obj instanceof String);
-            omniToolMaxEnchantmentLevel = builder
+            omniToolMaxEnchantmentLevel = translation(builder, "maxEnchantmentLevel")
                     .comment("附魔书升级时附魔等级上限")
                     .defineInRange("maxEnchantmentLevel", 255, 1, 32767);
             builder.pop();
 
-            builder.push("debug");
-            debugMode = builder
-                    .comment("调试模式：输出更多日志")
-                    .define("debugMode", false);
+            builder.push("craftingPlan");
+            dagPlannerMode = translation(builder, "dagPlannerMode")
+                    .comment("合成计划引擎优化:OFF 关闭;FALLBACK 原生算不出时启用优化;"
+                            + "DEFAULT 所有非特殊请求默认走优化,原版递归树作回退")
+                    .defineEnum("dagPlannerMode", DagPlannerMode.DEFAULT);
             builder.pop();
 
-            builder.push("craftingPlan");
-            dagPlannerMode = builder
-                    .comment("DAG 计划引擎模式：OFF 关闭；FALLBACK 原生算不出（缺料/递归超限）时 DAG 重算兜底；"
-                            + "DEFAULT 所有非特殊请求默认走 DAG 引擎（深层自引用/循环也可识别）,原版递归树作回退")
-                    .defineEnum("dagPlannerMode", DagPlannerMode.DEFAULT);
+            builder.push("debug");
+            debugMode = translation(builder, "debugMode")
+                    .comment("调试模式：输出更多日志")
+                    .define("debugMode", false);
             builder.pop();
         }
     }
@@ -163,43 +172,43 @@ public final class AE2EnhancedConfig {
         ClientConfig(ForgeConfigSpec.Builder builder) {
             builder.push("render");
 
-            enableAssemblyRenderer = builder
+            enableAssemblyRenderer = translation(builder, "enableAssemblyRenderer")
                     .comment("是否启用装配枢纽中心渲染")
                     .define("enableAssemblyRenderer", true);
 
-            enableAssemblyShader = builder
-                    .comment("是否启用装配枢纽对象空间 shader 渲染（作为后处理不可用时回退）")
+            enableAssemblyShader = translation(builder, "enableAssemblyShader")
+                    .comment("是否启用装配枢纽对象空间 shader 渲染")
                     .define("enableAssemblyShader", true);
 
-            enableAssemblyPostProcessing = builder
-                    .comment("是否启用装配枢纽全屏后处理 shader 渲染（参考 GTCEu 的 black_hole.fsh）")
+            enableAssemblyPostProcessing = translation(builder, "enableAssemblyPostProcessing")
+                    .comment("是否启用装配枢纽全屏后处理 shader 渲染")
                     .define("enableAssemblyPostProcessing", true);
 
-            forceCompatibilityMode = builder
-                    .comment("强制兼容模式：禁用后处理与 shader 渲染,避免与光影包/优化模组冲突")
+            forceCompatibilityMode = translation(builder, "forceCompatibilityMode")
+                    .comment("强制兼容模式：禁用后处理与 shader 渲染")
                     .define("forceCompatibilityMode", false);
 
-            enableHyperdimensionalRenderer = builder
+            enableHyperdimensionalRenderer = translation(builder, "enableHyperdimensionalRenderer")
                     .comment("是否启用超维度仓储全息渲染")
                     .define("enableHyperdimensionalRenderer", true);
 
-            renderDistance = builder
+            renderDistance = translation(builder, "renderDistance")
                     .comment("多方块特效最大渲染距离（方块数）")
                     .defineInRange("renderDistance", 96, 16, 512);
 
-            dynamicRenderIntensity = builder
+            dynamicRenderIntensity = translation(builder, "dynamicRenderIntensity")
                     .comment("动态渲染强度缩放（0.0 ~ 2.0）")
                     .defineInRange("dynamicRenderIntensity", 1.0, 0.0, 2.0);
 
-            maxDynamicElements = builder
+            maxDynamicElements = translation(builder, "maxDynamicElements")
                     .comment("动态元素数量上限（环、壳等）")
                     .defineInRange("maxDynamicElements", 8, 1, 16);
 
-            particleDensity = builder
+            particleDensity = translation(builder, "particleDensity")
                     .comment("粒子密度缩放（0.0 ~ 2.0）")
                     .defineInRange("particleDensity", 1.0, 0.0, 2.0);
 
-            useLOD = builder
+            useLOD = translation(builder, "useLOD")
                     .comment("是否启用远距离 LOD 简化")
                     .define("useLOD", true);
 

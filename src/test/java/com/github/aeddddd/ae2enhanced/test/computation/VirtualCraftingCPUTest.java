@@ -123,4 +123,26 @@ class VirtualCraftingCPUTest {
 
         verify(cluster).destroy();
     }
+
+    /** hasStoredItems 反映集群合成库存是否为空(池回收/解绑销毁前的防丢守卫). */
+    @Test
+    void testHasStoredItemsFollowsClusterInventory() {
+        CraftingCPUCluster cluster = mock(CraftingCPUCluster.class);
+        // mock 不初始化字段,反射注入真实 CraftingCpuLogic(构造器仅赋值,离线安全)
+        var logic = new appeng.crafting.execution.CraftingCpuLogic(cluster);
+        try {
+            Field field = CraftingCPUCluster.class.getField("craftingLogic");
+            field.setAccessible(true);
+            field.set(cluster, logic);
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException("无法注入 craftingLogic 字段", e);
+        }
+
+        var cpu = newCpu(mock(ComputationCoreBlockEntity.class), mock(IManagedGridNode.class), cluster);
+        assertThat(cpu.hasStoredItems()).isFalse();
+
+        // 直接操作 KeyCounter,避免触发 inventory 的 postChange 监听器
+        logic.getInventory().list.add(appeng.api.stacks.AEItemKey.of(net.minecraft.world.item.Items.STONE), 3);
+        assertThat(cpu.hasStoredItems()).isTrue();
+    }
 }

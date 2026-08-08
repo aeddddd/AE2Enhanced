@@ -54,6 +54,7 @@ import net.minecraftforge.event.level.BlockEvent;
 import net.minecraftforge.event.level.LevelEvent;
 import net.minecraftforge.event.server.ServerStartedEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
+import net.minecraftforge.network.NetworkDirection;
 
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
 import com.github.aeddddd.ae2enhanced.api.dimension.FloorColorScheme;
@@ -61,6 +62,8 @@ import com.github.aeddddd.ae2enhanced.api.dimension.IFloorPreset;
 import com.github.aeddddd.ae2enhanced.config.AE2EnhancedConfig;
 import com.github.aeddddd.ae2enhanced.dimension.rules.PlayerAbilityApplier;
 import com.github.aeddddd.ae2enhanced.mixin.accessor.MinecraftServerAccessor;
+import com.github.aeddddd.ae2enhanced.network.ModNetwork;
+import com.github.aeddddd.ae2enhanced.network.packet.PersonalDimRulesSyncPacket;
 
 /**
  * 个人维度管理器：运行时动态维度创建、传送、规则执行与权限强制.
@@ -447,6 +450,7 @@ public final class PersonalDimensionManager {
         if (level != null) {
             for (ServerPlayer player : level.players()) {
                 PlayerAbilityApplier.applyCapabilities(player, rules);
+                sendRulesSync(player, rules);
             }
         }
     }
@@ -460,9 +464,22 @@ public final class PersonalDimensionManager {
         PlayerDimEntry entry = getEntryByDimension(player.server, player.level().dimension());
         if (entry != null) {
             PlayerAbilityApplier.applyCapabilities(player, entry.rules);
+            sendRulesSync(player, entry.rules);
         } else {
             PlayerAbilityApplier.resetAbilities(player);
+            sendRulesSync(player, null);
         }
+    }
+
+    /**
+     * 向玩家同步其当前所在个人维度的规则(active=false 表示不在任何个人维度内).
+     * 客户端需要此规则以执行"无飞行惯性"等客户端权威行为.
+     */
+    private static void sendRulesSync(ServerPlayer player, @Nullable PersonalDimensionRules rules) {
+        ModNetwork.CHANNEL.sendTo(
+                new PersonalDimRulesSyncPacket(rules != null,
+                        rules != null ? rules : new PersonalDimensionRules()),
+                player.connection.connection, NetworkDirection.PLAY_TO_CLIENT);
     }
 
     // ==================== 颜色方案 ====================

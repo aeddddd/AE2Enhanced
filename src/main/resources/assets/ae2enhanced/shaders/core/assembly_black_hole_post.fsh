@@ -22,8 +22,10 @@ uniform mat4 u_invProj;
 uniform vec3 eye;
 uniform vec3 target;
 uniform vec3 u_up;
+// 唯一的外部纹理：场景深度（遮挡剔除用）.
+// 场景颜色不再采样——合成由调用方混合完成（见 compose 注释）,
+// 这样 Oculus/Iris 光影下无需读取其内部帧缓冲的颜色附件
 uniform sampler2D Sampler0;
-uniform sampler2D Sampler1;
 
 out vec4 fragColor;
 
@@ -42,15 +44,10 @@ float value(vec2 p, float f) {
     return mix(b, t, fr.y);
 }
 
-// 场景直通采样：受控黑洞不扭曲周围环境
-vec3 background(vec2 fragCoord) {
-    return texture(Sampler0, fragCoord / u_resolution).rgb;
-}
-
 // 由深度缓冲重建当前像素场景几何到相机的距离,用于方块遮挡剔除
 float sceneDistance(vec2 fragCoord) {
     vec2 uv = fragCoord / u_resolution;
-    float depth = texture(Sampler1, uv).r;
+    float depth = texture(Sampler0, uv).r;
     vec4 viewPos = u_invProj * vec4(uv * 2.0 - 1.0, depth * 2.0 - 1.0, 1.0);
     return length(viewPos.xyz / viewPos.w);
 }
@@ -62,14 +59,15 @@ vec3 shadeEffect(vec4 col, vec4 glow) {
     return pow(max(effect, vec3(0.0)), vec3(0.6));
 }
 
-// 特效与场景合成：背景场景直通保持原色
-vec4 compose(vec4 col, vec4 glow, vec2 fragCoord) {
+// 特效与场景合成：场景直通（受控黑洞不扭曲环境）,因此无需采样场景颜色——
+// 输出 (特效, 覆盖率) 并由调用方以 blendFunc(ONE, ONE_MINUS_SRC_ALPHA) 混合,
+// 结果与 effect + bg * (1 - cov) 严格等价,且兼容 Oculus/Iris 的光影帧缓冲
+vec4 compose(vec4 col, vec4 glow) {
     float cov = clamp(col.a, 0.0, 1.0);
-    vec3 bg = background(fragCoord);
-    return vec4(shadeEffect(col, glow) + bg * (1.0 - cov), 1.0);
+    return vec4(shadeEffect(col, glow), cov);
 }
 
-// 事件视界阴影：被捕获的光线不合成背景,黑洞本体遮蔽其后方场景
+// 事件视界阴影：被捕获的光线不合成背景（alpha=1 完全覆盖）,黑洞本体遮蔽其后方场景
 vec4 composeShadow(vec4 col, vec4 glow) {
     return vec4(shadeEffect(col, glow), 1.0);
 }
@@ -180,9 +178,9 @@ void main() {
                 pos += stepDist * ray;
                 glow += vec4(1.2, 1.1, 1, 1.0) * (0.01 * stepDist * invDistSqr * invDistSqr * clamp(centDist * (2.) - 1.2, 0., 1.)) * intensity;
             }
-            // 遮挡剔除：光线行进距离超过场景几何 → 被方块挡住,直接输出场景
+            // 遮挡剔除：光线行进距离超过场景几何 → 被方块挡住,直接输出当前特效（背景由混合保留）
             if (length(pos - eyeS) > sceneDist) {
-                outCol = compose(col, glow, gl_FragCoord.xy);
+                outCol = compose(col, glow);
                 break;
             }
             float dist2 = length(pos);
@@ -191,7 +189,7 @@ void main() {
                 outCol = composeShadow(col, glow);
                 break;
             } else if (dist2 > _Size * 1000.) {
-                outCol = compose(col, glow, gl_FragCoord.xy);
+                outCol = compose(col, glow);
                 break;
             } else if (abs(pos.y) <= _Size * 0.002) {
                 vec4 diskCol = raymarchDisk(ray, pos);
@@ -203,7 +201,7 @@ void main() {
         }
 
         if (outCol.r == 100.)
-            outCol = compose(col, glow, gl_FragCoord.xy);
+            outCol = compose(col, glow);
         col = outCol;
         fragColor += col / float(AA * AA);
     }

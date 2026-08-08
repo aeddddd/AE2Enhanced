@@ -3,9 +3,15 @@
     "fragment": "ae2enhanced:assembly_black_hole_post",
     "attributes": [ "Position" ],
     "samplers": [
-        { "name": "Sampler0" },
-        { "name": "Sampler1" }
+        { "name": "Sampler0" }
     ],
+    "blend": {
+        "func": "add",
+        "srcrgb": "1",
+        "dstrgb": "1-srcalpha",
+        "srcalpha": "0",
+        "dstalpha": "1"
+    },
     "uniforms": [
         { "name": "ModelViewMat", "type": "matrix4x4", "count": 16, "values": [ 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0 ] },
         { "name": "ProjMat", "type": "matrix4x4", "count": 16, "values": [ 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0 ] },

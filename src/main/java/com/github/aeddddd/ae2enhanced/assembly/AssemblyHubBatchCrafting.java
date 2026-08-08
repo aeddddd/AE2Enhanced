@@ -225,27 +225,58 @@ public final class AssemblyHubBatchCrafting {
                 return false;
             }
 
+            // 2.5) 净产出自引用（产物即原料且净产出为正,如 A+B+C=3A）启用批内种子循环：
+            // 计划侧贷款法只向 CPU 库存提供 inPer 份种子,若按库存量钳制批量,
+            // 批量将恒等于种子数（并行升级完全失效）.净产出为正时本批产出即可回喂原料,
+            // 因此该 key 不参与库存钳制,仅需库存保有单份原料作为种子.
+            AEKey recycleKey = null;
+            if (finalOutput != null) {
+                long selfInPer = 0;
+                for (int i = 0; i < keys.length; i++) {
+                    if (keys[i] != null && keys[i].equals(finalOutput.what())) {
+                        selfInPer += per[i];
+                    }
+                }
+                if (selfInPer > 0) {
+                    long selfOutPer = 0;
+                    for (GenericStack output : details.getOutputs()) {
+                        if (output != null && output.amount() > 0 && output.what().equals(finalOutput.what())) {
+                            selfOutPer += output.amount();
+                        }
+                    }
+                    if (selfOutPer > selfInPer) {
+                        recycleKey = finalOutput.what();
+                    }
+                }
+            }
+
             // 3) 同 key 合并校验可用量,不足则缩减批量（避免同 key 多槽重复计数）
-            long actual = shrinkToAvailable(inventory, keys, fixed, per, batchSize);
+            long actual = shrinkToAvailable(inventory, keys, fixed, per, batchSize, recycleKey);
             if (actual <= 0) {
                 return false;
             }
 
-            // 4) 一次性扣料
-            extractMerged(inventory, keys, fixed, per, actual);
+            // 4) 一次性扣料（批内循环 key 只实扣库存中已有的种子量,缺口由本批产出回喂）
+            long extractedSelf = extractMerged(inventory, keys, fixed, per, actual, recycleKey);
 
             // 5) 产物交付
-            // 递归合成（产物同时是原料,如 A+2B=2A）时,先计算本批次消耗的该 key 数量：
+            // 递归合成（产物同时是原料,如 A+B+C=3A）时,先计算本批次消耗的该 key 数量：
             // 等量产物回留 CPU 库存作为下一批次的种子,只有净产出才经网络回流记账,
             // 否则第一批后 CPU 库存耗尽,后续批次将永远缺料卡死.
             long consumedSelf = 0;
             if (finalOutput != null) {
                 for (int i = 0; i < keys.length; i++) {
                     if (keys[i] != null && keys[i].equals(finalOutput.what())) {
-                        consumedSelf += per[i] * actual;
+                        consumedSelf = safeAdd(consumedSelf, MathUtils.safeMultiply(per[i], actual));
                     }
                 }
             }
+            // 批内回喂量 = 消耗量 - 库存实扣量；未启用批内循环时两者相等,回喂为 0
+            long recycleLeft = recycleKey != null ? consumedSelf - extractedSelf : 0;
+            // 仅当本样板还有后续批次时才回留种子；最后一批种子随净产出一并经网络回流,
+            // 自动返回网络,避免残留在 CPU 库存中
+            boolean moreRuns = remaining - actual > 0;
+            long retainLeft = moreRuns ? (recycleKey != null ? extractedSelf : consumedSelf) : 0;
             for (GenericStack output : details.getOutputs()) {
                 if (output == null || output.amount() <= 0) {
                     continue;
@@ -255,11 +286,16 @@ public final class AssemblyHubBatchCrafting {
                     continue;
                 }
                 if (finalOutput != null && output.what().matches(finalOutput)) {
-                    // 仅当本样板还有后续批次时才回留种子；最后一批全部经网络回流,
-                    // 种子随净产出一并自动返回网络,避免残留在 CPU 库存中
-                    boolean moreRuns = remaining - actual > 0;
-                    long retain = moreRuns ? Math.min(consumedSelf, total) : 0;
-                    long net = total - retain;
+                    long deliver = total;
+                    if (recycleKey != null && output.what().equals(recycleKey)) {
+                        // 批内回喂部分不交付：由本批产出内部补给原料
+                        long feed = Math.min(recycleLeft, deliver);
+                        recycleLeft -= feed;
+                        deliver -= feed;
+                    }
+                    long retain = Math.min(retainLeft, deliver);
+                    retainLeft -= retain;
+                    long net = deliver - retain;
                     if (retain > 0) {
                         // 种子回留 CPU 库存,维持递归合成链
                         inventory.insert(output.what(), retain, Actionable.MODULATE);
@@ -376,11 +412,11 @@ public final class AssemblyHubBatchCrafting {
             }
 
             // 4) 缩减并扣料
-            long actual = shrinkToAvailable(inventory, keys, fixed, per, batchSize);
+            long actual = shrinkToAvailable(inventory, keys, fixed, per, batchSize, null);
             if (actual <= 0) {
                 return false;
             }
-            extractMerged(inventory, keys, fixed, per, actual);
+            extractMerged(inventory, keys, fixed, per, actual, null);
 
             // 5) 产物：登记 waitingFor 后进缓冲,注入网络时由 CPU insert 核销并完成订单
             for (GenericStack output : details.getOutputs()) {
@@ -450,9 +486,11 @@ public final class AssemblyHubBatchCrafting {
     /**
      * 同 key 合并需求后校验 CPU 库存,返回可执行的最大批量.
      * fixed 为不随批量变化的需求（催化剂/转换槽）,per 为单份批量需求.
+     * recycleKey（批内种子循环,仅虚拟轨道净产出自引用）不按库存量钳制批量,
+     * 但库存至少要保有单份原料作为种子,否则无法启动循环.
      */
     private static long shrinkToAvailable(ListCraftingInventory inventory, AEKey[] keys, long[] fixed, long[] per,
-            long batchSize) {
+            long batchSize, @Nullable AEKey recycleKey) {
         Map<AEKey, long[]> merged = new HashMap<>();
         for (int i = 0; i < keys.length; i++) {
             if (keys[i] == null) {
@@ -466,6 +504,13 @@ public final class AssemblyHubBatchCrafting {
         for (Map.Entry<AEKey, long[]> e : merged.entrySet()) {
             long f = e.getValue()[0];
             long p = e.getValue()[1];
+            if (e.getKey().equals(recycleKey)) {
+                // 批内种子循环：超出库存的部分由本批产出内部回喂,仅需一份种子
+                if (inventory.extract(e.getKey(), safeAdd(f, p), Actionable.SIMULATE) < safeAdd(f, p)) {
+                    return 0;
+                }
+                continue;
+            }
             long need = safeAdd(f, MathUtils.safeMultiply(p, actual));
             long available = inventory.extract(e.getKey(), need, Actionable.SIMULATE);
             if (available < need) {
@@ -484,9 +529,12 @@ public final class AssemblyHubBatchCrafting {
 
     /**
      * 按合并后的需求一次性从 CPU 库存扣料.
+     * recycleKey（批内种子循环）只实扣库存中已有的种子量,缺口由本批产出内部回喂.
+     *
+     * @return recycleKey 实际从库存扣除的数量（无 recycleKey 时为 0）
      */
-    private static void extractMerged(ListCraftingInventory inventory, AEKey[] keys, long[] fixed, long[] per,
-            long batchSize) {
+    private static long extractMerged(ListCraftingInventory inventory, AEKey[] keys, long[] fixed, long[] per,
+            long batchSize, @Nullable AEKey recycleKey) {
         Map<AEKey, Long> merged = new LinkedHashMap<>();
         for (int i = 0; i < keys.length; i++) {
             if (keys[i] == null) {
@@ -495,9 +543,18 @@ public final class AssemblyHubBatchCrafting {
             long need = safeAdd(fixed[i], MathUtils.safeMultiply(per[i], batchSize));
             merged.merge(keys[i], need, Long::sum);
         }
+        long extractedRecycle = 0;
         for (Map.Entry<AEKey, Long> e : merged.entrySet()) {
-            inventory.extract(e.getKey(), e.getValue(), Actionable.MODULATE);
+            if (e.getKey().equals(recycleKey)) {
+                long need = e.getValue();
+                long available = inventory.extract(e.getKey(), need, Actionable.SIMULATE);
+                inventory.extract(e.getKey(), available, Actionable.MODULATE);
+                extractedRecycle = available;
+            } else {
+                inventory.extract(e.getKey(), e.getValue(), Actionable.MODULATE);
+            }
         }
+        return extractedRecycle;
     }
 
     private static long safeAdd(long a, long b) {

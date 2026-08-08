@@ -133,6 +133,23 @@ class AssemblyHubBatchCraftingTest {
         return pattern;
     }
 
+    /** 多输入样板(无剩余物,单倍率). */
+    private static IPatternDetails multiPattern(GenericStack[] inputs, GenericStack... outputs) {
+        IPatternDetails.IInput[] ins = new IPatternDetails.IInput[inputs.length];
+        for (int i = 0; i < inputs.length; i++) {
+            var in = mock(IPatternDetails.IInput.class);
+            when(in.getPossibleInputs()).thenReturn(new GenericStack[] { inputs[i] });
+            when(in.getMultiplier()).thenReturn(1L);
+            when(in.isValid(any(), any())).thenReturn(true);
+            when(in.getRemainingKey(any())).thenReturn(null);
+            ins[i] = in;
+        }
+        var pattern = mock(IPatternDetails.class);
+        when(pattern.getInputs()).thenReturn(ins);
+        when(pattern.getOutputs()).thenReturn(outputs);
+        return pattern;
+    }
+
     /** 把枢纽登记为样板的唯一 provider,并按轨道配置批量信息. */
     private void registerHub(IPatternDetails pattern, boolean virtual) {
         when(craftingService.getProviders(pattern)).thenReturn(List.of(hub));
@@ -207,6 +224,60 @@ class AssemblyHubBatchCraftingTest {
         assertThat(amountOf(inventory, stone())).isEqualTo(9);
         assertThat(amountOf(waitingFor, stone())).isEqualTo(4);
         assertThat(pendingOf(stone(), hubPendingOutputs)).isEqualTo(4);
+    }
+
+    /**
+     * 批内种子循环(A+B+C=3A):CPU 库存仅 1 份种子时批量不受其钳制,
+     * 缺口由本批产出内部回喂,净产出 + 种子一并回流(交付 = 份数×净增 + 种子).
+     */
+    @Test
+    void testVirtualBatchSeedRecyclingWithinBatch() {
+        var gravel = AEItemKey.of(Items.GRAVEL);
+        var pattern = multiPattern(
+                new GenericStack[] { new GenericStack(stone(), 1), new GenericStack(stick(), 1),
+                        new GenericStack(gravel, 1) },
+                new GenericStack(stone(), 3));
+        registerHub(pattern, true);
+        inventory.insert(stone(), 1, Actionable.MODULATE); // 仅 1 份种子
+        inventory.insert(stick(), 100, Actionable.MODULATE);
+        inventory.insert(gravel, 100, Actionable.MODULATE);
+        var progress = new Progress(10);
+
+        process(Map.of(pattern, progress), new GenericStack(stone(), 3));
+
+        assertThat(progress.value).isZero();
+        assertThat(amountOf(inventory, stone())).isZero(); // 种子随净产出一并回流
+        assertThat(amountOf(inventory, stick())).isEqualTo(90);
+        assertThat(amountOf(inventory, gravel)).isEqualTo(90);
+        // 产出 30 = 批内回喂 9 + 回流 21(净增 10×2 + 种子 1)
+        assertThat(amountOf(waitingFor, stone())).isEqualTo(21);
+        assertThat(pendingOf(stone(), hubPendingOutputs)).isEqualTo(21);
+    }
+
+    /** 批内种子循环跨批:非最后批次实扣种子等量回留,链条不被库存耗尽打断. */
+    @Test
+    void testVirtualBatchSeedRecyclingSplitBatches() {
+        var gravel = AEItemKey.of(Items.GRAVEL);
+        var pattern = multiPattern(
+                new GenericStack[] { new GenericStack(stone(), 1), new GenericStack(stick(), 1),
+                        new GenericStack(gravel, 1) },
+                new GenericStack(stone(), 3));
+        registerHub(pattern, true);
+        when(hub.getParallelCap()).thenReturn(4L); // 强制分 3 批(4+4+2)
+        inventory.insert(stone(), 1, Actionable.MODULATE);
+        inventory.insert(stick(), 100, Actionable.MODULATE);
+        inventory.insert(gravel, 100, Actionable.MODULATE);
+        var progress = new Progress(10);
+
+        process(Map.of(pattern, progress), new GenericStack(stone(), 3));
+
+        assertThat(progress.value).isZero();
+        // 批 1/2(各 4 份,非最后):扣 1 种子留 1,各回喂 3、回流 8;批 3(2 份,最后):回喂 1、回流 5
+        assertThat(amountOf(inventory, stone())).isZero();
+        assertThat(amountOf(inventory, stick())).isEqualTo(90);
+        assertThat(amountOf(inventory, gravel)).isEqualTo(90);
+        assertThat(amountOf(waitingFor, stone())).isEqualTo(21);
+        assertThat(pendingOf(stone(), hubPendingOutputs)).isEqualTo(21);
     }
 
     // ===== 真实轨道 =====

@@ -50,7 +50,12 @@ import com.github.aeddddd.ae2enhanced.structure.AssemblyStructure;
 /**
  * 装配枢纽黑洞后处理渲染器.
  * <p>以结构几何中心为黑洞原点做全屏光线步进：事件视界、吸积盘体渲染与外部辉光.
- * 场景直通采样（受控黑洞,不扭曲结构）,并通过深度缓冲重建实现方块遮挡.</p>
+ * 场景直通（受控黑洞,不扭曲结构）,并通过深度缓冲重建实现方块遮挡.</p>
+ * <p>Oculus/Iris 兼容：光影激活时场景渲染在光影自己的 gbuffer 帧缓冲中,
+ * 主渲染目标在事件触发瞬间仍是空的.因此深度来源与输出目标选用
+ * <b>当前绑定的帧缓冲</b>（原版 = 主渲染目标,光影 = gbuffer,事件触发时均已绑定）,
+ * 场景颜色不参与采样——特效与场景的合成由 blendFunc(ONE, ONE_MINUS_SRC_ALPHA) 完成,
+ * 与旧的"拷贝场景色后在 shader 内合成"严格等价.</p>
  */
 @Mod.EventBusSubscriber(modid = AE2Enhanced.MOD_ID, bus = Mod.EventBusSubscriber.Bus.FORGE, value = Dist.CLIENT)
 public class AE2EnhancedPostProcessor {
@@ -132,12 +137,36 @@ public class AE2EnhancedPostProcessor {
 
         float time = level.getGameTime() + event.getPartialTick();
         float intensity = Mth.clamp(AE2EnhancedConfig.CLIENT.dynamicRenderIntensity.get().floatValue(), 0.0f, 2.0f);
-        // 尺寸以主渲染目标为准（framebuffer 像素）,与 gl_FragCoord/u_resolution 坐标系严格一致；
+        // 尺寸以场景帧缓冲为准（framebuffer 像素）,与 gl_FragCoord/u_resolution 坐标系严格一致；
         // 不能用窗口尺寸——DPI 缩放下两者可能不一致,会导致拷贝越界静默失败
         RenderTarget mainTarget = mc.getMainRenderTarget();
         int width = mainTarget.width;
         int height = mainTarget.height;
-        TextureTarget intermediate = copyMainToIntermediate(mainTarget, width, height);
+        // 场景实际所在的帧缓冲：原版 = 主渲染目标；
+        // Oculus/Iris 光影激活时,事件触发瞬间主渲染目标尚未合成（是空的）,
+        // 场景颜色与深度在光影 gbuffer（即当前绑定的帧缓冲）中,必须以它为准
+        int sceneFbo = mainTarget.frameBufferId;
+        if (IrisCompat.isShaderPackInUse()) {
+            sceneFbo = GL11.glGetInteger(GL30.GL_DRAW_FRAMEBUFFER_BINDING);
+            // 尺寸以当前 viewport 为准：与 gl_FragCoord 坐标系严格一致,
+            // 且能跟随光影包的分辨率缩放（gbuffer 尺寸可能与主渲染目标不同）
+            int[] viewport = new int[4];
+            GL11.glGetIntegerv(GL11.GL_VIEWPORT, viewport);
+            if (sceneFbo == 0 || viewport[2] <= 0 || viewport[3] <= 0) {
+                // 无法确定光影帧缓冲,放弃本帧后处理（不崩不闪）
+                return;
+            }
+            width = viewport[2];
+            height = viewport[3];
+        }
+        // 深度直接采样场景帧缓冲的深度附件纹理（原版与 Iris 的深度附件均为纹理）,
+        // 免每帧 blit,也规避 blit 深度格式不一致的 GL_INVALID_OPERATION
+        // （Iris gbuffer 深度格式与 TextureTarget 不同,blit 深度会报错刷屏）;
+        // 仅当深度附件不是纹理（renderbuffer）时回退到 blit 拷贝
+        int depthTextureId = queryDepthAttachmentTexture(sceneFbo);
+        if (depthTextureId == 0) {
+            depthTextureId = copyDepthToIntermediate(sceneFbo, width, height).getDepthTextureId();
+        }
 
         Vector3f screenPos = project(nearest.worldPos, eye, event.getPoseStack().last().pose(), width, height);
         if (screenPos == null) {
@@ -158,7 +187,8 @@ public class AE2EnhancedPostProcessor {
         Vec3 targetRel = eyeRel.add(look.x(), look.y(), look.z());
         Vec3 up = new Vec3(upVec.x(), upVec.y(), upVec.z());
 
-        renderBlackHole(shader, eyeRel, targetRel, up, fov, invProj, time, intensity, width, height, intermediate);
+        renderBlackHole(shader, eyeRel, targetRel, up, fov, invProj, time, intensity, width, height,
+                depthTextureId, sceneFbo);
 
         // 约束壳必须在光线步进之后叠加：事件视界阴影不合成背景,
         // 壳若在方块实体阶段绘制（不写深度）会被阴影整体覆盖
@@ -181,11 +211,12 @@ public class AE2EnhancedPostProcessor {
     }
 
     /**
-     * 将主渲染目标颜色与深度复制到中间渲染目标,避免 shader 同时读写同一纹理产生 feedback loop / 撕裂.
+     * 回退路径：场景帧缓冲的深度附件不是纹理（renderbuffer）时,
+     * 将其深度 blit 到中间渲染目标供 shader 采样,避免读写同一纹理的 feedback loop.
      * <p>注意 {@link RenderTarget#bindRead()} 只绑定颜色纹理、并不绑定任何帧缓冲（命名有误导性）,
-     * 必须用原始 GL 调用显式指定 READ/DRAW 帧缓冲,blit 才能从主渲染目标拷到中间纹理.</p>
+     * 必须用原始 GL 调用显式指定 READ/DRAW 帧缓冲,blit 才能从场景帧缓冲拷到中间纹理.</p>
      */
-    private static TextureTarget copyMainToIntermediate(RenderTarget mainTarget, int width, int height) {
+    private static TextureTarget copyDepthToIntermediate(int sceneFbo, int width, int height) {
         if (intermediateTarget == null || intermediateTarget.width != width || intermediateTarget.height != height) {
             if (intermediateTarget != null) {
                 intermediateTarget.destroyBuffers();
@@ -197,14 +228,65 @@ public class AE2EnhancedPostProcessor {
         }
 
         GL30.glBindFramebuffer(GL30.GL_DRAW_FRAMEBUFFER, intermediateTarget.frameBufferId);
-        GL30.glBindFramebuffer(GL30.GL_READ_FRAMEBUFFER, mainTarget.frameBufferId);
+        GL30.glBindFramebuffer(GL30.GL_READ_FRAMEBUFFER, sceneFbo);
         GL30.glBlitFramebuffer(0, 0, width, height, 0, 0, width, height,
-                GL11.GL_COLOR_BUFFER_BIT | GL11.GL_DEPTH_BUFFER_BIT, GL11.GL_NEAREST);
+                GL11.GL_DEPTH_BUFFER_BIT, GL11.GL_NEAREST);
 
-        // 恢复：主渲染目标绑定为当前帧缓冲（读写）,与渲染管线后续阶段状态一致
-        mainTarget.bindWrite(false);
+        // 恢复：场景帧缓冲绑定为当前帧缓冲（读写）,与渲染管线后续阶段状态一致
+        GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, sceneFbo);
 
         return intermediateTarget;
+    }
+
+    /**
+     * 查询帧缓冲深度附件的纹理 ID；附件不是纹理（renderbuffer / 无深度附件）时返回 0.
+     * <p>采样方只读深度且绘制期间 depthMask=false,不构成 feedback loop.</p>
+     */
+    private static int queryDepthAttachmentTexture(int fbo) {
+        int prevRead = GL11.glGetInteger(GL30.GL_READ_FRAMEBUFFER_BINDING);
+        GL30.glBindFramebuffer(GL30.GL_READ_FRAMEBUFFER, fbo);
+        int type = GL30.glGetFramebufferAttachmentParameteri(GL30.GL_READ_FRAMEBUFFER,
+                GL30.GL_DEPTH_ATTACHMENT, GL30.GL_FRAMEBUFFER_ATTACHMENT_OBJECT_TYPE);
+        int textureId = 0;
+        if (type == GL11.GL_TEXTURE) {
+            textureId = GL30.glGetFramebufferAttachmentParameteri(GL30.GL_READ_FRAMEBUFFER,
+                    GL30.GL_DEPTH_ATTACHMENT, GL30.GL_FRAMEBUFFER_ATTACHMENT_OBJECT_NAME);
+        }
+        GL30.glBindFramebuffer(GL30.GL_READ_FRAMEBUFFER, prevRead);
+        return textureId;
+    }
+
+    /**
+     * Oculus/Iris 光影状态检测（反射,不引入硬依赖）.
+     * 光影激活时场景渲染在光影自己的帧缓冲中,主渲染目标在事件触发瞬间是空的.
+     */
+    private static final class IrisCompat {
+        private static boolean initialized;
+        private static @Nullable Object irisApi;
+        private static @Nullable java.lang.reflect.Method isShaderPackInUseMethod;
+
+        static boolean isShaderPackInUse() {
+            if (!initialized) {
+                initialized = true;
+                try {
+                    Class<?> apiClass = Class.forName("net.irisshaders.iris.api.v0.IrisApi");
+                    irisApi = apiClass.getMethod("getInstance").invoke(null);
+                    isShaderPackInUseMethod = apiClass.getMethod("isShaderPackInUse");
+                } catch (Throwable ignored) {
+                    // Oculus/Iris 未安装
+                    irisApi = null;
+                    isShaderPackInUseMethod = null;
+                }
+            }
+            if (irisApi == null || isShaderPackInUseMethod == null) {
+                return false;
+            }
+            try {
+                return (boolean) isShaderPackInUseMethod.invoke(irisApi);
+            } catch (Throwable t) {
+                return false;
+            }
+        }
     }
 
     /**
@@ -371,9 +453,8 @@ public class AE2EnhancedPostProcessor {
     }
 
     private static void renderBlackHole(ShaderInstance shader, Vec3 eye, Vec3 target, Vec3 up, float fov,
-            Matrix4f invProj, float time, float intensity, int width, int height, TextureTarget intermediate) {
-        Minecraft mc = Minecraft.getInstance();
-
+            Matrix4f invProj, float time, float intensity, int width, int height, int depthTextureId,
+            int sceneFbo) {
         // 保存当前 FBO 与 viewport,绘制后恢复
         int[] savedFbo = new int[1];
         int[] savedViewport = new int[4];
@@ -381,9 +462,9 @@ public class AE2EnhancedPostProcessor {
         GL11.glGetIntegerv(GL11.GL_VIEWPORT, savedViewport);
 
         // Sampler 纹理必须在绘制前指定：VertexBuffer._drawWithShader 会按
-        // RenderSystem.getShaderTexture 设置采样器并在 apply() 时绑定到对应纹理单元
-        RenderSystem.setShaderTexture(0, intermediate.getColorTextureId());
-        RenderSystem.setShaderTexture(1, intermediate.getDepthTextureId());
+        // RenderSystem.getShaderTexture 设置采样器并在 apply() 时绑定到对应纹理单元.
+        // Sampler0 = 场景深度（唯一的采样纹理）,场景颜色由混合保留、不参与采样
+        RenderSystem.setShaderTexture(0, depthTextureId);
         RenderSystem.setShader(() -> shader);
 
         RenderSystem.backupProjectionMatrix();
@@ -407,7 +488,16 @@ public class AE2EnhancedPostProcessor {
             RenderSystem.disableDepthTest();
             RenderSystem.depthMask(false);
             RenderSystem.enableBlend();
-            RenderSystem.defaultBlendFunc();
+            // shader 输出 (特效, 覆盖率),混合为 特效 + 场景色×(1-覆盖率),
+            // 与旧的"shader 内采样场景色合成"严格等价,但完全不读取场景颜色,
+            // 因此兼容 Oculus/Iris 光影（其场景在光影 gbuffer 中,主渲染目标是空的）.
+            // 注意：ShaderInstance.apply() 会按 shader json 的 blend 节点重设混合状态,
+            // 实际生效的混合参数以 assembly_black_hole_post.json 的 blend 节点为准
+            // （rgb: 1 / 1-srcalpha, alpha: 0 / 1——不触碰目标 alpha,极佳画质下
+            // transparency 合成 shader 依赖主渲染目标 alpha,覆写会导致全屏黑）,
+            // 此处设置仅为意图说明与兜底
+            RenderSystem.blendFuncSeparate(GL11.GL_ONE, GL11.GL_ONE_MINUS_SRC_ALPHA,
+                    GL11.GL_ZERO, GL11.GL_ONE);
 
             Uniform uTime = shader.getUniform("u_time");
             Uniform uResolution = shader.getUniform("u_resolution");
@@ -443,8 +533,9 @@ public class AE2EnhancedPostProcessor {
                 upUniform.set((float) up.x, (float) up.y, (float) up.z);
             }
 
-            // 确保绘制到 Minecraft 主渲染目标,而不是默认 FBO,否则后续 mainTarget blit 会覆盖输出
-            mc.getMainRenderTarget().bindWrite(false);
+            // 确保绘制到场景帧缓冲：原版 = 主渲染目标（而不是默认 FBO,否则后续 blit 会覆盖输出）；
+            // Oculus/Iris 光影下 = 光影 gbuffer,特效随之进入光影合成管线输出到屏幕
+            GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, sceneFbo);
 
             Tesselator tesselator = Tesselator.getInstance();
             BufferBuilder builder = tesselator.getBuilder();
