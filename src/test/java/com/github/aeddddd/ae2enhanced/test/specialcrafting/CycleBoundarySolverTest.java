@@ -52,17 +52,17 @@ class CycleBoundarySolverTest {
         return out;
     }
 
-    /** solveInto 只接受 Child 模拟库存,其他实现一律返回 false(调用方回落). */
+    /** solveInto 只接受 Child 模拟库存,其他实现一律 FALLBACK(调用方回落). */
     @Test
     void testSolveIntoRejectsNonChildState() throws InterruptedException {
         var craftingService = mock(ICraftingService.class);
         var calc = mock(CraftingCalculation.class);
         var inv = mock(CraftingSimulationState.class); // 非 ChildCraftingSimulationState
 
-        boolean result = CycleBoundarySolver.solveInto(craftingService, calc,
+        var result = CycleBoundarySolver.solveInto(craftingService, calc,
                 AEItemKey.of(Items.STONE), 10, inv);
 
-        assertThat(result).isFalse();
+        assertThat(result).isEqualTo(CycleBoundarySolver.BoundaryResult.FALLBACK);
     }
 
     /** 深层两节点增殖环:请求 D,D←C,C 在环 C→2B、B→C 上,种子 1C. */

@@ -161,9 +161,11 @@ public class SpecialCraftingCalculation extends CraftingCalculation {
         long remaining = target;
 
         if (remaining > 0) {
-            long crafts = (remaining + gain - 1) / gain;
-            if (crafts <= 0 || crafts > Long.MAX_VALUE / Math.max(1, inPer)) {
-                // 天文数字订单（贷款量溢出）:直接构造缺料失败计划(与旧 mixin 的
+            // 溢出安全 ceilDiv(remaining、gain 为正,必得 crafts ≥ 1)
+            long crafts = remaining / gain + (remaining % gain != 0 ? 1 : 0);
+            // 守卫取 max(outPer, inPer):产出 crafts×outPer 经原生无饱和乘法,超 long 即记账错乱
+            if (crafts > Long.MAX_VALUE / Math.max(outPer, inPer)) {
+                // 天文数字订单（产出/贷款量溢出）:直接构造缺料失败计划(与旧 mixin 的
                 // failShortage 语义一致,O(1));若回落原生,其逐份展开会在超大单下卡死
                 return missingPlan(what, target, candidateCount > 1);
             }
@@ -371,8 +373,10 @@ public class SpecialCraftingCalculation extends CraftingCalculation {
         long remaining = target;
 
         if (remaining > 0) {
-            long crafts = (remaining + outY - 1) / outY;
-            if (crafts <= 0 || crafts > Long.MAX_VALUE / inX) {
+            // 溢出安全 ceilDiv(remaining、outY 为正,必得 crafts ≥ 1)
+            long crafts = remaining / outY + (remaining % outY != 0 ? 1 : 0);
+            // 守卫取 max(outY, inX):产出 crafts×outY 经原生无饱和乘法,超 long 即记账错乱
+            if (crafts > Long.MAX_VALUE / Math.max(outY, inX)) {
                 return missingPlan(what, target, candidateCount > 1);
             }
             CraftingTreeNode rootNode = new CraftingTreeNode(craftingService, this, what, 1, null, -1);

@@ -81,7 +81,9 @@ public final class CycleSolver {
             return SolveResult.SUCCESS;
         }
 
-        long rounds = (remaining + gainPerRound - 1) / gainPerRound;
+        // 溢出安全 ceilDiv:(remaining + gain - 1) 形式在近 Long.MAX 需求下加法回绕成负数,
+        // 会被下游误判为"求解失败"而整单回落原生(大网络上即高请求计算卡死)
+        long rounds = remaining / gainPerRound + (remaining % gainPerRound != 0 ? 1 : 0);
         // T_i = rounds × timesPerRound[i],任一溢出即天文数字订单
         long[] totalTimes = new long[times.length];
         for (int i = 0; i < totalTimes.length; i++) {
@@ -89,6 +91,48 @@ public final class CycleSolver {
                 return SolveResult.OVERFLOW;
             }
             totalTimes[i] = rounds * times[i];
+        }
+        // 贷款水位预检:各环键的"每轮量级"(前缀种子与每轮总消耗取大者)×轮数同样必须
+        // 可表示——否则批量模拟的库存水位本身超 long,贷款公式无法补足,模拟必欠资失败
+        // (CraftBranchFailure),提前按天文数字处理,避免无效模拟与整单回落原生
+        for (int i = 0; i < keys.size(); i++) {
+            long perRound = Math.max(seeds[i], batchSeeds[i]);
+            if (perRound > 0 && rounds > Long.MAX_VALUE / perRound) {
+                return SolveResult.OVERFLOW;
+            }
+        }
+        // IO 侧守卫:批量模拟经原生 CraftingTreeProcess.request(无饱和乘法),每步的
+        // 输入/输出×总次数同样必须可表示,否则记账回绕错乱、结算必败
+        var stepsForCheck = analysis.steps();
+        for (int i = 0; i < stepsForCheck.size(); i++) {
+            if (totalTimes[i] <= 0) {
+                continue;
+            }
+            var pattern = stepsForCheck.get(i).pattern();
+            for (var input : pattern.getInputs()) {
+                long mult = input.getMultiplier();
+                if (mult <= 0) {
+                    continue;
+                }
+                for (var candidate : input.getPossibleInputs()) {
+                    long amt = candidate.amount();
+                    if (amt <= 0) {
+                        continue;
+                    }
+                    if (amt > Long.MAX_VALUE / mult) {
+                        return SolveResult.OVERFLOW;
+                    }
+                    if (totalTimes[i] > Long.MAX_VALUE / (amt * mult)) {
+                        return SolveResult.OVERFLOW;
+                    }
+                }
+            }
+            for (var output : pattern.getOutputs()) {
+                long amt = output.amount();
+                if (amt > 0 && totalTimes[i] > Long.MAX_VALUE / amt) {
+                    return SolveResult.OVERFLOW;
+                }
+            }
         }
 
         // 1) 各环内物品种子校验:

@@ -23,13 +23,26 @@ import com.github.aeddddd.ae2enhanced.util.RecursiveCraftingHelper;
  */
 public final class CycleBoundarySolver {
 
+    /**
+     * 边界求解结果.
+     */
+    public enum BoundaryResult {
+        /** 求解成功并已记账. */
+        SOLVED,
+        /** 数值不可表示(天文数字需求):调用方应就地把边界需求记为缺料(O(1)),
+         * 而非整单回落原生——回落在大网络上即高请求计算卡死. */
+        MISSING,
+        /** 不适用(种子不足/输入不足等),调用方应整单回落原生. */
+        FALLBACK
+    }
+
     private CycleBoundarySolver() {
     }
 
     /**
-     * @return true = 求解成功并已记账;false = 不适用(调用方应整单回落原生).
+     * @return 求解结果;仅 {@link BoundaryResult#FALLBACK} 时调用方才整单回落原生.
      */
-    public static boolean solve(ICraftingService craftingService, CraftingCalculation calc,
+    public static BoundaryResult solve(ICraftingService craftingService, CraftingCalculation calc,
             AEKey what, long target, ChildCraftingSimulationState inv) throws InterruptedException {
         // ① 净增殖自引用(单节点自环)
         for (var pattern : craftingService.getCraftingFor(what)) {
@@ -38,24 +51,28 @@ public final class CycleBoundarySolver {
             }
         }
         // ② 跨样板环:并集优先(θ 形共享结构),再逐环迭代
+        boolean overflow = false;
         var cycles = CycleAnalyzer.findCyclesThrough(craftingService, what);
         var union = CycleAnalyzer.analyzeUnion(cycles);
-        if (union != null && union.rateClass() == CycleAnalyzer.RateClass.PRODUCTIVE
-                && CycleSolver.trySolve(craftingService, calc, union, inv, what,
-                        target) == CycleSolver.SolveResult.SUCCESS) {
-            return true;
+        if (union != null && union.rateClass() == CycleAnalyzer.RateClass.PRODUCTIVE) {
+            var r = CycleSolver.trySolve(craftingService, calc, union, inv, what, target);
+            if (r == CycleSolver.SolveResult.SUCCESS) {
+                return BoundaryResult.SOLVED;
+            }
+            overflow |= r == CycleSolver.SolveResult.OVERFLOW;
         }
         for (var cycle : cycles) {
             var analysis = CycleAnalyzer.analyze(cycle);
             if (analysis == null || analysis.rateClass() != CycleAnalyzer.RateClass.PRODUCTIVE) {
                 continue;
             }
-            if (CycleSolver.trySolve(craftingService, calc, analysis, inv, what,
-                    target) == CycleSolver.SolveResult.SUCCESS) {
-                return true;
+            var r = CycleSolver.trySolve(craftingService, calc, analysis, inv, what, target);
+            if (r == CycleSolver.SolveResult.SUCCESS) {
+                return BoundaryResult.SOLVED;
             }
+            overflow |= r == CycleSolver.SolveResult.OVERFLOW;
         }
-        // ③ 催化环:边界 key 是某中性/增殖环发射的环外副产物(深层 A→X+B、B→A 中的 X)
+        // ③ 催化环:边界 key 是某中性/增殖环发射的环外副产物(深层 A→X+B、1B→1A 中的 X)
         for (var cycle : CycleAnalyzer.findCatalyticCycles(craftingService, what)) {
             var analysis = CycleAnalyzer.analyze(cycle);
             if (analysis == null || analysis.rateClass() == CycleAnalyzer.RateClass.DISSIPATIVE) {
@@ -65,35 +82,46 @@ public final class CycleBoundarySolver {
             if (xPerRound <= 0) {
                 continue;
             }
-            if (CycleSolver.trySolveCatalytic(craftingService, calc, analysis, xPerRound, inv, what,
-                    target) == CycleSolver.SolveResult.SUCCESS) {
-                return true;
+            var r = CycleSolver.trySolveCatalytic(craftingService, calc, analysis, xPerRound, inv,
+                    what, target);
+            if (r == CycleSolver.SolveResult.SUCCESS) {
+                return BoundaryResult.SOLVED;
             }
+            overflow |= r == CycleSolver.SolveResult.OVERFLOW;
+        }
+        if (overflow) {
+            // 天文数字边界需求(轮数/贷款量超 long):对齐根请求路径的 O(1) 缺料语义
+            SpecialLog.info("[DAG] 循环边界天文数字需求,记缺料: {}×{}", what, target);
+            return BoundaryResult.MISSING;
         }
         SpecialLog.info("[DAG] 循环边界不可解: {}×{}", what, target);
-        return false;
+        return BoundaryResult.FALLBACK;
     }
 
     /**
      * 净增殖自引用闭式解(贷款法),与 SpecialCraftingCalculation 根路径同语义.
      */
-    private static boolean solveDup(ICraftingService craftingService, CraftingCalculation calc,
+    private static BoundaryResult solveDup(ICraftingService craftingService, CraftingCalculation calc,
             IPatternDetails selfRef, AEKey what, long target, ChildCraftingSimulationState inv)
             throws InterruptedException {
         long inPer = RecursiveCraftingHelper.selfInputPerCraft(selfRef, what);
         long outPer = RecursiveCraftingHelper.selfOutputPerCraft(selfRef, what);
         long gain = outPer - inPer;
         if (gain <= 0 || inPer <= 0) {
-            return false;
+            return BoundaryResult.FALLBACK;
         }
         // 种子校验(不 ignore,边界 key 的库存可见)
         long stock = inv.extract(what, Long.MAX_VALUE, Actionable.SIMULATE);
         if (stock < inPer) {
-            return false;
+            return BoundaryResult.FALLBACK;
         }
-        long crafts = (target + gain - 1) / gain;
-        if (crafts <= 0 || crafts > Long.MAX_VALUE / Math.max(1, inPer)) {
-            return false; // 天文数字子需求:回落(整单走原生/缺料语义)
+        // 溢出安全 ceilDiv(target、gain 为正,必得 crafts ≥ 1)
+        long crafts = target / gain + (target % gain != 0 ? 1 : 0);
+        // 产出侧守卫:批量模拟经原生 CraftingTreeProcess.request(无饱和乘法),
+        // crafts×outPer 超 long 会使产出回绕成负数、库存记账错乱、结算必败.
+        // (outPer ≥ inPer+1,故该守卫同时覆盖贷款量 inPer×(crafts-1) 的可表示性)
+        if (crafts > Long.MAX_VALUE / outPer) {
+            return BoundaryResult.MISSING; // 天文数字子需求 → O(1) 缺料
         }
 
         CraftingTreeNode rootNode = new CraftingTreeNode(craftingService, calc, what, 1, null, -1);
@@ -106,7 +134,7 @@ public final class CycleBoundarySolver {
         try {
             Ae2CraftingReflect.treeProcessRequest(pro, inv, crafts);
         } catch (CraftBranchFailure failure) {
-            return false; // 非自输入不足 → 整单回落(缺料报告)
+            return BoundaryResult.FALLBACK; // 非自输入不足 → 整单回落(缺料报告)
         } finally {
             if (loan > 0) {
                 inv.extract(what, loan, Actionable.MODULATE);
@@ -118,17 +146,17 @@ public final class CycleBoundarySolver {
         long keep = avail > target ? inPer : 0;
         long drain = inv.extract(what, Math.min(target, Math.max(0, avail - keep)),
                 Actionable.MODULATE);
-        return drain == target;
+        return drain == target ? BoundaryResult.SOLVED : BoundaryResult.FALLBACK;
     }
 
     /**
      * 供 DAG 执行器调用前的类型断言辅助:边界求解需要 Child 状态.
      */
-    public static boolean solveInto(ICraftingService craftingService, CraftingCalculation calc,
+    public static BoundaryResult solveInto(ICraftingService craftingService, CraftingCalculation calc,
             AEKey what, long target, appeng.crafting.inv.CraftingSimulationState inv)
             throws InterruptedException {
         if (!(inv instanceof ChildCraftingSimulationState child)) {
-            return false;
+            return BoundaryResult.FALLBACK;
         }
         return solve(craftingService, calc, what, target, child);
     }

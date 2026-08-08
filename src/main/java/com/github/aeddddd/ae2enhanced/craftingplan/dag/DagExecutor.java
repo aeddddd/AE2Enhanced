@@ -64,8 +64,16 @@ public final class DagExecutor {
             // 循环边界:库存/种子语义由边界求解器全权处理,不做预提取
             if (node.kind == DagGraph.Kind.CYCLE) {
                 try {
-                    if (!CycleBoundarySolver.solveInto(craftingService, calculation, node.key, need, inv)) {
+                    var boundary = CycleBoundarySolver.solveInto(craftingService, calculation, node.key,
+                            need, inv);
+                    if (boundary == CycleBoundarySolver.BoundaryResult.FALLBACK) {
                         throw new DagFallback("cycle_boundary_unsolvable:" + node.key);
+                    }
+                    if (boundary == CycleBoundarySolver.BoundaryResult.MISSING) {
+                        // 天文数字边界需求:O(1) 缺料记账(对齐根路径 missingPlan 语义),
+                        // 继续拓扑扫描而非整单回落原生(大网络上回落即高请求计算卡死)
+                        Ae2CraftingReflect.addMissing(calculation, node.key, need);
+                        continue;
                     }
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();

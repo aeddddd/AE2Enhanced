@@ -82,4 +82,20 @@ public class SaturatedMathTest {
         assertThat(SaturatedMath.ceilDiv(1, 3)).isEqualTo(1);
         assertThat(SaturatedMath.ceilDiv(101, 10)).isEqualTo(11);
     }
+
+    @Test
+    public void testCeilDivNearMaxNoOverflow() {
+        // (a+b-1) 形式在 a 接近 Long.MAX 时加法回绕成负数;饱和需求可触达该区间
+        assertThat(SaturatedMath.ceilDiv(Long.MAX_VALUE, 1)).isEqualTo(Long.MAX_VALUE);
+        assertThat(SaturatedMath.ceilDiv(Long.MAX_VALUE, 2)).isEqualTo(Long.MAX_VALUE / 2 + 1);
+        assertThat(SaturatedMath.ceilDiv(Long.MAX_VALUE, Long.MAX_VALUE)).isEqualTo(1);
+        assertThat(SaturatedMath.ceilDiv(Long.MAX_VALUE - 1, 2)).isEqualTo((Long.MAX_VALUE - 1) / 2);
+        assertThat(SaturatedMath.ceilDiv(Long.MAX_VALUE, 3)).isEqualTo(Long.MAX_VALUE / 3 + 1);
+    }
+
+    @Test
+    public void testCeilDivZeroNumerator() {
+        assertThat(SaturatedMath.ceilDiv(0, 5)).isEqualTo(0);
+        assertThat(SaturatedMath.ceilDiv(0, 1)).isEqualTo(0);
+    }
 }
