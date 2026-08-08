@@ -146,40 +146,50 @@ public final class DagCompiler {
         var node = buildNode(key);
         nodes.put(key, node);
         if (node.kind == DagGraph.Kind.NORMAL) {
-            var inputs = node.pattern.getInputs();
-            // 逆输入序 DFS:postOrder 整体反转后,兄弟分支在 topoOrder 中的相对顺序
-            // 恰好还原为样板输入槽位顺序,与原生 CraftingTreeNode 的逐槽位处理一致
-            // (否则"副产物供兄弟分支"场景会在 DAG 下误报缺料);edges 仍按输入序落盘
-            var edges = new DagGraph.Edge[inputs.length];
-            for (int i = inputs.length - 1; i >= 0; i--) {
-                var input = inputs[i];
-                var possible = input.getPossibleInputs();
-                long perCraft = SaturatedMath.multiply(possible[0].amount(), input.getMultiplier());
-                var child = visit(possible[0].what());
-                // 记录首个请求输入槽:执行器库存模板提取的 isValid 过滤依据
-                if (child.requestInput == null) {
-                    child.requestInput = input;
-                }
-                edges[i] = new DagGraph.Edge(child, perCraft);
+            visitInputs(node.pattern.getInputs(), node.edges);
+            // 多样板接管:额外分支的输入同样展开(分支序 = 原生尝试序)
+            for (var branch : node.extraBranches) {
+                visitInputs(branch.pattern().getInputs(), branch.edges());
             }
-            java.util.Collections.addAll(node.edges, edges);
         }
         colors.put(key, BLACK);
         postOrder.add(node);
         return node;
     }
 
+    /**
+     * 展开一个分支的输入边(逆输入序 DFS:postOrder 整体反转后,兄弟分支在
+     * topoOrder 中的相对顺序恰好还原为样板输入槽位顺序,与原生
+     * CraftingTreeNode 的逐槽位处理一致——否则"副产物供兄弟分支"场景会
+     * 在 DAG 下误报缺料);edges 仍按输入序落盘.
+     */
+    private void visitInputs(IPatternDetails.IInput[] inputs, List<DagGraph.Edge> edges)
+            throws DagFallback {
+        var built = new DagGraph.Edge[inputs.length];
+        for (int i = inputs.length - 1; i >= 0; i--) {
+            var input = inputs[i];
+            var possible = input.getPossibleInputs();
+            long perCraft = SaturatedMath.multiply(possible[0].amount(), input.getMultiplier());
+            var child = visit(possible[0].what());
+            // 记录首个请求输入槽:执行器库存模板提取的 isValid 过滤依据
+            if (child.requestInput == null) {
+                child.requestInput = input;
+            }
+            built[i] = new DagGraph.Edge(child, perCraft);
+        }
+        java.util.Collections.addAll(edges, built);
+    }
+
     private DagGraph.DagNode buildNode(AEKey key) throws DagFallback {
-        IPatternDetails chosen = null;
+        List<IPatternDetails> clean = new ArrayList<>();
         boolean sawAny = false;
         for (var pattern : craftingService.getCraftingFor(key)) {
             sawAny = true;
             if (isClean(pattern)) {
-                chosen = pattern;
-                break;
+                clean.add(pattern);
             }
         }
-        if (chosen == null) {
+        if (clean.isEmpty()) {
             if (sawAny) {
                 // 有样板但全部含替代/tag/容器输入:本版本不接管
                 throw new DagFallback("unclean_inputs:" + key);
@@ -189,14 +199,40 @@ public final class DagCompiler {
             }
             return new DagGraph.DagNode(DagGraph.Kind.TERMINAL, key, 0, null);
         }
+        var chosen = clean.get(0);
         // 选定样板本身是环步骤(含经副产物闭合的催化环)→ 本节点收缩为循环边界,
         // 由 CycleBoundarySolver 联立求解(否则边界会错位落到环键上而不可解);
         // 切边模式禁用此标记——切边的目的就是剪断环,不能再收缩回求解器
         if (!cutCycles && CycleAnalyzer.isCycleStep(craftingService, chosen, producerIndex)) {
             return new DagGraph.DagNode(DagGraph.Kind.CYCLE, key, 0, null);
         }
+        var node = new DagGraph.DagNode(DagGraph.Kind.NORMAL, key, outPerOf(chosen, key), chosen);
+        if (clean.size() > 1) {
+            // 多样板接管(修复"多样板 key × 极大数量"的 O(数量) 下单陷阱):
+            // 任一分支含容器输入或为环步骤 → 语义过繁,整单回落原生(保守)
+            for (int i = 1; i < clean.size(); i++) {
+                var branch = clean.get(i);
+                if (hasContainerInput(branch)) {
+                    throw new DagFallback("container_multi:" + key);
+                }
+                if (!cutCycles && CycleAnalyzer.isCycleStep(craftingService, branch, producerIndex)) {
+                    throw new DagFallback("cycle_multi:" + key);
+                }
+                node.extraBranches.add(new DagGraph.Branch(branch, outPerOf(branch, key),
+                        new ArrayList<>()));
+            }
+            // 主分支同样不允许容器输入(多分支节点的容器语义不予接管)
+            if (hasContainerInput(chosen)) {
+                throw new DagFallback("container_multi:" + key);
+            }
+        }
+        return node;
+    }
+
+    /** 样板对本 key 的单次产出(累计全部输出槽);无产出即编译失败. */
+    private static long outPerOf(IPatternDetails pattern, AEKey key) throws DagFallback {
         long outPer = 0;
-        for (var output : chosen.getOutputs()) {
+        for (var output : pattern.getOutputs()) {
             if (output.what().equals(key)) {
                 outPer = SaturatedMath.add(outPer, output.amount());
             }
@@ -204,7 +240,18 @@ public final class DagCompiler {
         if (outPer <= 0) {
             throw new DagFallback("pattern_without_output:" + key);
         }
-        return new DagGraph.DagNode(DagGraph.Kind.NORMAL, key, outPer, chosen);
+        return outPer;
+    }
+
+    /** 任一输入带容器返还(getRemainingKey 非空). */
+    private static boolean hasContainerInput(IPatternDetails pattern) {
+        for (var input : pattern.getInputs()) {
+            var possible = input.getPossibleInputs();
+            if (possible.length == 1 && input.getRemainingKey(possible[0].what()) != null) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

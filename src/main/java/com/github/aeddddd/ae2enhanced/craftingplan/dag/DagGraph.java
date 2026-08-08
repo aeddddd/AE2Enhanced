@@ -30,6 +30,14 @@ public final class DagGraph {
     public record Edge(DagNode child, long perCraft) {
     }
 
+    /**
+     * 一个候选分支(多样板接管):同 key 的第 N 个干净样板及其输入边.
+     * 分支顺序 = {@code getCraftingFor} 返回序,与原生多分支
+     * "分支 1 尽力→分支 2"的尝试顺序一致.
+     */
+    public record Branch(IPatternDetails pattern, long outPer, List<Edge> edges) {
+    }
+
     public static final class DagNode {
         public final Kind kind;
         public final AEKey key;
@@ -38,6 +46,12 @@ public final class DagGraph {
         @Nullable
         public final IPatternDetails pattern;
         public final List<Edge> edges = new ArrayList<>();
+        /**
+         * 额外候选分支(多样板接管,仅 NORMAL):pattern/edges/outputPerCraft
+         * 为主分支(分支 0),本列表为分支 1..N;为空 = 单一样板节点.
+         * 编译规则:任一分支含容器输入或环步骤 → 整单回落(不生成多分支节点).
+         */
+        public final List<Branch> extraBranches = new ArrayList<>();
         /**
          * 切边终端(④):回边被剪断生成的独立 TERMINAL 节点——只允许消耗
          * 计划启动前的基线库存,不得使用计划内产出(否则循环自我供养,

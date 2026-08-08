@@ -1,6 +1,7 @@
 package com.github.aeddddd.ae2enhanced.craftingplan.dag;
 
 import java.util.IdentityHashMap;
+import java.util.List;
 import java.util.Map;
 
 import appeng.api.config.Actionable;
@@ -90,6 +91,11 @@ public final class DagExecutor {
                 case EMITTER -> inv.emitItems(node.key, remaining);
                 case TERMINAL -> Ae2CraftingReflect.addMissing(calculation, node.key, remaining);
                 case NORMAL -> {
+                    if (!node.extraBranches.isEmpty()) {
+                        executeMultiBranch(node, remaining, inv, calculation, requests,
+                                containerCredits);
+                        continue;
+                    }
                     long times = SaturatedMath.ceilDiv(remaining, node.outputPerCraft);
                     // 供给感知(②):容器样板按原生 limitQty 语义截断——任一输入的
                     // 供给上限(库存+可产,含容器池预贷)决定可执行次数;
@@ -161,8 +167,63 @@ public final class DagExecutor {
     }
 
     /**
-     * 节点供给上限(② 容器钳制用):当前池库存(含容器池预贷)
-     * + 各输入供给上限递归推出的可产次数×单次产出;发射台/循环边界按乐观无界.
+     * 多样板节点执行(修复"多样板 key × 极大数量"的 O(数量) 下单陷阱):
+     * 镜像原生多分支语义——按 {@code getCraftingFor} 顺序"分支 1 尽力 → 分支 2",
+     * 但把逐次 {@code request(child,1)} 收敛为<b>按供给容量整批</b>:
+     * 分支可执行次数 = min(⌈剩余/单次产出⌉, min_e (supplyCap(子) − 已提交需求)/perCraft).
+     * <p>容量方向保守(只可能低估):低估只会让更多量落到后续分支,
+     * 不产生虚假缺料;全部分支尽力后仍不足 → 记缺料(与原生缺料语义一致).</p>
+     */
+    private static void executeMultiBranch(DagGraph.DagNode node, long remaining,
+            CraftingSimulationState inv, CraftingCalculation calculation,
+            Map<DagGraph.DagNode, Long> requests, Map<AEKey, Long> containerCredits) {
+        // 本节点本次评估专用 memo:supplyCap 读取的是当前库存,多节点间不复用
+        // (库存随执行变化,陈旧 memo 会高估容量、把缺料错误地压在前序分支)
+        Map<DagGraph.DagNode, Long> multiMemo = new IdentityHashMap<>();
+        // 分支 0 = 节点主分支,1..N = extraBranches(顺序与原生尝试序一致)
+        for (int b = -1; b < node.extraBranches.size(); b++) {
+            if (remaining <= 0) {
+                break;
+            }
+            var pattern = b < 0 ? node.pattern : node.extraBranches.get(b).pattern();
+            long outPer = b < 0 ? node.outputPerCraft : node.extraBranches.get(b).outPer();
+            var edges = b < 0 ? node.edges : node.extraBranches.get(b).edges();
+            long times = SaturatedMath.ceilDiv(remaining, outPer);
+            // 容量截断仅在非模拟尝试启用(真实"分支尽力"语义);
+            // 模拟尝试镜像原生"乐观幻影生产":pro.request 在 simulate 下永不失败,
+            // 分支 1 包揽全部剩余,缺料沿其原料子树在终端浮现(分支 2 不参与)
+            if (!calculation.isSimulation()) {
+                for (var edge : edges) {
+                    long available = SaturatedMath.add(
+                            supplyCap(edge.child(), inv, containerCredits, multiMemo),
+                            -requests.getOrDefault(edge.child(), 0L));
+                    times = Math.min(times, Math.max(0, available / edge.perCraft()));
+                }
+            }
+            if (times <= 0) {
+                continue;
+            }
+            for (var edge : edges) {
+                requests.merge(edge.child(), SaturatedMath.multiply(edge.perCraft(), times),
+                        SaturatedMath::add);
+            }
+            for (var output : pattern.getOutputs()) {
+                inv.insert(output.what(), SaturatedMath.multiply(output.amount(), times),
+                        Actionable.MODULATE);
+            }
+            inv.addCrafting(pattern, times);
+            inv.addBytes(times);
+            remaining -= SaturatedMath.multiply(times, outPer);
+        }
+        if (remaining > 0) {
+            Ae2CraftingReflect.addMissing(calculation, node.key, remaining);
+        }
+    }
+
+    /**
+     * 节点供给上限(② 容器钳制用;③ 多样板分支容量用):当前池库存(含容器池预贷)
+     * + 各输入供给上限递归推出的可产次数×单次产出(多样板节点为各分支之和);
+     * 发射台/循环边界按乐观无界.
      * 方向保证:只可能高估(预贷乐观),高估导致的超计划在终端以缺料形式浮现,
      * 不会产出"看似可行实际缺料"的计划.
      */
@@ -182,17 +243,30 @@ public final class DagExecutor {
             case NORMAL -> {
                 long stock = inv.extract(node.key, Long.MAX_VALUE, Actionable.SIMULATE);
                 stock = SaturatedMath.add(stock, containerCredits.getOrDefault(node.key, 0L));
-                long crafts = Long.MAX_VALUE / 4;
-                for (var edge : node.edges) {
-                    crafts = Math.min(crafts,
-                            supplyCap(edge.child(), inv, containerCredits, memo) / edge.perCraft());
+                long producible = branchCap(node.outputPerCraft, node.edges, inv,
+                        containerCredits, memo);
+                for (var branch : node.extraBranches) {
+                    producible = SaturatedMath.add(producible,
+                            branchCap(branch.outPer(), branch.edges(), inv,
+                                    containerCredits, memo));
                 }
-                cap = SaturatedMath.add(stock, SaturatedMath.multiply(crafts, node.outputPerCraft));
+                cap = SaturatedMath.add(stock, producible);
             }
             default -> cap = 0;
         }
         memo.put(node, cap);
         return cap;
+    }
+
+    /** 单分支可产量:min_e supplyCap(子)/perCraft × 单次产出. */
+    private static long branchCap(long outPer, List<DagGraph.Edge> edges, CraftingSimulationState inv,
+            Map<AEKey, Long> containerCredits, Map<DagGraph.DagNode, Long> memo) {
+        long crafts = Long.MAX_VALUE / 4;
+        for (var edge : edges) {
+            crafts = Math.min(crafts,
+                    supplyCap(edge.child(), inv, containerCredits, memo) / edge.perCraft());
+        }
+        return SaturatedMath.multiply(crafts, outPer);
     }
 
     /**

@@ -26,7 +26,7 @@ import com.github.aeddddd.ae2enhanced.test.util.BootstrapMinecraftExtension;
  * 游戏内 mixin 仅接管"同 key 催化剂",DAG 引擎(DEFAULT)批量记账为 O(1);</li>
  * <li><b>多样板 key(nodes.size()>1)</b>:原生多分支每次合成都新建子库存、
  * {@code request(child,1)} 逐次迭代 + applyDiff——O(数量) 且逐次分配;
- * DAG 对该类 key 整单回落原生,极大数量下是<b>真实的下单陷阱</b>.</li>
+ * <b>已由 DAG 多分支接管修复</b>(分支序批量,见 DagMultiPatternTest).</li>
  * </ul>
  */
 @ExtendWith(BootstrapMinecraftExtension.class)
@@ -215,7 +215,16 @@ public class LargeAmountScalingTest {
         assertThat(msAt1e6).as("多样板 1e4→1e6 耗时比").isGreaterThan(firstMs * 3);
         // 外推:1e10 量级订单的预计耗时(按 1e6 实测线性外推)
         double hoursAt1e10 = msAt1e6 / 1e6 * 1e10 / 1000.0 / 3600.0;
-        System.out.printf("[Scale] 多样板外推: 1e6 实测 %,d ms(%.2f μs/次), 数量=1e10 预计 ≈%.1f 小时(不可下单)%n",
+        System.out.printf("[Scale] 多样板(原生)外推: 1e6 实测 %,d ms(%.2f μs/次), 数量=1e10 预计 ≈%.1f 小时%n",
                 msAt1e6, msAt1e6 * 1000.0 / 1e6, hoursAt1e10);
+
+        // DAG 接管后:1e12 平直(分支 1 原料充足,全部分支 1 完成)
+        var what = new GenericStack(key(Items.STONE), 1_000_000_000_000L);
+        long t0 = System.nanoTime();
+        var dagPlan = env.runDagSimulation(what, REPORT);
+        long dagMs = (System.nanoTime() - t0) / 1_000_000;
+        assertThat(dagPlan.simulation()).as("DAG 接管多样板应可行").isFalse();
+        System.out.printf("[Scale] 多样板(DAG 接管): 数量=1e12, 耗时=%,d ms%n", dagMs);
+        assertThat(dagMs).as("多样板接管后应按量 O(1)").isLessThan(2_000);
     }
 }
