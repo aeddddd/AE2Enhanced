@@ -11,6 +11,7 @@
   "credits": "AE2-UEL Community",
   "logoFile": "",
   "screenshots": [],
-  "dependencies": ["required-after:appliedenergistics2;after:ctm"]
+  "requiredMods": ["mixinbooter@[10.6,)", "appliedenergistics2"],
+  "dependencies": ["ctm"]
 }
 ]

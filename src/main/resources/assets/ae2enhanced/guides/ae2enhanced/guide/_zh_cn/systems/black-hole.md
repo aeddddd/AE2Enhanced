@@ -11,11 +11,11 @@ item_ids: [micro_singularity, stable_spacetime_manifold, differential_form_stabi
 
 以奇点为核心的终局合成系统: 把原料投入事件视界来执行配方.
 
-## 仪式
+## 世界合成
 
 1. 在 ME 控制器附近的地面上丢出 **64 个 AE2 奇点**与 **4 个下界之星**.
 2. 手持 **1 个下界之星**右键 ME 控制器.
-3. 生成 <ItemLink id="micro_singularity" /> **微型奇点**, 存在时间为 6000 tick (300 秒). 仪式消耗目标周围 5x5x5 区域内的对应物品.
+3. 生成 <ItemLink id="micro_singularity" /> **微型奇点**, 存在时间为 6000 tick (300 秒). 世界合成消耗消耗目标周围 5x5x5 区域内的对应物品.
 
 自定义仪式可用 CraftTweaker 添加 (`mods.ae2enhanced.SingularityRitual`).
 
@@ -31,12 +31,14 @@ item_ids: [micro_singularity, stable_spacetime_manifold, differential_form_stabi
 
 ## 内置配方 (投入事件视界)
 
+
+存在魔改情况下以实际情况为准.
 - 16 个 16384k 空间组件 + 64 个奇点 = 稳态时空流形.
 - 128 个奇点 + 16 个下界之星 = 微分形式稳定单元.
 - 16 个稳态时空流形 + 16 个微分形式稳定单元 = 共形不变荷.
 - 64 个空白样板 = [智能空白样板](devices/smart-pattern.md).
 - 1024 个加速卡 + 1024 个容量卡 + 64 个奇点 = [虚拟并行卡](devices/central-interface.md)等级 1.
-- 16 张某等级虚拟并行卡 = 下一等级 (最高合成到等级 6).
+- 16 张某等级虚拟并行卡 = 下一等级 (默认最高合成到等级 6).
 
 ## CraftTweaker
 
@@ -47,4 +49,4 @@ item_ids: [micro_singularity, stable_spacetime_manifold, differential_form_stabi
 
 ## 物质炮弹药
 
-共形不变荷被注册为物质炮弹药, 权重 1E8 (约 5,000,000 点伤害). 用它击杀生物会触发粒子爆发, 绝对虚空伤害, 强力击退与点燃效果.
+共形不变荷被注册为物质炮弹药, 权重 1E8 (约 5,000,000 点伤害). 使用其作为弹药会延长射程至128格,同时具有穿透效果.

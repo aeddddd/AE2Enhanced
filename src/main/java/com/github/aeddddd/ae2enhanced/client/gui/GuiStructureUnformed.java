@@ -28,12 +28,12 @@ import java.util.Map;
 public abstract class GuiStructureUnformed extends GuiContainer {
 
     // 手绘纹理配色（浅色背景上的文字/分隔线颜色）
-    private static final int TEXT_TITLE   = 0xFF413F54;
-    private static final int TEXT_SUB     = 0xFF696D88;
-    private static final int TEXT_BODY    = 0xFF3C4055;
-    private static final int TEXT_OK      = 0xFF1E7A3C;
-    private static final int TEXT_WARN    = 0xFFA85F00;
-    private static final int TEXT_ERROR   = 0xFFB03A2E;
+    private static final int TEXT_TITLE   = 0xFF211F2E;
+    private static final int TEXT_SUB     = 0xFF3D4157;
+    private static final int TEXT_BODY    = 0xFF1C1E2E;
+    private static final int TEXT_OK      = 0xFF0E4A22;
+    private static final int TEXT_WARN    = 0xFF7A4300;
+    private static final int TEXT_ERROR   = 0xFF8A2418;
     private static final int DIVIDER      = 0xFF878FA5;
 
     protected final TileEntity tile;
@@ -149,6 +149,14 @@ public abstract class GuiStructureUnformed extends GuiContainer {
                         : I18n.format("gui.ae2enhanced.assemble.insufficient");
             }
         }
+    }
+
+    @Override
+    public void drawScreen(int mouseX, int mouseY, float partialTicks) {
+        // 背景遮罩 + 槽位 tooltips
+        this.drawDefaultBackground();
+        super.drawScreen(mouseX, mouseY, partialTicks);
+        this.renderHoveredToolTip(mouseX, mouseY);
     }
 
     @Override

@@ -85,7 +85,7 @@ public abstract class AbstractStorageAdapter<T extends IAEStack<T>, D extends De
     @Override
     public T injectItems(T input, Actionable type, IActionSource src) {
         if (input == null || input.getStackSize() <= 0) return null;
-        if (file != null && file.isSafeMode()) {
+        if (isSectionSafeMode()) {
             return input; // 安全模式：拒绝写入
         }
         // SIMULATE 分支不修改 storage，直接返回 null（全部接受）。
@@ -119,6 +119,9 @@ public abstract class AbstractStorageAdapter<T extends IAEStack<T>, D extends De
     @Override
     public T extractItems(T request, Actionable type, IActionSource src) {
         if (request == null || request.getStackSize() <= 0) return null;
+        if (isSectionSafeMode()) {
+            return null; // 安全模式：拒绝提取，防止部分加载的数据被缩水后覆盖原文件
+        }
         D key = createDescriptor(request);
         if (key == null) {
             return null;
@@ -203,6 +206,14 @@ public abstract class AbstractStorageAdapter<T extends IAEStack<T>, D extends De
     @Override
     public boolean isSafeMode() {
         return file != null && file.isSafeMode();
+    }
+
+    /**
+     * 判断本适配器对应的分区是否处于安全模式（该分区加载失败或全局锁定）。
+     * 按分区细化：某一分区加载失败只锁定该分区，不影响其他分区。
+     */
+    protected boolean isSectionSafeMode() {
+        return file != null && file.isSectionFailed(getStorageSection());
     }
 
     public HyperdimensionalStorageFile getFile() {

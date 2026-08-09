@@ -90,9 +90,14 @@ public class PlayerDimEntry {
      * @param version PersonalDimensionData 的版本号
      */
     public void readFromNBT(NBTTagCompound tag, int version) {
-        dimensionId = tag.getInteger("dimensionId");
+        // 缺键时保留构造默认值，避免落入 0（主世界 ID）/ (0,0,0) 虚空坐标等危险默认值
+        if (tag.hasKey("dimensionId", 99)) {
+            dimensionId = tag.getInteger("dimensionId");
+        }
         rules.readFromNBT(tag.getCompoundTag("rules"));
-        entryPoint = BlockPos.fromLong(tag.getLong("entryPoint"));
+        if (tag.hasKey("entryPoint", 99)) {
+            entryPoint = BlockPos.fromLong(tag.getLong("entryPoint"));
+        }
         returnDim = tag.getInteger("returnDim");
         returnX = tag.getDouble("returnX");
         returnY = tag.getDouble("returnY");
@@ -134,6 +139,18 @@ public class PlayerDimEntry {
                 }
             }
         }
+    }
+
+    /**
+     * 判断条目是否为"空"：既未分配维度，也无白名单/权限/返回点，且规则未被修改。
+     * 空条目多为只读查询意外创建，持久化时应跳过。
+     */
+    public boolean isEmpty() {
+        return dimensionId == Integer.MIN_VALUE
+                && allowedPlayers.isEmpty()
+                && permissions.isEmpty()
+                && !hasReturnPoint
+                && rules.isDefault();
     }
 
     /**

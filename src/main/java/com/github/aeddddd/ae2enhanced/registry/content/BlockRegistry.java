@@ -70,4 +70,7 @@ public final class BlockRegistry {
     public static BlockDisplayPanel DISPLAY_PANEL;
     public static BlockDisplayFrame DISPLAY_FRAME_DARK;
     public static BlockDisplayFrame DISPLAY_FRAME_LIGHT;
+
+    // 奇点处理仓
+    public static BlockSingularityChamber SINGULARITY_CHAMBER;
 }

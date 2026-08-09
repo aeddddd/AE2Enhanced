@@ -49,6 +49,20 @@ public class BlackHoleRecipe {
     }
 
     /**
+     * 计算 found 中的材料最多可支持本配方的批次数.
+     */
+    public int maxBatches(Map<String, Integer> found) {
+        int batches = Integer.MAX_VALUE;
+        for (Map.Entry<String, Integer> entry : inputs.entrySet()) {
+            if (entry.getValue() <= 0) {
+                continue;
+            }
+            batches = Math.min(batches, found.getOrDefault(entry.getKey(), 0) / entry.getValue());
+        }
+        return batches == Integer.MAX_VALUE ? 0 : batches;
+    }
+
+    /**
      * 生成 ItemStack 的 key："registryName:meta"，若存在 NBT 则追加 NBT 字符串以区分同 meta 的不同物品。
      */
     public static String keyOf(ItemStack stack) {

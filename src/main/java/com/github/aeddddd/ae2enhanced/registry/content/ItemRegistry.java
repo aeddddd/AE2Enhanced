@@ -42,6 +42,9 @@ public final class ItemRegistry {
     // 中枢接口虚拟并行卡
     public static ItemVirtualParallelCard VIRTUAL_PARALLEL_CARD;
 
+    // 奇点约束器与被约束的微型奇点
+    public static com.github.aeddddd.ae2enhanced.item.ItemSingularityConstrictor SINGULARITY_CONSTRICTOR;
+    public static com.github.aeddddd.ae2enhanced.item.ItemConstrainedMicroSingularity CONSTRAINED_MICRO_SINGULARITY;
     // 个人维度核心
     public static ItemPersonalDimension PERSONAL_DIMENSION;
 

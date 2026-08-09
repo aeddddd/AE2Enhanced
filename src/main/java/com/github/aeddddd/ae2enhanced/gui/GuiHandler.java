@@ -83,6 +83,7 @@ public class GuiHandler implements IGuiHandler {
     public static final int GUI_EMC_INTERFACE = 29;
     public static final int GUI_PERSONAL_DIMENSION_CONFIG = 30;
     public static final int GUI_DISPLAY_WALL = 31;
+    public static final int GUI_SINGULARITY_CHAMBER = 32;
 
 
     /** 编码页码到 GUI ID：低4位为 base ID,bit8-15为页码,bit16-20为 patternPages */
@@ -263,6 +264,13 @@ public class GuiHandler implements IGuiHandler {
             }
             return null;
         }
+        if (ID == GUI_SINGULARITY_CHAMBER) {
+            if (te instanceof com.github.aeddddd.ae2enhanced.tile.TileSingularityChamber) {
+                return new com.github.aeddddd.ae2enhanced.container.ContainerSingularityChamber(
+                        player.inventory, (com.github.aeddddd.ae2enhanced.tile.TileSingularityChamber) te);
+            }
+            return null;
+        }
         return null;
     }
 
@@ -394,12 +402,24 @@ public class GuiHandler implements IGuiHandler {
             return new GuiOmniToolConfig(player, new ContainerOmniToolConfig());
         }
         if (ID == GUI_PERSONAL_DIMENSION_CONFIG) {
+            // 注：客户端 playerId 仅用于 canInteractWith，实际编辑目标与权限校验均在服务端
+            // （getServerGuiElement 用 PersonalDimensionManager.getRuleEditTarget 解析目标，
+            // PacketPersonalDimensionRulesHandler 同样在服务端重新解析目标）。
+            // 客户端无法访问服务端的 PersonalDimensionData，现有同步包也未携带目标 UUID，
+            // 故此处保持使用玩家自身 UUID。
             return new GuiPersonalDimensionConfig(player, new ContainerPersonalDimensionConfig(player.getUniqueID()));
         }
         if (ID == GUI_DISPLAY_WALL) {
             if (te instanceof com.github.aeddddd.ae2enhanced.tile.TileDisplayPanel) {
                 return new com.github.aeddddd.ae2enhanced.client.gui.GuiDisplayWall(player.inventory,
                         (com.github.aeddddd.ae2enhanced.tile.TileDisplayPanel) te);
+            }
+            return null;
+        }
+        if (ID == GUI_SINGULARITY_CHAMBER) {
+            if (te instanceof com.github.aeddddd.ae2enhanced.tile.TileSingularityChamber) {
+                return new com.github.aeddddd.ae2enhanced.client.gui.GuiSingularityChamber(
+                        player.inventory, (com.github.aeddddd.ae2enhanced.tile.TileSingularityChamber) te);
             }
             return null;
         }

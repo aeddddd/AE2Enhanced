@@ -83,6 +83,10 @@ public class BlockMicroSingularity extends Block {
             if (te instanceof TileMicroSingularity) {
                 TileMicroSingularity singularity = (TileMicroSingularity) te;
                 ItemStack held = player.getHeldItem(hand);
+                if (held.getItem() instanceof com.github.aeddddd.ae2enhanced.item.ItemSingularityConstrictor) {
+                    convertToItem(world, pos, player, held, singularity);
+                    return true;
+                }
                 SingularityFuelRecipe fuel = SingularityFuelRegistry.findFor(held);
                 if (fuel != null) {
                     feedFuel(world, pos, player, held, singularity, fuel);
@@ -92,6 +96,24 @@ public class BlockMicroSingularity extends Block {
             }
         }
         return true;
+    }
+
+    /**
+     * 奇点约束器右键：移除方块,约束器转化为携带剩余寿命与永久标记的奇点物品.
+     */
+    private static void convertToItem(World world, BlockPos pos, EntityPlayer player, ItemStack constrictor,
+                                      TileMicroSingularity singularity) {
+        ItemStack singularityStack = com.github.aeddddd.ae2enhanced.item.ItemConstrainedMicroSingularity
+                .createStack(singularity.getLifetimeTicks(), singularity.isPermanent());
+        if (!player.isCreative()) {
+            constrictor.shrink(1);
+        }
+        world.setBlockToAir(pos);
+        if (!player.addItemStackToInventory(singularityStack)) {
+            player.dropItem(singularityStack, false);
+        }
+        world.playSound(null, pos, net.minecraft.init.SoundEvents.ENTITY_ENDEREYE_DEATH,
+                SoundCategory.BLOCKS, 1.0f, 0.6f);
     }
 
     /**

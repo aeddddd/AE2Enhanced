@@ -9,7 +9,7 @@ item_ids: [hyperdimensional_controller, hyperdimensional_me_interface, hyperdime
 
 # 超维度仓储中枢
 
-<ItemLink id="hyperdimensional_controller" /> **超维度仓储中枢控制器**向 ME 网络暴露基于文件的存储通道. 物品数量以 BigInteger 计数, 没有硬容量上限, 唯一的边界是磁盘空间.
+<ItemLink id="hyperdimensional_controller" /> **超维度仓储中枢控制器**向 ME 网络暴露基于文件的存储通道. 物品数量以 BigInteger 计数, 没有理论上限.
 
 ## 结构
 

@@ -63,6 +63,10 @@ import net.minecraftforge.fml.relauncher.Side;
 
 /**
  * 网络包注册中心
+ *
+ * <p>discriminator 维护说明：全部包 ID 已从 0 起重排为单调递增的连续编号。
+ * 新增网络包请从末尾递增分配，并同步更新此注释中的下一个可用 ID。
+ * 下一个可用 ID：52</p>
  */
 public final class ModNetwork {
 
@@ -78,50 +82,58 @@ public final class ModNetwork {
         nw.registerMessage(PacketMEMonitorableAction.Handler.class, PacketMEMonitorableAction.class, 3, Side.SERVER);
         nw.registerMessage(PacketUniversalBusConfig.Handler.class, PacketUniversalBusConfig.class, 4, Side.SERVER);
         nw.registerMessage(PacketStockingBusConfig.Handler.class, PacketStockingBusConfig.class, 5, Side.SERVER);
-        nw.registerMessage(PacketCollectorConfig.Handler.class, PacketCollectorConfig.class, 40, Side.SERVER);
-        nw.registerMessage(PacketUMCAction.Handler.class, PacketUMCAction.class, 6, Side.SERVER);
-        nw.registerMessage(PacketOmniTermAction.Handler.class, PacketOmniTermAction.class, 7, Side.SERVER);
-        nw.registerMessage(PacketLoadOmniRecipe.Handler.class, PacketLoadOmniRecipe.class, 8, Side.SERVER);
-        nw.registerMessage(PacketSetSlotAmount.Handler.class, PacketSetSlotAmount.class, 9, Side.SERVER);
-        nw.registerMessage(PacketOmniCraftingUpdate.Handler.class, PacketOmniCraftingUpdate.class, 10, Side.CLIENT);
-        nw.registerMessage(PacketOmniInventoryUpdate.Handler.class, PacketOmniInventoryUpdate.class, 33, Side.CLIENT);
-        nw.registerMessage(PacketOmniSearchRequest.Handler.class, PacketOmniSearchRequest.class, 34, Side.SERVER);
-        nw.registerMessage(PacketOmniSearchResult.Handler.class, PacketOmniSearchResult.class, 35, Side.CLIENT);
-        nw.registerMessage(PacketOmniPageRequest.Handler.class, PacketOmniPageRequest.class, 36, Side.SERVER);
-        nw.registerMessage(PacketOmniPageResult.Handler.class, PacketOmniPageResult.class, 37, Side.CLIENT);
-        nw.registerMessage(PacketOmniUpdateNotify.Handler.class, PacketOmniUpdateNotify.class, 38, Side.CLIENT);
-        nw.registerMessage(PacketOpenOmniTerminal.Handler.class, PacketOpenOmniTerminal.class, 11, Side.SERVER);
-        nw.registerMessage(PacketToggleMagnet.Handler.class, PacketToggleMagnet.class, 12, Side.SERVER);
-        nw.registerMessage(PacketPickerAction.Handler.class, PacketPickerAction.class, 13, Side.SERVER);
-        nw.registerMessage(PacketSmartPatternToggle.Handler.class, PacketSmartPatternToggle.class, 14, Side.SERVER);
-        nw.registerMessage(PacketSmartPatternScroll.Handler.class, PacketSmartPatternScroll.class, 15, Side.SERVER);
-        nw.registerMessage(PacketSmartPatternEncode.Handler.class, PacketSmartPatternEncode.class, 16, Side.SERVER);
-        nw.registerMessage(PacketSmartPatternBind.Handler.class, PacketSmartPatternBind.class, 17, Side.SERVER);
-        nw.registerMessage(PacketSmartPatternModify.Handler.class, PacketSmartPatternModify.class, 18, Side.SERVER);
-        nw.registerMessage(PacketSmartPatternReplace.Handler.class, PacketSmartPatternReplace.class, 19, Side.SERVER);
-        nw.registerMessage(PacketSmartPatternMiniGuiScroll.Handler.class, PacketSmartPatternMiniGuiScroll.class, 20, Side.SERVER);
+        nw.registerMessage(PacketCollectorConfig.Handler.class, PacketCollectorConfig.class, 6, Side.SERVER);
+        nw.registerMessage(PacketUMCAction.Handler.class, PacketUMCAction.class, 7, Side.SERVER);
+        nw.registerMessage(PacketOmniTermAction.Handler.class, PacketOmniTermAction.class, 8, Side.SERVER);
+        nw.registerMessage(PacketLoadOmniRecipe.Handler.class, PacketLoadOmniRecipe.class, 9, Side.SERVER);
+        nw.registerMessage(PacketSetSlotAmount.Handler.class, PacketSetSlotAmount.class, 10, Side.SERVER);
+        nw.registerMessage(PacketOmniCraftingUpdate.Handler.class, PacketOmniCraftingUpdate.class, 11, Side.CLIENT);
+        nw.registerMessage(PacketOmniInventoryUpdate.Handler.class, PacketOmniInventoryUpdate.class, 12, Side.CLIENT);
+        nw.registerMessage(PacketOmniSearchRequest.Handler.class, PacketOmniSearchRequest.class, 13, Side.SERVER);
+        nw.registerMessage(PacketOmniSearchResult.Handler.class, PacketOmniSearchResult.class, 14, Side.CLIENT);
+        nw.registerMessage(PacketOmniPageRequest.Handler.class, PacketOmniPageRequest.class, 15, Side.SERVER);
+        nw.registerMessage(PacketOmniPageResult.Handler.class, PacketOmniPageResult.class, 16, Side.CLIENT);
+        nw.registerMessage(PacketOmniUpdateNotify.Handler.class, PacketOmniUpdateNotify.class, 17, Side.CLIENT);
+        nw.registerMessage(PacketOpenOmniTerminal.Handler.class, PacketOpenOmniTerminal.class, 18, Side.SERVER);
+        nw.registerMessage(PacketToggleMagnet.Handler.class, PacketToggleMagnet.class, 19, Side.SERVER);
+        nw.registerMessage(PacketPickerAction.Handler.class, PacketPickerAction.class, 20, Side.SERVER);
+        nw.registerMessage(PacketSmartPatternToggle.Handler.class, PacketSmartPatternToggle.class, 21, Side.SERVER);
+        nw.registerMessage(PacketSmartPatternScroll.Handler.class, PacketSmartPatternScroll.class, 22, Side.SERVER);
+        nw.registerMessage(PacketSmartPatternEncode.Handler.class, PacketSmartPatternEncode.class, 23, Side.SERVER);
+        nw.registerMessage(PacketSmartPatternBind.Handler.class, PacketSmartPatternBind.class, 24, Side.SERVER);
+        nw.registerMessage(PacketSmartPatternModify.Handler.class, PacketSmartPatternModify.class, 25, Side.SERVER);
+        nw.registerMessage(PacketSmartPatternReplace.Handler.class, PacketSmartPatternReplace.class, 26, Side.SERVER);
+        nw.registerMessage(PacketSmartPatternMiniGuiScroll.Handler.class, PacketSmartPatternMiniGuiScroll.class, 27, Side.SERVER);
 
         nw.registerMessage(PacketOmniToolModeHandler.class, PacketOmniToolMode.class, 28, Side.SERVER);
         nw.registerMessage(PacketOmniToolSilkTouchHandler.class, PacketOmniToolSilkTouch.class, 29, Side.SERVER);
         nw.registerMessage(PacketOmniToolDropModeHandler.class, PacketOmniToolDropMode.class, 30, Side.SERVER);
         nw.registerMessage(PacketOpenOmniToolGuiHandler.class, PacketOpenOmniToolGui.class, 31, Side.SERVER);
         nw.registerMessage(PacketOmniToolConfigHandler.class, PacketOmniToolConfig.class, 32, Side.SERVER);
-        nw.registerMessage(PacketChunkPowerHighlightHandler.class, PacketChunkPowerHighlight.class, 39, Side.CLIENT);
-        nw.registerMessage(PacketVirtualCraftingParticles.Handler.class, PacketVirtualCraftingParticles.class, 49, Side.CLIENT);
-        nw.registerMessage(PacketRecyclerSync.Handler.class, PacketRecyclerSync.class, 41, Side.CLIENT);
-        nw.registerMessage(PacketEMCInterfaceBind.Handler.class, PacketEMCInterfaceBind.class, 42, Side.SERVER);
-        nw.registerMessage(PacketPlacementUndoHandler.class, PacketPlacementUndo.class, 45, Side.SERVER);
-        nw.registerMessage(PacketPlacementCablePlaceHandler.class, PacketPlacementCablePlace.class, 46, Side.SERVER);
-        nw.registerMessage(PacketPlacementSelectPresetHandler.class, PacketPlacementSelectPreset.class, 47, Side.SERVER);
-        nw.registerMessage(PacketOmniToolPlacementSubModeHandler.class, PacketOmniToolPlacementSubMode.class, 48, Side.SERVER);
-        nw.registerMessage(PacketPersonalDimensionRulesHandler.class, PacketPersonalDimensionRules.class, 50, Side.SERVER);
-        nw.registerMessage(PacketPersonalDimensionRulesSync.Handler.class, PacketPersonalDimensionRulesSync.class, 51, Side.CLIENT);
-        nw.registerMessage(PacketPersonalDimensionRegistrySync.Handler.class, PacketPersonalDimensionRegistrySync.class, 52, Side.CLIENT);
-        nw.registerMessage(PacketEnergyStorageBusAction.Handler.class, PacketEnergyStorageBusAction.class, 53, Side.SERVER);
-        nw.registerMessage(PacketSpecialPlanInfo.Handler.class, PacketSpecialPlanInfo.class, 43, Side.CLIENT);
+        nw.registerMessage(PacketChunkPowerHighlightHandler.class, PacketChunkPowerHighlight.class, 33, Side.CLIENT);
+        nw.registerMessage(PacketVirtualCraftingParticles.Handler.class, PacketVirtualCraftingParticles.class, 34, Side.CLIENT);
+        nw.registerMessage(PacketRecyclerSync.Handler.class, PacketRecyclerSync.class, 35, Side.CLIENT);
+        nw.registerMessage(PacketEMCInterfaceBind.Handler.class, PacketEMCInterfaceBind.class, 36, Side.SERVER);
+        nw.registerMessage(PacketPlacementUndoHandler.class, PacketPlacementUndo.class, 37, Side.SERVER);
+        nw.registerMessage(PacketPlacementCablePlaceHandler.class, PacketPlacementCablePlace.class, 38, Side.SERVER);
+        nw.registerMessage(PacketPlacementSelectPresetHandler.class, PacketPlacementSelectPreset.class, 39, Side.SERVER);
+        nw.registerMessage(PacketOmniToolPlacementSubModeHandler.class, PacketOmniToolPlacementSubMode.class, 40, Side.SERVER);
+        nw.registerMessage(PacketPersonalDimensionRulesHandler.class, PacketPersonalDimensionRules.class, 41, Side.SERVER);
+        nw.registerMessage(PacketPersonalDimensionRulesSync.Handler.class, PacketPersonalDimensionRulesSync.class, 42, Side.CLIENT);
+        nw.registerMessage(PacketPersonalDimensionRegistrySync.Handler.class, PacketPersonalDimensionRegistrySync.class, 43, Side.CLIENT);
+        nw.registerMessage(PacketEnergyStorageBusAction.Handler.class, PacketEnergyStorageBusAction.class, 44, Side.SERVER);
+        nw.registerMessage(com.github.aeddddd.ae2enhanced.network.packet.PacketChamberSync.Handler.class,
+                com.github.aeddddd.ae2enhanced.network.packet.PacketChamberSync.class, 45, Side.CLIENT);
+        nw.registerMessage(com.github.aeddddd.ae2enhanced.network.packet.PacketChamberAction.Handler.class,
+                com.github.aeddddd.ae2enhanced.network.packet.PacketChamberAction.class, 46, Side.SERVER);
+        nw.registerMessage(com.github.aeddddd.ae2enhanced.network.packet.PacketChamberCatalog.Handler.class,
+                com.github.aeddddd.ae2enhanced.network.packet.PacketChamberCatalog.class, 47, Side.CLIENT);
+        nw.registerMessage(PacketSpecialPlanInfo.Handler.class, PacketSpecialPlanInfo.class, 48, Side.CLIENT);
         nw.registerMessage(com.github.aeddddd.ae2enhanced.network.packet.PacketDisplayAction.Handler.class,
-                com.github.aeddddd.ae2enhanced.network.packet.PacketDisplayAction.class, 54, Side.SERVER);
+                com.github.aeddddd.ae2enhanced.network.packet.PacketDisplayAction.class, 49, Side.SERVER);
         nw.registerMessage(com.github.aeddddd.ae2enhanced.network.packet.PacketDisplayTick.Handler.class,
-                com.github.aeddddd.ae2enhanced.network.packet.PacketDisplayTick.class, 55, Side.CLIENT);
+                com.github.aeddddd.ae2enhanced.network.packet.PacketDisplayTick.class, 50, Side.CLIENT);
+        nw.registerMessage(com.github.aeddddd.ae2enhanced.network.packet.PacketSmartPatternFill.Handler.class,
+                com.github.aeddddd.ae2enhanced.network.packet.PacketSmartPatternFill.class, 51, Side.SERVER);
     }
 }

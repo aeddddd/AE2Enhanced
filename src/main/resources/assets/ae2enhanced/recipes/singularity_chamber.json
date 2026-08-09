@@ -1,0 +1,17 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "CAC",
+    "ASA",
+    "CAC"
+  ],
+  "key": {
+    "C": { "item": "ae2enhanced:hyperdimensional_casing" },
+    "A": { "item": "ae2enhanced:causal_anchor_core" },
+    "S": { "item": "ae2enhanced:hyperdimensional_singularity_core" }
+  },
+  "result": {
+    "item": "ae2enhanced:singularity_chamber",
+    "count": 1
+  }
+}

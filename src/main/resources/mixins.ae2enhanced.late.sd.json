@@ -1,7 +1,7 @@
 {
   "package": "com.github.aeddddd.ae2enhanced.mixin.late.sd",
   "required": true,
-  "minVersion": "0.7.11",
+  "minVersion": "0.8",
   "compatibilityLevel": "JAVA_8",
   "client": [],
   "mixins": [
@@ -10,5 +10,5 @@
   "injectors": {
     "defaultRequire": 1
   },
-  "refmap": "mixins.ae2enhanced.refmap.json"
+  "refmap": "mixin.refmap.json"
 }

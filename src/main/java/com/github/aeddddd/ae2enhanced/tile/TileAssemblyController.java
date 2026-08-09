@@ -102,9 +102,10 @@ public class TileAssemblyController extends TileAENetworkBase implements ICrafti
         @Override
         protected void onContentsChanged(int slot) {
             TileAssemblyController.this.markDirty();
-            // 强制同步到客户端,修复'取出升级后重新打开 GUI 发现升级还在原位'的同步延迟问题
+            // 标记客户端同步脏,由 update() 每 tick 合并通知一次,
+            // 避免批量写入时每个槽位变化都触发一次全量 NBT 网络包
             if (world != null && !world.isRemote) {
-                world.notifyBlockUpdate(pos, world.getBlockState(pos), world.getBlockState(pos), 2);
+                clientSyncDirty = true;
             }
             if (slot >= UPGRADE_SLOTS && world != null && !world.isRemote) {
                 patternsDirty = true;
@@ -233,6 +234,8 @@ public class TileAssemblyController extends TileAENetworkBase implements ICrafti
     // eventHorizonStrikes removed: banish-to-overworld fallback no longer exists
     private boolean patternsDirty = false;
     private int patternRefreshTicks = 0;
+    /** 槽位变化的客户端同步脏标记：onContentsChanged 置位,update() 中每 tick 最多合并通知一次 */
+    private boolean clientSyncDirty = false;
     /** 事件视界实体扫描/物品吸入的 tick 节流计数器,每 5 tick 执行一次以减轻 TPS 压力 */
     private int eventHorizonTickCounter = 0;
 
@@ -547,12 +550,12 @@ public class TileAssemblyController extends TileAENetworkBase implements ICrafti
             getProxy().onReady();
         }
 
-        // 黑洞事件视界：秒杀进入中心区域的生物(每 5 tick 节流)
+        // 黑洞事件视界：秒杀进入中心区域的生物(每 5 tick 节流,仅节流本块,不影响后续每 tick 逻辑)
         if (formed) {
             eventHorizonTickCounter++;
-            if (eventHorizonTickCounter < 5) return;
+            if (eventHorizonTickCounter >= 5
+                    && world.getBlockState(pos).getBlock() instanceof BlockAssemblyController) {
             eventHorizonTickCounter = 0;
-            if (!(world.getBlockState(pos).getBlock() instanceof BlockAssemblyController)) return;
             EnumFacing controllerFacing = world.getBlockState(pos).getValue(BlockAssemblyController.FACING);
             BlockPos origin = AssemblyStructure.getOriginFromController(pos, controllerFacing);
             AxisAlignedBB eventHorizon = new AxisAlignedBB(
@@ -597,6 +600,21 @@ public class TileAssemblyController extends TileAENetworkBase implements ICrafti
             if (!craftItems.isEmpty()) {
                 tryBlackHoleCraftAll();
             }
+            }
+        }
+
+        // 黑洞缓存周期性重试：部分消耗可能导致材料滞留,每 20 tick 重新尝试匹配配方
+        if (formed && !blackHoleBuffer.isEmpty()) {
+            if (++blackHoleCraftTicks >= 20) {
+                blackHoleCraftTicks = 0;
+                tryBlackHoleCraftAll();
+            }
+        }
+
+        // 槽位变化的客户端同步合并：同一 tick 内的批量写入只通知一次
+        if (clientSyncDirty) {
+            clientSyncDirty = false;
+            world.notifyBlockUpdate(pos, world.getBlockState(pos), world.getBlockState(pos), 2);
         }
 
         // 样板变化时触发 AE 网络重新扫描,1 tick 延迟合并同一 tick 内的连续变化
@@ -858,9 +876,10 @@ public class TileAssemblyController extends TileAENetworkBase implements ICrafti
      * 尝试用黑洞缓存中的物品匹配配方并产出.
      * 缓存物品种类超过 5 种时触发溢出销毁；
      * 配方不匹配时保留缓存,等待更多材料.
+     * @return 本次是否实际执行了合成(消耗材料并产出)
      */
-    private void tryBlackHoleCraft() {
-        if (blackHoleBuffer.isEmpty()) return;
+    private boolean tryBlackHoleCraft() {
+        if (blackHoleBuffer.isEmpty()) return false;
 
         // 统计物品种类(区分 metadata)
         Set<String> uniqueTypes = new HashSet<>();
@@ -878,7 +897,7 @@ public class TileAssemblyController extends TileAENetworkBase implements ICrafti
                     origin.getX() + 0.5, origin.getY() + 0.5, origin.getZ() + 0.5, 0, 0, 0);
             world.playSound(null, origin, SoundEvents.ENTITY_GENERIC_EXPLODE,
                     SoundCategory.BLOCKS, 2.0f, 0.5f);
-            return;
+            return false;
         }
 
         // 累加物品数量(区分 metadata)
@@ -918,8 +937,10 @@ public class TileAssemblyController extends TileAENetworkBase implements ICrafti
                     recipe.getOutput().copy());
             result.setNoPickupDelay();
             world.spawnEntity(result);
+            return true;
         }
         // 配方不匹配时保留缓存,等待玩家继续丢入材料
+        return false;
     }
 
     /**
@@ -929,10 +950,9 @@ public class TileAssemblyController extends TileAENetworkBase implements ICrafti
     private void tryBlackHoleCraftAll() {
         int maxIterations = 100;
         for (int i = 0; i < maxIterations; i++) {
-            int sizeBefore = blackHoleBuffer.size();
-            tryBlackHoleCraft();
-            // 若缓存为空或大小未变(无匹配),退出循环
-            if (blackHoleBuffer.isEmpty() || blackHoleBuffer.size() == sizeBefore) {
+            // 本次未实际执行合成(缓存为空/溢出销毁/配方不匹配)即退出;
+            // 注意部分消耗(stack.shrink)不会改变列表大小,不能以 size 变化为退出条件
+            if (!tryBlackHoleCraft()) {
                 break;
             }
         }
@@ -1299,6 +1319,10 @@ public class TileAssemblyController extends TileAENetworkBase implements ICrafti
             for (int i = 0; i < list.tagCount(); i++) {
                 NBTTagCompound tag = list.getCompoundTagAt(i);
                 Item item = Item.getByNameOrId(tag.getString("id"));
+                if (item == null) {
+                    AE2Enhanced.LOGGER.warn("[AE2E] Skipping orphaned item '{}' in pendingOutputs, mod may have been removed.", tag.getString("id"));
+                    continue;
+                }
                 int count = tag.getInteger("Count"); // 自定义格式用 int 存 count
                 int meta = tag.getInteger("Damage");
                 ItemStack stack = new ItemStack(item, count, meta);
@@ -1364,6 +1388,7 @@ public class TileAssemblyController extends TileAENetworkBase implements ICrafti
 
         NBTTagList list = new NBTTagList();
         for (ItemStack stack : pendingOutputs) {
+            if (stack.isEmpty()) continue; // 双保险：跳过空栈,避免 getItem() NPE
             NBTTagCompound tag = new NBTTagCompound();
             tag.setString("id", Objects.toString(stack.getItem().getRegistryName()));
             tag.setInteger("Count", stack.getCount()); // int 存 count,突破 byte 限制

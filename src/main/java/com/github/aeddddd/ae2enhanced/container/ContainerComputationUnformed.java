@@ -39,11 +39,12 @@ public class ContainerComputationUnformed extends Container {
         if (slot != null && slot.getHasStack()) {
             ItemStack itemstack1 = slot.getStack();
             itemstack = itemstack1.copy();
-            if (index < 36) {
-                if (!this.mergeItemStack(itemstack1, 36, this.inventorySlots.size(), true)) {
+            // 本容器仅含玩家背包槽（0-26 主背包，27-35 快捷栏），在两者之间互倒
+            if (index < 27) {
+                if (!this.mergeItemStack(itemstack1, 27, 36, false)) {
                     return ItemStack.EMPTY;
                 }
-            } else if (!this.mergeItemStack(itemstack1, 0, 36, false)) {
+            } else if (!this.mergeItemStack(itemstack1, 0, 27, false)) {
                 return ItemStack.EMPTY;
             }
             if (itemstack1.isEmpty()) {

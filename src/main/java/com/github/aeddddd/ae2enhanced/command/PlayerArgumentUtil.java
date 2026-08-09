@@ -1,5 +1,6 @@
 package com.github.aeddddd.ae2enhanced.command;
 
+import com.mojang.authlib.GameProfile;
 import net.minecraft.command.CommandException;
 import net.minecraft.command.ICommandSender;
 import net.minecraft.entity.player.EntityPlayerMP;

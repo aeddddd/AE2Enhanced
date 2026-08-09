@@ -49,6 +49,35 @@ public class PartUniversalExportBus extends PartUniversalBusBase {
     public static final IPartModel MODELS_ON = new PartModel(new ResourceLocation[]{MODELS[0], MODELS[2]});
     public static final IPartModel MODELS_HAS_CHANNEL = new PartModel(new ResourceLocation[]{MODELS[0], MODELS[3]});
 
+    // 源质反射缓存：静态初始化一次，加载失败（Thaumcraft/ThaumicEnergistics 缺席）则源质功能静默禁用
+    private static final Class<?> IE_TRANSPORT_CLASS;
+    private static final java.lang.reflect.Method ESSENTIA_EXPORT_SLOT_METHOD;
+    private static final java.lang.reflect.Method ESSENTIA_EXPORT_ALL_METHOD;
+    static {
+        Class<?> ieTransport = null;
+        java.lang.reflect.Method exportSlot = null;
+        java.lang.reflect.Method exportAll = null;
+        try {
+            if (Loader.isModLoaded("thaumcraft") && Loader.isModLoaded("thaumicenergistics")) {
+                ieTransport = Class.forName("thaumcraft.api.aspects.IEssentiaTransport");
+                Class<?> helperClass = Class.forName("com.github.aeddddd.ae2enhanced.util.reflection.EssentiaBusHelper");
+                exportSlot = helperClass.getMethod("exportEssentiaSlot",
+                        appeng.api.networking.IGrid.class, TileEntity.class, EnumFacing.class,
+                        IAEItemStack.class, appeng.api.networking.security.IActionSource.class);
+                exportAll = helperClass.getMethod("exportEssentias",
+                        appeng.api.networking.IGrid.class, TileEntity.class, EnumFacing.class,
+                        appeng.tile.inventory.AppEngInternalAEInventory.class, appeng.api.networking.security.IActionSource.class);
+            }
+        } catch (Throwable t) {
+            ieTransport = null;
+            exportSlot = null;
+            exportAll = null;
+        }
+        IE_TRANSPORT_CLASS = ieTransport;
+        ESSENTIA_EXPORT_SLOT_METHOD = exportSlot;
+        ESSENTIA_EXPORT_ALL_METHOD = exportAll;
+    }
+
     public PartUniversalExportBus(net.minecraft.item.ItemStack is) {
         super(is, 63, MODELS_OFF, MODELS_ON, MODELS_HAS_CHANNEL);
     }
@@ -290,20 +319,11 @@ public class PartUniversalExportBus extends PartUniversalBusBase {
 
     @Override
     protected boolean processEssentiaSlot(TileEntity target, EnumFacing opposite, IAEItemStack filter) throws Exception {
-        if (!Loader.isModLoaded("thaumcraft") || !Loader.isModLoaded("thaumicenergistics")) return false;
-        try {
-            Class<?> ieTransportClass = Class.forName("thaumcraft.api.aspects.IEssentiaTransport");
-            if (!ieTransportClass.isInstance(target)) return false;
-        } catch (ClassNotFoundException e) {
-            return false;
-        }
+        if (IE_TRANSPORT_CLASS == null || ESSENTIA_EXPORT_SLOT_METHOD == null) return false;
+        if (!IE_TRANSPORT_CLASS.isInstance(target)) return false;
 
         try {
-            Class<?> helperClass = Class.forName("com.github.aeddddd.ae2enhanced.util.reflection.EssentiaBusHelper");
-            java.lang.reflect.Method method = helperClass.getMethod("exportEssentiaSlot",
-                    appeng.api.networking.IGrid.class, TileEntity.class, EnumFacing.class,
-                    IAEItemStack.class, appeng.api.networking.security.IActionSource.class);
-            return (Boolean) method.invoke(null, this.getProxy().getGrid(), target, opposite, filter, this.source);
+            return (Boolean) ESSENTIA_EXPORT_SLOT_METHOD.invoke(null, this.getProxy().getGrid(), target, opposite, filter, this.source);
         } catch (Exception e) {
             AE2Enhanced.LOGGER.error("[AE2E] Essentia export slot failed", e);
             return false;
@@ -312,20 +332,11 @@ public class PartUniversalExportBus extends PartUniversalBusBase {
 
     @Override
     protected boolean processEssentiaUnfiltered(TileEntity target, EnumFacing opposite) throws Exception {
-        if (!Loader.isModLoaded("thaumcraft") || !Loader.isModLoaded("thaumicenergistics")) return false;
-        try {
-            Class<?> ieTransportClass = Class.forName("thaumcraft.api.aspects.IEssentiaTransport");
-            if (!ieTransportClass.isInstance(target)) return false;
-        } catch (ClassNotFoundException e) {
-            return false;
-        }
+        if (IE_TRANSPORT_CLASS == null || ESSENTIA_EXPORT_ALL_METHOD == null) return false;
+        if (!IE_TRANSPORT_CLASS.isInstance(target)) return false;
 
         try {
-            Class<?> helperClass = Class.forName("com.github.aeddddd.ae2enhanced.util.reflection.EssentiaBusHelper");
-            java.lang.reflect.Method method = helperClass.getMethod("exportEssentias",
-                    appeng.api.networking.IGrid.class, TileEntity.class, EnumFacing.class,
-                    appeng.tile.inventory.AppEngInternalAEInventory.class, appeng.api.networking.security.IActionSource.class);
-            return (Boolean) method.invoke(null, this.getProxy().getGrid(), target, opposite, this.config, this.source);
+            return (Boolean) ESSENTIA_EXPORT_ALL_METHOD.invoke(null, this.getProxy().getGrid(), target, opposite, this.config, this.source);
         } catch (Exception e) {
             AE2Enhanced.LOGGER.error("[AE2E] Essentia export unfiltered failed", e);
             return false;

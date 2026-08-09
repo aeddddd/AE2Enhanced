@@ -113,6 +113,10 @@ public class ClientProxy extends CommonProxy {
         ClientRegistry.bindTileEntitySpecialRenderer(
                 com.github.aeddddd.ae2enhanced.tile.TileDisplayPanel.class,
                 new com.github.aeddddd.ae2enhanced.client.render.RenderDisplayWall());
+        // 被约束微型奇点：注册内置物品渲染器(TEISR)
+        if (ItemRegistry.CONSTRAINED_MICRO_SINGULARITY != null) {
+            ItemRegistry.CONSTRAINED_MICRO_SINGULARITY.initModel();
+        }
         // E2a：注册 EssentiaDrop 的内置物品渲染器(流体/气体使用标准模型系统)
         if (ItemRegistry.ESSENTIA_DROP != null) {
             try {
@@ -207,6 +211,7 @@ public class ClientProxy extends CommonProxy {
         registerBlockItemModel(BlockRegistry.ASSEMBLY_INNER_WALL);
         registerBlockItemModel(BlockRegistry.ASSEMBLY_STABILIZER);
         registerBlockItemModel(BlockRegistry.MICRO_SINGULARITY);
+        registerBlockItemModel(BlockRegistry.SINGULARITY_CHAMBER);
 
         registerBlockItemModel(BlockRegistry.HYPERDIMENSIONAL_CONTROLLER);
         registerBlockItemModel(BlockRegistry.HYPERDIMENSIONAL_ME_INTERFACE);
@@ -297,9 +302,11 @@ public class ClientProxy extends CommonProxy {
         if (PartRegistry.PART_STOCKING_BUS != null) {
             AEApi.instance().registries().partModels().registerModels(PartStockingBus.MODELS);
             registerItemModel(PartRegistry.PART_STOCKING_BUS);
-            registerItemModel(ItemRegistry.CHANNEL_RECEIVER_CARD);
-        registerItemModel(ItemRegistry.UNIVERSAL_MEMORY_CARD);
         }
+
+        // 频道接收卡 / 通用存储卡物品模型（与 Stocking 总线是否注册无关）
+        registerItemModel(ItemRegistry.CHANNEL_RECEIVER_CARD);
+        registerItemModel(ItemRegistry.UNIVERSAL_MEMORY_CARD);
 
         // 能源存储总线的 Part 模型和物品模型(双注册缺一不可)
         if (PartRegistry.PART_ENERGY_STORAGE_BUS != null) {
@@ -341,6 +348,12 @@ public class ClientProxy extends CommonProxy {
         }
         if (ItemRegistry.GUIDE_BOOK != null) {
             registerItemModel(ItemRegistry.GUIDE_BOOK);
+        }
+        if (ItemRegistry.SINGULARITY_CONSTRICTOR != null) {
+            registerItemModel(ItemRegistry.SINGULARITY_CONSTRICTOR);
+        }
+        if (ItemRegistry.CONSTRAINED_MICRO_SINGULARITY != null) {
+            registerItemModel(ItemRegistry.CONSTRAINED_MICRO_SINGULARITY);
         }
 
         // 先进ME工具：4模式使用 ItemMeshDefinition 动态切换模型

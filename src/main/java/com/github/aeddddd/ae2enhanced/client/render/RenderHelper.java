@@ -102,4 +102,48 @@ public final class RenderHelper {
     public static void resetLineWidth() {
         GlStateManager.glLineWidth(1.0f);
     }
+
+    /** 在 XZ 平面绘制吸积盘环带几何(四边形网格),片元效果由 shader 计算 */
+    public static void drawAccretionDisk(double inner, double outer, int color, float alpha, int segments) {
+        float[] rgb = unpackRGB(color);
+        Tessellator tess = Tessellator.getInstance();
+        BufferBuilder buf = tess.getBuffer();
+        buf.begin(GL11.GL_QUADS, DefaultVertexFormats.POSITION_COLOR);
+        for (int j = 0; j < segments; j++) {
+            double phi0 = 2 * Math.PI * j / segments;
+            double phi1 = 2 * Math.PI * (j + 1) / segments;
+            double c0 = Math.cos(phi0), s0 = Math.sin(phi0);
+            double c1 = Math.cos(phi1), s1 = Math.sin(phi1);
+            buf.pos(inner * c0, 0, inner * s0).color(rgb[0], rgb[1], rgb[2], alpha).endVertex();
+            buf.pos(inner * c1, 0, inner * s1).color(rgb[0], rgb[1], rgb[2], alpha).endVertex();
+            buf.pos(outer * c1, 0, outer * s1).color(rgb[0], rgb[1], rgb[2], alpha).endVertex();
+            buf.pos(outer * c0, 0, outer * s0).color(rgb[0], rgb[1], rgb[2], alpha).endVertex();
+        }
+        tess.draw();
+    }
+
+    /** 沿 ±Y 轴绘制相对论性喷流双锥几何,片元效果由 shader 计算 */
+    public static void drawRelativisticJet(double baseRadius, double height, int color, float alpha, int segments) {
+        float[] rgb = unpackRGB(color);
+        Tessellator tess = Tessellator.getInstance();
+        BufferBuilder buf = tess.getBuffer();
+        buf.begin(GL11.GL_QUADS, DefaultVertexFormats.POSITION_COLOR);
+        for (int j = 0; j < segments; j++) {
+            double phi0 = 2 * Math.PI * j / segments;
+            double phi1 = 2 * Math.PI * (j + 1) / segments;
+            double c0 = Math.cos(phi0), s0 = Math.sin(phi0);
+            double c1 = Math.cos(phi1), s1 = Math.sin(phi1);
+            // 上锥：基圆 -> 顶点
+            buf.pos(baseRadius * c0, 0, baseRadius * s0).color(rgb[0], rgb[1], rgb[2], alpha).endVertex();
+            buf.pos(baseRadius * c1, 0, baseRadius * s1).color(rgb[0], rgb[1], rgb[2], alpha).endVertex();
+            buf.pos(0, height, 0).color(rgb[0], rgb[1], rgb[2], alpha).endVertex();
+            buf.pos(0, height, 0).color(rgb[0], rgb[1], rgb[2], alpha).endVertex();
+            // 下锥：基圆 -> 顶点
+            buf.pos(baseRadius * c1, 0, baseRadius * s1).color(rgb[0], rgb[1], rgb[2], alpha).endVertex();
+            buf.pos(baseRadius * c0, 0, baseRadius * s0).color(rgb[0], rgb[1], rgb[2], alpha).endVertex();
+            buf.pos(0, -height, 0).color(rgb[0], rgb[1], rgb[2], alpha).endVertex();
+            buf.pos(0, -height, 0).color(rgb[0], rgb[1], rgb[2], alpha).endVertex();
+        }
+        tess.draw();
+    }
 }

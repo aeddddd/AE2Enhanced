@@ -37,6 +37,13 @@ public class AE2EnhancedConfig {
     })
     public static BlackHole blackHole = new BlackHole();
 
+    @Config.Name("Chamber")
+    @Config.Comment({
+        "Singularity Processing Chamber settings.",
+        "Energy buffer is Integer.MAX_VALUE FE; these control consumption."
+    })
+    public static Chamber chamber = new Chamber();
+
     @Config.Name("Crafting")
     @Config.Comment({
         "Supercausal Computation Core crafting engine settings.",
@@ -271,6 +278,55 @@ public class AE2EnhancedConfig {
         })
         @Config.RangeInt(min = 8, max = Integer.MAX_VALUE)
         public int renderDistance = 64;
+
+        @Config.Comment({
+            "Enable the custom GLSL shader path for black hole rendering",
+            "(assembly hub and micro singularity).",
+            "If disabled, or if the shader fails to compile, or if OptiFine",
+            "is detected, rendering falls back to the fixed-function halo style.",
+            "Default: true"
+        })
+        public boolean enableBlackHoleShader = true;
+
+        @Config.Comment({
+            "Force compatibility mode: never use custom shaders even if available.",
+            "Use this if you experience rendering glitches with other mods.",
+            "Default: false"
+        })
+        public boolean forceCompatibilityMode = false;
+
+        @Config.Comment({
+            "Dynamic intensity multiplier for the black hole shader effect",
+            "(accretion disk brightness, jet length, shell glow).",
+            "Range: 0.1 ~ 2.0, Default: 1.0"
+        })
+        @Config.RangeDouble(min = 0.1, max = 2.0)
+        public double blackHoleShaderIntensity = 1.0;
+    }
+
+    public static class Chamber {
+
+        @Config.Comment({
+            "Maximum FE the Singularity Processing Chamber may consume per tick",
+            "(job start energy is charged upfront: energyPerBatch x batches).",
+            "Range: 1000 ~ 2147483647, Default: 1000000"
+        })
+        @Config.RangeInt(min = 1000, max = Integer.MAX_VALUE)
+        public int maxEnergyPerTick = 1000000;
+
+        @Config.Comment({
+            "FE consumed per recipe batch when a processing job starts.",
+            "Range: 1 ~ 2147483647, Default: 1000"
+        })
+        @Config.RangeInt(min = 1, max = Integer.MAX_VALUE)
+        public int energyPerBatch = 1000;
+
+        @Config.Comment({
+            "Whether the Singularity Processing Chamber requires an ME channel",
+            "to inject outputs into the network. Disable for channel-less operation.",
+            "Default: true"
+        })
+        public boolean requireChannel = true;
     }
 
     public static class Crafting {
@@ -544,7 +600,7 @@ public class AE2EnhancedConfig {
         @Config.Comment({
             "Maximum RF transfer per tick for RF Access Node in output mode.",
             "Also limits how much external devices can push into the node per tick in input mode.",
-            "Range: 1 ~ 2147483647, Default: 1000000"
+            "Range: 1 ~ 2147483647, Default: 2147483647"
         })
         @Config.RangeInt(min = 1, max = Integer.MAX_VALUE)
         public int rfAccessNodeMaxTransfer = Integer.MAX_VALUE;

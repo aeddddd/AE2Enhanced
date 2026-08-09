@@ -136,7 +136,9 @@ public class PhysicalDispatcher {
             success = true;
             owner.tryWakeTickDevice();
             return true;
-        } catch (Exception e) {
+        } catch (Throwable e) {
+            // 必须捕获 Throwable：第三方 handler 的 NoClassDefFoundError/NoSuchMethodError
+            // 等 Error 逃逸至 AE2 CPU tick 会导致服务端崩溃
             AE2Enhanced.LOGGER.warn("[AE2E] Physical dispatch exception for {} at {}: {}",
                     target.blockId, target.pos, e.toString());
             revertSession(session, "dispatch exception: " + e.toString(), source);
@@ -276,7 +278,7 @@ public class PhysicalDispatcher {
 
             IActionSource source = NetworkAccess.machineSource(owner.host);
             revertSession(session, "emergency collect", source);
-        } catch (Exception e) {
+        } catch (Throwable e) {
             AE2Enhanced.LOGGER.warn("[AE2E] Emergency collect failed for binding {}: {}", binding.pos, e.toString());
             // 最后兜底：至少释放所有权
             session.reset();
@@ -312,7 +314,7 @@ public class PhysicalDispatcher {
                     FluidTransferHelper.revertPushedFluids(world, target.pos, session.getInputFluids());
                 }
             }
-        } catch (Exception e) {
+        } catch (Throwable e) {
             AE2Enhanced.LOGGER.warn("[AE2E] revertSession failed: {}", e.toString());
         } finally {
             session.reset();
@@ -388,7 +390,7 @@ public class PhysicalDispatcher {
     private List<ItemStack> safeClearOutputs(IRemoteHandler handler, World world, BlockPos pos, IActionSource source, TargetSession session) {
         try {
             return handler.clearOutputs(world, pos, source, session);
-        } catch (Exception e) {
+        } catch (Throwable e) {
             AE2Enhanced.LOGGER.warn("[AE2E] Handler clearOutputs threw at {}: {}", pos, e.toString());
             return new ArrayList<>();
         }
@@ -407,7 +409,7 @@ public class PhysicalDispatcher {
                                       InventoryCrafting table, IActionSource source, TargetSession session) {
         try {
             return handler.pushMaterials(world, pos, table, source, session);
-        } catch (Exception e) {
+        } catch (Throwable e) {
             AE2Enhanced.LOGGER.warn("[AE2E] Handler pushMaterials threw at {}: {}", pos, e.toString());
             return false;
         }
@@ -425,7 +427,7 @@ public class PhysicalDispatcher {
     private Boolean safeIsIdle(IRemoteHandler handler, World world, BlockPos pos, List<ItemStack> inputs, TargetSession session) {
         try {
             return handler.isIdle(world, pos, inputs, session);
-        } catch (Exception e) {
+        } catch (Throwable e) {
             AE2Enhanced.LOGGER.warn("[AE2E] Handler isIdle threw at {}: {}", pos, e.toString());
             return null;
         }
@@ -436,7 +438,7 @@ public class PhysicalDispatcher {
                                                 IActionSource source, TargetSession session) {
         try {
             return handler.collectProducts(world, pos, expectedOutputs, inputs, source, session);
-        } catch (Exception e) {
+        } catch (Throwable e) {
             AE2Enhanced.LOGGER.warn("[AE2E] Handler collectProducts threw at {}: {}", pos, e.toString());
             return null;
         }
@@ -445,7 +447,7 @@ public class PhysicalDispatcher {
     private List<ItemStack> safeRevertMaterials(IRemoteHandler handler, World world, BlockPos pos, IActionSource source, TargetSession session) {
         try {
             return handler.revertMaterials(world, pos, source, session);
-        } catch (Exception e) {
+        } catch (Throwable e) {
             AE2Enhanced.LOGGER.warn("[AE2E] Handler revertMaterials threw at {}: {}", pos, e.toString());
             return new ArrayList<>();
         }
@@ -454,7 +456,7 @@ public class PhysicalDispatcher {
     private Boolean safeHasFinished(IRemoteHandler handler, World world, BlockPos pos, List<ItemStack> inputs, TargetSession session) {
         try {
             return handler.hasFinished(world, pos, inputs, session);
-        } catch (Exception e) {
+        } catch (Throwable e) {
             AE2Enhanced.LOGGER.warn("[AE2E] Handler hasFinished threw at {}: {}", pos, e.toString());
             return null;
         }

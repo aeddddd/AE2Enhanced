@@ -32,6 +32,12 @@ public class GuiAssemblyFormed extends GuiContainer {
     private static final int HIGHLIGHT_U = 0;
     private static final int HIGHLIGHT_V = 186;
 
+    // 浅色面板上的深色系文字颜色（不使用绿色/浅色系）
+    private static final int TEXT_BODY    = 0xFF2A2C3E;
+    private static final int TEXT_ACTIVE  = 0xFF1A4FA0;
+    private static final int TEXT_BOOTING = 0xFF7A4300;
+    private static final int TEXT_OFFLINE = 0xFF8A2418;
+
     public GuiAssemblyFormed(InventoryPlayer playerInv, TileAssemblyController tile) {
         super(new ContainerAssemblyFormed(playerInv, tile));
         this.tile = tile;
@@ -64,7 +70,7 @@ public class GuiAssemblyFormed extends GuiContainer {
     protected void drawGuiContainerForegroundLayer(int mouseX, int mouseY) {
         // 标题画在按钮上方（格子区右侧）
         String title = I18n.format("gui.ae2enhanced.formed.title");
-        fontRenderer.drawString(title, BTN_X, 8, 0xFFffaa00);
+        fontRenderer.drawString(title, BTN_X, 8, 0xFF7A4E00);
 
         // 按钮文字画在按钮中央
         String btnText = I18n.format("gui.ae2enhanced.formed.open_patterns");
@@ -81,26 +87,26 @@ public class GuiAssemblyFormed extends GuiContainer {
         } else {
             parallelText = I18n.format("gui.ae2enhanced.formed.parallel", parallelCap);
         }
-        fontRenderer.drawString(parallelText, 12, 50, GuiColors.TEXT_DIM);
+        fontRenderer.drawString(parallelText, 12, 50, TEXT_BODY);
 
         String netStatus;
         int netColor;
         if (tile.isNetworkActive()) {
             netStatus = I18n.format("gui.ae2enhanced.formed.network.active");
-            netColor = GuiColors.TEXT_SUCCESS;
+            netColor = TEXT_ACTIVE;
         } else if (tile.isNetworkPowered()) {
             netStatus = I18n.format("gui.ae2enhanced.formed.network.booting");
-            netColor = GuiColors.TEXT_WARN;
+            netColor = TEXT_BOOTING;
         } else {
             netStatus = I18n.format("gui.ae2enhanced.formed.network.offline");
-            netColor = GuiColors.TEXT_ERROR;
+            netColor = TEXT_OFFLINE;
         }
         int nw = fontRenderer.getStringWidth(netStatus);
         fontRenderer.drawString(netStatus, xSize - 12 - nw, 50, netColor);
 
         // 任务数画在信息区第二行
         String jobs = I18n.format("gui.ae2enhanced.formed.jobs", tile.getJobCount());
-        fontRenderer.drawString(jobs, 12, 62, GuiColors.TEXT_DIM);
+        fontRenderer.drawString(jobs, 12, 62, TEXT_BODY);
     }
 
     @Override

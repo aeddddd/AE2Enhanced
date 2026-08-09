@@ -3,6 +3,7 @@ package com.github.aeddddd.ae2enhanced.centralinterface;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -43,6 +44,8 @@ public class TargetSessionTest {
     public void setUp() {
         TargetOwnershipTracker.resetForTesting();
         this.owner = mock(DualityCentralInterface.class);
+        // mock 默认 isAlive()=false 会被 tryAcquire 视为失效 owner 回收，stub 为存活以保持互斥语义
+        when(this.owner.isAlive()).thenReturn(true);
         this.binding = new TargetBinding(new BlockPos(1, 2, 3), 0, "minecraft:furnace");
         this.session = new TargetSession(binding, owner);
     }
@@ -79,6 +82,7 @@ public class TargetSessionTest {
     @Test
     public void testBeginPushMutualExclusionAcrossOwners() {
         DualityCentralInterface other = mock(DualityCentralInterface.class);
+        when(other.isAlive()).thenReturn(true);
         TargetSession otherSession = new TargetSession(binding, other);
 
         assertThat(session.beginPush(null)).isTrue();

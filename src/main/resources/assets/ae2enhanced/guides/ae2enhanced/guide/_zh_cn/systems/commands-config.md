@@ -15,8 +15,8 @@ navigation:
 - `/ae2e channels <enable|disable|status>`: 开关 AE2 频道检查.
 - `/ae2e fastpathing <enable|disable|status>`: 实验性 O(N) 频道寻路, 下次 repath 生效.
 - `/ae2e specialcrafting <enable|disable|status>`: 特殊合成计划 (自引用 / 循环配方), 在超因果计算核心上执行.
-- `/ae2e recoverhd list` / `/ae2e recoverhd <uuid>`: 列出超维存储 UUID / 领取绑定该 UUID 的控制器.
-- `/ae2e migratefluids`: 把 AE2E 流体假物品迁移为 ae2fc 格式 (需要 ae2fc).
+- `/ae2e recoverhd list` / `/ae2e recoverhd <uuid>`: 列出超维度存储 UUID / 获取绑定该 UUID 的控制器.
+- `/ae2e migratefluids`: 把 AE2E 流体假物品迁移为 ae2fc 格式 (已弃用,仅用于旧存档迁移).
 - `/ae2e pd <list|info|delete|tp|invite|kick|setperm>`: [个人维度](systems/personal-dimension.md)管理.
 - `/ae2e help`: 显示帮助.
 

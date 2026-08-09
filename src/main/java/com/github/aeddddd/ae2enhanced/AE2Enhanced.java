@@ -31,7 +31,7 @@ import org.apache.logging.log4j.Logger;
     modid = AE2Enhanced.MOD_ID,
     name = AE2Enhanced.MOD_NAME,
     version = AE2Enhanced.VERSION,
-    dependencies = "required-after:appliedenergistics2;after:terminal_interaction_integration;after:projecte"
+    dependencies = "required-after:mixinbooter@[10.6,);required-after:appliedenergistics2;after:terminal_interaction_integration;after:projecte"
 )
 public class AE2Enhanced {
 
@@ -103,6 +103,12 @@ public class AE2Enhanced {
     @Mod.EventHandler
     public void serverStarted(FMLServerStartedEvent event) {
         PersonalDimensionManager.onServerStarted(event);
+    }
+
+    @Mod.EventHandler
+    public void serverStopping(net.minecraftforge.fml.common.event.FMLServerStoppingEvent event) {
+        // 清理中枢接口目标所有权静态表，避免单机跨存档重载后旧实例残留锁死机器
+        com.github.aeddddd.ae2enhanced.centralinterface.TargetOwnershipTracker.instance().clearAll();
     }
 
     private void checkMixinEnvironment() {

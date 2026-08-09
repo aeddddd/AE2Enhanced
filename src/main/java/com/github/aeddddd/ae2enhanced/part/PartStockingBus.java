@@ -677,20 +677,32 @@ public class PartStockingBus extends PartUpgradeable implements IGridTickable {
 
     // === Essentia Stocking ===
 
+    // 源质 stocking 反射缓存：静态初始化一次，加载失败则源质 stocking 静默禁用
+    private static final java.lang.reflect.Method ESSENTIA_STOCK_METHOD;
+    static {
+        java.lang.reflect.Method stockMethod = null;
+        try {
+            if (EssentiaChannelAccessor.isAvailable()) {
+                Class<?> helperClass = Class.forName("com.github.aeddddd.ae2enhanced.util.reflection.EssentiaBusHelper");
+                stockMethod = helperClass.getMethod("stockEssentias",
+                        appeng.api.networking.IGrid.class, TileEntity.class, EnumFacing.class,
+                        IAEItemStack.class, long.class, long.class, int.class, IActionSource.class);
+            }
+        } catch (Throwable t) {
+            stockMethod = null;
+        }
+        ESSENTIA_STOCK_METHOD = stockMethod;
+    }
+
     private class EssentiaStockingHandler implements StockingHandler {
         @Override
         public long handle(TileEntity target, EnumFacing opposite, IAEItemStack filter,
                            long targetAmount, long maxWork) throws GridAccessException {
+            if (ESSENTIA_STOCK_METHOD == null) return 0;
             try {
-                Class<?> helperClass = Class.forName("com.github.aeddddd.ae2enhanced.util.reflection.EssentiaBusHelper");
-                java.lang.reflect.Method method = helperClass.getMethod("stockEssentias",
-                        appeng.api.networking.IGrid.class, TileEntity.class, EnumFacing.class,
-                        IAEItemStack.class, long.class, long.class, int.class, IActionSource.class);
-                Object result = method.invoke(null, PartStockingBus.this.getProxy().getGrid(), target, opposite,
+                Object result = ESSENTIA_STOCK_METHOD.invoke(null, PartStockingBus.this.getProxy().getGrid(), target, opposite,
                         filter, targetAmount, maxWork, PartStockingBus.this.mode.ordinal(), PartStockingBus.this.source);
                 return result instanceof Number ? ((Number) result).longValue() : 0;
-            } catch (NoSuchMethodException e) {
-                return 0;
             } catch (GridAccessException e) {
                 throw e;
             } catch (Exception e) {

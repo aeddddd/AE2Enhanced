@@ -21,6 +21,18 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 @Mixin(value = ContainerCellWorkbench.class, remap = false)
 public class MixinContainerCellWorkbench {
 
+    // Mekanism IGasItem 类的静态缓存：加载一次，Mekanism 缺席时为 null 并静默禁用气体检测
+    private static final Class<?> GAS_ITEM_CLASS;
+    static {
+        Class<?> clazz = null;
+        try {
+            clazz = Class.forName("mekanism.api.gas.IGasItem");
+        } catch (Throwable ignored) {
+            // Mekanism 未安装
+        }
+        GAS_ITEM_CLASS = clazz;
+    }
+
     @Inject(method = "doAction", at = @At("HEAD"), cancellable = true)
     private void ae2enhanced$onDoAction(EntityPlayerMP player, InventoryAction action, int slotId, long id, CallbackInfo ci) {
         if (id != 0L || slotId < 0) return;
@@ -65,14 +77,9 @@ public class MixinContainerCellWorkbench {
         }
 
         // 气体容器(简化处理：不实现放入逻辑,只阻止默认行为)
-        boolean isGasItem = false;
-        try {
-            Class<?> gasItemClass = Class.forName("mekanism.api.gas.IGasItem");
-            isGasItem = gasItemClass.isInstance(held.getItem());
-        } catch (ClassNotFoundException ignored) {
-        }
-        if (isGasItem) {
-            // 暂不实现气体容器放入 view cell
+        if (GAS_ITEM_CLASS != null && GAS_ITEM_CLASS.isInstance(held.getItem())) {
+            // 暂不实现气体容器放入 view cell，阻止默认行为避免气体容器被当作普通物品处理
+            ci.cancel();
         }
     }
 }

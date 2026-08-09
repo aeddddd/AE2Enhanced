@@ -27,9 +27,17 @@ public class PacketEnergyStorageBusAction implements IMessage {
         this.action = action;
     }
 
+    /** 动作名最大字节数,防止恶意长度前缀导致异常或超大读取 */
+    private static final int MAX_ACTION_BYTES = 32;
+
     @Override
     public void fromBytes(ByteBuf buf) {
         int len = buf.readByte();
+        // 长度前缀为有符号 byte,负值或超限置为空动作(handler 中不匹配任何动作)
+        if (len < 0 || len > MAX_ACTION_BYTES || len > buf.readableBytes()) {
+            this.action = "";
+            return;
+        }
         this.action = buf.readCharSequence(len, StandardCharsets.UTF_8).toString();
     }
 

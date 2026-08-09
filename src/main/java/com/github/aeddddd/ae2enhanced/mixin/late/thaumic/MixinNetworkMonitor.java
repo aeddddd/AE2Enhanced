@@ -120,7 +120,10 @@ public class MixinNetworkMonitor {
             emptyResult.setStackSize(0);
             cir.setReturnValue(emptyResult);
         } else {
-            cir.setReturnValue(request);
+            // 部分提取时必须只回报未提取部分（与 fluid 版一致），
+            // 否则调用方误以为全部未提取而重试，导致源质被重复扣减
+            IAEItemStack result = EssentiaBusHelper.packEssentia(notExtracted);
+            cir.setReturnValue(result != null ? result : request);
         }
     }
 

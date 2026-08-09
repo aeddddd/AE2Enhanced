@@ -102,4 +102,127 @@ public class BlackHoleCraftingHelper {
             }
         }
     }
+
+    /**
+     * 并行批量合成：扫描 3×3×3 区域内的物品实体,对每个匹配的配方
+     * 一次性按最大批次数消耗材料并产出,循环直到没有任何配方可匹配.
+     * 不匹配配方的物品保持不变.
+     *
+     * @return 实际执行的合成批次数
+     */
+    public static int craftAllAvailable(World world, BlockPos pos, BlockPos outputPos) {
+        int totalBatches = 0;
+        for (int iter = 0; iter < 100; iter++) {
+            AxisAlignedBB area = new AxisAlignedBB(
+                    pos.getX() - 1, pos.getY() - 1, pos.getZ() - 1,
+                    pos.getX() + 2, pos.getY() + 2, pos.getZ() + 2
+            );
+            List<EntityItem> items = world.getEntitiesWithinAABB(EntityItem.class, area);
+            if (items.isEmpty()) break;
+
+            Map<String, Integer> found = new HashMap<>();
+            for (EntityItem entityItem : items) {
+                ItemStack stack = entityItem.getItem();
+                if (!stack.isEmpty()) {
+                    found.merge(BlackHoleRecipe.keyOf(stack), stack.getCount(), Integer::sum);
+                }
+            }
+
+            boolean anyCrafted = false;
+            for (BlackHoleRecipe recipe : BlackHoleRecipeRegistry.getRecipes()) {
+                int batches = recipe.maxBatches(found);
+                if (batches <= 0) continue;
+
+                // 消耗 batches 倍材料
+                Map<String, Integer> remaining = new HashMap<>();
+                for (Map.Entry<String, Integer> entry : recipe.getInputs().entrySet()) {
+                    remaining.put(entry.getKey(), entry.getValue() * batches);
+                }
+                for (EntityItem entityItem : items) {
+                    ItemStack stack = entityItem.getItem();
+                    if (stack.isEmpty()) continue;
+                    String key = BlackHoleRecipe.keyOf(stack);
+                    int needed = remaining.getOrDefault(key, 0);
+                    if (needed > 0) {
+                        int consume = Math.min(needed, stack.getCount());
+                        stack.shrink(consume);
+                        remaining.put(key, needed - consume);
+                        if (stack.isEmpty()) {
+                            entityItem.setDead();
+                        }
+                    }
+                }
+                // 同步 found,供后续配方计算批次
+                for (Map.Entry<String, Integer> entry : recipe.getInputs().entrySet()) {
+                    found.merge(entry.getKey(), -entry.getValue() * batches, Integer::sum);
+                }
+                spawnOutputs(world, outputPos, recipe.getOutput(), batches);
+                totalBatches += batches;
+                anyCrafted = true;
+            }
+            if (!anyCrafted) break;
+        }
+        return totalBatches;
+    }
+
+    /**
+     * 生成 batches 份产物,按物品最大堆叠拆分为多个物品实体从指定位置喷出.
+     */
+    private static void spawnOutputs(World world, BlockPos outputPos, ItemStack output, int batches) {
+        long remaining = (long) output.getCount() * batches;
+        int maxStack = output.getMaxStackSize();
+        while (remaining > 0) {
+            int count = (int) Math.min(remaining, maxStack);
+            ItemStack stack = output.copy();
+            stack.setCount(count);
+            EntityItem result = new EntityItem(world,
+                    outputPos.getX() + 0.5, outputPos.getY() + 0.5, outputPos.getZ() + 0.5, stack);
+            result.setNoPickupDelay();
+            world.spawnEntity(result);
+            remaining -= count;
+        }
+    }
+
+    /**
+     * 微型奇点：吸入 5×5×5 范围内可参与黑洞合成的物品实体.
+     * 不匹配任何配方输入的物品原地不动,避免杂物堆积与误吞.
+     */
+    public static void suckMatchingItems(World world, BlockPos center) {
+        AxisAlignedBB area = new AxisAlignedBB(
+                center.getX() - 2, center.getY() - 2, center.getZ() - 2,
+                center.getX() + 3, center.getY() + 3, center.getZ() + 3
+        );
+        List<EntityItem> items = world.getEntitiesWithinAABB(EntityItem.class, area);
+        double tx = center.getX() + 0.5;
+        double ty = center.getY() + 0.5;
+        double tz = center.getZ() + 0.5;
+        for (EntityItem item : items) {
+            if (!isCraftingInput(item.getItem())) continue;
+            double dx = tx - item.posX;
+            double dy = ty - item.posY;
+            double dz = tz - item.posZ;
+            double len = Math.sqrt(dx * dx + dy * dy + dz * dz);
+            if (len < 1.0E-4) continue;
+            item.setVelocity(dx / len * 0.25, dy / len * 0.25, dz / len * 0.25);
+            item.velocityChanged = true;
+        }
+    }
+
+    /**
+     * 判断物品是否可作为任一黑洞配方的输入（精确匹配 "registryName:meta",或带 NBT 后缀的 key）.
+     * keyOf 格式为 "registryName:meta[+NBT字符串]",NBT 以 '{' 起始；
+     * 不能用裸前缀匹配,否则 meta 1 会误配 meta 10.
+     */
+    public static boolean isCraftingInput(ItemStack stack) {
+        if (stack.isEmpty() || stack.getItem().getRegistryName() == null) return false;
+        String itemId = stack.getItem().getRegistryName().toString() + ":" + stack.getMetadata();
+        for (BlackHoleRecipe recipe : BlackHoleRecipeRegistry.getRecipes()) {
+            for (String inputKey : recipe.getInputs().keySet()) {
+                if (inputKey.equals(itemId) || inputKey.startsWith(itemId + "{")) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
 }

@@ -98,6 +98,8 @@ public class RenderDisplayWall extends TileEntitySpecialRenderer<TileDisplayPane
         boolean cullWas = GL11.glIsEnabled(GL11.GL_CULL_FACE);
         boolean fogWas = GL11.glIsEnabled(GL11.GL_FOG);
         boolean alphaWas = GL11.glIsEnabled(GL11.GL_ALPHA_TEST);
+        boolean lightingWas = GL11.glIsEnabled(GL11.GL_LIGHTING);
+        int shadeModelWas = GL11.glGetInteger(GL11.GL_SHADE_MODEL);
 
         GlStateManager.setActiveTexture(OpenGlHelper.lightmapTexUnit);
         boolean lightmapTexWas = GL11.glIsEnabled(GL11.GL_TEXTURE_2D);
@@ -105,6 +107,7 @@ public class RenderDisplayWall extends TileEntitySpecialRenderer<TileDisplayPane
             GlStateManager.disableTexture2D();
         }
         GlStateManager.setActiveTexture(OpenGlHelper.defaultTexUnit);
+        boolean texture2DWas = GL11.glIsEnabled(GL11.GL_TEXTURE_2D);
 
         GlStateManager.enableBlend();
         GlStateManager.tryBlendFuncSeparate(GlStateManager.SourceFactor.SRC_ALPHA,
@@ -160,9 +163,19 @@ public class RenderDisplayWall extends TileEntitySpecialRenderer<TileDisplayPane
         } finally {
             GL11.glLineWidth(1.0f);
             GL11.glDisable(GL11.GL_LINE_SMOOTH);
-            GlStateManager.shadeModel(GL11.GL_FLAT);
-            GlStateManager.enableTexture2D();
-            GlStateManager.enableLighting();
+            GlStateManager.shadeModel(shadeModelWas);
+            if (texture2DWas) {
+                GlStateManager.enableTexture2D();
+            } else {
+                GlStateManager.disableTexture2D();
+            }
+            if (lightingWas) {
+                GL11.glEnable(GL11.GL_LIGHTING);
+                GlStateManager.enableLighting();
+            } else {
+                GL11.glDisable(GL11.GL_LIGHTING);
+                GlStateManager.disableLighting();
+            }
             if (fogWas) {
                 GL11.glEnable(GL11.GL_FOG);
                 GlStateManager.enableFog();

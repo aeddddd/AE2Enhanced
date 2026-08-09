@@ -33,6 +33,7 @@ public class AE2EnhancedJEIPlugin implements IModPlugin {
     @Override
     public void registerCategories(IRecipeCategoryRegistration registry) {
         registry.addRecipeCategories(new BlackHoleRecipeCategory(registry.getJeiHelpers().getGuiHelper()));
+        registry.addRecipeCategories(new ChamberRecipeCategory(registry.getJeiHelpers().getGuiHelper()));
     }
 
     @Override
@@ -66,6 +67,17 @@ public class AE2EnhancedJEIPlugin implements IModPlugin {
         }
         registry.addRecipes(wrappers, BlackHoleRecipeCategory.UID);
 
+        // 奇点处理仓配方
+        List<ChamberRecipeWrapper> chamberWrappers = new ArrayList<>();
+        for (com.github.aeddddd.ae2enhanced.chamber.ChamberRecipe recipe
+                : com.github.aeddddd.ae2enhanced.chamber.ChamberRecipeIndex.allRecipes()) {
+            chamberWrappers.add(new ChamberRecipeWrapper(recipe));
+        }
+        registry.addRecipes(chamberWrappers, ChamberRecipeCategory.UID);
+
+        // 处理仓配方催化剂：点击方块可查看其配方
+        registry.addRecipeCatalyst(new ItemStack(BlockRegistry.SINGULARITY_CHAMBER), ChamberRecipeCategory.UID);
+
         // Omni Terminal 配方转移：使用 universal handler 支持所有 recipe category
         registry.getRecipeTransferRegistry().addUniversalRecipeTransferHandler(
                 new com.github.aeddddd.ae2enhanced.integration.jei.OmniTermRecipeTransferHandler());
@@ -74,5 +86,10 @@ public class AE2EnhancedJEIPlugin implements IModPlugin {
         registry.addGhostIngredientHandler(
                 com.github.aeddddd.ae2enhanced.client.gui.GuiSmartPatternInterface.class,
                 new com.github.aeddddd.ae2enhanced.integration.jei.SmartPatternInterfaceGhostHandler());
+
+        // Smart Pattern Interface 一键转移：将 JEI 配方填充到锁定的配方
+        registry.getRecipeTransferRegistry().addUniversalRecipeTransferHandler(
+                new com.github.aeddddd.ae2enhanced.integration.jei.SmartPatternRecipeTransferHandler(
+                        registry.getJeiHelpers().recipeTransferHandlerHelper()));
     }
 }

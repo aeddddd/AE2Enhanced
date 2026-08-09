@@ -42,12 +42,20 @@ public class PacketSmartPatternEncode implements IMessage {
         @Override
         public IMessage onMessage(PacketSmartPatternEncode message, MessageContext ctx) {
             ctx.getServerHandler().player.getServerWorld().addScheduledTask(() -> {
-                World world = ctx.getServerHandler().player.world;
+                net.minecraft.entity.player.EntityPlayerMP player = ctx.getServerHandler().player;
+                // 距离校验,防止远程触发任意坐标的样板编码
+                if (player.getDistanceSq(message.getPos()) > 64.0) return;
+                World world = player.world;
                 net.minecraft.tileentity.TileEntity te = world.getTileEntity(message.getPos());
                 if (te instanceof com.github.aeddddd.ae2enhanced.tile.TileSmartPatternInterface) {
                     com.github.aeddddd.ae2enhanced.tile.TileSmartPatternInterface tile =
                             (com.github.aeddddd.ae2enhanced.tile.TileSmartPatternInterface) te;
-                    tile.encodePattern(ctx.getServerHandler().player);
+                    // 容器校验：必须正打开该智能样板接口的 GUI 才允许触发编码
+                    if (!(player.openContainer instanceof com.github.aeddddd.ae2enhanced.container.ContainerSmartPatternInterface)
+                            || ((com.github.aeddddd.ae2enhanced.container.ContainerSmartPatternInterface) player.openContainer).getTile() != tile) {
+                        return;
+                    }
+                    tile.encodePattern(player);
                 }
             });
             return null;

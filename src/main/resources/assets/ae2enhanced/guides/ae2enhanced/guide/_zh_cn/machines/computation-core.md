@@ -22,6 +22,6 @@ item_ids: [computation_core, constant_tensor_field_casing, constant_spinor_field
 ## 行为
 
 - 每个合成集群创建时带有 `Long.MAX_VALUE` 可用存储与 16384 加速器.
-- 并行上限由配置 `crafting.maxParallel` 决定 (默认 16384); 活动订单上限为 `crafting.maxActiveOrders` (默认 8).
+- 并行上限由配置 `crafting.maxParallel` 决定 (默认 16384); 活动订单上限为 `crafting.maxActiveOrders` .
 - 自动拆分机制会始终保持一个空闲 CPU 集群供新任务使用.
 - 特殊合成计划 (自引用或循环配方的闭式求解) 在此核心上执行; 可用 `/ae2e specialcrafting` 或配置 `crafting.specialCrafting` 开关 (见[命令与配置](systems/commands-config.md)).

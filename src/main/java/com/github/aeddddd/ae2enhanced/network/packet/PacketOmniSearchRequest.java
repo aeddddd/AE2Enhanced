@@ -37,9 +37,17 @@ public class PacketOmniSearchRequest implements IMessage {
         this.limit = limit;
     }
 
+    /** 搜索词最大字节数,防止恶意长度前缀导致超大分配 */
+    private static final int MAX_QUERY_BYTES = 1024;
+
     @Override
     public void fromBytes(ByteBuf buf) {
         int len = buf.readShort();
+        // 长度前缀为有符号 short,负值或超限直接置空并丢弃剩余字段
+        if (len < 0 || len > MAX_QUERY_BYTES || len > buf.readableBytes()) {
+            this.query = "";
+            return;
+        }
         byte[] bytes = new byte[len];
         buf.readBytes(bytes);
         this.query = new String(bytes, java.nio.charset.StandardCharsets.UTF_8);

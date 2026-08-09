@@ -2,6 +2,7 @@ package com.github.aeddddd.ae2enhanced.centralinterface;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -23,6 +24,9 @@ public class TargetOwnershipTrackerTest {
         TargetOwnershipTracker.resetForTesting();
         this.ownerA = mock(DualityCentralInterface.class);
         this.ownerB = mock(DualityCentralInterface.class);
+        // mock 默认 isAlive()=false 会被 tryAcquire 视为失效 owner 回收，stub 为存活以保持互斥语义
+        when(this.ownerA.isAlive()).thenReturn(true);
+        when(this.ownerB.isAlive()).thenReturn(true);
         this.binding = new TargetBinding(new BlockPos(1, 2, 3), 0, "minecraft:furnace");
     }
 

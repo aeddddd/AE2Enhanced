@@ -33,10 +33,18 @@ public final class TargetOwnershipTracker {
     /**
      * 尝试获取指定目标的所有权。
      *
-     * @return 当前无所有者或所有者就是自身时返回 true；否则返回 false
+     * <p>若现有所有者的宿主 Tile 已失效（isInvalid / world 为空，例如单机跨存档重载后
+     * 残留的旧实例），则回收其所有权并允许新所有者获取，避免机器被永久锁定。</p>
+     *
+     * @return 当前无所有者、所有者已失效被回收、或所有者就是自身时返回 true；否则返回 false
      */
     public synchronized boolean tryAcquire(TargetBinding binding, DualityCentralInterface owner) {
         DualityCentralInterface current = owners.get(binding);
+        if (current != null && current != owner && !current.isAlive()) {
+            // 旧所有者已失效（如服务器重启/跨存档后残留的实例），回收其所有权
+            owners.remove(binding);
+            current = null;
+        }
         if (current == null || current == owner) {
             owners.put(binding, owner);
             return true;
@@ -71,6 +79,14 @@ public final class TargetOwnershipTracker {
                 it.remove();
             }
         }
+    }
+
+    /**
+     * 清空全部所有权记录。在服务器停止（FMLServerStoppingEvent）时调用，
+     * 避免静态表残留旧存档的 DualityCentralInterface 实例导致新存档中机器被永久锁定。
+     */
+    public synchronized void clearAll() {
+        owners.clear();
     }
 
     /**

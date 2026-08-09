@@ -39,8 +39,21 @@ public class PersonalDimensionData extends WorldSavedData {
         super(name);
     }
 
+    /**
+     * 获取条目，不存在时创建。仅在真正需要写入（分配维度/邀请/设权限等）时使用。
+     */
     public PlayerDimEntry getEntry(UUID playerId) {
         return entries.computeIfAbsent(playerId, PlayerDimEntry::new);
+    }
+
+    /**
+     * 只读查询条目，不存在时返回 null，不会创建空条目。
+     * 只读路径（如 pd info、能力应用）必须使用本方法，避免为任意 UUID
+     * 创建空条目并随 NBT 永久保存。
+     */
+    @Nullable
+    public PlayerDimEntry peekEntry(UUID playerId) {
+        return entries.get(playerId);
     }
 
     public java.util.Collection<PlayerDimEntry> getAllEntries() {
@@ -88,6 +101,28 @@ public class PersonalDimensionData extends WorldSavedData {
         entry.returnPitch = pitch;
         entry.hasReturnPoint = true;
         markDirty();
+    }
+
+    /**
+     * 无条件清除指定玩家的返回点。
+     */
+    public void clearReturnPoint(UUID playerId) {
+        PlayerDimEntry entry = peekEntry(playerId);
+        if (entry != null && entry.hasReturnPoint) {
+            entry.hasReturnPoint = false;
+            markDirty();
+        }
+    }
+
+    /**
+     * 若指定玩家的返回点位于指定维度，则清除该返回点。
+     */
+    public void clearReturnPointIfInDimension(UUID playerId, int dimId) {
+        PlayerDimEntry entry = peekEntry(playerId);
+        if (entry != null && entry.hasReturnPoint && entry.returnDim == dimId) {
+            entry.hasReturnPoint = false;
+            markDirty();
+        }
     }
 
     /**
@@ -140,6 +175,11 @@ public class PersonalDimensionData extends WorldSavedData {
         compound.setInteger("version", CURRENT_VERSION);
         NBTTagList list = new NBTTagList();
         for (PlayerDimEntry entry : entries.values()) {
+            // 跳过既无维度又无白名单/规则改动的空条目，
+            // 避免只读查询意外创建的空条目随 NBT 永久保存
+            if (entry.isEmpty()) {
+                continue;
+            }
             list.appendTag(entry.writeToNBT());
         }
         compound.setTag("entries", list);

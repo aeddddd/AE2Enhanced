@@ -22,6 +22,28 @@ tile.ae2enhanced.assembly_inner_wall.name=装配枢纽内壁
 tile.ae2enhanced.assembly_stabilizer.name=装配枢纽稳定器
 tile.ae2enhanced.micro_singularity.name=微型奇点
 tile.ae2enhanced.micro_singularity.tooltip=§8§o「来自事件视界的造物」§r\n§7右键事件视界可将物品投入黑洞进行合成.\n§7生成方法: §e扔出 64 个 AE2 奇点和 4 个下界之星 §7到地面,\n§7然后 §e手持 1 个下界之星右键 ME 控制器 §7即可生成微型奇点.
+item.ae2enhanced.constrained_micro_singularity.name=被约束的微型奇点
+item.ae2enhanced.constrained_micro_singularity.tooltip.permanent=§b永久存在
+item.ae2enhanced.constrained_micro_singularity.tooltip.remaining=§7剩余存在时间: §e%s §7秒
+item.ae2enhanced.constrained_micro_singularity.tooltip.hint=§8§o「来自事件视界的造物」\n§7物品形态下倒计时以 §e1/30 §7速度流逝.\n§7扔出落地静置后恢复为方块形态,\n§7并返还空的奇点约束器.
+item.ae2enhanced.singularity_constrictor.name=奇点约束器
+item.ae2enhanced.singularity_constrictor.tooltip=§e§l奇点约束器 §7\n右键微型奇点,将其约束为物品形态.\n扔出奇点落地后恢复为方块,\n并在原地返还空的约束器.\n§8以不变之形,囚无穷之渊\n§b§l「握于掌中的事件视界」
+tile.ae2enhanced.singularity_chamber.name=奇点处理仓
+gui.ae2enhanced.chamber.title=奇点处理仓
+gui.ae2enhanced.chamber.status=通道 %s/%s · 任务 %s
+gui.ae2enhanced.chamber.output=输出缓冲
+gui.ae2enhanced.chamber.energy=§d能量: §f%s / %s FE
+gui.ae2enhanced.chamber.recipes=配方: %s (禁用 %s)
+gui.ae2enhanced.chamber.count=§7缓存: §f%,d
+gui.ae2enhanced.chamber.withdraw_hint=§8点击: 取回一组 · Shift点击: 全部取回
+gui.ae2enhanced.chamber.recipe_time=§7处理时间: §f%s §7tick
+gui.ae2enhanced.chamber.recipe_enabled=§a已启用 §8(点击禁用)
+gui.ae2enhanced.chamber.recipe_disabled=§c已禁用 §8(点击启用)
+gui.ae2enhanced.chamber.redstone.0=§7红石模式: §f忽略
+gui.ae2enhanced.chamber.redstone.1=§7红石模式: §f高电平运行
+gui.ae2enhanced.chamber.redstone.2=§7红石模式: §f低电平运行
+jei.ae2enhanced.category.chamber=奇点处理仓
+jei.ae2enhanced.chamber.time=%s tick
 
 jei.ae2enhanced.category.blackhole=黑洞合成
 jei.ae2enhanced.blackhole.hint=投入事件视界
@@ -185,6 +207,7 @@ gui.ae2enhanced.stocking_bus.tooltip.mode=模式: %s
 gui.ae2enhanced.stocking_bus.mode.bidirectional=双向维持
 gui.ae2enhanced.stocking_bus.mode.supply=仅补货
 gui.ae2enhanced.stocking_bus.mode.recover=仅回收
+gui.ae2enhanced.stocking_bus.mode.unknown=未知模式
 gui.ae2enhanced.stocking_bus.set_amount=设置目标数量
 
 item.ae2enhanced.channel_receiver_card.name=频道接收卡
@@ -300,6 +323,12 @@ gui.ae2enhanced.smart_pattern_interface.clear_outputs=清除输出槽位
 gui.ae2enhanced.smart_pattern_interface.unstack=展开同类物品堆叠
 gui.ae2enhanced.smart_pattern_interface.stack=堆叠同类物品
 gui.ae2enhanced.smart_pattern_interface.replace_all=在所有配方中替换
+gui.ae2enhanced.smart_pattern_interface.add_recipe=添加新配方
+gui.ae2enhanced.smart_pattern_interface.hint_toggle=§7左键: 禁用/启用配方
+gui.ae2enhanced.smart_pattern_interface.hint_lock=§7Shift+左键: 锁定配方进行编辑
+gui.ae2enhanced.smart_pattern_interface.hint_transfer=§7JEI [+] 按钮: 将配方填充到锁定的配方
+gui.ae2enhanced.smart_pattern_interface.hint_output_slot=§e放入已编码的智能样板会重新加载其配方数据并覆盖当前数据
+gui.ae2enhanced.smart_pattern_interface.transfer_no_lock=请先锁定配方 (Shift+左键点击配方槽)
 
 # Omni 终端升级卡
 item.ae2enhanced.omni_upgrade_card.magnet.name=高级磁引卡
@@ -308,8 +337,6 @@ item.ae2enhanced.omni_upgrade_card.picker.name=选取交互卡
 item.ae2enhanced.omni_upgrade_card.picker.tooltip=§b§l选取交互卡 §r§8[类型: 选取]
 
 # 按键绑定
-key.categories.ae2enhanced=AE2 Enhanced
-key.ae2enhanced.openOmniTerminal=打开全能终端
 key.ae2enhanced.toggleMagnet=切换磁引卡
 
 message.ae2enhanced.magnet.off=§c磁引卡：关闭
@@ -490,10 +517,15 @@ item.ae2enhanced.personal_dimension.name=个人维度核心
 tile.ae2enhanced.yellow_stripes_block_b.name=警示方块
 gui.ae2enhanced.personal_dimension.title=个人维度规则
 gui.ae2enhanced.personal_dimension.spawn_mobs=生物生成
+gui.ae2enhanced.personal_dimension.spawn_mobs.desc=允许个人维度内自然生成怪物。
 gui.ae2enhanced.personal_dimension.lock_weather=锁定天气
+gui.ae2enhanced.personal_dimension.lock_weather.desc=锁定当前天气，天气不再变化。
 gui.ae2enhanced.personal_dimension.lock_time=锁定时间
+gui.ae2enhanced.personal_dimension.lock_time.desc=将时间锁定为下方设定的值。
 gui.ae2enhanced.personal_dimension.daylight_cycle=昼夜循环
+gui.ae2enhanced.personal_dimension.daylight_cycle.desc=启用个人维度内的昼夜交替。
 gui.ae2enhanced.personal_dimension.time_value=时间
+gui.ae2enhanced.personal_dimension.time_value.desc=锁定时间时使用的固定时间值（0-24000）。
 gui.ae2enhanced.personal_dimension.flight=飞行
 gui.ae2enhanced.personal_dimension.flight.desc=在个人维度内允许飞行。
 gui.ae2enhanced.personal_dimension.speed=移动速度
@@ -508,6 +540,8 @@ chat.ae2enhanced.personal_dimension.bind_only_in_dim=只能在个人维度内绑
 chat.ae2enhanced.personal_dimension.create_failed=创建个人维度失败。
 chat.ae2enhanced.personal_dimension.no_permission_build=你没有在此个人维度中建造的权限。
 chat.ae2enhanced.personal_dimension.no_permission_interact=你没有在此个人维度中交互的权限。
+chat.ae2enhanced.personal_dimension.no_permission_enter=你已没有进入该个人维度的权限，已返回主世界出生点。
+chat.ae2enhanced.personal_dimension.teleport_failed=传送失败，已返回主世界出生点。
 
 item.ae2enhanced.virtual_parallel_card.tooltip.parallel=§7虚拟并行：§r%s
 item.ae2enhanced.virtual_parallel_card.tooltip.detail=§7每次虚拟合成消耗 §r%.0f AE

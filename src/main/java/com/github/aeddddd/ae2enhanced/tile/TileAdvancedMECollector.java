@@ -571,6 +571,8 @@ public class TileAdvancedMECollector extends TileAENetworkBase
         this.config.readFromNBT(compound, "config");
         getUpgrades().readFromNBT(compound, "upgrades");
         this.clientFlags = compound.getInteger("clientFlags");
+        // 持久化 GUI 设置（红石控制/模糊模式/CRAFT_ONLY 等）,ConfigManager 自带 NBT 支持
+        getConfigManager().readFromNBT(compound);
         if (compound.hasKey("buffer")) {
             this.buffer.deserializeNBT(compound.getCompoundTag("buffer"));
         }
@@ -583,6 +585,8 @@ public class TileAdvancedMECollector extends TileAENetworkBase
         this.config.writeToNBT(compound, "config");
         getUpgrades().writeToNBT(compound, "upgrades");
         compound.setInteger("clientFlags", this.clientFlags);
+        // 持久化 GUI 设置（红石控制/模糊模式/CRAFT_ONLY 等）
+        getConfigManager().writeToNBT(compound);
         compound.setTag("buffer", this.buffer.serializeNBT());
         return compound;
     }

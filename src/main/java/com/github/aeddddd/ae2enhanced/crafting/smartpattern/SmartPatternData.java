@@ -135,6 +135,28 @@ public class SmartPatternData {
     }
 
     /**
+     * 根据原始配方索引获取排序后的显示索引(-1 = 不存在).
+     */
+    public int getSortedIndex(int originalIndex) {
+        if (displayOrder == null || originalIndex < 0) return -1;
+        for (int i = 0; i < displayOrder.length; i++) {
+            if (displayOrder[i] == originalIndex) return i;
+        }
+        return -1;
+    }
+
+    /**
+     * 追加一条空配方(手动新增配方时使用).
+     *
+     * @return 新配方的原始索引
+     */
+    public int addEmptyRecipe() {
+        recipes.add(new SmartRecipe(new IAEItemStack[0], new IAEItemStack[0], false));
+        detectConflicts();
+        return recipes.size() - 1;
+    }
+
+    /**
      * 检查是否存在冲突.
      */
     public boolean hasConflicts() {

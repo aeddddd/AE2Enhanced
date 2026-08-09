@@ -112,7 +112,16 @@ public class VirtualBatchEngine {
             return 0;
         }
 
-        if (!handler.isValidTarget(world, target.pos)) {
+        // handler 反射可能抛出异常/Error（如 NoClassDefFoundError），必须隔离
+        boolean validTarget;
+        try {
+            validTarget = handler.isValidTarget(world, target.pos);
+        } catch (Throwable t) {
+            AE2Enhanced.LOGGER.warn("[AE2E] Virtual isValidTarget threw for {} at {}: {}",
+                    target.blockId, target.pos, t.toString());
+            validTarget = false;
+        }
+        if (!validTarget) {
             session.setUnavailable();
             logFail(world, target, "invalid target");
             return 0;
@@ -212,6 +221,12 @@ public class VirtualBatchEngine {
             }
             owner.tryWakeTickDevice();
             return actualParallel;
+        } catch (Throwable t) {
+            // 必须捕获 Throwable：第三方 handler 的 canCraftVirtually/virtualCraftBatch/getVirtualCost
+            // 可能抛出 NoClassDefFoundError/NoSuchMethodError 等 Error，逃逸至 AE2 CPU tick 会崩服
+            AE2Enhanced.LOGGER.warn("[AE2E] Virtual batch dispatch error for {} at {}: {}",
+                    target.blockId, target.pos, t.toString());
+            return 0;
         } finally {
             if (ownershipAcquired) {
                 TargetOwnershipTracker.instance().release(target, owner);

@@ -1,6 +1,7 @@
 package com.github.aeddddd.ae2enhanced.network.packet;
 
 import appeng.api.util.AEColor;
+import com.github.aeddddd.ae2enhanced.config.AE2EnhancedConfig;
 import com.github.aeddddd.ae2enhanced.item.ItemAdvancedMEOmniTool;
 import com.github.aeddddd.ae2enhanced.omnitool.module.MiningModule;
 import com.github.aeddddd.ae2enhanced.omnitool.module.TravelModule;
@@ -30,8 +31,13 @@ public class PacketOmniToolConfigHandler implements IMessageHandler<PacketOmniTo
                     for (int i = 0; i < 12; i++) {
                         ItemAdvancedMEOmniTool.setParamEnabled(stack, i, (mask & (1 << i)) != 0);
                     }
-                    ItemAdvancedMEOmniTool.setChaosForceKillEnabled(stack, message.isChaosForceKill());
-                    ItemAdvancedMEOmniTool.setConformalCharge(stack, message.isConformalEnabled());
+                    // 混沌强杀与共形不变荷需对应升级已安装,未安装则忽略客户端字段,防止免费获取升级
+                    if (ItemAdvancedMEOmniTool.hasChaosCore(stack)) {
+                        ItemAdvancedMEOmniTool.setChaosForceKillEnabled(stack, message.isChaosForceKill());
+                    }
+                    if (ItemAdvancedMEOmniTool.hasConformalCharge(stack)) {
+                        ItemAdvancedMEOmniTool.setConformalCharge(stack, message.isConformalEnabled());
+                    }
                     ItemAdvancedMEOmniTool.setAdvancedSilkTouchEnabled(stack, message.isAdvancedSilkTouch());
                     TravelModule.setWallPhaseEnabled(stack, message.isWallPhase());
 
@@ -44,17 +50,24 @@ public class PacketOmniToolConfigHandler implements IMessageHandler<PacketOmniTo
                     placementConfig.setReachDistance(message.getReachDistance());
                     placementConfig.setPlacementRestriction(com.github.aeddddd.ae2enhanced.util.placement.PlacementRestriction.fromOrdinal(message.getPlacementRestriction()));
 
-                    // 同步附魔存储，并按已有 source level 上限进行钳制
+                    // 同步附魔存储：source<=0 的条目为非法注入直接移除,
+                    // 其余条目等级按 source level 与配置上限双重钳制
                     NBTTagList ench = message.getEnchantments();
                     if (ench != null) {
+                        NBTTagList filtered = new NBTTagList();
+                        int maxLevel = AE2EnhancedConfig.omniTool.maxEnchantmentLevel;
                         for (int i = 0; i < ench.tagCount(); i++) {
                             net.minecraft.nbt.NBTTagCompound tag = ench.getCompoundTagAt(i);
                             short id = tag.getShort("id");
                             int source = ItemAdvancedMEOmniTool.getEnchantmentSourceLevel(stack, id);
-                            if (source > 0) {
-                                tag.setShort("lvl", (short) Math.min(tag.getShort("lvl"), source));
+                            if (source <= 0) {
+                                continue;
                             }
+                            int lvl = Math.min(tag.getShort("lvl"), Math.min(source, maxLevel));
+                            tag.setShort("lvl", (short) lvl);
+                            filtered.appendTag(tag);
                         }
+                        ench = filtered;
                     }
                     ItemAdvancedMEOmniTool.setStoredEnchantments(stack, ench != null ? ench : new NBTTagList());
 

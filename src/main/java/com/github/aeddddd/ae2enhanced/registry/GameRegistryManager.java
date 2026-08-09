@@ -74,6 +74,8 @@ public final class GameRegistryManager {
         ItemRegistry.ME_OMNI_TOOL = new ItemAdvancedMEOmniTool();
         ItemRegistry.ME_PLACEMENT_TOOL = new ItemMEPlacementTool();
         ItemRegistry.VIRTUAL_PARALLEL_CARD = new ItemVirtualParallelCard();
+        ItemRegistry.SINGULARITY_CONSTRICTOR = new com.github.aeddddd.ae2enhanced.item.ItemSingularityConstrictor();
+        ItemRegistry.CONSTRAINED_MICRO_SINGULARITY = new com.github.aeddddd.ae2enhanced.item.ItemConstrainedMicroSingularity();
         ItemRegistry.PERSONAL_DIMENSION = new ItemPersonalDimension();
         ItemRegistry.GUIDE_BOOK = new com.github.aeddddd.ae2enhanced.guide.item.ItemGuideBook();
     }
@@ -107,7 +109,8 @@ public final class GameRegistryManager {
             BlockRegistry.YELLOW_STRIPES_BLOCK_B = new BlockYellowStripesBlockB(),
             BlockRegistry.DISPLAY_PANEL = new BlockDisplayPanel(),
             BlockRegistry.DISPLAY_FRAME_DARK = new BlockDisplayFrame(false),
-            BlockRegistry.DISPLAY_FRAME_LIGHT = new BlockDisplayFrame(true)
+            BlockRegistry.DISPLAY_FRAME_LIGHT = new BlockDisplayFrame(true),
+            BlockRegistry.SINGULARITY_CHAMBER = new BlockSingularityChamber()
         );
         // EMC 接口：仅在配置启用且 ProjectE 已安装时注册（未安装时完全隐藏）
         if (AE2EnhancedConfig.emcInterface.enabled && Loader.isModLoaded("projecte")) {
@@ -141,6 +144,7 @@ public final class GameRegistryManager {
         GameRegistry.registerTileEntity(TileAdvancedMECollector.class, AE2Enhanced.MOD_ID + ":advanced_me_collector");
         GameRegistry.registerTileEntity(TileMENetworkRecycler.class, AE2Enhanced.MOD_ID + ":me_network_recycler");
         GameRegistry.registerTileEntity(TileDisplayPanel.class, AE2Enhanced.MOD_ID + ":display_panel");
+        GameRegistry.registerTileEntity(TileSingularityChamber.class, AE2Enhanced.MOD_ID + ":singularity_chamber");
         if (BlockRegistry.EMC_INTERFACE != null) {
             GameRegistry.registerTileEntity(TileEMCInterface.class, AE2Enhanced.MOD_ID + ":emc_interface");
         }
@@ -176,7 +180,8 @@ public final class GameRegistryManager {
             new ItemBlock(BlockRegistry.YELLOW_STRIPES_BLOCK_B).setRegistryName(BlockRegistry.YELLOW_STRIPES_BLOCK_B.getRegistryName()).setCreativeTab(AE2Enhanced.CREATIVE_TAB),
             new ItemBlock(BlockRegistry.DISPLAY_PANEL).setRegistryName(BlockRegistry.DISPLAY_PANEL.getRegistryName()).setCreativeTab(AE2Enhanced.CREATIVE_TAB),
             new ItemBlock(BlockRegistry.DISPLAY_FRAME_DARK).setRegistryName(BlockRegistry.DISPLAY_FRAME_DARK.getRegistryName()).setCreativeTab(AE2Enhanced.CREATIVE_TAB),
-            new ItemBlock(BlockRegistry.DISPLAY_FRAME_LIGHT).setRegistryName(BlockRegistry.DISPLAY_FRAME_LIGHT.getRegistryName()).setCreativeTab(AE2Enhanced.CREATIVE_TAB)
+            new ItemBlock(BlockRegistry.DISPLAY_FRAME_LIGHT).setRegistryName(BlockRegistry.DISPLAY_FRAME_LIGHT.getRegistryName()).setCreativeTab(AE2Enhanced.CREATIVE_TAB),
+            new ItemBlock(BlockRegistry.SINGULARITY_CHAMBER).setRegistryName(BlockRegistry.SINGULARITY_CHAMBER.getRegistryName()).setCreativeTab(AE2Enhanced.CREATIVE_TAB)
         );
         if (Loader.isModLoaded("botania") && BlockRegistry.CHUNK_MANA_NODE != null) {
             event.getRegistry().register(new ItemBlock(BlockRegistry.CHUNK_MANA_NODE)
@@ -224,6 +229,8 @@ public final class GameRegistryManager {
         event.getRegistry().register(ItemRegistry.ME_OMNI_TOOL);
         event.getRegistry().register(ItemRegistry.ME_PLACEMENT_TOOL);
         event.getRegistry().register(ItemRegistry.VIRTUAL_PARALLEL_CARD);
+        event.getRegistry().register(ItemRegistry.SINGULARITY_CONSTRICTOR);
+        event.getRegistry().register(ItemRegistry.CONSTRAINED_MICRO_SINGULARITY);
         event.getRegistry().register(ItemRegistry.PERSONAL_DIMENSION);
         event.getRegistry().register(ItemRegistry.GUIDE_BOOK);
     }

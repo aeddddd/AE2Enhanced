@@ -242,13 +242,22 @@ public abstract class PartUniversalBusBase extends PartUpgradeable implements IG
 
     protected enum ResourceType { ITEM, FLUID, GAS, ESSENTIA }
 
+    /**
+     * 识别配置槽过滤器的资源类型。
+     * 必须覆盖 ae2fc / ThaumicEnergistics 的假物品（dummy），否则 dummy 过滤器会被误判为
+     * ITEM，导出总线会把 dummy 物品实体推进机器。判定逻辑与 PartStockingBus 保持一致。
+     */
     protected ResourceType getSlotType(IAEItemStack filter) {
         if (filter == null) return null;
         ItemStack stack = filter.createItemStack();
         if (stack.isEmpty()) return null;
         if (ItemFluidDrop.isFluidDrop(stack)) return ResourceType.FLUID;
+        if (isAeFluidDummy(stack)) return ResourceType.FLUID;
+        if (isAe2fcFluidDrop(stack)) return ResourceType.FLUID;
         if (GasFakeItemChecks.isGasFakeItem(stack)) return ResourceType.GAS;
+        if (isAe2fcGasDrop(stack)) return ResourceType.GAS;
         if (FakeEssentiaSafe.isEssentiaFakeItem(stack)) return ResourceType.ESSENTIA;
+        if (isTheDummyAspect(stack)) return ResourceType.ESSENTIA;
         return ResourceType.ITEM;
     }
 

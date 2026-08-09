@@ -141,11 +141,12 @@ public class ContainerEMCInterface extends Container {
         if (slot == null || !slot.getHasStack()) return ItemStack.EMPTY;
         ItemStack stack = slot.getStack();
 
-        // 过滤槽 -> 背包
+        // 过滤槽（幽灵槽，存的是标记而非真实物品）-> 清除标记，不倒入背包
         if (index < TileEMCInterface.WHITELIST_SIZE) {
-            if (!this.mergeItemStack(stack, TileEMCInterface.WHITELIST_SIZE, this.inventorySlots.size(), true)) {
-                return ItemStack.EMPTY;
-            }
+            slot.putStack(ItemStack.EMPTY);
+            slot.onSlotChanged();
+            detectAndSendChanges();
+            return ItemStack.EMPTY;
         }
         // 背包 -> 过滤槽：仅允许有 EMC 值的物品，放入第一个空槽
         else {
@@ -161,9 +162,6 @@ public class ContainerEMCInterface extends Container {
             }
             return ItemStack.EMPTY;
         }
-
-        slot.onSlotChanged();
-        return stack;
     }
 
     private static boolean hasEmc(@Nonnull ItemStack stack) {

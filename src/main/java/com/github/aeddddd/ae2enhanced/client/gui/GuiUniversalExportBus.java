@@ -2,6 +2,7 @@ package com.github.aeddddd.ae2enhanced.client.gui;
 
 import com.github.aeddddd.ae2enhanced.container.ContainerUniversalExportBus;
 import com.github.aeddddd.ae2enhanced.part.PartUniversalExportBus;
+import net.minecraft.client.resources.I18n;
 import net.minecraft.entity.player.InventoryPlayer;
 
 /**
@@ -15,6 +16,6 @@ public class GuiUniversalExportBus extends GuiUniversalBus {
 
     @Override
     protected String getBusDisplayName() {
-        return "Universal Export Bus";
+        return I18n.format("gui.ae2enhanced.universal_export_bus.name");
     }
 }

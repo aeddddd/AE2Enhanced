@@ -150,6 +150,11 @@ public class ContainerSmartPatternInterface extends Container {
 
     @Override
     public ItemStack slotClick(int slotId, int dragType, ClickType clickTypeIn, EntityPlayer player) {
+        if (slotId >= SLOT_RECIPE_START && slotId < SLOT_RECIPE_START + SLOT_RECIPE_COUNT) {
+            // 配方显示槽：纯展示,吞掉所有交互(含拖拽涂抹),
+            // 防止 SlotFake 默认行为让幽灵物品污染显示
+            return player.inventory.getItemStack();
+        }
         if (slotId >= SLOT_MINIGUI_INPUT_START && slotId < SLOT_MINIGUI_INPUT_START + SLOT_MINIGUI_INPUT_COUNT) {
             // MiniGUI 输入槽位：未锁定时禁止编辑
             if (tile.getLockedRecipeIndex() < 0) {
@@ -202,6 +207,12 @@ public class ContainerSmartPatternInterface extends Container {
                 if (!this.mergeItemStack(stackInSlot, SLOT_PLAYER_START, SLOT_PLAYER_START + 36, true)) {
                     return ItemStack.EMPTY;
                 }
+            } else if (index >= SLOT_MINIGUI_INPUT_START && index < SLOT_MINIGUI_OUTPUT_START + SLOT_MINIGUI_OUTPUT_COUNT) {
+                // MiniGUI 幽灵槽（存的是标记而非真实物品）-> 清除标记，不倒入背包
+                slot.putStack(ItemStack.EMPTY);
+                slot.onSlotChanged();
+                detectAndSendChanges();
+                return ItemStack.EMPTY;
             } else if (index >= SLOT_PLAYER_START) {
                 // 从玩家背包移到空白样板输入槽
                 if (!this.mergeItemStack(stackInSlot, SLOT_BLANK_INPUT, SLOT_BLANK_INPUT + 1, false)) {

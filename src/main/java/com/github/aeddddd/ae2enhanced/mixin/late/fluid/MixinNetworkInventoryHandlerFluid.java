@@ -23,7 +23,8 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 /**
  * E2a：在 NetworkInventoryHandler 层面拦截流体假物品.
- * 本 mixin 位于 mixins.ae2enhanced.late.json 中,无条件加载.
+ * 本 mixin 位于 mixins.ae2enhanced.late.fluid.json 中,由 FluidMixinPlugin 条件加载：
+ * 仅当 AE2FC(ae2-fluid-crafting) 未安装时生效(该配置也仅在 ae2fc 缺席时由 LateMixinLoader 注册).
  *
  * NetworkMonitor 在更外层拦截了大部分操作,但某些内部逻辑可能直接调用
  * NetworkInventoryHandler.此处的 HEAD 拦截确保假物品不会被当作真实物品处理.

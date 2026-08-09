@@ -922,6 +922,19 @@ public class SupercausalStructure {
     }
 
     /**
+     * 世界相对坐标 → 基准相对坐标的逆旋转（rotate 的逆映射）.
+     * NORTH 为恒等,SOUTH 旋转 180°（自逆）,EAST/WEST 互为逆.
+     */
+    public static BlockPos toCanonical(BlockPos rel, EnumFacing facing) {
+        switch (facing) {
+            case SOUTH: return rotate(rel, EnumFacing.SOUTH);
+            case EAST:  return rotate(rel, EnumFacing.WEST);
+            case WEST:  return rotate(rel, EnumFacing.EAST);
+            default:    return rel;
+        }
+    }
+
+    /**
      * 验证结构完整性.
      * @return 验证结果,包含是否通过、缺失方块统计、因果锚定核心数量和计算出的并行上限.
      */

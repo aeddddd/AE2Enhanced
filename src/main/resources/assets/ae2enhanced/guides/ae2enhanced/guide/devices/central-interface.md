@@ -26,6 +26,7 @@ Remote execution is dispatched per mod, loaded only when the mod is present:
 - Bewitchment: spinning wheel, distillery, witches' cauldron.
 - Astral Sorcery: altar. Actually Additions: empowerer.
 - Extended Crafting: crafting core, tables, compressor, ender crafter.
+- Avaritia: extreme crafting table.
 - Draconic Evolution: fusion crafting core.
 - Thaumcraft: infusion matrix; crucible (clears essentia after each craft by default).
 - Ender IO, Thermal Expansion, NuclearCraft: direct machine inventory access, bypassing side config.

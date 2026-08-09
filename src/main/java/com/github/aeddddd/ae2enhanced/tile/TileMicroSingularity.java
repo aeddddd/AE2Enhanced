@@ -22,7 +22,8 @@ import net.minecraft.util.text.TextComponentTranslation;
  * 默认 300 秒(6000 ticks)后自动坍缩消失,可通过 setLifetimeTicks 自定义;
  * 喂入永久燃料后不再倒计时.
  * 期间对 3×3×3 范围内的生物执行稳定击杀,物品不会受影响.
- * 黑洞合成由玩家右键方块主动触发,而非自动吸入.
+ * 周期性吸入附近可参与黑洞合成的物品实体,并并行完成所有匹配配方;
+ * 玩家右键方块也可主动触发一次合成.
  */
 public class TileMicroSingularity extends TileEntity implements ITickable {
 
@@ -30,6 +31,8 @@ public class TileMicroSingularity extends TileEntity implements ITickable {
     private static final int HORIZON_RADIUS = 1; // 3×3×3 范围：origin ± 1
     private static final String NBT_LIFE_TICKS = "LifeTicks";
     private static final String NBT_PERMANENT = "Permanent";
+    /** 自动吸入/合成节流间隔（tick） */
+    private static final int AUTO_CRAFT_INTERVAL = 10;
 
     private int lifeTicks = DEFAULT_LIFE_TICKS;
     private boolean permanent = false;
@@ -105,7 +108,13 @@ public class TileMicroSingularity extends TileEntity implements ITickable {
             }
         }
 
-        // 倒计时(黑洞合成不再自动触发,改由玩家右键主动触发;永久奇点不坍缩)
+        // 自动吸入与并行合成（节流）
+        if (world.getTotalWorldTime() % AUTO_CRAFT_INTERVAL == 0) {
+            BlackHoleCraftingHelper.suckMatchingItems(world, pos);
+            BlackHoleCraftingHelper.craftAllAvailable(world, pos, pos.add(0, 2, 0));
+        }
+
+        // 倒计时(永久奇点不坍缩)
         if (!permanent && --lifeTicks <= 0) {
             collapse();
         }
@@ -113,13 +122,12 @@ public class TileMicroSingularity extends TileEntity implements ITickable {
 
     /**
      * 玩家右键微型奇点时调用.
-     * 主动触发一次黑洞合成尝试；配方不匹配时保留物品,不会销毁.
+     * 主动触发一次并行黑洞合成；配方不匹配时保留物品,不会销毁.
      */
     public void activateCrafting() {
         if (world == null || world.isRemote) return;
         // 产物生成在扫描范围外(y+2),防止产物被再次吸入作为材料
-        // 循环处理直到没有可匹配配方,右键一次完成所有合成
-        BlackHoleCraftingHelper.tryCraftAll(world, pos, pos.add(0, 2, 0), false, 100);
+        BlackHoleCraftingHelper.craftAllAvailable(world, pos, pos.add(0, 2, 0));
     }
 
     private void collapse() {

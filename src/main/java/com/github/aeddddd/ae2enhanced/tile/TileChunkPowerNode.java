@@ -59,7 +59,7 @@ public class TileChunkPowerNode extends TileAENetworkBase implements ITickable, 
     private static final int CACHE_REFRESH_INTERVAL = 20;
 
     /** 区块供电黑名单：这些方块不会被供能（避免自我循环或兼容问题） */
-    private static final Set<String> BLACKLIST = new HashSet<>();
+    protected static final Set<String> BLACKLIST = new HashSet<>();
     static {
         BLACKLIST.add("ae2enhanced:network_access_node");
     }

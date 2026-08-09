@@ -56,6 +56,10 @@ public class TileCompressedChunkPowerNode extends TileChunkPowerNode {
                     }
                     if (!canReceive) continue;
 
+                    // 黑名单检查（与基类一致,避免向 network_access_node 供电形成自循环）
+                    String blockId = world.getBlockState(tp).getBlock().getRegistryName().toString();
+                    if (BLACKLIST.contains(blockId)) continue;
+
                     cachedTargets.add(tp.toImmutable());
                 }
             }

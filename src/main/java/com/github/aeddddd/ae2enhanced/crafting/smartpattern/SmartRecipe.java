@@ -63,6 +63,20 @@ public class SmartRecipe {
         inputs[index] = stack;
     }
 
+    /**
+     * 整体替换输入数组(JEI 一键转移用).
+     */
+    public void setInputs(@Nonnull IAEItemStack[] inputs) {
+        this.inputs = inputs;
+    }
+
+    /**
+     * 整体替换输出数组(JEI 一键转移用).
+     */
+    public void setOutputs(@Nonnull IAEItemStack[] outputs) {
+        this.outputs = outputs;
+    }
+
     public void setOutput(int index, @Nullable IAEItemStack stack) {
         if (index < 0) return;
         if (index >= outputs.length) {

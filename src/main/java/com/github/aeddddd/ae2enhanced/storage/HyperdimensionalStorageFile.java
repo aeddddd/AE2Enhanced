@@ -15,7 +15,9 @@ import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
 import java.util.Arrays;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
@@ -67,7 +69,12 @@ public class HyperdimensionalStorageFile {
     private volatile boolean manaDirty = false;
     private volatile boolean starlightDirty = false;
     private volatile boolean closed = false;
+    // 全局安全模式：仅迁移失败等无法定位到具体分区的加载失败才置位
     private volatile boolean safeMode = false;
+    // 加载失败的分区集合：对应分区拒绝注入/提取，save() 绝不用部分加载的 Map 覆写其文件
+    private final Set<StorageSection> failedSections = ConcurrentHashMap.newKeySet();
+    // 保存锁：flush 线程与 close 线程可能并发写同一 .tmp，任何时刻只允许一个线程执行保存
+    private final Object saveLock = new Object();
 
     private volatile Map<ItemDescriptor, BigInteger> storageRef = null;
     private volatile Map<FluidDescriptor, BigInteger> fluidStorageRef = null;
@@ -212,7 +219,33 @@ public class HyperdimensionalStorageFile {
             }
         } catch (Exception e) {
             AE2Enhanced.LOGGER.error("[AE2E] Failed to load {} storage from file: {}. Entering safe mode (read-only).", typeName, file.getAbsolutePath(), e);
+            markSectionFailed(typeName);
+        }
+    }
+
+    /**
+     * 将加载失败的分区记录为失败状态：该分区拒绝注入/提取，save() 跳过，
+     * 避免"部分加载的 Map"在后续保存时覆写未能完整解析的文件导致永久数据丢失。
+     */
+    private void markSectionFailed(String typeName) {
+        StorageSection section = sectionFor(typeName);
+        if (section != null) {
+            failedSections.add(section);
+        } else {
             safeMode = true;
+        }
+    }
+
+    private static StorageSection sectionFor(String typeName) {
+        switch (typeName) {
+            case "item": return StorageSection.ITEM;
+            case "fluid": return StorageSection.FLUID;
+            case "gas": return StorageSection.GAS;
+            case "essentia": return StorageSection.ESSENTIA;
+            case "energy": return StorageSection.ENERGY;
+            case "mana": return StorageSection.MANA;
+            case "starlight": return StorageSection.STARLIGHT;
+            default: return null;
         }
     }
 
@@ -249,7 +282,7 @@ public class HyperdimensionalStorageFile {
             }
         } catch (Exception e) {
             AE2Enhanced.LOGGER.error("[AE2E] Failed to load {} storage from file: {}. Entering safe mode (read-only).", typeName, file.getAbsolutePath(), e);
-            safeMode = true;
+            markSectionFailed(typeName);
         }
     }
 
@@ -286,37 +319,69 @@ public class HyperdimensionalStorageFile {
     // ---- Save ----
 
     public boolean save() {
-        boolean itemOk = true, fluidOk = true, energyOk = true, gasOk = true, essentiaOk = true, manaOk = true, starlightOk = true;
-        if (itemDirty) {
-            itemOk = saveSection(itemFile, itemCodec, storageRef, "item");
-            if (itemOk) itemDirty = false;
+        // 实例级锁：flush 线程与 close 线程不得并发执行保存（写同一 .tmp）
+        synchronized (saveLock) {
+            boolean itemOk = true, fluidOk = true, energyOk = true, gasOk = true, essentiaOk = true, manaOk = true, starlightOk = true;
+            // 加载失败的分区直接跳过：绝不用部分加载的 Map 覆写未能完整解析的文件，保留 dirty 标记
+            if (itemDirty) {
+                if (failedSections.contains(StorageSection.ITEM)) {
+                    itemOk = false;
+                } else {
+                    itemOk = saveSection(itemFile, itemCodec, storageRef, "item");
+                    if (itemOk) itemDirty = false;
+                }
+            }
+            if (fluidDirty) {
+                if (failedSections.contains(StorageSection.FLUID)) {
+                    fluidOk = false;
+                } else {
+                    fluidOk = saveSection(fluidFile, fluidCodec, fluidStorageRef, "fluid");
+                    if (fluidOk) fluidDirty = false;
+                }
+            }
+            if (energyDirty) {
+                if (failedSections.contains(StorageSection.ENERGY)) {
+                    energyOk = false;
+                } else {
+                    energyOk = saveSection(energyFile, energyCodec, energyStorageRef, "energy");
+                    if (energyOk) energyDirty = false;
+                }
+            }
+            if (gasDirty && gasFile != null && gasCodec != null && gasStorageRef != null) {
+                if (failedSections.contains(StorageSection.GAS)) {
+                    gasOk = false;
+                } else {
+                    gasOk = saveSectionReflective(gasFile, gasCodec, gasStorageRef, "gas");
+                    if (gasOk) gasDirty = false;
+                }
+            }
+            if (essentiaDirty && essentiaFile != null && essentiaCodec != null && essentiaStorageRef != null) {
+                if (failedSections.contains(StorageSection.ESSENTIA)) {
+                    essentiaOk = false;
+                } else {
+                    essentiaOk = saveSectionReflective(essentiaFile, essentiaCodec, essentiaStorageRef, "essentia");
+                    if (essentiaOk) essentiaDirty = false;
+                }
+            }
+            if (manaDirty && manaFile != null && manaCodec != null && manaStorageRef != null) {
+                if (failedSections.contains(StorageSection.MANA)) {
+                    manaOk = false;
+                } else {
+                    manaOk = saveSectionReflective(manaFile, manaCodec, manaStorageRef, "mana");
+                    if (manaOk) manaDirty = false;
+                }
+            }
+            if (starlightDirty && starlightFile != null && starlightCodec != null && starlightStorageRef != null) {
+                if (failedSections.contains(StorageSection.STARLIGHT)) {
+                    starlightOk = false;
+                } else {
+                    starlightOk = saveSectionReflective(starlightFile, starlightCodec, starlightStorageRef, "starlight");
+                    if (starlightOk) starlightDirty = false;
+                }
+            }
+            dirty = itemDirty || fluidDirty || gasDirty || essentiaDirty || energyDirty || manaDirty || starlightDirty;
+            return itemOk && fluidOk && energyOk && gasOk && essentiaOk && manaOk && starlightOk;
         }
-        if (fluidDirty) {
-            fluidOk = saveSection(fluidFile, fluidCodec, fluidStorageRef, "fluid");
-            if (fluidOk) fluidDirty = false;
-        }
-        if (energyDirty) {
-            energyOk = saveSection(energyFile, energyCodec, energyStorageRef, "energy");
-            if (energyOk) energyDirty = false;
-        }
-        if (gasDirty && gasFile != null && gasCodec != null && gasStorageRef != null) {
-            gasOk = saveSectionReflective(gasFile, gasCodec, gasStorageRef, "gas");
-            if (gasOk) gasDirty = false;
-        }
-        if (essentiaDirty && essentiaFile != null && essentiaCodec != null && essentiaStorageRef != null) {
-            essentiaOk = saveSectionReflective(essentiaFile, essentiaCodec, essentiaStorageRef, "essentia");
-            if (essentiaOk) essentiaDirty = false;
-        }
-        if (manaDirty && manaFile != null && manaCodec != null && manaStorageRef != null) {
-            manaOk = saveSectionReflective(manaFile, manaCodec, manaStorageRef, "mana");
-            if (manaOk) manaDirty = false;
-        }
-        if (starlightDirty && starlightFile != null && starlightCodec != null && starlightStorageRef != null) {
-            starlightOk = saveSectionReflective(starlightFile, starlightCodec, starlightStorageRef, "starlight");
-            if (starlightOk) starlightDirty = false;
-        }
-        dirty = itemDirty || fluidDirty || gasDirty || essentiaDirty || energyDirty || manaDirty || starlightDirty;
-        return itemOk && fluidOk && energyOk && gasOk && essentiaOk && manaOk && starlightOk;
     }
 
     private <D extends Descriptor> boolean saveSection(File file, DescriptorCodec<D> codec, Map<D, BigInteger> source, String typeName) {
@@ -331,8 +396,8 @@ public class HyperdimensionalStorageFile {
             }
             out.flush();
         } catch (IOException e) {
+            // 保存失败不置安全模式：仅记录日志并保留 dirty，下次 flush 重试
             AE2Enhanced.LOGGER.error("[AE2E] Failed to write {} temp file: {}", typeName, tmpFile.getAbsolutePath(), e);
-            safeMode = true;
             return false;
         }
         return atomicMove(tmpFile, file, typeName);
@@ -357,14 +422,13 @@ public class HyperdimensionalStorageFile {
                 }
                 out.flush();
             } catch (IOException e) {
+                // 保存失败不置安全模式：仅记录日志并保留 dirty，下次 flush 重试
                 AE2Enhanced.LOGGER.error("[AE2E] Failed to write {} temp file: {}", typeName, tmpFile.getAbsolutePath(), e);
-                safeMode = true;
                 return false;
             }
             return atomicMove(tmpFile, file, typeName);
         } catch (NoSuchMethodException e) {
             AE2Enhanced.LOGGER.error("[AE2E] Codec missing write method for {}", typeName, e);
-            safeMode = true;
             return false;
         }
     }
@@ -419,8 +483,8 @@ public class HyperdimensionalStorageFile {
                 StandardCopyOption.ATOMIC_MOVE);
             return true;
         } catch (IOException e) {
-            AE2Enhanced.LOGGER.error("[AE2E] Failed to save {} storage file: {}. Entering safe mode (read-only).", typeName, targetFile.getAbsolutePath(), e);
-            safeMode = true;
+            // 原子移动失败不置安全模式：仅记录日志并保留 dirty，下次 flush 重试
+            AE2Enhanced.LOGGER.error("[AE2E] Failed to save {} storage file: {}", typeName, targetFile.getAbsolutePath(), e);
             return false;
         }
     }
@@ -505,22 +569,39 @@ public class HyperdimensionalStorageFile {
     private void migrateNbtListToBinary(NBTTagCompound root, String nbtKey, File targetFile, NbtEntryWriter writer) throws Exception {
         if (!root.hasKey(nbtKey, 9) || targetFile == null) return;
         NBTTagList list = root.getTagList(nbtKey, 10);
+        // 先把有效条目序列化到临时缓冲并统计实际条数，再按实际条数写头部；
+        // 直接按 list.tagCount() 写头部再跳过无效条目会导致计数不符，下次加载 EOF
+        ByteArrayOutputStream entriesBaos = new ByteArrayOutputStream();
+        DataOutputStream entriesOut = new DataOutputStream(entriesBaos);
+        int written = 0;
+        for (int i = 0; i < list.tagCount(); i++) {
+            NBTTagCompound tag = list.getCompoundTagAt(i);
+            BigInteger count;
+            try {
+                count = new BigInteger(tag.getString("Count"));
+            } catch (NumberFormatException e) {
+                AE2Enhanced.LOGGER.warn("[AE2E] Skipping migration entry {} of {}: invalid Count '{}'",
+                        i, nbtKey, tag.getString("Count"));
+                continue;
+            }
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            DataOutputStream descOut = new DataOutputStream(baos);
+            if (!writer.write(tag, descOut)) {
+                continue; // skip invalid entry
+            }
+            descOut.flush();
+            byte[] descBytes = baos.toByteArray();
+            entriesOut.writeInt(descBytes.length);
+            entriesOut.write(descBytes);
+            writeCount(entriesOut, count);
+            written++;
+        }
+        entriesOut.flush();
+        // 全部序列化成功后才写 tmp 并原子 rename，目标文件在迁移失败时保持不被破坏
         File tmpFile = new File(targetFile.getAbsolutePath() + ".tmp");
         try (DataOutputStream out = new DataOutputStream(new BufferedOutputStream(new FileOutputStream(tmpFile)))) {
-            writeHeader(out, list.tagCount());
-            for (int i = 0; i < list.tagCount(); i++) {
-                NBTTagCompound tag = list.getCompoundTagAt(i);
-                ByteArrayOutputStream baos = new ByteArrayOutputStream();
-                DataOutputStream descOut = new DataOutputStream(baos);
-                if (!writer.write(tag, descOut)) {
-                    continue; // skip invalid entry
-                }
-                descOut.flush();
-                byte[] descBytes = baos.toByteArray();
-                out.writeInt(descBytes.length);
-                out.write(descBytes);
-                writeCount(out, new BigInteger(tag.getString("Count")));
-            }
+            writeHeader(out, written);
+            out.write(entriesBaos.toByteArray());
             out.flush();
         }
         Files.move(tmpFile.toPath(), targetFile.toPath(), StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
@@ -591,7 +672,12 @@ public class HyperdimensionalStorageFile {
 
     private void flush() {
         if (!dirty || closed) return;
-        save(); // save() 内部已按 section 重置 dirty 并更新全局 dirty
+        try {
+            save(); // save() 内部已按 section 重置 dirty 并更新全局 dirty
+        } catch (Throwable t) {
+            // scheduleWithFixedDelay 任务体抛异常会永久压制后续周期执行，必须兜底并记录日志
+            AE2Enhanced.LOGGER.error("[AE2E] Periodic storage flush failed for nexus {}", nexusId, t);
+        }
     }
 
     public void close() {
@@ -608,7 +694,15 @@ public class HyperdimensionalStorageFile {
     }
 
     public boolean isSafeMode() {
-        return safeMode;
+        return safeMode || !failedSections.isEmpty();
+    }
+
+    /**
+     * 判断指定分区是否处于安全模式（加载失败或全局锁定）。
+     * 处于安全模式的分区拒绝注入与提取，防止部分加载的数据被进一步缩水后覆盖原文件。
+     */
+    public boolean isSectionFailed(StorageSection section) {
+        return safeMode || failedSections.contains(section);
     }
 
     public void setSafeMode(boolean safeMode) {

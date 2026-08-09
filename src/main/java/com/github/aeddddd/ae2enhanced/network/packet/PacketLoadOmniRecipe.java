@@ -82,13 +82,25 @@ public class PacketLoadOmniRecipe implements IMessage {
 
                 net.minecraft.nbt.NBTTagCompound inTag = data.getCompoundTag("inputs");
                 for (String key : inTag.getKeySet()) {
-                    int slot = Integer.parseInt(key);
+                    int slot;
+                    try {
+                        slot = Integer.parseInt(key);
+                    } catch (NumberFormatException e) {
+                        continue; // 忽略非数字键,防止恶意 NBT 崩服
+                    }
+                    if (slot < 0 || slot > 99) continue; // 槽位索引合理性校验
                     inputs.put(slot, new net.minecraft.item.ItemStack(inTag.getCompoundTag(key)));
                 }
 
                 net.minecraft.nbt.NBTTagCompound outTag = data.getCompoundTag("outputs");
                 for (String key : outTag.getKeySet()) {
-                    int slot = Integer.parseInt(key);
+                    int slot;
+                    try {
+                        slot = Integer.parseInt(key);
+                    } catch (NumberFormatException e) {
+                        continue; // 忽略非数字键,防止恶意 NBT 崩服
+                    }
+                    if (slot < 0 || slot > 99) continue; // 槽位索引合理性校验
                     outputs.put(slot, new net.minecraft.item.ItemStack(outTag.getCompoundTag(key)));
                 }
 

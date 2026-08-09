@@ -12,7 +12,6 @@ import mezz.jei.api.IRecipeRegistry;
 import mezz.jei.api.ingredients.VanillaTypes;
 import mezz.jei.api.recipe.IRecipeCategory;
 import mezz.jei.api.recipe.IRecipeWrapper;
-import mezz.jei.api.recipe.IFocus;
 import mezz.jei.ingredients.Ingredients;
 import net.minecraft.item.ItemStack;
 import net.minecraft.util.ResourceLocation;
@@ -31,11 +30,15 @@ import java.util.List;
  * JEI/HEI 配方查询助手.
  *
  * <p>通过 JEI 的 RecipeRegistry 查询目标方块对应的所有配方.</p>
- * <p>查询策略：</p>
+ * <p>查询策略(两阶段催化剂匹配)：</p>
  * <ol>
- *   <li><b>催化剂匹配</b>：遍历所有 RecipeCategory,检查其催化剂列表中是否包含目标方块</li>
- *   <li><b>IFocus 回退</b>：创建 OUTPUT 焦点,查询与目标方块作为输出相关的类别</li>
+ *   <li><b>精确匹配</b>：催化剂与目标方块物品 + meta 完全一致</li>
+ *   <li><b>物品级匹配</b>：仅比较物品,忽略 meta.
+ *       解决放置后 state meta 与物品 meta 不一致的机器(如 MMCE 控制器的 FACING 属性,
+ *       其 state meta 为朝向索引 2~5,而 JEI 催化剂注册的是 meta 0)</li>
  * </ol>
+ * <p>刻意不提供"目标作为输出"的回退查询：该语义是"如何合成这个方块",
+ * 会把整个工作台类别误识别为绑定目标.</p>
  *
  * <p>注意：JEI 是纯客户端模组,此类必须在客户端调用.</p>
  */
@@ -73,11 +76,11 @@ public class JEIRecipeHelper {
             return Collections.emptyList();
         }
 
-        // 策略1：通过催化剂匹配
-        List<IRecipeCategory> categories = findCategoriesByCatalyst(registry, targetStack);
+        // 阶段1：催化剂精确匹配(物品 + meta)
+        List<IRecipeCategory> categories = findCategoriesByCatalyst(registry, targetStack, false);
         if (categories.isEmpty()) {
-            // 策略2：通过 IFocus OUTPUT 回退匹配
-            categories = findCategoriesByFocus(registry, targetStack);
+            // 阶段2：催化剂物品级匹配(忽略 meta,适配 MMCE 控制器等 state meta ≠ 物品 meta 的机器)
+            categories = findCategoriesByCatalyst(registry, targetStack, true);
         }
 
         if (categories.isEmpty()) {
@@ -85,7 +88,9 @@ public class JEIRecipeHelper {
             return Collections.emptyList();
         }
 
+        int max = AE2EnhancedConfig.smartPattern.maxRecipes;
         List<SmartRecipe> result = new ArrayList<>();
+        outer:
         for (IRecipeCategory category : categories) {
             try {
                 @SuppressWarnings("unchecked")
@@ -94,19 +99,17 @@ public class JEIRecipeHelper {
                     SmartRecipe recipe = convertWrapper(wrapper, category);
                     if (recipe != null) {
                         result.add(recipe);
+                        // 过载保护：达到上限即停止转换,避免大类别全量解析
+                        if (result.size() >= max) {
+                            AE2Enhanced.LOGGER.warn("[AE2E] SmartPattern recipes truncated at {} for {}",
+                                    max, blockRegistryName);
+                            break outer;
+                        }
                     }
                 }
             } catch (Exception e) {
                 AE2Enhanced.LOGGER.warn("[AE2E] Failed to get recipes for category: {}", category.getUid(), e);
             }
-        }
-
-        // 过载保护：截断
-        int max = AE2EnhancedConfig.smartPattern.maxRecipes;
-        if (result.size() > max) {
-            AE2Enhanced.LOGGER.warn("[AE2E] SmartPattern recipes truncated: {} / {} for {}",
-                    result.size(), max, blockRegistryName);
-            return result.subList(0, max);
         }
 
         return result;
@@ -145,12 +148,12 @@ public class JEIRecipeHelper {
     @Nonnull
     @SuppressWarnings("unchecked")
     private static List<IRecipeCategory> findCategoriesByCatalyst(
-            @Nonnull IRecipeRegistry registry, @Nonnull ItemStack target) {
+            @Nonnull IRecipeRegistry registry, @Nonnull ItemStack target, boolean ignoreMeta) {
         List<IRecipeCategory> result = new ArrayList<>();
         for (IRecipeCategory category : registry.getRecipeCategories()) {
             try {
                 List<Object> catalysts = registry.getRecipeCatalysts(category);
-                if (catalysts != null && containsItemStack(catalysts, target)) {
+                if (catalysts != null && containsItemStack(catalysts, target, ignoreMeta)) {
                     result.add(category);
                 }
             } catch (Exception ignored) {
@@ -159,23 +162,14 @@ public class JEIRecipeHelper {
         return result;
     }
 
-    @Nonnull
-    @SuppressWarnings("unchecked")
-    private static List<IRecipeCategory> findCategoriesByFocus(
-            @Nonnull IRecipeRegistry registry, @Nonnull ItemStack target) {
-        try {
-            IFocus<ItemStack> focus = registry.createFocus(IFocus.Mode.OUTPUT, target);
-            return registry.getRecipeCategories(focus);
-        } catch (Exception e) {
-            return Collections.emptyList();
-        }
-    }
-
-    private static boolean containsItemStack(@Nonnull List<Object> catalysts, @Nonnull ItemStack target) {
+    private static boolean containsItemStack(@Nonnull List<Object> catalysts, @Nonnull ItemStack target,
+                                             boolean ignoreMeta) {
         for (Object catalyst : catalysts) {
             if (catalyst instanceof ItemStack) {
                 ItemStack stack = (ItemStack) catalyst;
-                if (ItemStack.areItemsEqual(stack, target)) {
+                if (ignoreMeta
+                        ? stack.getItem() == target.getItem()
+                        : ItemStack.areItemsEqual(stack, target)) {
                     return true;
                 }
             }

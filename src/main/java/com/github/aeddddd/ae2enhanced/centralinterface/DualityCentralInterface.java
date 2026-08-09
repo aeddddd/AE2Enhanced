@@ -105,6 +105,20 @@ public class DualityCentralInterface implements appeng.util.inv.IAEAppEngInvento
     private final PhysicalDispatcher physicalDispatcher;
     private final VirtualBatchEngine virtualBatchEngine;
 
+    /**
+     * 判断本实例对应的宿主 Tile 是否仍然有效。
+     * 供 {@link TargetOwnershipTracker} 回收残留所有权：服务器重启/单机跨存档重载后，
+     * 旧实例的宿主 Tile 会被标记 invalid 或 world 置空。
+     */
+    public boolean isAlive() {
+        try {
+            net.minecraft.tileentity.TileEntity tile = this.host.getTileEntity();
+            return tile != null && !tile.isInvalid() && tile.getWorld() != null;
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+
     public DualityCentralInterface(ICentralInterfaceHost host) {
         this.host = host;
         this.physicalDispatcher = new PhysicalDispatcher(this);

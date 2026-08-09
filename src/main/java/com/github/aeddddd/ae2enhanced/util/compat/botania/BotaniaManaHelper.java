@@ -223,6 +223,7 @@ public final class BotaniaManaHelper {
      *   <li>目标类 int manaCap 字段(魔力池等)</li>
      *   <li>TileSpecialFlower 子 tile 的 getMaxMana()</li>
      *   <li>符文祭坛的 manaToGet 字段(目标配方 mana)</li>
+     *   <li>魔力附魔台的 manaRequired 字段(当前附魔所需 mana,闲置时为 -1,自然被跳过)</li>
      * </ol>
      *
      * @return 容量,无法获取时返回 0
@@ -245,6 +246,8 @@ public final class BotaniaManaHelper {
         }
         Integer toGet = getIntField(te, "manaToGet");
         if (toGet != null) return toGet;
+        Integer required = getIntField(te, "manaRequired");
+        if (required != null) return required;
         return 0;
     }
 

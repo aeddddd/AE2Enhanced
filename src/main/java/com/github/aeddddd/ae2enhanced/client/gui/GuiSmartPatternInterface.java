@@ -65,6 +65,16 @@ public class GuiSmartPatternInterface extends GuiContainer {
     private static final int BTN_DELETE_DISABLED_W = 16;
     private static final int BTN_DELETE_DISABLED_H = 12;
 
+    // 添加新配方按钮(手绘,纹理中无此图标)
+    private static final int BTN_ADD_X = 64;
+    private static final int BTN_ADD_Y = 126;
+    private static final int BTN_ADD_W = 16;
+    private static final int BTN_ADD_H = 12;
+
+    // 编码样板输出槽(用于 hover 提示)
+    private static final int SLOT_OUTPUT_X = 152;
+    private static final int SLOT_OUTPUT_Y = 20;
+
     // 顶部小按钮 8×2
     private static final int[] SMALL_BTN_X = {175, 183, 191, 199, 207, 215, 223, 231};
     private static final int[] SMALL_BTN_Y = {1, 9};
@@ -204,6 +214,9 @@ public class GuiSmartPatternInterface extends GuiContainer {
         // 删除禁用按钮
         drawDeleteDisabledButton(relX, relY);
 
+        // 添加新配方按钮
+        drawAddButton(relX, relY);
+
         // 底部操作区(从纹理绘制)
         drawBottomArea(relX, relY);
     }
@@ -259,6 +272,26 @@ public class GuiSmartPatternInterface extends GuiContainer {
         boolean hasDisabled = data != null && data.getRecipeCount() > data.getEnabledCount();
         if (!hasDisabled) return;
         // 按钮图形已在 GUI 纹理中绘制,无需额外代码绘制
+    }
+
+    /**
+     * 添加新配方按钮：纹理中没有该图标,手绘一个原版风格的小按钮.
+     */
+    private void drawAddButton(int relX, int relY) {
+        boolean enabled = tile.getPatternData() != null;
+        boolean hover = enabled && isInAddButton(relX, relY);
+        int face = !enabled ? 0xFF555555 : (hover ? 0xFFC6C6C6 : 0xFF8B8B8B);
+        // 面板
+        drawRect(BTN_ADD_X, BTN_ADD_Y, BTN_ADD_X + BTN_ADD_W, BTN_ADD_Y + BTN_ADD_H, face);
+        // 上/左亮边,下/右暗边
+        int light = enabled ? 0xFFFFFFFF : 0xFF777777;
+        int dark = 0xFF373737;
+        drawRect(BTN_ADD_X, BTN_ADD_Y, BTN_ADD_X + BTN_ADD_W, BTN_ADD_Y + 1, light);
+        drawRect(BTN_ADD_X, BTN_ADD_Y, BTN_ADD_X + 1, BTN_ADD_Y + BTN_ADD_H, light);
+        drawRect(BTN_ADD_X, BTN_ADD_Y + BTN_ADD_H - 1, BTN_ADD_X + BTN_ADD_W, BTN_ADD_Y + BTN_ADD_H, dark);
+        drawRect(BTN_ADD_X + BTN_ADD_W - 1, BTN_ADD_Y, BTN_ADD_X + BTN_ADD_W, BTN_ADD_Y + BTN_ADD_H, dark);
+        drawCenteredString(this.fontRenderer, "+", BTN_ADD_X + BTN_ADD_W / 2, BTN_ADD_Y + 2,
+                enabled ? 0xFFFFFF : 0x999999);
     }
 
     private void drawBottomArea(int relX, int relY) {
@@ -420,6 +453,30 @@ public class GuiSmartPatternInterface extends GuiContainer {
             return;
         }
 
+        // 添加新配方按钮 tooltip
+        if (isInAddButton(relX, relY)) {
+            List<String> lines = new ArrayList<>();
+            lines.add(I18n.format("gui.ae2enhanced.smart_pattern_interface.add_recipe"));
+            if (tile.getPatternData() == null) {
+                lines.add(I18n.format("gui.ae2enhanced.smart_pattern_interface.encode_disabled_no_data"));
+            }
+            drawHoveringText(lines, mouseX, mouseY);
+            return;
+        }
+
+        // 编码输出槽 tooltip：提示放入已编码样板会触发数据重载
+        if (relX >= SLOT_OUTPUT_X && relX < SLOT_OUTPUT_X + 16
+                && relY >= SLOT_OUTPUT_Y && relY < SLOT_OUTPUT_Y + 16) {
+            Slot outputSlot = this.inventorySlots.getSlot(ContainerSmartPatternInterface.SLOT_ENCODED_OUTPUT);
+            List<String> lines = new ArrayList<>();
+            if (outputSlot.getHasStack()) {
+                lines.addAll(this.getItemToolTip(outputSlot.getStack()));
+            }
+            lines.add(I18n.format("gui.ae2enhanced.smart_pattern_interface.hint_output_slot"));
+            drawHoveringText(lines, mouseX, mouseY);
+            return;
+        }
+
         // 翻页按钮 tooltip
         if (isInPrevButton(relX, relY)) {
             drawHoveringText(Collections.singletonList(I18n.format("gui.ae2enhanced.smart_pattern_interface.prev_page")), mouseX, mouseY);
@@ -440,27 +497,28 @@ public class GuiSmartPatternInterface extends GuiContainer {
             return;
         }
 
-        // 配方槽位状态 tooltip(仅当 slot 为空时)
+        // 配方槽位状态 tooltip(仅当 slot 为空时),附带操作说明
         int slot = getRecipeSlotAt(relX, relY);
         if (slot >= 0) {
             Slot recipeSlot = this.inventorySlots.getSlot(slot);
             if (!recipeSlot.getHasStack()) {
                 SmartPatternData data = tile.getPatternData();
                 if (data != null) {
+                    List<String> lines = new ArrayList<>();
                     int sortedIndex = tile.getScrollOffset() * 45 + slot;
                     if (sortedIndex < data.getRecipeCount()) {
-                        List<String> lines = new ArrayList<>();
                         if (data.isConflict(sortedIndex)) {
                             lines.add(I18n.format("gui.ae2enhanced.smart_pattern_interface.conflict_marker"));
                         }
                         if (data.isDisabled(sortedIndex)) {
                             lines.add(I18n.format("gui.ae2enhanced.smart_pattern_interface.disabled_marker"));
                         }
-                        if (!lines.isEmpty()) {
-                            drawHoveringText(lines, mouseX, mouseY);
-                            return;
-                        }
                     }
+                    lines.add(I18n.format("gui.ae2enhanced.smart_pattern_interface.hint_toggle"));
+                    lines.add(I18n.format("gui.ae2enhanced.smart_pattern_interface.hint_lock"));
+                    lines.add(I18n.format("gui.ae2enhanced.smart_pattern_interface.hint_transfer"));
+                    drawHoveringText(lines, mouseX, mouseY);
+                    return;
                 }
             }
         }
@@ -528,6 +586,12 @@ public class GuiSmartPatternInterface extends GuiContainer {
             return;
         }
 
+        // 添加新配方按钮
+        if (mouseButton == 0 && isInAddButton(relX, relY) && tile.getPatternData() != null) {
+            AE2Enhanced.network.sendToServer(new PacketSmartPatternModify(tile.getPos(), "addRecipe"));
+            return;
+        }
+
         // 顶部小按钮
         int smallBtn = getSmallButtonAt(relX, relY);
         if (smallBtn >= 0 && mouseButton == 0) {
@@ -536,14 +600,12 @@ public class GuiSmartPatternInterface extends GuiContainer {
             boolean locked = tile.getLockedRecipeIndex() >= 0;
             if (!locked) return;
             String action = SMALL_BTN_ACTIONS[row][col];
-            tile.modifyLockedRecipe(action);
             AE2Enhanced.network.sendToServer(new PacketSmartPatternModify(tile.getPos(), action));
             return;
         }
 
         // 删除已禁用配方按钮
         if (mouseButton == 0 && isInDeleteDisabledButton(relX, relY)) {
-            tile.deleteDisabledRecipes();
             AE2Enhanced.network.sendToServer(new PacketSmartPatternModify(tile.getPos(), "deleteDisabled"));
             return;
         }
@@ -577,7 +639,6 @@ public class GuiSmartPatternInterface extends GuiContainer {
             ItemStack from = tile.getReplaceInventory().getStackInSlot(0);
             ItemStack to = tile.getReplaceInventory().getStackInSlot(1);
             if (!from.isEmpty()) {
-                tile.replaceInAllRecipes(from, to);
                 AE2Enhanced.network.sendToServer(new PacketSmartPatternReplace(tile.getPos(), from, to));
             }
             return;
@@ -585,7 +646,6 @@ public class GuiSmartPatternInterface extends GuiContainer {
 
         // 底部 X 保留主产物按钮
         if (mouseButton == 0 && isInKeepButton(relX, relY) && tile.getLockedRecipeIndex() >= 0) {
-            tile.modifyLockedRecipe("keepPrimary");
             AE2Enhanced.network.sendToServer(new PacketSmartPatternModify(tile.getPos(), "keepPrimary"));
             return;
         }
@@ -601,7 +661,7 @@ public class GuiSmartPatternInterface extends GuiContainer {
             }
         }
 
-        // 配方槽位点击
+        // 配方槽位点击(仅左键：切换禁用 / Shift+左键：锁定编辑)
         if (mouseButton == 0) {
             int clickedSlot = getRecipeSlotAt(relX, relY);
             if (clickedSlot >= 0) {
@@ -609,20 +669,23 @@ public class GuiSmartPatternInterface extends GuiContainer {
                 boolean shift = Keyboard.isKeyDown(Keyboard.KEY_LSHIFT) || Keyboard.isKeyDown(Keyboard.KEY_RSHIFT);
                 if (shift) {
                     if (tile.isRecipeLocked(sortedIndex)) {
-                        tile.unlockRecipe();
                         AE2Enhanced.network.sendToServer(new PacketSmartPatternModify(tile.getPos(), "unlock"));
                     } else {
-                        tile.lockRecipe(sortedIndex);
                         AE2Enhanced.network.sendToServer(new PacketSmartPatternModify(tile.getPos(), "lock", sortedIndex));
                     }
                 } else {
-                    tile.toggleRecipe(sortedIndex);
                     AE2Enhanced.network.sendToServer(new PacketSmartPatternToggle(tile.getPos(), sortedIndex));
                 }
                 flashSlot = clickedSlot;
                 flashTicks = FLASH_DURATION;
                 return;
             }
+        }
+
+        // 配方显示槽区域：吞掉其余按键(右键等)的点击,
+        // 防止穿透到 SlotFake 默认行为让幽灵物品污染显示
+        if (getRecipeSlotAt(relX, relY) >= 0) {
+            return;
         }
 
         super.mouseClicked(mouseX, mouseY, mouseButton);
@@ -648,6 +711,11 @@ public class GuiSmartPatternInterface extends GuiContainer {
     private boolean isInDeleteDisabledButton(int x, int y) {
         return x >= BTN_DELETE_DISABLED_X && x < BTN_DELETE_DISABLED_X + BTN_DELETE_DISABLED_W
             && y >= BTN_DELETE_DISABLED_Y && y < BTN_DELETE_DISABLED_Y + BTN_DELETE_DISABLED_H;
+    }
+
+    private boolean isInAddButton(int x, int y) {
+        return x >= BTN_ADD_X && x < BTN_ADD_X + BTN_ADD_W
+            && y >= BTN_ADD_Y && y < BTN_ADD_Y + BTN_ADD_H;
     }
 
     private int getSmallButtonAt(int x, int y) {

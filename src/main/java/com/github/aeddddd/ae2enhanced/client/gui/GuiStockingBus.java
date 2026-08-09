@@ -55,7 +55,7 @@ public class GuiStockingBus extends GuiUpgradeable {
 
     @Override
     public void drawFG(int offsetX, int offsetY, int mouseX, int mouseY) {
-        this.fontRenderer.drawString(this.getGuiDisplayName("Stocking Bus"), 8, 6, 0x404040);
+        this.fontRenderer.drawString(this.getGuiDisplayName(I18n.format("gui.ae2enhanced.stocking_bus.name")), 8, 6, 0x404040);
         this.fontRenderer.drawString(GuiText.inventory.getLocal(), 8, this.ySize - 96 + 3, 0x404040);
 
         if (this.redstoneMode != null) {

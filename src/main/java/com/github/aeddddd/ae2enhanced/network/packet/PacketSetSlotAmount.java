@@ -61,7 +61,8 @@ public class PacketSetSlotAmount implements IMessage {
                 }
 
                 if (!stack.isEmpty()) {
-                    int newAmount = Math.max(1, message.amount);
+                    // 上下界钳制,与客户端 GuiOmniAmount 的 [1, 999999999] 范围保持一致
+                    int newAmount = Math.max(1, Math.min(message.amount, 999999999));
                     stack.setCount(newAmount);
                     c.detectAndSendChanges();
                 }

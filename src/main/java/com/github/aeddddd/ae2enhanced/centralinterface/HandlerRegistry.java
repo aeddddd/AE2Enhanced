@@ -47,6 +47,8 @@ public class HandlerRegistry {
         tryLoad("extendedcrafting", "com.github.aeddddd.ae2enhanced.centralinterface.handler.extendedcrafting.CompressorHandler");
         tryLoad("extendedcrafting", "com.github.aeddddd.ae2enhanced.centralinterface.handler.extendedcrafting.EnderCrafterHandler");
         tryLoad("draconicevolution", "com.github.aeddddd.ae2enhanced.centralinterface.handler.draconicevolution.DraconicEvolutionHandler");
+        // Avaritia - 终焉工作台(纯虚拟,机制与合成拓展工作台一致)
+        tryLoad("avaritia", "com.github.aeddddd.ae2enhanced.centralinterface.handler.avaritia.ExtremeCraftingTableHandler");
         // P8 - Thaumcraft (Infusion & Crucible)
         tryLoad("thaumcraft", "com.github.aeddddd.ae2enhanced.centralinterface.handler.thaumcraft.ThaumcraftHandler");
         tryLoad("thaumcraft", "com.github.aeddddd.ae2enhanced.centralinterface.handler.thaumcraft.ThaumcraftCrucibleHandler");

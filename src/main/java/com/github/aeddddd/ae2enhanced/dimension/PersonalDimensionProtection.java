@@ -2,11 +2,20 @@ package com.github.aeddddd.ae2enhanced.dimension;
 
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
 import net.minecraft.entity.player.EntityPlayer;
+import net.minecraft.item.Item;
+import net.minecraft.item.ItemArmorStand;
+import net.minecraft.item.ItemBoat;
+import net.minecraft.item.ItemBucket;
+import net.minecraft.item.ItemFlintAndSteel;
+import net.minecraft.item.ItemMinecart;
+import net.minecraft.item.ItemStack;
 import net.minecraft.util.text.TextComponentTranslation;
 import net.minecraftforge.event.entity.player.AttackEntityEvent;
 import net.minecraftforge.event.entity.player.FillBucketEvent;
 import net.minecraftforge.event.entity.player.PlayerInteractEvent;
 import net.minecraftforge.event.world.BlockEvent;
+import net.minecraftforge.event.world.ExplosionEvent;
+import net.minecraftforge.fluids.UniversalBucket;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.common.eventhandler.Event;
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
@@ -41,6 +50,10 @@ public final class PersonalDimensionProtection {
     /**
      * 检查玩家在所处个人维度内是否拥有某项权限。
      * 非个人维度、客户端侧、维度所有者与 OP 一律放行。
+     *
+     * <p>FakePlayer（机器假玩家）策略：不做特殊处理，按普通访客判定。
+     * 假玩家通常权限等级为 0，不会命中 OP 放行；所有者可在白名单中为
+     * 假玩家的 UUID 显式授予权限，未授权的机器一律按无权限访客拦截。</p>
      */
     public static boolean canAct(EntityPlayer player, PersonalDimPermission permission) {
         if (player.world.isRemote) return true;
@@ -102,8 +115,28 @@ public final class PersonalDimensionProtection {
     }
 
     /**
-     * 只拒绝方块激活（打开 GUI、按钮、拉杆等），不拦截物品使用本身，
-     * 放置行为由 {@link #onBlockPlace} 等事件按 BUILD 单独判定。
+     * 判断物品是否属于"改变世界状态"的使用类物品，归入 BUILD 语义。
+     *
+     * <p>采用特判而非一律 deny useItem：桶类（含 {@link UniversalBucket}，
+     * {@code ItemLavaBucket} 继承自 {@link ItemBucket}）倾倒流体、打火石点火
+     * 走 useItem 路径且不触发 PlaceEvent；船/矿车/盔甲架通过物品放置实体，
+     * 同样改变世界。末影珍珠、食物等纯功能性物品不在此列，避免误伤。</p>
+     */
+    private static boolean isWorldChangingItem(ItemStack stack) {
+        if (stack.isEmpty()) return false;
+        Item item = stack.getItem();
+        return item instanceof ItemBucket
+                || item instanceof UniversalBucket
+                || item instanceof ItemFlintAndSteel
+                || item instanceof ItemBoat
+                || item instanceof ItemMinecart
+                || item instanceof ItemArmorStand;
+    }
+
+    /**
+     * 无 INTERACT 权限时拒绝方块激活（打开 GUI、按钮、拉杆等）；
+     * 无 BUILD 权限时额外拒绝改变世界类物品（桶/打火石/船等）的使用，
+     * 防止访客通过倒岩浆、点火、放置实体绕过方块放置拦截。
      */
     @SubscribeEvent
     public static void onRightClickBlock(PlayerInteractEvent.RightClickBlock event) {
@@ -111,6 +144,34 @@ public final class PersonalDimensionProtection {
             event.setUseBlock(Event.Result.DENY);
             sendDenyMessage(event.getEntityPlayer(), "chat.ae2enhanced.personal_dimension.no_permission_interact");
         }
+        if (isWorldChangingItem(event.getItemStack())
+                && !canAct(event.getEntityPlayer(), PersonalDimPermission.BUILD)) {
+            event.setUseItem(Event.Result.DENY);
+            sendDenyMessage(event.getEntityPlayer(), "chat.ae2enhanced.personal_dimension.no_permission_build");
+        }
+    }
+
+    /**
+     * 右键空气（raytrace 未命中方块）路径：改变世界类物品同样需要 BUILD 权限。
+     */
+    @SubscribeEvent
+    public static void onRightClickItem(PlayerInteractEvent.RightClickItem event) {
+        if (isWorldChangingItem(event.getItemStack())
+                && !canAct(event.getEntityPlayer(), PersonalDimPermission.BUILD)) {
+            event.setCanceled(true);
+            sendDenyMessage(event.getEntityPlayer(), "chat.ae2enhanced.personal_dimension.no_permission_build");
+        }
+    }
+
+    /**
+     * 个人维度是玩家的私人建造空间，规则中没有爆炸相关选项，
+     * 按 BUILD 语义保守处理：维度内爆炸不破坏任何方块（实体伤害不受影响）。
+     */
+    @SubscribeEvent
+    public static void onExplosionDetonate(ExplosionEvent.Detonate event) {
+        if (event.getWorld().isRemote) return;
+        if (!PersonalDimensionManager.isPersonalDimension(event.getWorld().provider.getDimension())) return;
+        event.getAffectedBlocks().clear();
     }
 
     @SubscribeEvent

@@ -57,7 +57,8 @@ public class TileSmartPatternInterface extends TileEntity {
     // 配方显示页码(0 = 第1页,每页45个配方)
     private int scrollOffset = 0;
 
-    // 锁定配方的排序索引(-1 = 未锁定)
+    // 锁定配方的原始索引(-1 = 未锁定)
+    // 注意：必须存原始索引而非排序后索引,否则 detectConflicts 重排 displayOrder 后锁定目标会漂移
     private int lockedRecipeIndex = -1;
 
     // MiniGUI 滚动偏移 (0-8, 对应 9 组输入/输出)
@@ -367,17 +368,31 @@ public class TileSmartPatternInterface extends TileEntity {
 
     // ---- 锁定与 MiniGUI ----
 
+    /**
+     * 获取锁定配方的排序后显示索引(供 GUI 显示用,-1 = 未锁定).
+     * 内部存储为原始索引,此处映射为显示索引.
+     */
     public int getLockedRecipeIndex() {
-        return lockedRecipeIndex;
+        if (lockedRecipeIndex < 0 || patternData == null) return -1;
+        return patternData.getSortedIndex(lockedRecipeIndex);
     }
 
+    /**
+     * 判断指定排序后显示索引的配方是否被锁定.
+     */
     public boolean isRecipeLocked(int sortedIndex) {
-        return lockedRecipeIndex == sortedIndex;
+        if (lockedRecipeIndex < 0 || patternData == null) return false;
+        return patternData.getDisplayIndex(sortedIndex) == lockedRecipeIndex;
     }
 
+    /**
+     * 锁定指定排序后显示索引的配方(内部转换为原始索引存储).
+     */
     public void lockRecipe(int sortedIndex) {
         if (patternData == null) return;
-        this.lockedRecipeIndex = sortedIndex;
+        int original = patternData.getDisplayIndex(sortedIndex);
+        if (original < 0) return;
+        this.lockedRecipeIndex = original;
         updateMiniGuiFromRecipe();
         markDirty();
         syncToClient();
@@ -392,9 +407,8 @@ public class TileSmartPatternInterface extends TileEntity {
 
     public void modifyLockedRecipe(@Nonnull String action) {
         if (lockedRecipeIndex < 0 || patternData == null) return;
-        int original = patternData.getDisplayIndex(lockedRecipeIndex);
-        if (original < 0) return;
-        SmartRecipe recipe = patternData.getRecipes().get(original);
+        if (lockedRecipeIndex >= patternData.getRecipeCount()) return;
+        SmartRecipe recipe = patternData.getRecipes().get(lockedRecipeIndex);
         switch (action) {
             case "keepPrimary":
                 recipe.keepPrimary();
@@ -491,6 +505,44 @@ public class TileSmartPatternInterface extends TileEntity {
         SmartPatternStorageFile.save(world, patternData);
     }
 
+    /**
+     * 新增一条空配方并自动锁定,跳转到其所在页面.
+     */
+    public void addNewRecipe() {
+        if (patternData == null) return;
+        if (patternData.getRecipeCount() >= com.github.aeddddd.ae2enhanced.config.AE2EnhancedConfig.smartPattern.maxRecipes) return;
+        int original = patternData.addEmptyRecipe();
+        this.lockedRecipeIndex = original;
+        this.miniGuiScrollOffset = 0;
+        int sorted = patternData.getSortedIndex(original);
+        if (sorted >= 0) {
+            this.scrollOffset = sorted / 45;
+        }
+        updateMiniGuiFromRecipe();
+        updateRecipeDisplay();
+        markDirty();
+        syncToClient();
+        SmartPatternStorageFile.save(world, patternData);
+    }
+
+    /**
+     * 用给定的输入输出整体覆盖当前锁定的配方(JEI 一键转移).
+     * 数组长度由调用方限制(输入 ≤ 81,输出 ≤ 9).
+     */
+    public void fillLockedRecipe(@Nonnull IAEItemStack[] inputs, @Nonnull IAEItemStack[] outputs) {
+        if (lockedRecipeIndex < 0 || patternData == null
+                || lockedRecipeIndex >= patternData.getRecipeCount()) return;
+        SmartRecipe recipe = patternData.getRecipes().get(lockedRecipeIndex);
+        recipe.setInputs(inputs);
+        recipe.setOutputs(outputs);
+        patternData.detectConflicts();
+        updateMiniGuiFromRecipe();
+        updateRecipeDisplay();
+        markDirty();
+        syncToClient();
+        SmartPatternStorageFile.save(world, patternData);
+    }
+
     private void clearMiniGuiInventory() {
         isUpdatingMiniGui = true;
         try {
@@ -503,16 +555,12 @@ public class TileSmartPatternInterface extends TileEntity {
     }
 
     private void updateMiniGuiFromRecipe() {
-        if (lockedRecipeIndex < 0 || patternData == null) {
+        if (lockedRecipeIndex < 0 || patternData == null
+                || lockedRecipeIndex >= patternData.getRecipeCount()) {
             clearMiniGuiInventory();
             return;
         }
-        int original = patternData.getDisplayIndex(lockedRecipeIndex);
-        if (original < 0) {
-            clearMiniGuiInventory();
-            return;
-        }
-        SmartRecipe recipe = patternData.getRecipes().get(original);
+        SmartRecipe recipe = patternData.getRecipes().get(lockedRecipeIndex);
         IAEItemStack[] inputs = recipe.getInputs();
         IAEItemStack[] outputs = recipe.getOutputs();
 
@@ -538,9 +586,8 @@ public class TileSmartPatternInterface extends TileEntity {
     }
 
     private void syncMiniGuiSlotToRecipe(int slot) {
-        int original = patternData.getDisplayIndex(lockedRecipeIndex);
-        if (original < 0) return;
-        SmartRecipe recipe = patternData.getRecipes().get(original);
+        if (lockedRecipeIndex < 0 || lockedRecipeIndex >= patternData.getRecipeCount()) return;
+        SmartRecipe recipe = patternData.getRecipes().get(lockedRecipeIndex);
         ItemStack stack = miniGuiInventory.getStackInSlot(slot);
         IAEItemStack aeStack = stack.isEmpty() ? null : AEItemStack.fromItemStack(stack);
         if (slot < 81) {

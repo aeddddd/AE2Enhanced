@@ -8,6 +8,7 @@ import com.github.aeddddd.ae2enhanced.dimension.teleport.PersonalTeleporter;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.entity.player.EntityPlayerMP;
 import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.text.TextComponentTranslation;
 import net.minecraft.world.DimensionType;
 import net.minecraft.world.World;
 import net.minecraft.world.WorldServer;
@@ -18,14 +19,18 @@ import net.minecraftforge.fml.common.event.FMLServerStartedEvent;
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
 import net.minecraftforge.fml.common.gameevent.PlayerEvent;
 import net.minecraftforge.fml.common.gameevent.TickEvent;
+import net.minecraftforge.event.entity.living.LivingDeathEvent;
 import net.minecraftforge.event.entity.living.LivingSpawnEvent;
 import net.minecraftforge.event.world.WorldEvent;
 import net.minecraftforge.fml.common.network.FMLNetworkEvent;
 
 import javax.annotation.Nullable;
+import java.io.File;
 import java.util.ArrayList;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
@@ -162,14 +167,19 @@ public final class PersonalDimensionManager {
     public static int getDimensionId(UUID playerId) {
         WorldServer overworld = getOverworld();
         if (overworld == null) return Integer.MIN_VALUE;
-        return PersonalDimensionData.get(overworld).getEntry(playerId).dimensionId;
+        // 只读查询不创建空条目
+        PlayerDimEntry entry = PersonalDimensionData.get(overworld).peekEntry(playerId);
+        return entry != null ? entry.dimensionId : Integer.MIN_VALUE;
     }
 
+    /**
+     * 只读查询指定玩家的条目，不存在时返回 null（不会创建空条目）。
+     */
     @Nullable
     public static PlayerDimEntry getEntry(UUID playerId) {
         WorldServer overworld = getOverworld();
         if (overworld == null) return null;
-        return PersonalDimensionData.get(overworld).getEntry(playerId);
+        return PersonalDimensionData.get(overworld).peekEntry(playerId);
     }
 
     @Nullable
@@ -200,16 +210,46 @@ public final class PersonalDimensionManager {
         PlayerDimEntry entry = getEntry(player.getUniqueID());
         if (entry == null || !entry.hasReturnPoint) {
             // 没有记录则返回主世界出生点
-            MinecraftServer server = player.getServerWorld().getMinecraftServer();
-            WorldServer target = server != null ? server.getWorld(0) : null;
-            if (target == null) return;
-            BlockPos spawn = target.getSpawnPoint();
-            teleportTo(player, 0, spawn.getX() + 0.5, spawn.getY() + 0.1, spawn.getZ() + 0.5, player.rotationYaw, player.rotationPitch);
+            teleportToOverworldSpawn(player);
             PlayerAbilityApplier.resetAbilities(player);
             return;
         }
-        teleportTo(player, entry.returnDim, entry.returnX, entry.returnY, entry.returnZ, entry.returnYaw, entry.returnPitch);
+        // 权限校验：返回点若位于他人的个人维度，玩家必须仍在白名单且拥有 ENTER 权限，
+        // 否则被 kick 的玩家可通过"埋点-返回"反复重进他人维度
+        if (isPersonalDimension(entry.returnDim)) {
+            PlayerDimEntry ownerEntry = getEntryByDimension(entry.returnDim);
+            boolean allowed = ownerEntry != null
+                    && (ownerEntry.playerId.equals(player.getUniqueID())
+                        || (ownerEntry.allowedPlayers.contains(player.getUniqueID())
+                            && ownerEntry.hasPermission(player.getUniqueID(), PersonalDimPermission.ENTER)));
+            if (!allowed) {
+                WorldServer ow = getOverworld();
+                if (ow != null) {
+                    PersonalDimensionData.get(ow).clearReturnPoint(player.getUniqueID());
+                }
+                player.sendMessage(new TextComponentTranslation("chat.ae2enhanced.personal_dimension.no_permission_enter"));
+                teleportToOverworldSpawn(player);
+                PlayerAbilityApplier.resetAbilities(player);
+                return;
+            }
+        }
+        if (!teleportTo(player, entry.returnDim, entry.returnX, entry.returnY, entry.returnZ, entry.returnYaw, entry.returnPitch)) {
+            // 目标维度不可用时回退主世界出生点
+            player.sendMessage(new TextComponentTranslation("chat.ae2enhanced.personal_dimension.teleport_failed"));
+            teleportToOverworldSpawn(player);
+        }
         PlayerAbilityApplier.resetAbilities(player);
+    }
+
+    /**
+     * 将玩家传送回主世界出生点。
+     */
+    private static void teleportToOverworldSpawn(EntityPlayerMP player) {
+        MinecraftServer server = player.getServerWorld().getMinecraftServer();
+        WorldServer target = server != null ? server.getWorld(0) : null;
+        if (target == null) return;
+        BlockPos spawn = target.getSpawnPoint();
+        teleportTo(player, 0, spawn.getX() + 0.5, spawn.getY() + 0.1, spawn.getZ() + 0.5, player.rotationYaw, player.rotationPitch);
     }
 
     public static void teleportToDimension(EntityPlayerMP player, int dimId) {
@@ -218,8 +258,9 @@ public final class PersonalDimensionManager {
         double tx = entryPos.getX() + 0.5;
         double ty = entryPos.getY() + 0.1;
         double tz = entryPos.getZ() + 0.5;
-        teleportTo(player, dimId, tx, ty, tz, player.rotationYaw, player.rotationPitch);
-        DimensionLightingFixer.scheduleRelight(player.getServerWorld().getMinecraftServer(), dimId, new BlockPos(tx, ty, tz));
+        if (teleportTo(player, dimId, tx, ty, tz, player.rotationYaw, player.rotationPitch)) {
+            DimensionLightingFixer.scheduleRelight(player.getServerWorld().getMinecraftServer(), dimId, new BlockPos(tx, ty, tz));
+        }
     }
 
     /**
@@ -261,7 +302,9 @@ public final class PersonalDimensionManager {
         double tx = entryPos.getX() + 0.5;
         double ty = entryPos.getY() + 0.1;
         double tz = entryPos.getZ() + 0.5;
-        teleportTo(player, dimId, tx, ty, tz, player.rotationYaw, player.rotationPitch);
+        if (!teleportTo(player, dimId, tx, ty, tz, player.rotationYaw, player.rotationPitch)) {
+            return false;
+        }
         DimensionLightingFixer.scheduleRelight(player.getServerWorld().getMinecraftServer(), dimId, new BlockPos(tx, ty, tz));
         return true;
     }
@@ -292,8 +335,24 @@ public final class PersonalDimensionManager {
         PlayerDimEntry entry = PersonalDimensionData.get(overworld).getEntry(ownerId);
         if (entry == null) return false;
         entry.removePlayer(targetId);
+        // 被移出白名单后，清除其指向本维度的返回点，防止"埋点-返回"重进
+        if (entry.dimensionId != Integer.MIN_VALUE) {
+            clearReturnPointIfInDimension(targetId, entry.dimensionId);
+        }
         PersonalDimensionData.get(overworld).markDirty();
         return true;
+    }
+
+    /**
+     * 若指定玩家的返回点位于指定维度，则清除该返回点。
+     *
+     * <p>供 pd kick/remove 命令调用：被移出白名单的玩家不应再通过
+     * 返回点重新进入其已无权限的个人维度。</p>
+     */
+    public static void clearReturnPointIfInDimension(UUID playerId, int dimId) {
+        WorldServer overworld = getOverworld();
+        if (overworld == null) return;
+        PersonalDimensionData.get(overworld).clearReturnPointIfInDimension(playerId, dimId);
     }
 
     /**
@@ -326,48 +385,96 @@ public final class PersonalDimensionManager {
         }
         int dimId = entry.dimensionId;
         MinecraftServer server = overworld.getMinecraftServer();
-        if (server != null) {
-            WorldServer dimWorld = server.getWorld(dimId);
-            if (dimWorld != null) {
-                WorldServer targetWorld = server.getWorld(0);
-                BlockPos spawn = targetWorld != null ? targetWorld.getSpawnPoint() : new BlockPos(0, 64, 0);
-                for (EntityPlayerMP player : new ArrayList<>(dimWorld.getPlayers(EntityPlayerMP.class, p -> true))) {
-                    if (player.getUniqueID().equals(playerId) && entry.hasReturnPoint && entry.returnDim != dimId) {
-                        teleportTo(player, entry.returnDim, entry.returnX, entry.returnY, entry.returnZ, entry.returnYaw, entry.returnPitch);
-                    } else {
-                        teleportTo(player, 0, spawn.getX() + 0.5, spawn.getY(), spawn.getZ() + 0.5, 0.0f, 0.0f);
-                    }
+        WorldServer dimWorld = DimensionManager.getWorld(dimId);
+        if (dimWorld != null) {
+            WorldServer targetWorld = server != null ? server.getWorld(0) : null;
+            BlockPos spawn = targetWorld != null ? targetWorld.getSpawnPoint() : new BlockPos(0, 64, 0);
+            for (EntityPlayerMP player : new ArrayList<>(dimWorld.getPlayers(EntityPlayerMP.class, p -> true))) {
+                boolean teleported = false;
+                if (player.getUniqueID().equals(playerId) && entry.hasReturnPoint && entry.returnDim != dimId) {
+                    teleported = teleportTo(player, entry.returnDim, entry.returnX, entry.returnY, entry.returnZ, entry.returnYaw, entry.returnPitch);
+                }
+                if (!teleported) {
+                    // 返回点传送失败或无返回点时回退主世界出生点
+                    teleported = teleportTo(player, 0, spawn.getX() + 0.5, spawn.getY(), spawn.getZ() + 0.5, 0.0f, 0.0f);
+                }
+                if (!teleported) {
+                    player.sendMessage(new TextComponentTranslation("chat.ae2enhanced.personal_dimension.teleport_failed"));
                 }
             }
         }
         if (DimensionManager.isDimensionRegistered(dimId)) {
             DimensionManager.unregisterDimension(dimId);
         }
+        // 维度 ID 会被复用：必须卸载维度世界并删除其存档目录，
+        // 否则新主人会看到旧主人的全部建筑
+        if (dimWorld != null && server != null) {
+            DimensionManager.setWorld(dimId, null, server);
+        }
+        deleteDimensionSaveFolder(server, dimId);
         PersonalDimensionData.get(overworld).removeEntry(playerId);
         broadcastDimensionRegistrySync();
         return true;
     }
 
-    public static void teleportTo(EntityPlayerMP player, int dimId, double x, double y, double z, float yaw, float pitch) {
+    /**
+     * 删除个人维度的存档目录（存档根下的 AE2E_PersonalDim_&lt;id&gt;）。
+     * 删除失败仅记录错误日志，不影响维度注销结果。
+     */
+    private static void deleteDimensionSaveFolder(@Nullable MinecraftServer server, int dimId) {
+        if (server == null) return;
+        WorldServer overworld = server.getWorld(0);
+        if (overworld == null) return;
+        File saveRoot = overworld.getSaveHandler().getWorldDirectory();
+        if (saveRoot == null) return;
+        File dimFolder = new File(saveRoot, "AE2E_PersonalDim_" + dimId);
+        if (!dimFolder.exists()) return;
+        if (!deleteRecursively(dimFolder)) {
+            AE2Enhanced.LOGGER.error("[AE2E] Failed to fully delete personal dimension save folder: {}", dimFolder.getAbsolutePath());
+        }
+    }
+
+    /**
+     * 递归删除文件/目录，全部成功返回 true。
+     */
+    private static boolean deleteRecursively(File file) {
+        File[] children = file.listFiles();
+        if (children != null) {
+            for (File child : children) {
+                if (!deleteRecursively(child)) {
+                    return false;
+                }
+            }
+        }
+        return file.delete();
+    }
+
+    /**
+     * 将玩家传送到指定维度的指定坐标。
+     *
+     * @return 传送是否执行成功；目标维度未注册或世界无法加载时返回 false，玩家保持原位
+     */
+    public static boolean teleportTo(EntityPlayerMP player, int dimId, double x, double y, double z, float yaw, float pitch) {
         if (player.dimension == dimId) {
             player.setPositionAndUpdate(x, y, z);
-            return;
+            return true;
         }
         MinecraftServer server = player.getServer();
-        if (server == null) return;
+        if (server == null) return false;
 
         // 与 PersonalWorlds 一致：确保目标世界已加载，然后走原版/Forge 的
         // EntityPlayerMP.changeDimension，不直接调用 PlayerList.transferPlayerToDimension，
         // 也不做任何 entityId / tracker 的手动清理。
-        if (!DimensionManager.isDimensionRegistered(dimId)) return;
+        if (!DimensionManager.isDimensionRegistered(dimId)) return false;
         WorldServer targetWorld = server.getWorld(dimId);
         if (targetWorld == null) {
             DimensionManager.initDimension(dimId);
             targetWorld = server.getWorld(dimId);
         }
-        if (targetWorld == null) return;
+        if (targetWorld == null) return false;
 
         player.changeDimension(dimId, new PersonalTeleporter(targetWorld, x, y, z, yaw, pitch));
+        return true;
     }
 
     public static void setRules(UUID playerId, PersonalDimensionRules rules) {
@@ -531,17 +638,40 @@ public final class PersonalDimensionManager {
     }
 
     /**
-     * 玩家在个人维度死亡并重生后恢复默认能力。
+     * 玩家死亡时所在的维度。PlayerRespawnEvent 触发时玩家已处于重生维度，
+     * 1.12.2 的 recreatePlayerEntity 也不触发 PlayerChangedDimensionEvent，
+     * 因此在 LivingDeathEvent 中先行记录死亡维度作为重生判定的依据。
+     */
+    private static final Map<UUID, Integer> DEATH_DIMENSIONS = new HashMap<>();
+
+    @SubscribeEvent
+    public static void onPlayerDeath(LivingDeathEvent event) {
+        if (event.getEntityLiving().world.isRemote) return;
+        if (!(event.getEntityLiving() instanceof EntityPlayerMP)) return;
+        DEATH_DIMENSIONS.put(event.getEntityLiving().getUniqueID(), event.getEntityLiving().dimension);
+    }
+
+    /**
+     * 玩家在个人维度死亡并重生后恢复能力。
      */
     @SubscribeEvent
     public static void onPlayerRespawn(PlayerEvent.PlayerRespawnEvent event) {
         if (event.player.world.isRemote) return;
         if (!(event.player instanceof EntityPlayerMP)) return;
         EntityPlayerMP player = (EntityPlayerMP) event.player;
-        // 只有重生前位于个人维度时才重置能力，避免误清其他模组的永久飞行/速度加成
-        if (isPersonalDimension(event.player.dimension)) {
+        // 按死亡时所在维度判定（重生事件触发时玩家已在主世界，
+        // 直接用 event.player.dimension 恒为主世界），避免带着维度内飞行能力重生
+        Integer deathDim = DEATH_DIMENSIONS.remove(player.getUniqueID());
+        if (deathDim != null && isPersonalDimension(deathDim)) {
             PlayerAbilityApplier.resetAbilities(player);
         }
+    }
+
+    @SubscribeEvent
+    public static void onPlayerLoggedOut(PlayerEvent.PlayerLoggedOutEvent event) {
+        // 清理运行时状态，防止离线玩家 UUID 在 map 中累积泄漏
+        DEATH_DIMENSIONS.remove(event.player.getUniqueID());
+        PlayerAbilityApplier.discardSnapshot(event.player.getUniqueID());
     }
 
     @SubscribeEvent
@@ -554,11 +684,13 @@ public final class PersonalDimensionManager {
         if (isPersonalDimension(player.dimension)) {
             BlockPos pos = new BlockPos(player.posX, player.posY, player.posZ);
             DimensionLightingFixer.relightDimensionChunks(player.dimension, pos);
-            PlayerDimEntry entry = getEntry(player.getUniqueID());
+            // 按所在维度所有者的条目应用规则，而非玩家自己的条目，
+            // 否则进入他人个人维度时会错误应用访客自己的规则
+            PlayerDimEntry entry = getEntryByDimension(player.dimension);
             if (entry != null) {
                 PlayerAbilityApplier.applyCapabilities(player, entry.rules);
+                sendRulesToPlayer(entry.playerId, player);
             }
-            sendRulesToPlayer(player.getUniqueID());
         }
     }
 
@@ -585,10 +717,11 @@ public final class PersonalDimensionManager {
         if (!(event.player instanceof EntityPlayerMP)) return;
         EntityPlayerMP player = (EntityPlayerMP) event.player;
         if (isPersonalDimension(event.toDim)) {
-            PlayerDimEntry entry = getEntry(player.getUniqueID());
+            // 按目标维度所有者的条目应用规则
+            PlayerDimEntry entry = getEntryByDimension(event.toDim);
             if (entry != null) {
                 PlayerAbilityApplier.applyCapabilities(player, entry.rules);
-                sendRulesToPlayer(player.getUniqueID());
+                sendRulesToPlayer(entry.playerId, player);
             }
             // 通过指令或其他 mod 进入个人维度时，校正光照
             BlockPos pos = new BlockPos(player.posX, player.posY, player.posZ);
@@ -607,7 +740,8 @@ public final class PersonalDimensionManager {
         if (event.phase != TickEvent.Phase.END || event.player.world.isRemote) return;
         if (!(event.player instanceof EntityPlayerMP)) return;
         if (!isPersonalDimension(event.player.dimension)) return;
-        PlayerDimEntry entry = getEntry(event.player.getUniqueID());
+        // 按所在维度所有者的条目应用规则
+        PlayerDimEntry entry = getEntryByDimension(event.player.dimension);
         if (entry != null) {
             PlayerAbilityApplier.tickNoFlightInertia((EntityPlayerMP) event.player, entry.rules);
         }

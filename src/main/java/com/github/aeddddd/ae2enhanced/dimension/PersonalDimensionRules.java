@@ -45,6 +45,21 @@ public class PersonalDimensionRules {
         if (tag.hasKey("noFlightInertia")) noFlightInertia = tag.getBoolean("noFlightInertia");
     }
 
+    /**
+     * 判断当前规则是否全部为默认值（未被玩家修改过）。
+     */
+    public boolean isDefault() {
+        PersonalDimensionRules d = new PersonalDimensionRules();
+        return disableMobSpawning == d.disableMobSpawning
+                && lockWeather == d.lockWeather
+                && lockTime == d.lockTime
+                && daylightCycle == d.daylightCycle
+                && timeValue == d.timeValue
+                && flightEnabled == d.flightEnabled
+                && movementSpeed == d.movementSpeed
+                && noFlightInertia == d.noFlightInertia;
+    }
+
     public PersonalDimensionRules copy() {
         PersonalDimensionRules copy = new PersonalDimensionRules();
         copy.disableMobSpawning = this.disableMobSpawning;

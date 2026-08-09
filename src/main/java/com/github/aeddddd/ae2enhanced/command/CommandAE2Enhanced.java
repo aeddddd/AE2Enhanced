@@ -46,6 +46,7 @@ import net.minecraftforge.fml.common.FMLCommonHandler;
 import net.minecraftforge.common.config.ConfigManager;
 import net.minecraftforge.common.config.Config;
 import appeng.util.item.AEItemStack;
+import com.mojang.authlib.GameProfile;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -78,9 +79,14 @@ public class CommandAE2Enhanced extends CommandBase {
         return "/ae2e <channels|fastpathing|recoverhd|testhd|migratefluids|pd|help>";
     }
 
+    /**
+     * 顶级命令放行所有玩家（level 0），具体权限在 execute 内按子命令分别判定：
+     * pd 的自管理子命令（list/info/tp/invite/kick/setperm）面向普通玩家，
+     * 管理员工具子命令（channels/recoverhd/testhd/migratefluids/pd delete 等）仍需 level 2。
+     */
     @Override
     public int getRequiredPermissionLevel() {
-        return 2;
+        return 0;
     }
 
     @Override
@@ -92,9 +98,15 @@ public class CommandAE2Enhanced extends CommandBase {
     private static final String[] SUBCOMMANDS = {
             "channels", "fastpathing", "specialcrafting", "recoverhd", "testhd", "migratefluids", "pd", "help"
     };
+    /** 普通玩家可用的顶级子命令（用于 tab 补全，避免泄露管理员工具） */
+    private static final String[] PLAYER_SUBCOMMANDS = {"pd", "help"};
     private static final String[] TOGGLE_OPTIONS = {"enable", "disable", "status"};
     private static final String[] PD_SUBCOMMANDS = {
             "list", "info", "delete", "tp", "invite", "kick", "setperm"
+    };
+    /** 普通玩家可用的 pd 子命令（delete 为管理员操作） */
+    private static final String[] PD_PLAYER_SUBCOMMANDS = {
+            "list", "info", "tp", "invite", "kick", "setperm"
     };
     private static final String[] PD_PERMISSIONS;
     static {
@@ -109,29 +121,37 @@ public class CommandAE2Enhanced extends CommandBase {
     @Nonnull
     public List<String> getTabCompletions(@Nonnull MinecraftServer server, @Nonnull ICommandSender sender,
                                            @Nonnull String[] args, @Nullable BlockPos targetPos) {
+        // 非管理员不补全管理员工具子命令，避免泄露
+        boolean admin = sender.canUseCommand(2, getName());
         if (args.length == 1) {
-            return CommandBase.getListOfStringsMatchingLastWord(args, SUBCOMMANDS);
+            return CommandBase.getListOfStringsMatchingLastWord(args, admin ? SUBCOMMANDS : PLAYER_SUBCOMMANDS);
         }
         String sub = args[0].toLowerCase();
         if (args.length == 2) {
             if ("channels".equals(sub) || "fastpathing".equals(sub) || "specialcrafting".equals(sub)) {
+                if (!admin) return Collections.emptyList();
                 return CommandBase.getListOfStringsMatchingLastWord(args, TOGGLE_OPTIONS);
             }
             if ("recoverhd".equals(sub)) {
+                if (!admin) return Collections.emptyList();
                 List<String> list = new ArrayList<>();
                 list.add("list");
                 list.addAll(collectHdUuids(server));
                 return CommandBase.getListOfStringsMatchingLastWord(args, list);
             }
             if ("testhd".equals(sub)) {
+                if (!admin) return Collections.emptyList();
                 return CommandBase.getListOfStringsMatchingLastWord(args, collectHdUuids(server));
             }
             if ("pd".equals(sub)) {
-                return CommandBase.getListOfStringsMatchingLastWord(args, PD_SUBCOMMANDS);
+                return CommandBase.getListOfStringsMatchingLastWord(args, admin ? PD_SUBCOMMANDS : PD_PLAYER_SUBCOMMANDS);
             }
         }
         if (args.length == 3 && "pd".equals(sub)) {
             String pdSub = args[1].toLowerCase();
+            if ("delete".equals(pdSub) && !admin) {
+                return Collections.emptyList();
+            }
             if ("setperm".equals(pdSub)) {
                 return CommandBase.getListOfStringsMatchingLastWord(args, PD_PERMISSIONS);
             }
@@ -181,21 +201,27 @@ public class CommandAE2Enhanced extends CommandBase {
         String sub = args[0].toLowerCase();
         switch (sub) {
             case "channels":
+                if (!requireAdmin(sender)) return;
                 executeChannels(sender, args);
                 break;
             case "fastpathing":
+                if (!requireAdmin(sender)) return;
                 executeFastPathing(sender, args);
                 break;
             case "specialcrafting":
+                if (!requireAdmin(sender)) return;
                 executeSpecialCrafting(sender, args);
                 break;
             case "recoverhd":
+                if (!requireAdmin(sender)) return;
                 executeRecoverHd(server, sender, args);
                 break;
             case "testhd":
+                if (!requireAdmin(sender)) return;
                 executeTestHd(server, sender, args);
                 break;
             case "migratefluids":
+                if (!requireAdmin(sender)) return;
                 executeMigrateFluids(sender);
                 break;
             case "pd":
@@ -208,6 +234,18 @@ public class CommandAE2Enhanced extends CommandBase {
                 sender.sendMessage(new TextComponentString(TextFormatting.RED + "Unknown subcommand: " + sub));
                 sender.sendMessage(new TextComponentString(TextFormatting.YELLOW + getUsage(sender)));
         }
+    }
+
+    /**
+     * 校验管理员工具权限（level 2）。pd 的自管理子命令放行普通玩家，
+     * 其余子命令（channels/recoverhd/testhd/migratefluids/pd delete 等）仅 OP 可用。
+     */
+    private boolean requireAdmin(@Nonnull ICommandSender sender) {
+        if (sender.canUseCommand(2, getName())) {
+            return true;
+        }
+        sender.sendMessage(new TextComponentString(TextFormatting.RED + "[AE2E] You do not have permission to use this subcommand."));
+        return false;
     }
 
     // ---- help ----
@@ -257,6 +295,8 @@ public class CommandAE2Enhanced extends CommandBase {
                 executePdInfo(server, sender, args);
                 break;
             case "delete":
+                // pd delete 可删除他人维度，属于管理员操作
+                if (!requireAdmin(sender)) return;
                 executePdDelete(server, sender, args);
                 break;
             case "tp":
@@ -311,6 +351,12 @@ public class CommandAE2Enhanced extends CommandBase {
         UUID targetId = PlayerArgumentUtil.parseUuid(server, args[2]);
         if (targetId == null) {
             PlayerArgumentUtil.sendPlayerNotFound(sender, args[2]);
+            return;
+        }
+        // 查看他人维度信息需要管理权限：本人、OP 或拥有该维度 MANAGE_RULES 权限的玩家
+        if (sender instanceof EntityPlayerMP
+                && !PersonalDimensionManager.canManageRules((EntityPlayerMP) sender, targetId)) {
+            sender.sendMessage(new TextComponentString(TextFormatting.RED + "[AE2E] You don't have permission to view this dimension's info."));
             return;
         }
         PlayerDimEntry entry = PersonalDimensionManager.getEntry(targetId);
@@ -383,6 +429,11 @@ public class CommandAE2Enhanced extends CommandBase {
             return;
         }
         EntityPlayerMP owner = (EntityPlayerMP) sender;
+        // 本命令操作发送者自己的维度：仅所有者本人、拥有 MANAGE_RULES 权限的玩家或 OP 可管理
+        if (!PersonalDimensionManager.canManageRules(owner, owner.getUniqueID())) {
+            sender.sendMessage(new TextComponentString(TextFormatting.RED + "[AE2E] You don't have permission to manage this dimension."));
+            return;
+        }
         EntityPlayerMP target = PlayerArgumentUtil.parseOnlinePlayer(server, sender, args[2]);
         if (target == null) {
             PlayerArgumentUtil.sendPlayerNotFound(sender, args[2]);
@@ -411,6 +462,11 @@ public class CommandAE2Enhanced extends CommandBase {
             return;
         }
         EntityPlayerMP owner = (EntityPlayerMP) sender;
+        // 本命令操作发送者自己的维度：仅所有者本人、拥有 MANAGE_RULES 权限的玩家或 OP 可管理
+        if (!PersonalDimensionManager.canManageRules(owner, owner.getUniqueID())) {
+            sender.sendMessage(new TextComponentString(TextFormatting.RED + "[AE2E] You don't have permission to manage this dimension."));
+            return;
+        }
         UUID targetId = PlayerArgumentUtil.parseUuid(server, args[2]);
         if (targetId == null) {
             PlayerArgumentUtil.sendPlayerNotFound(sender, args[2]);
@@ -445,6 +501,11 @@ public class CommandAE2Enhanced extends CommandBase {
             return;
         }
         EntityPlayerMP owner = (EntityPlayerMP) sender;
+        // 本命令操作发送者自己的维度：仅所有者本人、拥有 MANAGE_RULES 权限的玩家或 OP 可管理
+        if (!PersonalDimensionManager.canManageRules(owner, owner.getUniqueID())) {
+            sender.sendMessage(new TextComponentString(TextFormatting.RED + "[AE2E] You don't have permission to manage this dimension."));
+            return;
+        }
         UUID targetId = PlayerArgumentUtil.parseUuid(server, args[2]);
         if (targetId == null) {
             PlayerArgumentUtil.sendPlayerNotFound(sender, args[2]);
@@ -538,24 +599,38 @@ public class CommandAE2Enhanced extends CommandBase {
                     long extracted = stack.getStackSize() - (notExtracted != null ? notExtracted.getStackSize() : 0);
                     if (extracted <= 0) continue;
 
-                    // 转换为 ae2fc 格式
-                    FluidStack toConvert = fluid.copy();
-                    toConvert.amount = (int) Math.min(extracted, Integer.MAX_VALUE);
-                    ItemStack ae2fcDrop = Ae2fcFluidCompat.createFluidDrop(toConvert);
-                    if (ae2fcDrop.isEmpty()) {
-                        // 转换失败,把原 drop 还回去
-                        ItemStack returnStack = mcStack.copy();
-                        returnStack.setCount((int) extracted);
-                        itemMonitor.injectItems(AEItemStack.fromItemStack(returnStack), Actionable.MODULATE, source);
-                        continue;
-                    }
+                    // 分批转换为 ae2fc 格式：FluidStack.amount 为 int，
+                    // 单一流体超过 Integer.MAX_VALUE 时必须拆分为多个 drop，否则超出部分静默丢失
+                    long remaining = extracted;
+                    while (remaining > 0) {
+                        int batch = (int) Math.min(remaining, Integer.MAX_VALUE);
+                        FluidStack toConvert = fluid.copy();
+                        toConvert.amount = batch;
+                        ItemStack ae2fcDrop = Ae2fcFluidCompat.createFluidDrop(toConvert);
+                        if (ae2fcDrop.isEmpty()) {
+                            // 转换失败,把本批次原 drop 还回去
+                            ItemStack returnStack = mcStack.copy();
+                            returnStack.setCount(batch);
+                            itemMonitor.injectItems(AEItemStack.fromItemStack(returnStack), Actionable.MODULATE, source);
+                            remaining -= batch;
+                            continue;
+                        }
 
-                    // 注回物品通道,由 ae2fc 接管
-                    IAEItemStack toInsert = AEItemStack.fromItemStack(ae2fcDrop);
-                    IAEItemStack notInserted = itemMonitor.injectItems(toInsert, Actionable.MODULATE, source);
-                    long inserted = toConvert.amount - (notInserted != null ? notInserted.getStackSize() : 0);
-                    convertedAmount += inserted;
-                    convertedStacks++;
+                        // 注回物品通道,由 ae2fc 接管
+                        IAEItemStack toInsert = AEItemStack.fromItemStack(ae2fcDrop);
+                        IAEItemStack notInserted = itemMonitor.injectItems(toInsert, Actionable.MODULATE, source);
+                        long rejected = notInserted != null ? notInserted.getStackSize() : 0;
+                        if (rejected > 0) {
+                            // 注回失败的部分回退为等量原 AE2E fluid drop，避免静默丢失
+                            ItemStack returnStack = mcStack.copy();
+                            returnStack.setCount((int) rejected);
+                            itemMonitor.injectItems(AEItemStack.fromItemStack(returnStack), Actionable.MODULATE, source);
+                        }
+                        long inserted = batch - rejected;
+                        convertedAmount += inserted;
+                        convertedStacks++;
+                        remaining -= batch;
+                    }
                 }
             }
         } catch (Exception e) {

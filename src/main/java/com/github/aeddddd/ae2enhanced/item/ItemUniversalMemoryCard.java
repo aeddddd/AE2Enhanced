@@ -303,17 +303,25 @@ public class ItemUniversalMemoryCard extends Item {
     public static void handleServerAction(EntityPlayer player, PacketUMCAction message) {
         ItemStack stack = player.getHeldItemMainhand();
         if (!(stack.getItem() instanceof ItemUniversalMemoryCard)) return;
+        // 非法动作类型(反序列化校验失败)直接丢弃
+        if (message.getType() == null) return;
 
         switch (message.getType()) {
-            case COPY:
-                UMCCopyService.handleCopy(player, stack, message.getPos(), message.getFace());
+            case COPY: {
+                EnumFacing face = message.getFace();
+                if (face != null) UMCCopyService.handleCopy(player, stack, message.getPos(), face);
                 break;
-            case PASTE:
-                UMCPasteService.handlePaste(player, stack, message.getPos(), message.getFace());
+            }
+            case PASTE: {
+                EnumFacing face = message.getFace();
+                if (face != null) UMCPasteService.handlePaste(player, stack, message.getPos(), face);
                 break;
-            case SELECT:
-                UMCSelectionService.handleSelect(player, stack, message.getPos(), message.getFace());
+            }
+            case SELECT: {
+                EnumFacing face = message.getFace();
+                if (face != null) UMCSelectionService.handleSelect(player, stack, message.getPos(), face);
                 break;
+            }
             case CLEAR_CONFIG:
                 clearConfig(stack);
                 break;
@@ -327,15 +335,19 @@ public class ItemUniversalMemoryCard extends Item {
                 player.openGui(AE2Enhanced.instance, GUI_ID, player.world,
                         (int) player.posX, (int) player.posY, (int) player.posZ);
                 break;
-            case BIND_SOURCE:
-                UMCSelectionService.handleBindSource(player, stack, message.getPos(), message.getFace());
+            case BIND_SOURCE: {
+                EnumFacing face = message.getFace();
+                if (face != null) UMCSelectionService.handleBindSource(player, stack, message.getPos(), face);
                 break;
+            }
             case CLEAR_BINDINGS:
                 UMCSelectionService.handleClearBindings(player, message.getPos());
                 break;
-            case BIND_RECYCLER:
-                UMCSelectionService.handleBindRecycler(player, stack, message.getPos(), message.getFace());
+            case BIND_RECYCLER: {
+                EnumFacing face = message.getFace();
+                if (face != null) UMCSelectionService.handleBindRecycler(player, stack, message.getPos(), face);
                 break;
+            }
             case CLEAR_RECYCLER_BINDINGS:
                 UMCSelectionService.handleClearRecyclerBindings(player, message.getPos());
                 break;

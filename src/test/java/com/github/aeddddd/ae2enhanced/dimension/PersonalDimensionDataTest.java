@@ -44,13 +44,15 @@ public class PersonalDimensionDataTest {
         rules.lockTime = true;
         rules.timeValue = 18000L;
         original.setRules(PLAYER_B, rules);
-        // 未分配维度的条目（dimensionId == MIN_VALUE）不应进入反向索引
+        // 未分配维度的空条目（dimensionId == MIN_VALUE）不进入反向索引，也不会被持久化
         original.getEntry(PLAYER_C);
 
         PersonalDimensionData restored = new PersonalDimensionData();
         restored.readFromNBT(original.writeToNBT(new NBTTagCompound()));
 
-        assertThat(restored.getAllEntries()).hasSize(3);
+        assertThat(restored.getAllEntries()).hasSize(2);
+        // 空条目不持久化，恢复后不存在 C 的条目
+        assertThat(restored.peekEntry(PLAYER_C)).isNull();
 
         PlayerDimEntry a = restored.getEntry(PLAYER_A);
         assertThat(a.dimensionId).isEqualTo(10);

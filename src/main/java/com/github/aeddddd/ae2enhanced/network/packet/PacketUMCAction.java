@@ -50,7 +50,10 @@ public class PacketUMCAction implements IMessage {
 
     @Override
     public void fromBytes(ByteBuf buf) {
-        this.type = ActionType.values()[buf.readByte()];
+        int typeOrdinal = buf.readByte();
+        // 越界动作类型置 null,由 handler 判空丢弃,防止恶意字节导致数组越界崩服
+        this.type = typeOrdinal >= 0 && typeOrdinal < ActionType.values().length
+                ? ActionType.values()[typeOrdinal] : null;
         this.pos = buf.readLong();
         this.face = buf.readByte();
         this.index = buf.readInt();
@@ -73,7 +76,9 @@ public class PacketUMCAction implements IMessage {
     }
 
     public EnumFacing getFace() {
-        return EnumFacing.values()[face & 0xFF];
+        int idx = face & 0xFF;
+        // 越界面值返回 null,由调用方判空跳过,防止数组越界
+        return idx < EnumFacing.values().length ? EnumFacing.values()[idx] : null;
     }
 
     public int getIndex() {

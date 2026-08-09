@@ -49,6 +49,11 @@ public class BlackHoleCraftTweaker {
         public void apply() {
             Map<String, Integer> map = new HashMap<>();
             for (IItemStack stack : inputs) {
+                // ZenScript 数组可能含 null 元素,跳过并报错提示脚本作者
+                if (stack == null) {
+                    CraftTweakerAPI.logError("BlackHole.addRecipe: null input ingredient skipped for output " + output.getName());
+                    continue;
+                }
                 net.minecraft.item.ItemStack internal = (net.minecraft.item.ItemStack) stack.getInternal();
                 String key = BlackHoleRecipe.keyOf(internal);
                 map.merge(key, stack.getAmount(), Integer::sum);
@@ -59,6 +64,8 @@ public class BlackHoleCraftTweaker {
                     map,
                     outStack.copy()
             ));
+            // 黑洞配方变化后重建处理仓索引
+            com.github.aeddddd.ae2enhanced.chamber.ChamberRecipeIndex.markDirty();
         }
 
         @Override
@@ -79,6 +86,8 @@ public class BlackHoleCraftTweaker {
             // CraftTweaker 可能在 init() 之前执行,此时配方尚未注册.
             // 加入延迟队列,由 AE2Enhanced.init() 注册完成后统一移除.
             BlackHoleRecipeRegistry.queueRemoval(id);
+            // 黑洞配方变化后重建处理仓索引
+            com.github.aeddddd.ae2enhanced.chamber.ChamberRecipeIndex.markDirty();
         }
 
         @Override

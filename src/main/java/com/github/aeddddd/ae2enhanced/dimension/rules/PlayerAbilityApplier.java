@@ -7,6 +7,9 @@ import net.minecraft.entity.player.PlayerCapabilities;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.UUID;
 
 /**
  * 统一应用/重置个人维度的玩家能力（飞行、移动速度、飞行惯性）。
@@ -139,8 +142,41 @@ public final class PlayerAbilityApplier {
     }
 
     /**
+     * 进入个人维度前的玩家能力快照（运行时状态，不持久化）。
+     * 离开时优先恢复快照，避免破坏其他模组（如天使指环）提供的飞行/速度来源。
+     */
+    private static final Map<UUID, CapSnapshot> CAP_SNAPSHOTS = new HashMap<>();
+
+    /**
+     * 玩家能力快照。
+     */
+    private static final class CapSnapshot {
+        final boolean allowFlying;
+        final boolean isFlying;
+        final float flySpeed;
+        final float walkSpeed;
+
+        CapSnapshot(boolean allowFlying, boolean isFlying, float flySpeed, float walkSpeed) {
+            this.allowFlying = allowFlying;
+            this.isFlying = isFlying;
+            this.flySpeed = flySpeed;
+            this.walkSpeed = walkSpeed;
+        }
+    }
+
+    /**
+     * 玩家退出登录时清理能力快照，防止离线玩家 UUID 在 map 中累积泄漏。
+     */
+    public static void discardSnapshot(UUID playerId) {
+        CAP_SNAPSHOTS.remove(playerId);
+    }
+
+    /**
      * 根据个人维度规则应用飞行与移动速度。
      * 应在玩家进入维度、登录或规则变更时调用，不要在每 tick 调用。
+     *
+     * <p>首次进入时会快照玩家当前能力，离开维度时通过 {@link #resetAbilities}
+     * 恢复快照而非硬编码默认值，以兼容其他模组的飞行/速度来源。</p>
      *
      * @param player 目标玩家
      * @param rules  维度规则
@@ -148,6 +184,9 @@ public final class PlayerAbilityApplier {
      */
     public static boolean applyCapabilities(EntityPlayerMP player, PersonalDimensionRules rules) {
         PlayerCapabilities cap = player.capabilities;
+        // 仅在无快照时记录，避免维度内重复应用把已被修改的能力当作"原始状态"
+        CAP_SNAPSHOTS.computeIfAbsent(player.getUniqueID(), id -> new CapSnapshot(
+                cap.allowFlying, cap.isFlying, getFlySpeedSafe(cap), getWalkSpeedSafe(cap)));
         boolean changed = false;
 
         boolean shouldFly = player.isCreative() || rules.flightEnabled;
@@ -187,31 +226,61 @@ public final class PlayerAbilityApplier {
     }
 
     /**
-     * 将玩家能力恢复为默认值。
+     * 恢复玩家能力。
      *
-     * <p>仅在玩家离开个人维度或重生时调用。创造模式玩家的飞行能力不会被清除。</p>
+     * <p>仅在玩家离开个人维度或重生时调用。优先恢复进入维度前的能力快照
+     * （保留其他模组授予的飞行/速度来源）；无快照时（如直接出生在维度外等边界）
+     * 才回退到原版默认值。创造模式玩家的能力不会被修改。</p>
      *
      * @param player 目标玩家
      */
     public static void resetAbilities(EntityPlayerMP player) {
-        if (player.isCreative()) return;
+        if (player.isCreative()) {
+            CAP_SNAPSHOTS.remove(player.getUniqueID());
+            return;
+        }
         PlayerCapabilities cap = player.capabilities;
+        CapSnapshot snapshot = CAP_SNAPSHOTS.remove(player.getUniqueID());
         boolean changed = false;
-        if (cap.allowFlying) {
-            cap.allowFlying = false;
-            changed = true;
-        }
-        if (cap.isFlying) {
-            cap.isFlying = false;
-            changed = true;
-        }
-        if (Math.abs(getWalkSpeedSafe(cap) - 0.1f) > 1e-4f) {
-            setWalkSpeedSafe(cap, 0.1f);
-            changed = true;
-        }
-        if (Math.abs(getFlySpeedSafe(cap) - 0.05f) > 1e-4f) {
-            setFlySpeedSafe(cap, 0.05f);
-            changed = true;
+        if (snapshot != null) {
+            // 恢复快照：回到进入维度前的状态，不破坏其他模组的飞行/速度来源
+            boolean targetAllow = snapshot.allowFlying;
+            if (cap.allowFlying != targetAllow) {
+                cap.allowFlying = targetAllow;
+                changed = true;
+            }
+            // 快照中的飞行状态仅在允许飞行时恢复
+            boolean targetFlying = snapshot.isFlying && targetAllow;
+            if (cap.isFlying != targetFlying) {
+                cap.isFlying = targetFlying;
+                changed = true;
+            }
+            if (Math.abs(getWalkSpeedSafe(cap) - snapshot.walkSpeed) > 1e-4f) {
+                setWalkSpeedSafe(cap, snapshot.walkSpeed);
+                changed = true;
+            }
+            if (Math.abs(getFlySpeedSafe(cap) - snapshot.flySpeed) > 1e-4f) {
+                setFlySpeedSafe(cap, snapshot.flySpeed);
+                changed = true;
+            }
+        } else {
+            // 无快照时回退原版默认值
+            if (cap.allowFlying) {
+                cap.allowFlying = false;
+                changed = true;
+            }
+            if (cap.isFlying) {
+                cap.isFlying = false;
+                changed = true;
+            }
+            if (Math.abs(getWalkSpeedSafe(cap) - 0.1f) > 1e-4f) {
+                setWalkSpeedSafe(cap, 0.1f);
+                changed = true;
+            }
+            if (Math.abs(getFlySpeedSafe(cap) - 0.05f) > 1e-4f) {
+                setFlySpeedSafe(cap, 0.05f);
+                changed = true;
+            }
         }
         if (changed) {
             player.sendPlayerAbilities();

@@ -88,6 +88,8 @@ public class RenderHyperdimensionalController extends TileEntitySpecialRenderer<
         boolean fogWasEnabled = GL11.glIsEnabled(GL11.GL_FOG);
         boolean alphaTestWasEnabled = GL11.glIsEnabled(GL11.GL_ALPHA_TEST);
         boolean colorMaterialWasEnabled = GL11.glIsEnabled(GL11.GL_COLOR_MATERIAL);
+        boolean lightingWasEnabled = GL11.glIsEnabled(GL11.GL_LIGHTING);
+        int shadeModelWas = GL11.glGetInteger(GL11.GL_SHADE_MODEL);
 
         // 保存并禁用光照纹理单元(单元1),防止其调制顶点颜色为黑色
         GlStateManager.setActiveTexture(OpenGlHelper.lightmapTexUnit);
@@ -96,6 +98,7 @@ public class RenderHyperdimensionalController extends TileEntitySpecialRenderer<
             GlStateManager.disableTexture2D();
         }
         GlStateManager.setActiveTexture(OpenGlHelper.defaultTexUnit);
+        boolean texture2DWasEnabled = GL11.glIsEnabled(GL11.GL_TEXTURE_2D);
 
         GlStateManager.depthMask(false);
         GlStateManager.enableBlend();
@@ -158,9 +161,19 @@ public class RenderHyperdimensionalController extends TileEntitySpecialRenderer<
             drawCenterCore(pulse);
 
         } finally {
-            GlStateManager.shadeModel(GL11.GL_FLAT);
-            GlStateManager.enableTexture2D();
-            GlStateManager.enableLighting();
+            GlStateManager.shadeModel(shadeModelWas);
+            if (texture2DWasEnabled) {
+                GlStateManager.enableTexture2D();
+            } else {
+                GlStateManager.disableTexture2D();
+            }
+            if (lightingWasEnabled) {
+                GL11.glEnable(GL11.GL_LIGHTING);
+                GlStateManager.enableLighting();
+            } else {
+                GL11.glDisable(GL11.GL_LIGHTING);
+                GlStateManager.disableLighting();
+            }
             GlStateManager.depthMask(true);
             if (!blendWasEnabled) {
                 GlStateManager.disableBlend();

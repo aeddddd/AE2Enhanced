@@ -31,6 +31,9 @@ public class StructureEventHandler {
     // 按维度分离的待验证控制器位置 -> 剩余 tick
     private static final Map<Integer, Map<BlockPos, Integer>> pendingChecks = new HashMap<>();
 
+    /** 结构最大半径（切比雪夫距离）：取最大结构 Supercausal 的 ±12 并留余量,用于变更点粗筛 */
+    private static final int MAX_STRUCTURE_RADIUS = 16;
+
     @SubscribeEvent
     public static void onNeighborNotify(net.minecraftforge.event.world.BlockEvent.NeighborNotifyEvent event) {
         World world = event.getWorld();
@@ -120,6 +123,8 @@ public class StructureEventHandler {
      * 未完全加载时返回 false,防止 validate 误判导致 disassemble.
      */
     private static boolean areAllChunksLoadedForController(World world, BlockPos controllerPos) {
+        // 先检查控制器所在 chunk 是否已加载,避免 getBlockState 同步加载未加载 chunk 引发级联雪崩
+        if (!world.isBlockLoaded(controllerPos)) return false;
         IBlockState state = world.getBlockState(controllerPos);
         Block block = state.getBlock();
         if (block instanceof BlockAssemblyController) {
@@ -152,6 +157,10 @@ public class StructureEventHandler {
         if (index != null) {
             Set<BlockPos> controllers = index.getAll();
             for (BlockPos controllerPos : controllers) {
+                // 粗筛：切比雪夫距离超过结构最大半径的控制器不可能包含变更点
+                if (chebyshevDistance(changedPos, controllerPos) > MAX_STRUCTURE_RADIUS) continue;
+                // 未加载的 chunk 不触发 getBlockState,避免级联加载
+                if (!world.isBlockLoaded(controllerPos)) continue;
                 IBlockState state = world.getBlockState(controllerPos);
                 Block block = state.getBlock();
                 EnumFacing facing;
@@ -165,7 +174,8 @@ public class StructureEventHandler {
                 } else if (block instanceof BlockHyperdimensionalController) {
                     facing = state.getValue(BlockHyperdimensionalController.FACING);
                     BlockPos rel = changedPos.subtract(controllerPos);
-                    BlockPos rotatedRel = HyperdimensionalStructure.rotate(rel, facing.getOpposite());
+                    // 世界坐标 → 基准坐标需用逆旋转：NORTH 恒等、SOUTH 180°（自逆）、EAST/WEST 互逆
+                    BlockPos rotatedRel = HyperdimensionalStructure.toCanonical(rel, facing);
                     if (HyperdimensionalStructure.ALL_SET.contains(rotatedRel)) {
                         scheduleCheck(world.provider.getDimension(), controllerPos);
                     }
@@ -176,12 +186,16 @@ public class StructureEventHandler {
         ComputationCoreIndex compIndex = ComputationCoreIndex.get(world);
         if (compIndex != null) {
             for (BlockPos controllerPos : compIndex.getAll()) {
+                // 粗筛 + 未加载 chunk 保护,同上
+                if (chebyshevDistance(changedPos, controllerPos) > MAX_STRUCTURE_RADIUS) continue;
+                if (!world.isBlockLoaded(controllerPos)) continue;
                 IBlockState state = world.getBlockState(controllerPos);
                 Block block = state.getBlock();
                 if (block instanceof BlockComputationCore) {
                     EnumFacing facing = state.getValue(BlockComputationCore.FACING);
                     BlockPos rel = changedPos.subtract(controllerPos);
-                    BlockPos rotatedRel = SupercausalStructure.rotate(rel, facing.getOpposite());
+                    // 世界坐标 → 基准坐标需用逆旋转（结构旋转朝向为 FACING.getOpposite()）
+                    BlockPos rotatedRel = SupercausalStructure.toCanonical(rel, facing.getOpposite());
                     if (SupercausalStructure.ALL_STRUCTURE_SET.contains(rotatedRel)) {
                         scheduleCheck(world.provider.getDimension(), controllerPos);
                     }
@@ -192,6 +206,19 @@ public class StructureEventHandler {
 
     private static void scheduleCheck(int dimId, BlockPos controllerPos) {
         pendingChecks.computeIfAbsent(dimId, k -> new HashMap<>()).put(controllerPos, 20);
+    }
+
+    /** 世界卸载时清理该维度的待验证队列,避免静态 Map 泄漏 */
+    @SubscribeEvent
+    public static void onWorldUnload(net.minecraftforge.event.world.WorldEvent.Unload event) {
+        World world = event.getWorld();
+        if (world.isRemote) return;
+        pendingChecks.remove(world.provider.getDimension());
+    }
+
+    private static int chebyshevDistance(BlockPos a, BlockPos b) {
+        return Math.max(Math.max(Math.abs(a.getX() - b.getX()), Math.abs(a.getY() - b.getY())),
+                Math.abs(a.getZ() - b.getZ()));
     }
 
     private static void validateAndUpdate(World world, BlockPos controllerPos) {
