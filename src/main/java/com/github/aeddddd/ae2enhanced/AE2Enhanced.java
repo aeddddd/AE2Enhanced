@@ -37,7 +37,7 @@ public class AE2Enhanced {
 
     public static final String MOD_ID = "ae2enhanced";
     public static final String MOD_NAME = "AE2Enhanced";
-    public static final String VERSION = "1.7.1";
+    public static final String VERSION = "1.7.2";
 
     public static final String CLIENT_PROXY = "com.github.aeddddd.ae2enhanced.proxy.ClientProxy";
     public static final String SERVER_PROXY = "com.github.aeddddd.ae2enhanced.proxy.CommonProxy";
@@ -103,6 +103,9 @@ public class AE2Enhanced {
     @Mod.EventHandler
     public void serverStarted(FMLServerStartedEvent event) {
         PersonalDimensionManager.onServerStarted(event);
+        // 世界加载完成后使处理仓配方索引失效,首次使用时以完整注册表重建
+        //（cells/CraftTweaker 等在 init 之后才完成注册,过早构建会漏配方）
+        com.github.aeddddd.ae2enhanced.chamber.ChamberRecipeIndex.markDirty();
     }
 
     @Mod.EventHandler

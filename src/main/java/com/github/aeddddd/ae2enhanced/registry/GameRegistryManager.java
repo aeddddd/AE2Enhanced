@@ -72,6 +72,7 @@ public final class GameRegistryManager {
             ItemRegistry.STARLIGHT_DROP = new com.github.aeddddd.ae2enhanced.item.ItemStarlightDrop();
         }
         ItemRegistry.ME_OMNI_TOOL = new ItemAdvancedMEOmniTool();
+        ItemRegistry.NETWORK_LINK_CREDENTIAL = new ItemNetworkLinkCredential();
         ItemRegistry.ME_PLACEMENT_TOOL = new ItemMEPlacementTool();
         ItemRegistry.VIRTUAL_PARALLEL_CARD = new ItemVirtualParallelCard();
         ItemRegistry.SINGULARITY_CONSTRICTOR = new com.github.aeddddd.ae2enhanced.item.ItemSingularityConstrictor();
@@ -159,7 +160,7 @@ public final class GameRegistryManager {
             new ItemBlock(BlockRegistry.ASSEMBLY_CASING).setRegistryName(BlockRegistry.ASSEMBLY_CASING.getRegistryName()).setCreativeTab(AE2Enhanced.CREATIVE_TAB),
             new ItemBlock(BlockRegistry.ASSEMBLY_INNER_WALL).setRegistryName(BlockRegistry.ASSEMBLY_INNER_WALL.getRegistryName()).setCreativeTab(AE2Enhanced.CREATIVE_TAB),
             new ItemBlock(BlockRegistry.ASSEMBLY_STABILIZER).setRegistryName(BlockRegistry.ASSEMBLY_STABILIZER.getRegistryName()).setCreativeTab(AE2Enhanced.CREATIVE_TAB),
-            new ItemBlockMicroSingularity(BlockRegistry.MICRO_SINGULARITY).setRegistryName(BlockRegistry.MICRO_SINGULARITY.getRegistryName()).setCreativeTab(AE2Enhanced.CREATIVE_TAB),
+            // 微型奇点无 ItemBlock：方块仅由仪式/物品恢复生成,创造栏提供被约束奇点物品（对齐 1.20.1）
             new ItemBlock(BlockRegistry.HYPERDIMENSIONAL_CONTROLLER).setRegistryName(BlockRegistry.HYPERDIMENSIONAL_CONTROLLER.getRegistryName()).setCreativeTab(AE2Enhanced.CREATIVE_TAB),
             new ItemBlock(BlockRegistry.HYPERDIMENSIONAL_ME_INTERFACE).setRegistryName(BlockRegistry.HYPERDIMENSIONAL_ME_INTERFACE.getRegistryName()).setCreativeTab(AE2Enhanced.CREATIVE_TAB),
             new ItemBlock(BlockRegistry.HYPERDIMENSIONAL_CASING).setRegistryName(BlockRegistry.HYPERDIMENSIONAL_CASING.getRegistryName()).setCreativeTab(AE2Enhanced.CREATIVE_TAB),
@@ -227,6 +228,7 @@ public final class GameRegistryManager {
             event.getRegistry().register(ItemRegistry.STARLIGHT_DROP);
         }
         event.getRegistry().register(ItemRegistry.ME_OMNI_TOOL);
+        event.getRegistry().register(ItemRegistry.NETWORK_LINK_CREDENTIAL);
         event.getRegistry().register(ItemRegistry.ME_PLACEMENT_TOOL);
         event.getRegistry().register(ItemRegistry.VIRTUAL_PARALLEL_CARD);
         event.getRegistry().register(ItemRegistry.SINGULARITY_CONSTRICTOR);
@@ -277,6 +279,27 @@ public final class GameRegistryManager {
         // 智能样板合并配方（动态：智能样板 + 已编码样板 → 追加配方）
         event.getRegistry().register(new com.github.aeddddd.ae2enhanced.crafting.smartpattern.RecipeSmartPatternMerge()
                 .setRegistryName(AE2Enhanced.MOD_ID, "smart_pattern_merge"));
+
+        // 指环飞升配方（指环 + 无限时间被约束微型奇点 → 进度+1,共 16 次,要求阶段 III）
+        if (AE2EnhancedConfig.ring.enableAscendRecipe) {
+            event.getRegistry().register(new com.github.aeddddd.ae2enhanced.crafting.RecipeRingAscend(
+                    new ResourceLocation(AE2Enhanced.MOD_ID, "ring_ascend")));
+        }
+
+        // 指环阶段升级配方（I→II→III,消耗大量模组后期材料,3x3 摆满精确匹配）
+        if (AE2EnhancedConfig.ring.enableTierRecipes) {
+            // I → II: 4×稳态时空流形 + 2×微分形式稳定单元 + 2×共形不变荷
+            event.getRegistry().register(new com.github.aeddddd.ae2enhanced.crafting.RecipeRingTierUpgrade(
+                    new ResourceLocation(AE2Enhanced.MOD_ID, "ring_tier_2"), 0,
+                    ItemRegistry.STABLE_SPACETIME_MANIFOLD, 4,
+                    ItemRegistry.DIFFERENTIAL_FORM_STABILIZER, 2,
+                    ItemRegistry.CONFORMAL_CHARGE, 2));
+            // II → III: 4×微分形式稳定单元 + 4×共形不变荷
+            event.getRegistry().register(new com.github.aeddddd.ae2enhanced.crafting.RecipeRingTierUpgrade(
+                    new ResourceLocation(AE2Enhanced.MOD_ID, "ring_tier_3"), 1,
+                    ItemRegistry.DIFFERENTIAL_FORM_STABILIZER, 4,
+                    ItemRegistry.CONFORMAL_CHARGE, 4));
+        }
     }
 
     @SubscribeEvent

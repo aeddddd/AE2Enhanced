@@ -87,14 +87,17 @@ public class ClientProxy extends CommonProxy {
         ClientRegistry.registerKeyBinding(TOGGLE_MAGNET_KEY);
         ClientRegistry.registerKeyBinding(com.github.aeddddd.ae2enhanced.guide.GuideHotkeyHandler.OPEN_GUIDE_KEY);
         KeyHandlerOmniTool.init();
+        com.github.aeddddd.ae2enhanced.client.handler.KeyHandlerRing.init();
     }
 
     @Override
     public void init(FMLInitializationEvent event) {
         super.init(event);
         MinecraftForge.EVENT_BUS.register(new KeyHandlerOmniTool());
+        MinecraftForge.EVENT_BUS.register(new com.github.aeddddd.ae2enhanced.client.handler.KeyHandlerRing());
         com.github.aeddddd.ae2enhanced.item.ItemUniversalMemoryCard.registerClientEvents();
         MinecraftForge.EVENT_BUS.register(new SelectionBoxRenderer());
+        MinecraftForge.EVENT_BUS.register(new com.github.aeddddd.ae2enhanced.client.render.CollectorBoundsRenderer());
         MinecraftForge.EVENT_BUS.register(new com.github.aeddddd.ae2enhanced.client.hud.PlacementToolHudRenderer());
         MinecraftForge.EVENT_BUS.register(new com.github.aeddddd.ae2enhanced.client.render.PlacementPreviewRenderer());
         MinecraftForge.EVENT_BUS.register(new ChunkPowerHighlightRenderer());
@@ -210,7 +213,7 @@ public class ClientProxy extends CommonProxy {
         registerBlockItemModel(BlockRegistry.ASSEMBLY_CASING);
         registerBlockItemModel(BlockRegistry.ASSEMBLY_INNER_WALL);
         registerBlockItemModel(BlockRegistry.ASSEMBLY_STABILIZER);
-        registerBlockItemModel(BlockRegistry.MICRO_SINGULARITY);
+        // 微型奇点无 ItemBlock,无需注册物品模型
         registerBlockItemModel(BlockRegistry.SINGULARITY_CHAMBER);
 
         registerBlockItemModel(BlockRegistry.HYPERDIMENSIONAL_CONTROLLER);
@@ -354,6 +357,9 @@ public class ClientProxy extends CommonProxy {
         }
         if (ItemRegistry.CONSTRAINED_MICRO_SINGULARITY != null) {
             registerItemModel(ItemRegistry.CONSTRAINED_MICRO_SINGULARITY);
+        }
+        if (ItemRegistry.NETWORK_LINK_CREDENTIAL != null) {
+            registerItemModel(ItemRegistry.NETWORK_LINK_CREDENTIAL);
         }
 
         // 先进ME工具：4模式使用 ItemMeshDefinition 动态切换模型

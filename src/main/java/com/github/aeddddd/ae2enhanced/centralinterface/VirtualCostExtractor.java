@@ -14,6 +14,7 @@ import appeng.api.storage.data.IAEFluidStack;
 import appeng.api.storage.data.IAEItemStack;
 import appeng.api.storage.data.IAEStack;
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
+import com.github.aeddddd.ae2enhanced.storage.energy.EnergyChannelResolver;
 import net.minecraftforge.fml.common.Loader;
 
 import java.util.ArrayList;
@@ -31,6 +32,9 @@ import java.util.List;
 public class VirtualCostExtractor {
 
     private static final double ENERGY_EPSILON = 0.0001;
+
+    /** 能量路由的栈类名 token,用于 Flux_Applied 外部通道生效时的特判 */
+    private static final String ENERGY_ROUTE_TOKEN = "AEEnergyStack";
 
     /**
      * 非物品/流体通道的显式路由表。
@@ -69,7 +73,7 @@ public class VirtualCostExtractor {
     }
 
     private static final List<ChannelRoute> CHANNEL_ROUTES = Arrays.asList(
-            new ChannelRoute("AEEnergyStack",
+            new ChannelRoute(ENERGY_ROUTE_TOKEN,
                     "com.github.aeddddd.ae2enhanced.storage.energy.IEnergyStorageChannel"),
             new ChannelRoute("AEManaStack",
                     "com.github.aeddddd.ae2enhanced.storage.mana.IManaStorageChannel"),
@@ -221,8 +225,18 @@ public class VirtualCostExtractor {
                                               ChannelRoute route) {
         if (!route.isAvailable()) return null;
         try {
-            Class<?> channelClass = Class.forName(route.channelClassName);
-            IStorageChannel channel = AEApi.instance().storage().getStorageChannel((Class) channelClass);
+            IStorageChannel channel;
+            IAEStack request = cost;
+            if (ENERGY_ROUTE_TOKEN.equals(route.classNameToken) && EnergyChannelResolver.isFluxChannelActive()) {
+                // Flux_Applied 通道生效: AE2E 自有能量通道未注册,
+                // 且请求堆叠必须为 FluxStack(AEEnergyStack 进 FluxList 会 CCE)
+                channel = (IStorageChannel) EnergyChannelResolver.getChannel();
+                request = EnergyChannelResolver.createStack(cost.getStackSize());
+                if (request == null) return null;
+            } else {
+                Class<?> channelClass = Class.forName(route.channelClassName);
+                channel = AEApi.instance().storage().getStorageChannel((Class) channelClass);
+            }
             if (channel == null) {
                 AE2Enhanced.LOGGER.warn("[AE2E-CostExtract] channel {} not registered", route.channelClassName);
                 return null;
@@ -234,7 +248,7 @@ public class VirtualCostExtractor {
                 return null;
             }
 
-            return (IAEStack) monitor.extractItems(cost, mode, source);
+            return (IAEStack) monitor.extractItems(request, mode, source);
         } catch (Exception e) {
             AE2Enhanced.LOGGER.error("[AE2E] Failed to extract via channel {}: {}", route.channelClassName, e.toString(), e);
             return null;
@@ -268,7 +282,7 @@ public class VirtualCostExtractor {
         String className = stack.getClass().getName();
         for (ChannelRoute route : CHANNEL_ROUTES) {
             if (route.matches(className)) {
-                injectViaChannel(storage, stack, source, route.channelClassName);
+                injectViaChannel(storage, stack, source, route);
                 return;
             }
         }
@@ -276,16 +290,25 @@ public class VirtualCostExtractor {
     }
 
     @SuppressWarnings({"unchecked", "rawtypes"})
-    private static void injectViaChannel(IStorageGrid storage, IAEStack stack, IActionSource source, String channelClassName) {
+    private static void injectViaChannel(IStorageGrid storage, IAEStack stack, IActionSource source, ChannelRoute route) {
         try {
-            Class<?> channelClass = Class.forName(channelClassName);
-            IStorageChannel channel = AEApi.instance().storage().getStorageChannel((Class) channelClass);
+            IStorageChannel channel;
+            IAEStack input = stack;
+            if (ENERGY_ROUTE_TOKEN.equals(route.classNameToken) && EnergyChannelResolver.isFluxChannelActive()) {
+                // 与 extractViaChannel 同理: Flux 通道下必须注入 FluxStack
+                channel = (IStorageChannel) EnergyChannelResolver.getChannel();
+                input = EnergyChannelResolver.createStack(stack.getStackSize());
+                if (input == null) return;
+            } else {
+                Class<?> channelClass = Class.forName(route.channelClassName);
+                channel = AEApi.instance().storage().getStorageChannel((Class) channelClass);
+            }
             if (channel == null) return;
 
             IMEInventory monitor = storage.getInventory(channel);
             if (monitor == null) return;
 
-            monitor.injectItems(stack, Actionable.MODULATE, source);
+            monitor.injectItems(input, Actionable.MODULATE, source);
         } catch (Exception ignored) {
         }
     }

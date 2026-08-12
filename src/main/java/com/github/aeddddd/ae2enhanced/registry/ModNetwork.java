@@ -66,7 +66,7 @@ import net.minecraftforge.fml.relauncher.Side;
  *
  * <p>discriminator 维护说明：全部包 ID 已从 0 起重排为单调递增的连续编号。
  * 新增网络包请从末尾递增分配，并同步更新此注释中的下一个可用 ID。
- * 下一个可用 ID：52</p>
+ * 下一个可用 ID：58</p>
  */
 public final class ModNetwork {
 
@@ -126,8 +126,6 @@ public final class ModNetwork {
                 com.github.aeddddd.ae2enhanced.network.packet.PacketChamberSync.class, 45, Side.CLIENT);
         nw.registerMessage(com.github.aeddddd.ae2enhanced.network.packet.PacketChamberAction.Handler.class,
                 com.github.aeddddd.ae2enhanced.network.packet.PacketChamberAction.class, 46, Side.SERVER);
-        nw.registerMessage(com.github.aeddddd.ae2enhanced.network.packet.PacketChamberCatalog.Handler.class,
-                com.github.aeddddd.ae2enhanced.network.packet.PacketChamberCatalog.class, 47, Side.CLIENT);
         nw.registerMessage(PacketSpecialPlanInfo.Handler.class, PacketSpecialPlanInfo.class, 48, Side.CLIENT);
         nw.registerMessage(com.github.aeddddd.ae2enhanced.network.packet.PacketDisplayAction.Handler.class,
                 com.github.aeddddd.ae2enhanced.network.packet.PacketDisplayAction.class, 49, Side.SERVER);
@@ -135,5 +133,17 @@ public final class ModNetwork {
                 com.github.aeddddd.ae2enhanced.network.packet.PacketDisplayTick.class, 50, Side.CLIENT);
         nw.registerMessage(com.github.aeddddd.ae2enhanced.network.packet.PacketSmartPatternFill.Handler.class,
                 com.github.aeddddd.ae2enhanced.network.packet.PacketSmartPatternFill.class, 51, Side.SERVER);
+        nw.registerMessage(com.github.aeddddd.ae2enhanced.network.packet.PacketOpenRingGui.Handler.class,
+                com.github.aeddddd.ae2enhanced.network.packet.PacketOpenRingGui.class, 52, Side.SERVER);
+        nw.registerMessage(com.github.aeddddd.ae2enhanced.network.packet.PacketRingConfig.Handler.class,
+                com.github.aeddddd.ae2enhanced.network.packet.PacketRingConfig.class, 53, Side.SERVER);
+        nw.registerMessage(com.github.aeddddd.ae2enhanced.network.packet.PacketRingManualHeal.Handler.class,
+                com.github.aeddddd.ae2enhanced.network.packet.PacketRingManualHeal.class, 54, Side.SERVER);
+        nw.registerMessage(com.github.aeddddd.ae2enhanced.network.packet.PacketRingToggleFlight.Handler.class,
+                com.github.aeddddd.ae2enhanced.network.packet.PacketRingToggleFlight.class, 55, Side.SERVER);
+        nw.registerMessage(com.github.aeddddd.ae2enhanced.network.packet.PacketChunkPowerNodeSync.Handler.class,
+                com.github.aeddddd.ae2enhanced.network.packet.PacketChunkPowerNodeSync.class, 56, Side.CLIENT);
+        nw.registerMessage(com.github.aeddddd.ae2enhanced.network.packet.PacketChunkPowerNodeAction.Handler.class,
+                com.github.aeddddd.ae2enhanced.network.packet.PacketChunkPowerNodeAction.class, 57, Side.SERVER);
     }
 }

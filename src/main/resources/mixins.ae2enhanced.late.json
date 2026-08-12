@@ -1,5 +1,6 @@
 {
   "package": "com.github.aeddddd.ae2enhanced.mixin.late",
+  "plugin": "com.github.aeddddd.ae2enhanced.mixin.LateMixinPlugin",
   "refmap": "mixin.refmap.json",
   "target": "@env(DEFAULT)",
   "minVersion": "0.8",

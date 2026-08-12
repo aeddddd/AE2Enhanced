@@ -40,11 +40,9 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 /**
  * 奇点处理仓 — 后期单方块高并行处理机器.
@@ -87,7 +85,8 @@ public class TileSingularityChamber extends TileAENetworkBase implements ITickab
     private final List<Job> jobs = new ArrayList<>();
     /** 存档中尚未解析为配方对象的任务（等配方索引/CT 就绪后懒恢复） */
     private final NBTTagList pendingJobs = new NBTTagList();
-    private final Set<String> disabledRecipes = new HashSet<>();
+    /** 输入/能量/任务事件标记：无变化时跳过配方扫描（ExtendedAE dirty/stuck 思路） */
+    private boolean inputsDirty = true;
     private RedstoneMode redstoneMode = RedstoneMode.IGNORE;
     private MachineSource actionSource;
     private boolean flagsApplied = false;
@@ -100,6 +99,7 @@ public class TileSingularityChamber extends TileAENetworkBase implements ITickab
             int accepted = Math.min(maxReceive, ENERGY_CAPACITY - energy);
             if (!simulate && accepted > 0) {
                 energy += accepted;
+                inputsDirty = true;
                 markDirty();
             }
             return accepted;
@@ -150,6 +150,10 @@ public class TileSingularityChamber extends TileAENetworkBase implements ITickab
             if (stack.isEmpty()) {
                 return ItemStack.EMPTY;
             }
+            // 插入过滤：只接受能参与配方的物品
+            if (!ChamberRecipeIndex.isValidInput(normalizeInput(stack))) {
+                return stack;
+            }
             if (simulate) {
                 String key = LongItemStore.keyOf(normalizeInput(stack));
                 boolean known = inputStore.getCount(key) > 0;
@@ -185,12 +189,25 @@ public class TileSingularityChamber extends TileAENetworkBase implements ITickab
         final ChamberRecipe recipe;
         final long batches;
         final long requiredTime;
+        final long totalCost;
         long progress;
+        long paid;
 
-        Job(ChamberRecipe recipe, long batches, long requiredTime) {
+        Job(ChamberRecipe recipe, long batches, long requiredTime, long totalCost) {
             this.recipe = recipe;
             this.batches = batches;
             this.requiredTime = Math.max(1, requiredTime);
+            this.totalCost = totalCost;
+        }
+
+        /** 本 tick 应付能耗：剩余费用按剩余 tick 均摊（向上取整）,保证完成时恰好付清. */
+        long costThisTick() {
+            long remainingTicks = requiredTime - progress;
+            long remainingCost = totalCost - paid;
+            if (remainingTicks <= 0 || remainingCost <= 0) {
+                return 0;
+            }
+            return (remainingCost + remainingTicks - 1) / remainingTicks;
         }
     }
 
@@ -249,23 +266,31 @@ public class TileSingularityChamber extends TileAENetworkBase implements ITickab
 
         boolean paused = isPaused();
 
-        // 推进并结算任务（输出无空间时挂起,不销毁产物）
+        // 推进并结算任务：能耗随 tick 均摊支付,付不起则挂起（不销毁产物）
         if (!paused && !jobs.isEmpty()) {
+            int tickBudget = AE2EnhancedConfig.chamber.maxEnergyPerTick;
             Iterator<Job> it = jobs.iterator();
             while (it.hasNext()) {
                 Job job = it.next();
-                if (job.progress < job.requiredTime) {
+                long cost = job.costThisTick();
+                if (cost <= 0 || (energy >= cost && tickBudget >= cost)) {
+                    energy -= (int) cost;
+                    tickBudget -= (int) cost;
+                    job.paid += cost;
                     job.progress++;
                 }
+                // 付不起本 tick 的能耗：任务原地挂起
                 if (job.progress >= job.requiredTime && canAcceptOutput(job)) {
                     completeJob(job);
                     it.remove();
+                    inputsDirty = true;
                     markDirty();
                 }
             }
         }
 
-        if (!paused && world.getTotalWorldTime() % SCAN_INTERVAL == 0) {
+        if (!paused && inputsDirty && world.getTotalWorldTime() % SCAN_INTERVAL == 0) {
+            inputsDirty = false;
             startJobs();
         }
 
@@ -294,22 +319,7 @@ public class TileSingularityChamber extends TileAENetworkBase implements ITickab
         return redstoneMode == RedstoneMode.HIGH ? !powered : powered;
     }
 
-    // ---- 配方过滤 ----
-
-    public boolean isRecipeEnabled(String recipeId) {
-        return !disabledRecipes.contains(recipeId);
-    }
-
-    public void toggleRecipe(String recipeId) {
-        if (!disabledRecipes.remove(recipeId)) {
-            disabledRecipes.add(recipeId);
-        }
-        markDirty();
-    }
-
-    public Set<String> getDisabledRecipes() {
-        return disabledRecipes;
-    }
+    // ---- 配方过滤已移除：冲突由固定优先级解决（见 ChamberRecipeIndex） ----
 
     // ---- 任务调度 ----
 
@@ -359,12 +369,16 @@ public class TileSingularityChamber extends TileAENetworkBase implements ITickab
         return false;
     }
 
+    /**
+     * 扫描输入缓存,为可执行配方启动聚合任务.
+     * 批次上限 = 剩余通道 与 材料 与 当前能量可负担总量（energyPerBatch × batches ≤ energy）,
+     * 能耗不再启动时预付,而是随任务进度逐 tick 均摊支付.
+     */
     private void startJobs() {
         long free = getParallelChannels() - getUsedChannels();
         if (free <= 0) {
             return;
         }
-        int tickBudget = AE2EnhancedConfig.chamber.maxEnergyPerTick;
         int perBatch = AE2EnhancedConfig.chamber.energyPerBatch;
 
         Map<String, Long> available = new HashMap<>();
@@ -375,37 +389,44 @@ public class TileSingularityChamber extends TileAENetworkBase implements ITickab
         int speedDivisor = 1 + getSpeedCards();
 
         for (LongItemStore.Entry entry : new ArrayList<>(inputStore.getEntries())) {
-            if (free <= 0 || tickBudget < perBatch) {
+            if (free <= 0) {
                 break;
             }
             String key = LongItemStore.keyOf(entry.getTemplate());
+            // 每个输入 key 只启动优先级最高且可执行的一条配方（ExtendedAE：无逐配方开关,
+            // 冲突由注册顺序决定的固定优先级解决）
             for (ChamberRecipe recipe : ChamberRecipeIndex.recipesForInput(key, entry.getTemplate())) {
-                if (free <= 0 || tickBudget < perBatch) {
+                if (free <= 0) {
                     return;
                 }
-                if (!isRecipeEnabled(recipe.getId()) || hasActiveJob(recipe)) {
+                if (hasActiveJob(recipe)) {
                     continue;
                 }
                 long batches = recipe.maxBatches(available);
                 batches = Math.min(batches, free);
-                batches = Math.min(batches, (long) tickBudget / perBatch);
                 batches = Math.min(batches, (long) (energy / perBatch));
                 if (batches <= 0) {
                     continue;
                 }
 
-                for (Map.Entry<String, Long> input : recipe.getInputs().entrySet()) {
-                    long need = input.getValue() * batches;
-                    inputStore.extract(input.getKey(), need);
-                    available.merge(input.getKey(), -need, Long::sum);
+                // 按输入组消耗：组内替代按序抽取直至满足
+                for (ChamberRecipe.InputGroup group : recipe.getInputGroups()) {
+                    long need = group.getCount() * batches;
+                    for (String inputKey : group.getKeys()) {
+                        if (need <= 0) {
+                            break;
+                        }
+                        long got = inputStore.extract(inputKey, need);
+                        available.merge(inputKey, -got, Long::sum);
+                        need -= got;
+                    }
                 }
-                long cost = (long) perBatch * batches;
-                energy -= (int) Math.min(cost, Integer.MAX_VALUE);
-                tickBudget -= (int) Math.min(cost, Integer.MAX_VALUE);
                 free -= batches;
 
                 long requiredTime = Math.max(1, recipe.getTimeTicks() / speedDivisor);
-                jobs.add(new Job(recipe, batches, requiredTime));
+                jobs.add(new Job(recipe, batches, requiredTime, (long) perBatch * batches));
+                inputsDirty = true;
+                break;
             }
         }
         markDirty();
@@ -574,8 +595,16 @@ public class TileSingularityChamber extends TileAENetworkBase implements ITickab
      * 倒入原料（归一化后进入缓存）,返回未接收数量.
      */
     public long insertInput(ItemStack stack, long amount) {
+        // 插入过滤：只接受能参与配方的物品（管道路径在 wrapper 已过滤,此处兜底 GUI 倒入路径）
+        if (!ChamberRecipeIndex.isValidInput(normalizeInput(stack))) {
+            return amount;
+        }
         long rem = inputStore.insert(normalizeInput(stack), amount);
-        markDirty();
+        if (rem < amount) {
+            // 关键：原料变化必须置脏,否则调度扫描不会触发,任务永远不会启动
+            inputsDirty = true;
+            markDirty();
+        }
         return rem;
     }
 
@@ -592,6 +621,7 @@ public class TileSingularityChamber extends TileAENetworkBase implements ITickab
         if (taken <= 0) {
             return ItemStack.EMPTY;
         }
+        inputsDirty = true;
         markDirty();
         template.setCount((int) taken);
         return template;
@@ -602,6 +632,35 @@ public class TileSingularityChamber extends TileAENetworkBase implements ITickab
      */
     public ItemStack getInputTemplate(String key) {
         return inputStore.getTemplate(key);
+    }
+
+    /**
+     * 从输出缓冲取回物品（GUI 动作用）,返回实际取出的物品堆.
+     */
+    public ItemStack withdrawOutput(String key, int maxCount) {
+        ItemStack template = outputStore.getTemplate(key);
+        if (template.isEmpty()) {
+            return ItemStack.EMPTY;
+        }
+        long taken = outputStore.extract(key, maxCount);
+        if (taken <= 0) {
+            return ItemStack.EMPTY;
+        }
+        markDirty();
+        template.setCount((int) taken);
+        return template;
+    }
+
+    /**
+     * 活动任务快照（GUI 同步用）.
+     */
+    public List<com.github.aeddddd.ae2enhanced.network.packet.PacketChamberSync.JobView> getJobViews() {
+        List<com.github.aeddddd.ae2enhanced.network.packet.PacketChamberSync.JobView> views = new ArrayList<>();
+        for (Job job : jobs) {
+            views.add(new com.github.aeddddd.ae2enhanced.network.packet.PacketChamberSync.JobView(
+                    job.recipe.getOutput(), job.batches, job.progress, job.requiredTime));
+        }
+        return views;
     }
 
     // ---- 任务懒恢复 ----
@@ -621,8 +680,9 @@ public class TileSingularityChamber extends TileAENetworkBase implements ITickab
             NBTTagCompound tag = pendingJobs.getCompoundTagAt(i);
             ChamberRecipe recipe = byId.get(tag.getString("Id"));
             if (recipe != null) {
-                Job job = new Job(recipe, tag.getLong("Batches"), tag.getLong("Required"));
+                Job job = new Job(recipe, tag.getLong("Batches"), tag.getLong("Required"), tag.getLong("Cost"));
                 job.progress = tag.getLong("Progress");
+                job.paid = tag.getLong("Paid");
                 jobs.add(job);
                 pendingJobs.removeTag(i);
             }
@@ -667,11 +727,6 @@ public class TileSingularityChamber extends TileAENetworkBase implements ITickab
         for (int i = 0; i < jobList.tagCount(); i++) {
             pendingJobs.appendTag(jobList.getCompoundTagAt(i).copy());
         }
-        disabledRecipes.clear();
-        NBTTagList disabled = compound.getTagList("DisabledRecipes", Constants.NBT.TAG_STRING);
-        for (int i = 0; i < disabled.tagCount(); i++) {
-            disabledRecipes.add(disabled.getStringTagAt(i));
-        }
         redstoneMode = RedstoneMode.values()[compound.getInteger("RedstoneMode") % RedstoneMode.values().length];
     }
 
@@ -689,17 +744,14 @@ public class TileSingularityChamber extends TileAENetworkBase implements ITickab
             tag.setLong("Batches", job.batches);
             tag.setLong("Progress", job.progress);
             tag.setLong("Required", job.requiredTime);
+            tag.setLong("Cost", job.totalCost);
+            tag.setLong("Paid", job.paid);
             jobList.appendTag(tag);
         }
         for (int i = 0; i < pendingJobs.tagCount(); i++) {
             jobList.appendTag(pendingJobs.getCompoundTagAt(i).copy());
         }
         compound.setTag("Jobs", jobList);
-        NBTTagList disabled = new NBTTagList();
-        for (String id : disabledRecipes) {
-            disabled.appendTag(new net.minecraft.nbt.NBTTagString(id));
-        }
-        compound.setTag("DisabledRecipes", disabled);
         compound.setInteger("RedstoneMode", redstoneMode.ordinal());
         return compound;
     }

@@ -26,6 +26,7 @@ import appeng.api.storage.IMEInventoryHandler;
 import appeng.api.storage.IMEMonitorHandlerReceiver;
 import appeng.api.storage.IStorageChannel;
 import appeng.api.storage.data.IAEItemStack;
+import appeng.api.storage.data.IAEStack;
 import appeng.api.storage.data.IItemList;
 import appeng.api.util.AECableType;
 import appeng.api.util.IConfigManager;
@@ -49,7 +50,6 @@ import com.github.aeddddd.ae2enhanced.platform.energy.EnergyAdapterRegistry;
 import com.github.aeddddd.ae2enhanced.platform.energy.IEnergyAdapter;
 import com.github.aeddddd.ae2enhanced.registry.content.PartRegistry;
 import com.github.aeddddd.ae2enhanced.storage.channel.ChannelRegistrationManager;
-import com.github.aeddddd.ae2enhanced.storage.energy.AEEnergyStack;
 import com.github.aeddddd.ae2enhanced.storage.energy.EnergyChannelResolver;
 import com.github.aeddddd.ae2enhanced.storage.energy.ExternalEnergyMonitor;
 import com.github.aeddddd.ae2enhanced.storage.energy.IAEEnergyStack;
@@ -87,8 +87,9 @@ import java.util.Objects;
  * DEEnergyAdapter 实现 long 级读取与存取,突破 Forge int 上限.
  * </p>
  */
+@SuppressWarnings({"rawtypes", "unchecked"})
 public class PartEnergyStorageBus extends PartUpgradeable implements IGridTickable, ICellContainer,
-        IMEMonitorHandlerReceiver<IAEEnergyStack>, IPriorityHost {
+        IMEMonitorHandlerReceiver, IPriorityHost {
 
     public static final ResourceLocation MODEL_BASE = new ResourceLocation(AE2Enhanced.MOD_ID, "part/energy_storage_bus_base");
 
@@ -109,7 +110,7 @@ public class PartEnergyStorageBus extends PartUpgradeable implements IGridTickab
     private int priority = 0;
     private boolean cached = false;
     private ExternalEnergyMonitor monitor = null;
-    private MEInventoryHandler<IAEEnergyStack> handler = null;
+    private MEInventoryHandler handler = null;
     private int handlerHash = 0;
     private boolean wasActive = false;
     private byte resetCacheLogic = 0;
@@ -222,13 +223,13 @@ public class PartEnergyStorageBus extends PartUpgradeable implements IGridTickab
     }
 
     @Override
-    public void postChange(IBaseMonitor<IAEEnergyStack> monitor, Iterable<IAEEnergyStack> change, IActionSource source) {
+    public void postChange(IBaseMonitor monitor, Iterable change, IActionSource source) {
         if (this.getProxy().isActive()) {
             // 同步轮询基线,避免自身操作被轮询重复上报
             if (this.monitor != null) {
                 this.lastKnownStored = this.monitor.getStoredEnergy();
             }
-            Iterable<IAEEnergyStack> filteredChanges = this.filterChanges(change);
+            Iterable filteredChanges = this.filterChanges(change);
             AccessRestriction currentAccess = (AccessRestriction) ((ConfigManager) this.getConfigManager()).getSetting(Settings.ACCESS);
             if (this.readOncePass) {
                 this.readOncePass = false;
@@ -315,11 +316,16 @@ public class PartEnergyStorageBus extends PartUpgradeable implements IGridTickab
         if (stored != this.lastKnownStored) {
             long delta = stored - this.lastKnownStored;
             this.lastKnownStored = stored;
-            IAEEnergyStack change = AEEnergyStack.createEmpty();
+            IAEStack change = EnergyChannelResolver.createStack(0);
+            if (change == null) {
+                return TickRateModulation.SLOWER;
+            }
             change.setStackSize(delta);
             try {
+                @SuppressWarnings("rawtypes")
+                java.util.List changes = Collections.singletonList(change);
                 this.getProxy().getStorage().postAlterationOfStoredItems(
-                        this.energyChannel(), Collections.singletonList(change), this.mySrc);
+                        this.energyChannel(), changes, this.mySrc);
             } catch (GridAccessException ignored) {
             }
             return TickRateModulation.FASTER;
@@ -330,8 +336,8 @@ public class PartEnergyStorageBus extends PartUpgradeable implements IGridTickab
     protected void resetCache() {
         boolean fullReset = this.resetCacheLogic == 2;
         this.resetCacheLogic = 0;
-        MEInventoryHandler<IAEEnergyStack> in = this.getInternalHandler();
-        IItemList<IAEEnergyStack> before = this.energyChannel().createList();
+        MEInventoryHandler in = this.getInternalHandler();
+        IItemList before = this.energyChannel().createList();
         if (in != null) {
             if (this.accessChanged) {
                 AccessRestriction currentAccess = (AccessRestriction) ((ConfigManager) this.getConfigManager()).getSetting(Settings.ACCESS);
@@ -351,8 +357,8 @@ public class PartEnergyStorageBus extends PartUpgradeable implements IGridTickab
         if (fullReset) {
             this.handlerHash = 0;
         }
-        MEInventoryHandler<IAEEnergyStack> out = this.getInternalHandler();
-        IItemList<IAEEnergyStack> after = this.energyChannel().createList();
+        MEInventoryHandler out = this.getInternalHandler();
+        IItemList after = this.energyChannel().createList();
         if (in != out) {
             if (out != null) {
                 after = out.getAvailableItems(after);
@@ -391,7 +397,7 @@ public class PartEnergyStorageBus extends PartUpgradeable implements IGridTickab
                 ? target.getBlockType().getRegistryName().toString() : "";
     }
 
-    public MEInventoryHandler<IAEEnergyStack> getInternalHandler() {
+    public MEInventoryHandler getInternalHandler() {
         if (this.cached) {
             return this.handler;
         }
@@ -414,13 +420,13 @@ public class PartEnergyStorageBus extends PartUpgradeable implements IGridTickab
             ExternalEnergyMonitor inv = this.getInventoryWrapper(target);
             if (inv != null) {
                 this.monitor = inv;
-                this.handler = new MEInventoryHandler<>(inv, this.energyChannel());
+                this.handler = new MEInventoryHandler(inv, this.energyChannel());
                 this.handler.setBaseAccess((AccessRestriction) this.getConfigManager().getSetting(Settings.ACCESS));
                 this.handler.setWhitelist(this.getInstalledUpgrades(Upgrades.INVERTER) > 0
                         ? IncludeExclude.BLACKLIST : IncludeExclude.WHITELIST);
                 this.handler.setPriority(this.priority);
                 this.handler.setStorageFilter((StorageFilter) this.getConfigManager().getSetting(Settings.STORAGE_FILTER));
-                IItemList<IAEEnergyStack> priorityList = this.energyChannel().createList();
+                IItemList priorityList = this.energyChannel().createList();
                 int slotsToUse = 18 + this.getInstalledUpgrades(Upgrades.CAPACITY) * 9;
                 for (int x = 0; x < this.config.getSlots() && x < slotsToUse; ++x) {
                     IAEItemStack is = this.config.getAEStackInSlot(x);
@@ -429,7 +435,11 @@ public class PartEnergyStorageBus extends PartUpgradeable implements IGridTickab
                     }
                     IAEEnergyStack energy = FakeEnergies.unpackEnergy(is);
                     if (energy != null) {
-                        priorityList.add(energy);
+                        // 按当前生效通道重建堆叠(Flux 通道下必须为 FluxStack)
+                        IAEStack channelStack = EnergyChannelResolver.createStack(energy.getStackSize());
+                        if (channelStack != null) {
+                            priorityList.add(channelStack);
+                        }
                     }
                 }
                 this.handler.setPartitionList(new PrecisePriorityList<>(priorityList));
@@ -459,7 +469,7 @@ public class PartEnergyStorageBus extends PartUpgradeable implements IGridTickab
 
     @Override
     public List<IMEInventoryHandler> getCellArray(IStorageChannel channel) {
-        MEInventoryHandler<IAEEnergyStack> out;
+        MEInventoryHandler out;
         if (ChannelRegistrationManager.isEnergyChannel(channel) && (out = this.getInternalHandler()) != null) {
             return Collections.singletonList(out);
         }
@@ -512,11 +522,12 @@ public class PartEnergyStorageBus extends PartUpgradeable implements IGridTickab
         return null;
     }
 
-    protected Iterable<IAEEnergyStack> filterChanges(Iterable<IAEEnergyStack> change) {
+    protected Iterable filterChanges(Iterable change) {
         Enum<?> storageFilter = this.getConfigManager().getSetting(Settings.STORAGE_FILTER);
         if (storageFilter == StorageFilter.EXTRACTABLE_ONLY && this.handler != null) {
-            ArrayList<IAEEnergyStack> filteredList = new ArrayList<>();
-            for (IAEEnergyStack stack : change) {
+            ArrayList<IAEStack> filteredList = new ArrayList<>();
+            for (Object o : change) {
+                IAEStack stack = (IAEStack) o;
                 if (!this.handler.passesBlackOrWhitelist(stack)) {
                     continue;
                 }
@@ -527,8 +538,7 @@ public class PartEnergyStorageBus extends PartUpgradeable implements IGridTickab
         return change;
     }
 
-    @SuppressWarnings("unchecked")
-    private IStorageChannel<IAEEnergyStack> energyChannel() {
-        return (IStorageChannel<IAEEnergyStack>) EnergyChannelResolver.getChannel();
+    private IStorageChannel energyChannel() {
+        return EnergyChannelResolver.getChannel();
     }
 }

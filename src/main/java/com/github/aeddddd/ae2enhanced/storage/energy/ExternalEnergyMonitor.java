@@ -7,6 +7,7 @@ import appeng.api.networking.security.IActionSource;
 import appeng.api.storage.IMEMonitor;
 import appeng.api.storage.IMEMonitorHandlerReceiver;
 import appeng.api.storage.IStorageChannel;
+import appeng.api.storage.data.IAEStack;
 import appeng.api.storage.data.IItemList;
 import com.github.aeddddd.ae2enhanced.platform.energy.IEnergyAdapter;
 import net.minecraft.tileentity.TileEntity;
@@ -27,23 +28,27 @@ import java.util.List;
  * 自身的 inject/extract 在 MODULATE 时通过监听器机制实时上报变化;
  * 外部途径(其它 mod 管道等)造成的变化由能源存储总线轮询上报.
  * </p>
+ * <p>
+ * 当 Flux_Applied 外部通道生效时,通道堆叠类型为 FluxStack 而非 IAEEnergyStack,
+ * 因此本类以 raw 类型实现,所有堆叠经 {@link EnergyChannelResolver#createStack(long)} 创建.
+ * </p>
  */
-public class ExternalEnergyMonitor implements IMEMonitor<IAEEnergyStack> {
+@SuppressWarnings({"rawtypes", "unchecked"})
+public class ExternalEnergyMonitor implements IMEMonitor {
 
     private final TileEntity tile;
     private final IEnergyAdapter adapter;
     private final IEnergyStorage cap;
-    private final IStorageChannel<IAEEnergyStack> channel;
-    private final List<IMEMonitorHandlerReceiver<IAEEnergyStack>> listeners = new ArrayList<>();
+    private final IStorageChannel channel;
+    private final List<IMEMonitorHandlerReceiver> listeners = new ArrayList<>();
 
     private StorageFilter storageFilter = StorageFilter.EXTRACTABLE_ONLY;
 
-    @SuppressWarnings("unchecked")
     public ExternalEnergyMonitor(TileEntity tile, IEnergyAdapter adapter, IEnergyStorage cap) {
         this.tile = tile;
         this.adapter = adapter;
         this.cap = cap;
-        this.channel = (IStorageChannel<IAEEnergyStack>) EnergyChannelResolver.getChannel();
+        this.channel = EnergyChannelResolver.getChannel();
     }
 
     public void setStorageFilter(StorageFilter filter) {
@@ -71,7 +76,7 @@ public class ExternalEnergyMonitor implements IMEMonitor<IAEEnergyStack> {
     }
 
     @Override
-    public IAEEnergyStack injectItems(IAEEnergyStack input, Actionable mode, IActionSource src) {
+    public IAEStack injectItems(IAEStack input, Actionable mode, IActionSource src) {
         if (input == null || !input.isMeaningful() || !isTileValid()) {
             return input;
         }
@@ -84,11 +89,11 @@ public class ExternalEnergyMonitor implements IMEMonitor<IAEEnergyStack> {
             notifyListeners(injected, src);
         }
         long remaining = requested - injected;
-        return remaining > 0 ? AEEnergyStack.create(remaining) : null;
+        return remaining > 0 ? EnergyChannelResolver.createStack(remaining) : null;
     }
 
     @Override
-    public IAEEnergyStack extractItems(IAEEnergyStack request, Actionable mode, IActionSource src) {
+    public IAEStack extractItems(IAEStack request, Actionable mode, IActionSource src) {
         if (request == null || !request.isMeaningful() || !isTileValid()) {
             return null;
         }
@@ -100,14 +105,17 @@ public class ExternalEnergyMonitor implements IMEMonitor<IAEEnergyStack> {
         if (mode == Actionable.MODULATE) {
             notifyListeners(-extracted, src);
         }
-        return AEEnergyStack.create(extracted);
+        return EnergyChannelResolver.createStack(extracted);
     }
 
     @Override
-    public IItemList<IAEEnergyStack> getAvailableItems(IItemList<IAEEnergyStack> out) {
+    public IItemList getAvailableItems(IItemList out) {
         long stored = getStoredEnergy();
         if (stored > 0 && passesStorageFilter()) {
-            out.addStorage(AEEnergyStack.create(stored));
+            IAEStack stack = EnergyChannelResolver.createStack(stored);
+            if (stack != null) {
+                out.addStorage(stack);
+            }
         }
         return out;
     }
@@ -124,22 +132,22 @@ public class ExternalEnergyMonitor implements IMEMonitor<IAEEnergyStack> {
     }
 
     @Override
-    public IStorageChannel<IAEEnergyStack> getChannel() {
+    public IStorageChannel getChannel() {
         return this.channel;
     }
 
     @Override
-    public IItemList<IAEEnergyStack> getStorageList() {
+    public IItemList getStorageList() {
         return getAvailableItems(this.channel.createList());
     }
 
     @Override
-    public void addListener(IMEMonitorHandlerReceiver<IAEEnergyStack> listener, Object verificationToken) {
+    public void addListener(IMEMonitorHandlerReceiver listener, Object verificationToken) {
         this.listeners.add(listener);
     }
 
     @Override
-    public void removeListener(IMEMonitorHandlerReceiver<IAEEnergyStack> listener) {
+    public void removeListener(IMEMonitorHandlerReceiver listener) {
         this.listeners.remove(listener);
     }
 
@@ -149,12 +157,12 @@ public class ExternalEnergyMonitor implements IMEMonitor<IAEEnergyStack> {
     }
 
     @Override
-    public boolean isPrioritized(IAEEnergyStack input) {
+    public boolean isPrioritized(IAEStack input) {
         return false;
     }
 
     @Override
-    public boolean canAccept(IAEEnergyStack input) {
+    public boolean canAccept(IAEStack input) {
         return input != null && input.isMeaningful() && isTileValid()
                 && this.adapter.getReceiveableEnergy(this.tile, this.cap) > 0;
     }
@@ -187,10 +195,13 @@ public class ExternalEnergyMonitor implements IMEMonitor<IAEEnergyStack> {
         if (this.listeners.isEmpty() || delta == 0) {
             return;
         }
-        IAEEnergyStack change = AEEnergyStack.createEmpty();
+        IAEStack change = EnergyChannelResolver.createStack(0);
+        if (change == null) {
+            return;
+        }
         change.setStackSize(delta);
-        List<IAEEnergyStack> changes = Collections.singletonList(change);
-        for (IMEMonitorHandlerReceiver<IAEEnergyStack> listener : new ArrayList<>(this.listeners)) {
+        List<IAEStack> changes = Collections.singletonList(change);
+        for (IMEMonitorHandlerReceiver listener : new ArrayList<>(this.listeners)) {
             listener.postChange(this, changes, src);
         }
     }

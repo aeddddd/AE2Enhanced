@@ -8,7 +8,7 @@ uniform float uTime;
 uniform float uIntensity;
 uniform float uScale;
 
-// 缩放由 Java 端每帧通过 uniform 上传（当前 scale 固定返回 1.0）
+// 缩放由 Java 端每帧通过 uniform 上传（装配枢纽 0.625,微型奇点 0.08）
 #define SCALE uScale
 
 float hash(float n) {
@@ -118,7 +118,7 @@ void main() {
         vec2 suv = vec2(theta * cos(phi), phi);
 
         vec2 cellId;
-        float d = hexCell(suv * 6.5, cellId);
+        float d = hexCell(suv * 4.5, cellId);
         // 细核心亮线 + 极窄柔光过渡
         float line = 1.0 - smoothstep(0.0, 0.055, d);
         float glow = 1.0 - smoothstep(0.02, 0.20, d);

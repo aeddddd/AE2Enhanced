@@ -21,7 +21,6 @@ tile.ae2enhanced.assembly_casing.name=組立ハブ外装
 tile.ae2enhanced.assembly_inner_wall.name=組立ハブ内壁
 tile.ae2enhanced.assembly_stabilizer.name=組立安定化装置
 tile.ae2enhanced.micro_singularity.name=マイクロシンギュラリティ
-tile.ae2enhanced.micro_singularity.tooltip=§8§o「事象の地平線から生まれた」§r\n§7アイテムを事象の地平線に投げた後、右クリックすることでブラックホールクラフトを行えます\n§7生成方法: §e64個のAE2シンギュラリティと、4個のネザースター§7を地面に投げ、\n§eネザースターを一個持った状態で設置されたMEコントローラーを右クリックすると§7マイクロシンギュラリティが生成されます
 
 jei.ae2enhanced.category.blackhole=ブラックホールクラフト
 jei.ae2enhanced.blackhole.hint=事象の地平線に投げ込む

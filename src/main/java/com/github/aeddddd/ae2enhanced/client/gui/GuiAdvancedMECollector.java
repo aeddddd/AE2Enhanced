@@ -3,11 +3,11 @@ package com.github.aeddddd.ae2enhanced.client.gui;
 import appeng.client.gui.implementations.GuiUpgradeable;
 import appeng.container.slot.SlotFake;
 import appeng.core.localization.GuiText;
-import com.github.aeddddd.ae2enhanced.AE2Enhanced;
 import com.github.aeddddd.ae2enhanced.client.gui.jei.GhostIngredientTarget;
 import com.github.aeddddd.ae2enhanced.container.ContainerAdvancedMECollector;
-import com.github.aeddddd.ae2enhanced.network.packet.PacketCollectorConfig;
+import com.github.aeddddd.ae2enhanced.tile.TileAdvancedMECollector;
 import mezz.jei.api.gui.IGhostIngredientHandler;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiButton;
 import net.minecraft.client.resources.I18n;
 import net.minecraft.entity.player.InventoryPlayer;
@@ -29,8 +29,7 @@ import java.util.List;
 public class GuiAdvancedMECollector extends GuiUpgradeable {
 
     private final ContainerAdvancedMECollector container;
-    private GuiButton increaseRangeButton;
-    private GuiButton decreaseRangeButton;
+    private GuiButton regionButton;
 
     public GuiAdvancedMECollector(InventoryPlayer inventoryPlayer, ContainerAdvancedMECollector container) {
         super(container);
@@ -41,10 +40,9 @@ public class GuiAdvancedMECollector extends GuiUpgradeable {
     @Override
     protected void addButtons() {
         super.addButtons();
-        this.increaseRangeButton = new GuiButton(100, this.guiLeft + 150, this.guiTop + 6, 20, 12, "+");
-        this.decreaseRangeButton = new GuiButton(101, this.guiLeft + 128, this.guiTop + 6, 20, 12, "-");
-        this.buttonList.add(this.increaseRangeButton);
-        this.buttonList.add(this.decreaseRangeButton);
+        this.regionButton = new GuiButton(100, this.guiLeft + 128, this.guiTop + 6, 44, 12,
+                I18n.format("gui.ae2enhanced.advanced_me_collector.region"));
+        this.buttonList.add(this.regionButton);
     }
 
     @Override
@@ -63,7 +61,9 @@ public class GuiAdvancedMECollector extends GuiUpgradeable {
         }
 
         // 范围显示
-        String rangeText = String.format("%d³", this.container.sideLength);
+        TileAdvancedMECollector tile = this.container.getTile();
+        String rangeText = I18n.format("gui.ae2enhanced.advanced_me_collector.range",
+                tile.getDimX(), tile.getDimY(), tile.getDimZ());
         int rangeTextWidth = this.fontRenderer.getStringWidth(rangeText);
         this.fontRenderer.drawString(rangeText, 120 - rangeTextWidth, 19, 0x404040);
     }
@@ -71,11 +71,8 @@ public class GuiAdvancedMECollector extends GuiUpgradeable {
     @Override
     protected void handleButtonVisibility() {
         super.handleButtonVisibility();
-        if (this.increaseRangeButton != null) {
-            this.increaseRangeButton.visible = true;
-        }
-        if (this.decreaseRangeButton != null) {
-            this.decreaseRangeButton.visible = true;
+        if (this.regionButton != null) {
+            this.regionButton.visible = true;
         }
         // 自定义方块,schedulingMode 不显示
         if (this.schedulingMode != null) {
@@ -91,10 +88,9 @@ public class GuiAdvancedMECollector extends GuiUpgradeable {
     @Override
     protected void actionPerformed(GuiButton btn) throws IOException {
         super.actionPerformed(btn);
-        if (btn == this.increaseRangeButton) {
-            AE2Enhanced.network.sendToServer(new PacketCollectorConfig(this.container.range + 1));
-        } else if (btn == this.decreaseRangeButton) {
-            AE2Enhanced.network.sendToServer(new PacketCollectorConfig(this.container.range - 1));
+        if (btn == this.regionButton) {
+            // 打开区域设置子界面(会关闭当前 Container,确认/取消后由服务端重开)
+            Minecraft.getMinecraft().displayGuiScreen(new GuiCollectorRegion(this.container.getTile()));
         }
     }
 

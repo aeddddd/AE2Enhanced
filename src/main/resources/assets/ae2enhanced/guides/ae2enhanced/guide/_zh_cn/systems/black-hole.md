@@ -3,8 +3,8 @@ navigation:
   title: 黑洞合成
   parent: systems.md
   position: 20
-  icon: micro_singularity
-item_ids: [micro_singularity, stable_spacetime_manifold, differential_form_stabilizer, conformal_invariant_charge]
+  icon: constrained_micro_singularity
+item_ids: [constrained_micro_singularity, singularity_constrictor, stable_spacetime_manifold, differential_form_stabilizer, conformal_invariant_charge]
 ---
 
 # 黑洞合成
@@ -15,7 +15,7 @@ item_ids: [micro_singularity, stable_spacetime_manifold, differential_form_stabi
 
 1. 在 ME 控制器附近的地面上丢出 **64 个 AE2 奇点**与 **4 个下界之星**.
 2. 手持 **1 个下界之星**右键 ME 控制器.
-3. 生成 <ItemLink id="micro_singularity" /> **微型奇点**, 存在时间为 6000 tick (300 秒). 世界合成消耗消耗目标周围 5x5x5 区域内的对应物品.
+3. 生成 <ItemLink id="constrained_micro_singularity" /> **微型奇点**, 存在时间为 6000 tick (300 秒). 世界合成消耗消耗目标周围 5x5x5 区域内的对应物品.
 
 自定义仪式可用 CraftTweaker 添加 (`mods.ae2enhanced.SingularityRitual`).
 
@@ -28,6 +28,7 @@ item_ids: [micro_singularity, stable_spacetime_manifold, differential_form_stabi
   - <ItemLink id="differential_form_stabilizer" /> 微分形式稳定单元: +48000 tick (2400 秒).
   - <ItemLink id="conformal_invariant_charge" /> 共形不变荷: 使其永久存在.
 - 存在时间耗尽后奇点坍缩消失.
+- 手持 <ItemLink id="singularity_constrictor" /> **奇点约束器**右键可将奇点约束为物品形态 (倒计时以 1/30 速度流逝). 扔出物品落地静置后恢复为方块形态, 并在原地返还空的约束器.
 
 ## 内置配方 (投入事件视界)
 

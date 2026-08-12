@@ -4,7 +4,6 @@ import appeng.api.config.FuzzyMode;
 import appeng.api.config.Settings;
 import appeng.api.config.Upgrades;
 import appeng.api.config.YesNo;
-import appeng.container.guisync.GuiSync;
 import appeng.container.implementations.ContainerUpgradeable;
 import appeng.container.slot.IOptionalSlotHost;
 import appeng.container.slot.OptionalSlotFakeTypeOnly;
@@ -15,7 +14,6 @@ import appeng.helpers.InventoryAction;
 import appeng.util.Platform;
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
 import com.github.aeddddd.ae2enhanced.item.ItemFluidDrop;
-import com.github.aeddddd.ae2enhanced.network.packet.PacketCollectorConfig;
 import com.github.aeddddd.ae2enhanced.tile.TileAdvancedMECollector;
 import com.github.aeddddd.ae2enhanced.util.fakeitem.FakeEssentiaSafe;
 import net.minecraft.entity.player.EntityPlayerMP;
@@ -35,12 +33,6 @@ import net.minecraftforge.items.IItemHandler;
 public class ContainerAdvancedMECollector extends ContainerUpgradeable implements IOptionalSlotHost {
 
     private final TileAdvancedMECollector tile;
-
-    @GuiSync(value = 10)
-    public int range = 2;
-
-    @GuiSync(value = 11)
-    public int sideLength = 5;
 
     public ContainerAdvancedMECollector(InventoryPlayer ip, TileAdvancedMECollector tile) {
         super(ip, tile);
@@ -95,8 +87,6 @@ public class ContainerAdvancedMECollector extends ContainerUpgradeable implement
         if (Platform.isServer()) {
             this.setFuzzyMode((FuzzyMode) this.getUpgradeable().getConfigManager().getSetting(Settings.FUZZY_MODE));
             this.setCraftingMode((YesNo) this.getUpgradeable().getConfigManager().getSetting(Settings.CRAFT_ONLY));
-            this.range = this.tile.getRange();
-            this.sideLength = this.tile.getActualSideLength();
         }
         this.standardDetectAndSendChanges();
     }

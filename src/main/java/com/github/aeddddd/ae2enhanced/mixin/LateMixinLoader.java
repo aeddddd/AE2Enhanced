@@ -23,7 +23,8 @@ public class LateMixinLoader implements ILateMixinLoader {
                 "mixins.ae2enhanced.late.json",
                 "mixins.ae2enhanced.late.tii.json",
                 "mixins.ae2enhanced.late.thaumic.json",
-                "mixins.ae2enhanced.late.gas.json"
+                "mixins.ae2enhanced.late.gas.json",
+                "mixins.ae2enhanced.late.ring.json"
         ));
         if (!Ae2fcCompat.AE2FC_LOADED) {
             configs.add("mixins.ae2enhanced.late.fluid.json");

@@ -227,6 +227,9 @@ public class CommandAE2Enhanced extends CommandBase {
             case "pd":
                 executePersonalDimension(server, sender, args);
                 break;
+            case "chamberdebug":
+                executeChamberDebug(sender);
+                break;
             case "help":
                 executeHelp(sender);
                 break;
@@ -246,6 +249,84 @@ public class CommandAE2Enhanced extends CommandBase {
         }
         sender.sendMessage(new TextComponentString(TextFormatting.RED + "[AE2E] You do not have permission to use this subcommand."));
         return false;
+    }
+
+    /**
+     * 奇点处理仓诊断：索引统计 + 手持物品/准星指向处理仓的配方匹配情况.
+     */
+    private void executeChamberDebug(@Nonnull ICommandSender sender) {
+        List<com.github.aeddddd.ae2enhanced.chamber.ChamberRecipe> all =
+                com.github.aeddddd.ae2enhanced.chamber.ChamberRecipeIndex.allRecipes();
+        Map<String, Integer> counts = new TreeMap<>();
+        for (com.github.aeddddd.ae2enhanced.chamber.ChamberRecipe r : all) {
+            String prefix = r.getId().contains(":")
+                    ? r.getId().substring(0, r.getId().indexOf(':')) : r.getId();
+            counts.merge(prefix, 1, Integer::sum);
+        }
+        sender.sendMessage(new TextComponentString(TextFormatting.GOLD
+                + "[ChamberDebug] index total=" + all.size() + " byType=" + counts));
+
+        if (!(sender instanceof net.minecraft.entity.player.EntityPlayer)) {
+            return;
+        }
+        net.minecraft.entity.player.EntityPlayer player = (net.minecraft.entity.player.EntityPlayer) sender;
+
+        ItemStack held = player.getHeldItemMainhand();
+        if (!held.isEmpty()) {
+            String key = com.github.aeddddd.ae2enhanced.chamber.LongItemStore.keyOf(held);
+            List<com.github.aeddddd.ae2enhanced.chamber.ChamberRecipe> rs =
+                    com.github.aeddddd.ae2enhanced.chamber.ChamberRecipeIndex.recipesForInput(key, held);
+            sender.sendMessage(new TextComponentString(TextFormatting.YELLOW
+                    + "[ChamberDebug] held=" + held.getDisplayName() + " key=" + key
+                    + " matched=" + recipeIds(rs)));
+        }
+
+        net.minecraft.util.math.RayTraceResult rt = player.rayTrace(6.0, 1.0f);
+        if (rt == null || rt.typeOfHit != net.minecraft.util.math.RayTraceResult.Type.BLOCK) {
+            return;
+        }
+        net.minecraft.tileentity.TileEntity te = player.world.getTileEntity(rt.getBlockPos());
+        if (!(te instanceof com.github.aeddddd.ae2enhanced.tile.TileSingularityChamber)) {
+            sender.sendMessage(new TextComponentString(TextFormatting.GRAY
+                    + "[ChamberDebug] not looking at a singularity chamber"));
+            return;
+        }
+        com.github.aeddddd.ae2enhanced.tile.TileSingularityChamber chamber =
+                (com.github.aeddddd.ae2enhanced.tile.TileSingularityChamber) te;
+        sender.sendMessage(new TextComponentString(TextFormatting.GOLD
+                + "[ChamberDebug] chamber energy=" + chamber.getEnergy()
+                + " jobs=" + chamber.getActiveJobCount()
+                + " channels=" + chamber.getUsedChannels() + "/" + chamber.getParallelChannels()));
+        Map<String, Long> available = new HashMap<>();
+        for (com.github.aeddddd.ae2enhanced.chamber.LongItemStore.Entry entry
+                : chamber.getInputStore().getEntries()) {
+            String key = com.github.aeddddd.ae2enhanced.chamber.LongItemStore.keyOf(entry.getTemplate());
+            available.put(key, entry.getCount());
+        }
+        for (com.github.aeddddd.ae2enhanced.chamber.LongItemStore.Entry entry
+                : chamber.getInputStore().getEntries()) {
+            String key = com.github.aeddddd.ae2enhanced.chamber.LongItemStore.keyOf(entry.getTemplate());
+            List<com.github.aeddddd.ae2enhanced.chamber.ChamberRecipe> rs =
+                    com.github.aeddddd.ae2enhanced.chamber.ChamberRecipeIndex.recipesForInput(
+                            key, entry.getTemplate());
+            sender.sendMessage(new TextComponentString("  store " + key + " x" + entry.getCount()
+                    + " -> " + recipeIds(rs)));
+            for (com.github.aeddddd.ae2enhanced.chamber.ChamberRecipe r : rs) {
+                sender.sendMessage(new TextComponentString("    " + r.getId()
+                        + " maxBatches=" + r.maxBatches(available)));
+            }
+        }
+    }
+
+    private static String recipeIds(List<com.github.aeddddd.ae2enhanced.chamber.ChamberRecipe> recipes) {
+        if (recipes.isEmpty()) {
+            return "[]";
+        }
+        List<String> ids = new ArrayList<>();
+        for (com.github.aeddddd.ae2enhanced.chamber.ChamberRecipe r : recipes) {
+            ids.add(r.getId());
+        }
+        return ids.toString();
     }
 
     // ---- help ----

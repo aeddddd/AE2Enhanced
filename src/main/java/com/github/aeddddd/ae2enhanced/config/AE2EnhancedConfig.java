@@ -205,6 +205,184 @@ public class AE2EnhancedConfig {
     })
     public static PersonalDimension personalDimension = new PersonalDimension();
 
+    @Config.Name("NetworkLinkRing")
+    @Config.Comment({
+        "Advanced Network Link Ring settings.",
+        "All RF costs are charged from the bound ME network first,",
+        "then from the ring's internal RF buffer."
+    })
+    public static Ring ring = new Ring();
+
+    public static class Ring {
+
+        @Config.Comment({
+            "RF cost multiplier per tier. All ring energy costs are multiplied",
+            "by the multiplier of the ring's tier (lower tiers are less efficient).",
+            "Default: Tier I = 3.0, Tier II = 2.0, Tier III = 1.5, Ascended = 1.0"
+        })
+        @Config.RangeDouble(min = 0.1, max = 100.0)
+        public double tier1CostMultiplier = 3.0;
+        @Config.RangeDouble(min = 0.1, max = 100.0)
+        public double tier2CostMultiplier = 2.0;
+        @Config.RangeDouble(min = 0.1, max = 100.0)
+        public double tier3CostMultiplier = 1.5;
+        @Config.RangeDouble(min = 0.1, max = 100.0)
+        public double ascendedCostMultiplier = 1.0;
+
+        @Config.Comment({
+            "Cooldown (ticks) after a Tier III ring blocks a lethal hit.",
+            "During the cooldown the ring cannot block lethal damage again.",
+            "Ascended rings have no cooldown. 20 ticks = 1 second.",
+            "Range: 0 ~ 72000, Default: 1200 (60s)"
+        })
+        @Config.RangeInt(min = 0, max = 72000)
+        public int deathBlockCooldownTicks = 1200;
+
+        @Config.Comment({
+            "Enable the tier upgrade recipes (Tier I -> II -> III using late-game",
+            "mod materials). Disable to gate progression via other means.",
+            "Default: true"
+        })
+        public boolean enableTierRecipes = true;
+
+        @Config.Comment({
+            "Internal RF buffer size of the ring.",
+            "Range: 1000000 ~ 2147483647, Default: 2100000000 (2.1G)"
+        })
+        @Config.RangeInt(min = 1000000, max = Integer.MAX_VALUE)
+        public int internalBufferSize = 2100000000;
+
+        @Config.Comment({
+            "RF pulled from the bound network per tick to recharge the internal buffer.",
+            "Range: 0 ~ 2147483647, Default: 100000"
+        })
+        @Config.RangeInt(min = 0, max = Integer.MAX_VALUE)
+        public int networkRechargePerTick = 100000;
+
+        @Config.Comment({
+            "RF per tick while flight is active.",
+            "Range: 0 ~ 10000000, Default: 500"
+        })
+        @Config.RangeInt(min = 0, max = 10000000)
+        public int flightCostPerTick = 500;
+
+        @Config.Comment({
+            "RF per tick while force flight (ascended) is active.",
+            "Range: 0 ~ 10000000, Default: 2000"
+        })
+        @Config.RangeInt(min = 0, max = 10000000)
+        public int forceFlightCostPerTick = 2000;
+
+        @Config.Comment({
+            "RF per tick while wall phasing (no-clip) is active.",
+            "Range: 0 ~ 10000000, Default: 1000"
+        })
+        @Config.RangeInt(min = 0, max = 10000000)
+        public int wallPhaseCostPerTick = 1000;
+
+        @Config.Comment({
+            "RF per tick while night vision is active.",
+            "Range: 0 ~ 1000000, Default: 10"
+        })
+        @Config.RangeInt(min = 0, max = 1000000)
+        public int nightVisionCostPerTick = 10;
+
+        @Config.Comment({
+            "RF per tick for permanent saturation (ascended).",
+            "Range: 0 ~ 1000000, Default: 50"
+        })
+        @Config.RangeInt(min = 0, max = 1000000)
+        public int saturationCostPerTick = 50;
+
+        @Config.Comment({
+            "RF cost per 1 HP (half heart) healed.",
+            "Range: 1 ~ 2147483647, Default: 10000"
+        })
+        @Config.RangeInt(min = 1, max = Integer.MAX_VALUE)
+        public int healCostPerPoint = 10000;
+
+        @Config.Comment({
+            "Maximum HP healed per tick in auto-heal mode.",
+            "Range: 1 ~ 1000, Default: 10"
+        })
+        @Config.RangeInt(min = 1, max = 1000)
+        public int healMaxPerTick = 10;
+
+        @Config.Comment({
+            "RF cost per potion effect removed.",
+            "Range: 0 ~ 2147483647, Default: 5000"
+        })
+        @Config.RangeInt(min = 0, max = Integer.MAX_VALUE)
+        public int potionRemoveCost = 5000;
+
+        @Config.Comment({
+            "RF cost per point of lethal overflow damage blocked (base ring).",
+            "Range: 1 ~ 2147483647, Default: 1000"
+        })
+        @Config.RangeInt(min = 1, max = Integer.MAX_VALUE)
+        public int blockCostPerOverflowPoint = 1000;
+
+        @Config.Comment({
+            "RF cost per point of damage blocked by the ascended ring's",
+            "100% physical/magic resistance.",
+            "Range: 0 ~ 2147483647, Default: 100"
+        })
+        @Config.RangeInt(min = 0, max = Integer.MAX_VALUE)
+        public int ascendedBlockCostPerPoint = 100;
+
+        @Config.Comment({
+            "RF cost for each blocked force-kill-level interception",
+            "(event-bypassing damage / direct health write / forced death).",
+            "If the ring cannot pay, the interception fails and the player dies.",
+            "Range: 0 ~ 2147483647, Default: 1000000"
+        })
+        @Config.RangeInt(min = 0, max = Integer.MAX_VALUE)
+        public int strongKillBlockCost = 1000000;
+
+        @Config.Comment({
+            "Per-second RF consumption cap for healing (protection for the player's",
+            "energy storage). Above the cap, healing CONTINUES but no further RF",
+            "is charged. Default: 2147483647 (effectively unlimited)."
+        })
+        public int healMaxRfPerSecond = Integer.MAX_VALUE;
+
+        @Config.Comment({
+            "Per-second RF consumption cap for damage blocking. Above the cap,",
+            "blocking CONTINUES but no further RF is charged.",
+            "Default: 2147483647 (effectively unlimited)."
+        })
+        public int blockMaxRfPerSecond = Integer.MAX_VALUE;
+
+        @Config.Comment({
+            "Maximum reach distance configurable on the ring (blocks).",
+            "Range: 5.0 ~ 64.0, Default: 32.0"
+        })
+        @Config.RangeDouble(min = 5.0, max = 64.0)
+        public double maxReachDistance = 32.0;
+
+        @Config.Comment({
+            "Maximum walk/fly speed percentage configurable on the ring",
+            "(100 = vanilla default).",
+            "Range: 100 ~ 4000, Default: 200"
+        })
+        @Config.RangeInt(min = 100, max = 4000)
+        public int maxSpeedPercent = 200;
+
+        @Config.Comment({
+            "Maximum jump height percentage configurable on the ring.",
+            "Range: 100 ~ 2000, Default: 500"
+        })
+        @Config.RangeInt(min = 100, max = 2000)
+        public int maxJumpPercent = 500;
+
+        @Config.Comment({
+            "Enable the ring ascension recipe (ring + permanent constrained",
+            "micro singularity, repeat 16 times).",
+            "Default: true"
+        })
+        public boolean enableAscendRecipe = true;
+    }
+
     public static class PersonalDimension {
         @Config.Comment({
             "Path to the floor preset file.",
@@ -737,10 +915,18 @@ public class AE2EnhancedConfig {
 
         @Config.Comment({
             "Maximum collection range radius (in blocks). The actual cubic area is",
-            "(2*maxRange+1)^3. Default 7 means a 15x15x15 cube."
+            "(2*maxRange+1)^3. Default 7 means a 15x15x15 cube.",
+            "Also caps the per-axis extent of the collection region."
         })
         @Config.RangeInt(min = 1, max = 15)
         public int maxRange = 7;
+
+        @Config.Comment({
+            "Maximum offset (in blocks, per axis) of the collection region center",
+            "relative to the collector block. Default: 16."
+        })
+        @Config.RangeInt(min = 0, max = 64)
+        public int maxCenterOffset = 16;
 
         @Config.Comment({
             "Idle power draw (AE/t) for an active Advanced ME Collector.",

@@ -8,7 +8,6 @@ tile.ae2enhanced.assembly_casing.name=Корпус сборщика
 tile.ae2enhanced.assembly_inner_wall.name=Внутренняя стена сборщика
 tile.ae2enhanced.assembly_stabilizer.name=Стабилизатор сборщика
 tile.ae2enhanced.micro_singularity.name=Микро-сингулярность
-tile.ae2enhanced.micro_singularity.tooltip=§8§o"Порождение горизонта событий"§r\n§7Нажмите ПКМ по горизонту событий, чтобы бросить предметы в чёрную дыру для создания.\n§7Создание: §eБросьте на землю 64 сингулярности AE2 и 4 звезды Незера,\n§7затем §eзажмите звезду Незера и нажмите ПКМ по ME-контроллеру §7для призыва Микро-сингулярности.
 
 jei.ae2enhanced.category.blackhole=Создание в чёрной дыре
 jei.ae2enhanced.blackhole.hint=Бросьте в горизонт событий

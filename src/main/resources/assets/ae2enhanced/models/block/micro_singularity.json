@@ -1,6 +1,3 @@
 {
-  "parent": "block/cube_all",
-  "textures": {
-    "all": "ae2enhanced:blocks/micro_singularity"
-  }
+  "parent": "block/block"
 }

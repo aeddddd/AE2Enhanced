@@ -84,6 +84,8 @@ public class GuiHandler implements IGuiHandler {
     public static final int GUI_PERSONAL_DIMENSION_CONFIG = 30;
     public static final int GUI_DISPLAY_WALL = 31;
     public static final int GUI_SINGULARITY_CHAMBER = 32;
+    public static final int GUI_RING_CONFIG = 33;
+    public static final int GUI_CHUNK_POWER_NODE = 34;
 
 
     /** 编码页码到 GUI ID：低4位为 base ID,bit8-15为页码,bit16-20为 patternPages */
@@ -245,6 +247,9 @@ public class GuiHandler implements IGuiHandler {
         if (ID == GUI_OMNI_TOOL_CONFIG) {
             return new ContainerOmniToolConfig();
         }
+        if (ID == GUI_RING_CONFIG) {
+            return new com.github.aeddddd.ae2enhanced.container.ContainerRingConfig();
+        }
         if (ID == GUI_PERSONAL_DIMENSION_CONFIG) {
             // 在他人维度内且拥有 MANAGE_RULES 权限时，编辑所在维度所有者的规则
             java.util.UUID target = com.github.aeddddd.ae2enhanced.dimension.PersonalDimensionManager.getRuleEditTarget(player);
@@ -268,6 +273,14 @@ public class GuiHandler implements IGuiHandler {
             if (te instanceof com.github.aeddddd.ae2enhanced.tile.TileSingularityChamber) {
                 return new com.github.aeddddd.ae2enhanced.container.ContainerSingularityChamber(
                         player.inventory, (com.github.aeddddd.ae2enhanced.tile.TileSingularityChamber) te);
+            }
+            return null;
+        }
+        if (ID == GUI_CHUNK_POWER_NODE) {
+            // TileCompressedChunkPowerNode 继承自 TileChunkPowerNode，二者共用同一 GUI
+            if (te instanceof com.github.aeddddd.ae2enhanced.tile.TileChunkPowerNode) {
+                return new com.github.aeddddd.ae2enhanced.container.ContainerChunkPowerNode(
+                        player.inventory, (com.github.aeddddd.ae2enhanced.tile.TileChunkPowerNode) te);
             }
             return null;
         }
@@ -401,6 +414,10 @@ public class GuiHandler implements IGuiHandler {
         if (ID == GUI_OMNI_TOOL_CONFIG) {
             return new GuiOmniToolConfig(player, new ContainerOmniToolConfig());
         }
+        if (ID == GUI_RING_CONFIG) {
+            return new com.github.aeddddd.ae2enhanced.client.gui.GuiRingConfig(player,
+                    new com.github.aeddddd.ae2enhanced.container.ContainerRingConfig());
+        }
         if (ID == GUI_PERSONAL_DIMENSION_CONFIG) {
             // 注：客户端 playerId 仅用于 canInteractWith，实际编辑目标与权限校验均在服务端
             // （getServerGuiElement 用 PersonalDimensionManager.getRuleEditTarget 解析目标，
@@ -420,6 +437,13 @@ public class GuiHandler implements IGuiHandler {
             if (te instanceof com.github.aeddddd.ae2enhanced.tile.TileSingularityChamber) {
                 return new com.github.aeddddd.ae2enhanced.client.gui.GuiSingularityChamber(
                         player.inventory, (com.github.aeddddd.ae2enhanced.tile.TileSingularityChamber) te);
+            }
+            return null;
+        }
+        if (ID == GUI_CHUNK_POWER_NODE) {
+            if (te instanceof com.github.aeddddd.ae2enhanced.tile.TileChunkPowerNode) {
+                return new com.github.aeddddd.ae2enhanced.client.gui.GuiChunkPowerNode(
+                        player.inventory, (com.github.aeddddd.ae2enhanced.tile.TileChunkPowerNode) te);
             }
             return null;
         }

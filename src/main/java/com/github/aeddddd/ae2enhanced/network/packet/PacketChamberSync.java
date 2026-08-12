@@ -18,9 +18,29 @@ import java.util.List;
 
 /**
  * S→C 奇点处理仓状态同步：能量/并行通道/任务数/输入输出缓存内容（long 数量）.
- * 数据直接投递到打开的 GUI,不走 Tile（客户端 Tile 无缓存副本）.
+ * 缓存内容同时写入客户端 Tile 的 store 镜像（虚拟槽位渲染/点击判定依赖它）,
+ * 并投递到打开的 GUI 刷新计数覆盖层.
  */
 public class PacketChamberSync implements IMessage {
+
+    /** 活动任务视图：输出图标 + 批次数 + 进度 */
+    public static class JobView {
+        public final ItemStack output;
+        public final long batches;
+        public final long progress;
+        public final long required;
+
+        public JobView(ItemStack output, long batches, long progress, long required) {
+            this.output = output;
+            this.batches = batches;
+            this.progress = progress;
+            this.required = required;
+        }
+
+        public float fraction() {
+            return required <= 0 ? 1.0f : Math.min(1.0f, (float) progress / (float) required);
+        }
+    }
 
     private BlockPos pos;
     private int energy;
@@ -28,24 +48,23 @@ public class PacketChamberSync implements IMessage {
     private long usedChannels;
     private int activeJobs;
     private int redstoneMode;
-    private List<String> disabledRecipes = new ArrayList<>();
     private List<ItemStack> inputItems = new ArrayList<>();
     private List<Long> inputCounts = new ArrayList<>();
     private List<ItemStack> outputItems = new ArrayList<>();
     private List<Long> outputCounts = new ArrayList<>();
+    private List<JobView> jobs = new ArrayList<>();
 
     public PacketChamberSync() {
     }
 
     public PacketChamberSync(BlockPos pos, int energy, long parallelChannels, long usedChannels, int activeJobs,
-                             int redstoneMode, java.util.Collection<String> disabledRecipes) {
+                             int redstoneMode) {
         this.pos = pos;
         this.energy = energy;
         this.parallelChannels = parallelChannels;
         this.usedChannels = usedChannels;
         this.activeJobs = activeJobs;
         this.redstoneMode = redstoneMode;
-        this.disabledRecipes.addAll(disabledRecipes);
     }
 
     public void addInput(ItemStack stack, long count) {
@@ -56,6 +75,14 @@ public class PacketChamberSync implements IMessage {
     public void addOutput(ItemStack stack, long count) {
         outputItems.add(stack);
         outputCounts.add(count);
+    }
+
+    public void addJob(JobView job) {
+        jobs.add(job);
+    }
+
+    public List<JobView> getJobs() {
+        return jobs;
     }
 
     public BlockPos getPos() {
@@ -82,10 +109,6 @@ public class PacketChamberSync implements IMessage {
         return redstoneMode;
     }
 
-    public List<String> getDisabledRecipes() {
-        return disabledRecipes;
-    }
-
     public List<ItemStack> getInputItems() {
         return inputItems;
     }
@@ -110,10 +133,6 @@ public class PacketChamberSync implements IMessage {
         usedChannels = buf.readLong();
         activeJobs = buf.readInt();
         redstoneMode = buf.readInt();
-        int disabled = buf.readInt();
-        for (int i = 0; i < disabled; i++) {
-            disabledRecipes.add(ByteBufUtils.readUTF8String(buf));
-        }
         int inCount = buf.readInt();
         for (int i = 0; i < inCount; i++) {
             inputItems.add(ByteBufUtils.readItemStack(buf));
@@ -123,6 +142,14 @@ public class PacketChamberSync implements IMessage {
         for (int i = 0; i < outCount; i++) {
             outputItems.add(ByteBufUtils.readItemStack(buf));
             outputCounts.add(buf.readLong());
+        }
+        int jobCount = buf.readInt();
+        for (int i = 0; i < jobCount; i++) {
+            ItemStack output = ByteBufUtils.readItemStack(buf);
+            long batches = buf.readLong();
+            long progress = buf.readLong();
+            long required = buf.readLong();
+            jobs.add(new JobView(output, batches, progress, required));
         }
     }
 
@@ -136,10 +163,6 @@ public class PacketChamberSync implements IMessage {
         buf.writeLong(usedChannels);
         buf.writeInt(activeJobs);
         buf.writeInt(redstoneMode);
-        buf.writeInt(disabledRecipes.size());
-        for (String id : disabledRecipes) {
-            ByteBufUtils.writeUTF8String(buf, id);
-        }
         buf.writeInt(inputItems.size());
         for (int i = 0; i < inputItems.size(); i++) {
             ByteBufUtils.writeItemStack(buf, inputItems.get(i));
@@ -150,6 +173,13 @@ public class PacketChamberSync implements IMessage {
             ByteBufUtils.writeItemStack(buf, outputItems.get(i));
             buf.writeLong(outputCounts.get(i));
         }
+        buf.writeInt(jobs.size());
+        for (JobView job : jobs) {
+            ByteBufUtils.writeItemStack(buf, job.output);
+            buf.writeLong(job.batches);
+            buf.writeLong(job.progress);
+            buf.writeLong(job.required);
+        }
     }
 
     public static class Handler implements IMessageHandler<PacketChamberSync, IMessage> {
@@ -158,6 +188,17 @@ public class PacketChamberSync implements IMessage {
         @SideOnly(Side.CLIENT)
         public IMessage onMessage(PacketChamberSync message, MessageContext ctx) {
             Minecraft.getMinecraft().addScheduledTask(() -> {
+                // 写入客户端 Tile 的缓存镜像,供虚拟槽位渲染与点击判定
+                if (Minecraft.getMinecraft().world != null) {
+                    net.minecraft.tileentity.TileEntity te =
+                            Minecraft.getMinecraft().world.getTileEntity(message.pos);
+                    if (te instanceof com.github.aeddddd.ae2enhanced.tile.TileSingularityChamber) {
+                        com.github.aeddddd.ae2enhanced.tile.TileSingularityChamber tile =
+                                (com.github.aeddddd.ae2enhanced.tile.TileSingularityChamber) te;
+                        tile.getInputStore().replaceAll(message.getInputItems(), message.getInputCounts());
+                        tile.getOutputStore().replaceAll(message.getOutputItems(), message.getOutputCounts());
+                    }
+                }
                 GuiScreen screen = Minecraft.getMinecraft().currentScreen;
                 if (screen instanceof GuiSingularityChamber) {
                     ((GuiSingularityChamber) screen).acceptSync(message);

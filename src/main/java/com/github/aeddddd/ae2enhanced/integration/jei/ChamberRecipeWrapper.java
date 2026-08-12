@@ -10,10 +10,10 @@ import net.minecraft.item.ItemStack;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 
 /**
  * JEI 奇点处理仓配方包装.
+ * 每个输入组作为一个槽位,组内替代物品由 JEI 自动循环展示.
  */
 public class ChamberRecipeWrapper implements IRecipeWrapper {
 
@@ -29,24 +29,26 @@ public class ChamberRecipeWrapper implements IRecipeWrapper {
 
     @Override
     public void getIngredients(IIngredients ingredients) {
-        List<ItemStack> inputs = new ArrayList<>();
-        for (Map.Entry<String, Long> entry : recipe.getInputs().entrySet()) {
-            ItemStack template = recipe.getInputTemplates().get(entry.getKey());
-            if (template == null || template.isEmpty()) {
-                continue;
+        List<List<ItemStack>> inputGroups = new ArrayList<>();
+        for (ChamberRecipe.InputGroup group : recipe.getInputGroups()) {
+            List<ItemStack> alternatives = new ArrayList<>();
+            for (ItemStack template : group.getTemplates()) {
+                ItemStack display = template.copy();
+                display.setCount((int) Math.min(Math.max(1, group.getCount()), 64));
+                alternatives.add(display);
             }
-            ItemStack display = template.copy();
-            display.setCount((int) Math.min(entry.getValue(), Integer.MAX_VALUE));
-            inputs.add(display);
+            if (!alternatives.isEmpty()) {
+                inputGroups.add(alternatives);
+            }
         }
-        ingredients.setInputs(VanillaTypes.ITEM, inputs);
+        ingredients.setInputLists(VanillaTypes.ITEM, inputGroups);
         ingredients.setOutput(VanillaTypes.ITEM, recipe.getOutput());
     }
 
     @Override
     public void drawInfo(Minecraft minecraft, int recipeWidth, int recipeHeight, int mouseX, int mouseY) {
         String text = I18n.format("jei.ae2enhanced.chamber.time", recipe.getTimeTicks());
-        minecraft.fontRenderer.drawString(text, (recipeWidth - minecraft.fontRenderer.getStringWidth(text)) / 2,
-                recipeHeight - 10, 0xFF888888);
+        minecraft.fontRenderer.drawString(text, recipeWidth - minecraft.fontRenderer.getStringWidth(text) - 4,
+                recipeHeight - 10, 0xFF808080);
     }
 }

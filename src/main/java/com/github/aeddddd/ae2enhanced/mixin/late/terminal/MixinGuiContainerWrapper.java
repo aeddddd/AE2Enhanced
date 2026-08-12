@@ -17,6 +17,12 @@ import java.awt.Rectangle;
  * 使 JEI 的 R/U 查询能够正确识别.
  *
  * 对齐 ae2fc 实现：使用 @Mixin(value) 类字面量 + 实例方法 handler.
+ *
+ * @deprecated 旧版 HEI (≤4.33.x) 兼容回退.HEI 4.34.0 重构了目标方法
+ *             (新增 GuiScreenHelper.getSlotIngredient 调用),本 Mixin 在新版上
+ *             会生成非法字节码(VerifyError),因此由 LateMixinPlugin 在新版 HEI 下
+ *             跳过应用,改由官方 ISlotIngredientProvider API 实现
+ *             (见 SlotIngredientProviderSupport).将在未来版本中移除.
  */
 @Mixin(value = GuiContainerWrapper.class, remap = false)
 public class MixinGuiContainerWrapper {

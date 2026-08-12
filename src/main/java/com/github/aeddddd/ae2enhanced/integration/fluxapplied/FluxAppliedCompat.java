@@ -2,7 +2,10 @@ package com.github.aeddddd.ae2enhanced.integration.fluxapplied;
 
 import appeng.api.storage.IStorageChannel;
 import appeng.api.storage.data.IAEItemStack;
+import appeng.api.storage.data.IAEStack;
+import com.github.aeddddd.ae2enhanced.storage.external.ExternalStackFactory;
 import net.minecraft.item.ItemStack;
+import net.minecraft.nbt.NBTTagCompound;
 
 import java.lang.reflect.Method;
 
@@ -87,6 +90,25 @@ public final class FluxAppliedCompat {
      */
     public static Class<?> getFluxChannelClass() {
         return fluxChannelClass;
+    }
+
+    /**
+     * 创建指定数量的 Flux 通道堆叠({@code FluxStack}).
+     * <p>
+     * FluxStack 与 AE2E 的 IAEEnergyStack 类型体系不相容,
+     * 当 Flux 通道生效时,所有进入通道列表/监视器的能量堆叠必须通过本方法创建.
+     * 实现复用通道自身的 {@code createFromNBT}("fe" 键),与超维度仓储中枢的约定一致.
+     * </p>
+     *
+     * @return Flux 通道堆叠(raw IAEStack),通道不可用或创建失败时返回 null
+     */
+    public static IAEStack createFluxStack(long amount) {
+        if (!HAS_FLUX_CHANNEL) {
+            return null;
+        }
+        NBTTagCompound nbt = new NBTTagCompound();
+        nbt.setLong("fe", amount);
+        return ExternalStackFactory.createFromNBT((IStorageChannel<?>) fluxChannelInstance, nbt);
     }
 
     /**

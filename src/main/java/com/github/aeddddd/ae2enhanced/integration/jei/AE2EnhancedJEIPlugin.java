@@ -7,6 +7,7 @@ import com.github.aeddddd.ae2enhanced.crafting.BlackHoleRecipe;
 import com.github.aeddddd.ae2enhanced.crafting.BlackHoleRecipeRegistry;
 import com.github.aeddddd.ae2enhanced.item.ItemEssentiaDrop;
 import com.github.aeddddd.ae2enhanced.client.JEISearchKeyHandler;
+import com.github.aeddddd.ae2enhanced.util.compat.HeiCompat;
 import mezz.jei.api.IModPlugin;
 import mezz.jei.api.IModRegistry;
 import mezz.jei.api.IJeiRuntime;
@@ -25,6 +26,9 @@ import java.util.List;
 @JEIPlugin
 public class AE2EnhancedJEIPlugin implements IModPlugin {
 
+    private static final org.apache.logging.log4j.Logger LOGGER =
+            org.apache.logging.log4j.LogManager.getLogger("AE2Enhanced-JEI");
+
     @Override
     public void onRuntimeAvailable(IJeiRuntime jeiRuntime) {
         JEISearchKeyHandler.setJeiRuntime(jeiRuntime);
@@ -38,6 +42,8 @@ public class AE2EnhancedJEIPlugin implements IModPlugin {
 
     @Override
     public void register(IModRegistry registry) {
+        registerSlotIngredientProvider(registry);
+
         IIngredientRegistry ingredientRegistry = registry.getIngredientRegistry();
         IIngredientBlacklist blacklist = registry.getJeiHelpers().getIngredientBlacklist();
 
@@ -91,5 +97,23 @@ public class AE2EnhancedJEIPlugin implements IModPlugin {
         registry.getRecipeTransferRegistry().addUniversalRecipeTransferHandler(
                 new com.github.aeddddd.ae2enhanced.integration.jei.SmartPatternRecipeTransferHandler(
                         registry.getJeiHelpers().recipeTransferHandlerHelper()));
+    }
+
+    /**
+     * 终端假物品成分识别（E2a）的版本适配入口.
+     * HEI ≥ 4.34.0：通过官方 ISlotIngredientProvider API 注册.
+     * HEI ≤ 4.33.x：回退到 MixinGuiContainerWrapper（旧版兼容,计划移除）.
+     */
+    private static void registerSlotIngredientProvider(IModRegistry registry) {
+        if (HeiCompat.HAS_SLOT_INGREDIENT_PROVIDER) {
+            try {
+                SlotIngredientProviderSupport.register(registry);
+            } catch (Throwable t) {
+                LOGGER.error("[AE2E] 注册 HEI ISlotIngredientProvider 失败,终端假物品的 R/U 查询将不可用", t);
+            }
+        } else {
+            LOGGER.warn("[AE2E] 检测到旧版 HEI/JEI（缺少 ISlotIngredientProvider API,HEI < 4.34.0）.");
+            LOGGER.warn("[AE2E] 已回退到 Mixin 方式实现终端假物品识别.旧版兼容将在未来几个版本中移除,请升级 HEI 到 4.34.0 或更高版本.");
+        }
     }
 }

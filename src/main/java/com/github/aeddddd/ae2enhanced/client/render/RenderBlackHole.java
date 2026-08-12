@@ -21,13 +21,15 @@ import org.lwjgl.opengl.GL11;
  */
 public class RenderBlackHole extends TileEntitySpecialRenderer<TileAssemblyController> {
 
-    // shader 路径尺寸常量（与 1.20 AssemblyHubRenderer 一致）
-    private static final double SHADER_HORIZON_RADIUS = 4.0;
-    private static final double SHADER_DISK_INNER = 4.6;
-    private static final double SHADER_DISK_OUTER = 12.0;
-    private static final double SHADER_SHELL_RADIUS = 7.6;
-    private static final double SHADER_JET_BASE = 1.6;
-    private static final double SHADER_JET_HEIGHT = 12.8;
+    // shader 路径尺寸常量：1.20 的对象空间几何（事件视界 4.0/吸积盘 4.6~12.0/壳 7.6/喷流 12.8）
+    // 相对 1.12 结构明显过大，统一按 ASSEMBLY_SCALE 等比缩小（uScale 同步缩放片元效果）
+    private static final double ASSEMBLY_SCALE = 0.625;
+    private static final double SHADER_HORIZON_RADIUS = 4.0 * ASSEMBLY_SCALE;
+    private static final double SHADER_DISK_INNER = 4.6 * ASSEMBLY_SCALE;
+    private static final double SHADER_DISK_OUTER = 12.0 * ASSEMBLY_SCALE;
+    private static final double SHADER_SHELL_RADIUS = 7.6 * ASSEMBLY_SCALE;
+    private static final double SHADER_JET_BASE = 1.6 * ASSEMBLY_SCALE;
+    private static final double SHADER_JET_HEIGHT = 12.8 * ASSEMBLY_SCALE;
 
     private static final int EVENT_HORIZON_PART_ID = 0x000000;
     private static final int ACCRETION_DISK_PART_ID = 0x010000;
@@ -245,7 +247,7 @@ public class RenderBlackHole extends TileEntitySpecialRenderer<TileAssemblyContr
             shader.use();
             shader.setFloat("uTime", time);
             shader.setFloat("uIntensity", (float) AE2EnhancedConfig.render.blackHoleShaderIntensity);
-            shader.setFloat("uScale", 1.0f);
+            shader.setFloat("uScale", (float) ASSEMBLY_SCALE);
             shader.setVec3("uCenter", 0.0f, 0.0f, 0.0f);
 
             // 事件视界：标准混合,写入深度
@@ -256,7 +258,7 @@ public class RenderBlackHole extends TileEntitySpecialRenderer<TileAssemblyContr
             RenderHelper.drawSphere(SHADER_HORIZON_RADIUS, EVENT_HORIZON_PART_ID, 1.0f,
                     LATITUDE_SEGMENTS, LONGITUDE_SEGMENTS);
 
-            // 吸积盘/喷流/约束壳：加法混合,不写深度
+            // 吸积盘/喷流：加法混合,不写深度
             GlStateManager.tryBlendFuncSeparate(
                     GlStateManager.SourceFactor.SRC_ALPHA, GlStateManager.DestFactor.ONE,
                     GlStateManager.SourceFactor.ONE, GlStateManager.DestFactor.ZERO);
@@ -265,10 +267,24 @@ public class RenderBlackHole extends TileEntitySpecialRenderer<TileAssemblyContr
                     ACCRETION_DISK_PART_ID, 1.0f, 64);
             RenderHelper.drawRelativisticJet(SHADER_JET_BASE, SHADER_JET_HEIGHT,
                     RELATIVISTIC_JET_PART_ID, 1.0f, 32);
-            RenderHelper.drawSphere(SHADER_SHELL_RADIUS, CONTAINMENT_SHELL_PART_ID, 0.6f,
+
+            // 受控约束壳：两层反向缓慢旋转的六边形框架复合球体,呼吸明暗（对齐 1.20.1）
+            float breath = 0.5f + 0.5f * (float) Math.sin(time * 0.9);
+            float shellAlpha = 0.32f + 0.30f * breath;
+
+            GlStateManager.pushMatrix();
+            GlStateManager.rotate(time * 6.0f, 0, 1, 0);
+            GlStateManager.rotate(8.0f, 1, 0, 0);
+            RenderHelper.drawSphere(SHADER_SHELL_RADIUS, CONTAINMENT_SHELL_PART_ID, shellAlpha,
                     LATITUDE_SEGMENTS, LONGITUDE_SEGMENTS);
-            RenderHelper.drawSphere(SHADER_SHELL_RADIUS * 0.93, CONTAINMENT_SHELL_PART_ID, 0.3f,
+            GlStateManager.popMatrix();
+
+            GlStateManager.pushMatrix();
+            GlStateManager.rotate(-time * 4.0f, 0, 1, 0);
+            GlStateManager.rotate(12.0f, 0, 0, 1);
+            RenderHelper.drawSphere(SHADER_SHELL_RADIUS * 0.93, CONTAINMENT_SHELL_PART_ID, shellAlpha * 0.5f,
                     LATITUDE_SEGMENTS, LONGITUDE_SEGMENTS);
+            GlStateManager.popMatrix();
         } finally {
             ShaderProgram.stop();
             GlStateManager.depthMask(true);

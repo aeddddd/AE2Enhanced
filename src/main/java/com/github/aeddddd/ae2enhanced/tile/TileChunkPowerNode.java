@@ -1,6 +1,5 @@
 package com.github.aeddddd.ae2enhanced.tile;
 
-import appeng.api.AEApi;
 import appeng.api.config.Actionable;
 import appeng.api.networking.IGridNode;
 import appeng.api.networking.security.IActionHost;
@@ -8,18 +7,18 @@ import appeng.api.networking.events.MENetworkChannelsChanged;
 import appeng.api.networking.events.MENetworkEventSubscribe;
 import appeng.api.networking.events.MENetworkPowerStatusChange;
 import appeng.api.storage.IMEMonitor;
+import appeng.api.storage.data.IAEStack;
 import appeng.api.util.AECableType;
 import appeng.api.util.AEPartLocation;
 import appeng.me.GridAccessException;
 import appeng.me.helpers.MachineSource;
 import appeng.util.Platform;
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
+import com.github.aeddddd.ae2enhanced.network.packet.PacketChunkPowerNodeSync;
 import com.github.aeddddd.ae2enhanced.platform.energy.EnergyAdapterRegistry;
 import com.github.aeddddd.ae2enhanced.platform.energy.IEnergyAdapter;
 import com.github.aeddddd.ae2enhanced.registry.content.BlockRegistry;
-import com.github.aeddddd.ae2enhanced.storage.energy.AEEnergyStack;
-import com.github.aeddddd.ae2enhanced.storage.energy.IAEEnergyStack;
-import com.github.aeddddd.ae2enhanced.storage.energy.IEnergyStorageChannel;
+import com.github.aeddddd.ae2enhanced.storage.energy.EnergyChannelResolver;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.item.ItemStack;
 import net.minecraft.network.NetworkManager;
@@ -37,8 +36,10 @@ import net.minecraftforge.energy.IEnergyStorage;
 import javax.annotation.Nonnull;
 import java.util.ArrayList;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -70,6 +71,17 @@ public class TileChunkPowerNode extends TileAENetworkBase implements ITickable, 
     // 目标设备缓存(只存 BlockPos,每 tick 重新获取 TE 和 cap)
     protected final List<BlockPos> cachedTargets = new ArrayList<>();
     private int cacheRefreshCooldown = 0;
+
+    /** 排除名单：已解除绑定的设备位置，节点不再为其供电。持久化到 NBT */
+    protected final Set<BlockPos> excludedTargets = new HashSet<>();
+
+    // 每 tick 供电统计(瞬态,仅服务端有意义)
+    private final Map<BlockPos, Long> lastTickDelivered = new HashMap<>();
+    private long lastTickOutput = 0;
+
+    // 客户端 GUI 同步缓存
+    private final List<PacketChunkPowerNodeSync.TargetInfo> clientTargetList = new ArrayList<>();
+    private long clientLastTickOutput = 0;
 
     /**
      * 获取当前缓存的供电目标位置列表（副本）.
@@ -162,7 +174,11 @@ public class TileChunkPowerNode extends TileAENetworkBase implements ITickable, 
         syncClientState();
     }
 
+    @SuppressWarnings({"rawtypes", "unchecked"})
     private void doPowerTick() {
+        lastTickDelivered.clear();
+        lastTickOutput = 0;
+
         if (cacheRefreshCooldown <= 0) {
             refreshTargetCache();
             cacheRefreshCooldown = CACHE_REFRESH_INTERVAL;
@@ -180,11 +196,20 @@ public class TileChunkPowerNode extends TileAENetworkBase implements ITickable, 
             return;
         }
 
-        IMEMonitor<IAEEnergyStack> energyMonitor = storageGrid.getInventory(
-                AEApi.instance().storage().getStorageChannel(IEnergyStorageChannel.class));
+        // 经 EnergyChannelResolver 解析当前生效的能量通道（兼容 Flux_Applied 外部通道）
+        IMEMonitor energyMonitor;
+        try {
+            energyMonitor = storageGrid.getInventory(EnergyChannelResolver.getChannel());
+        } catch (NullPointerException e) {
+            // 能量通道不可用
+            return;
+        }
+        if (energyMonitor == null) return;
         MachineSource source = getMachineSource();
 
         for (BlockPos targetPos : cachedTargets) {
+            if (excludedTargets.contains(targetPos)) continue;
+
             TileEntity te = world.getTileEntity(targetPos);
             if (te == null || te.isInvalid()) continue;
 
@@ -206,16 +231,25 @@ public class TileChunkPowerNode extends TileAENetworkBase implements ITickable, 
             long demand = adapter.getReceiveableEnergy(te, cap);
             if (demand <= 0) continue;
 
-            IAEEnergyStack request = AEEnergyStack.create(demand);
-            IAEEnergyStack extracted = energyMonitor.extractItems(request, Actionable.MODULATE, source);
+            IAEStack request = EnergyChannelResolver.createStack(demand);
+            if (request == null) continue;
+            IAEStack extracted = (IAEStack) energyMonitor.extractItems(request, Actionable.MODULATE, source);
             if (extracted == null || extracted.getStackSize() <= 0) continue;
 
             long toInject = extracted.getStackSize();
             long actual = adapter.injectEnergy(te, cap, toInject, false);
 
+            if (actual > 0) {
+                lastTickDelivered.merge(targetPos, actual, Long::sum);
+                lastTickOutput += actual;
+            }
+
             long leftover = extracted.getStackSize() - actual;
             if (leftover > 0) {
-                energyMonitor.injectItems(AEEnergyStack.create(leftover), Actionable.MODULATE, source);
+                IAEStack rest = EnergyChannelResolver.createStack(leftover);
+                if (rest != null) {
+                    energyMonitor.injectItems(rest, Actionable.MODULATE, source);
+                }
             }
         }
     }
@@ -315,6 +349,80 @@ public class TileChunkPowerNode extends TileAENetworkBase implements ITickable, 
         }
     }
 
+    // ---------- 排除名单与统计 ----------
+
+    /**
+     * 判断指定位置的设备是否已被排除（解除绑定）.
+     */
+    public boolean isTargetExcluded(BlockPos targetPos) {
+        return excludedTargets.contains(targetPos);
+    }
+
+    /**
+     * 设置指定位置设备的排除状态。排除后节点不再为其供电，可随时恢复.
+     */
+    public void setTargetExcluded(BlockPos targetPos, boolean excluded) {
+        if (excluded) {
+            excludedTargets.add(targetPos.toImmutable());
+        } else {
+            excludedTargets.remove(targetPos);
+        }
+        markDirty();
+    }
+
+    /**
+     * 上一 tick 实际输出的总能量（FE）.
+     */
+    public long getLastTickOutput() {
+        if (world != null && world.isRemote) {
+            return clientLastTickOutput;
+        }
+        return lastTickOutput;
+    }
+
+    /**
+     * 上一 tick 向指定目标实际交付的能量（FE，仅服务端有效）.
+     */
+    public long getLastTickDelivered(BlockPos targetPos) {
+        return lastTickDelivered.getOrDefault(targetPos, 0L);
+    }
+
+    // ---------- GUI 同步 ----------
+
+    /**
+     * 构建 GUI 同步包：包含状态、每 tick 输出与目标列表（坐标/名称/排除状态/交付量）.
+     */
+    public PacketChunkPowerNodeSync buildSyncPacket() {
+        List<PacketChunkPowerNodeSync.TargetInfo> targets = new ArrayList<>(cachedTargets.size());
+        for (BlockPos targetPos : cachedTargets) {
+            net.minecraft.block.Block block = world.getBlockState(targetPos).getBlock();
+            targets.add(new PacketChunkPowerNodeSync.TargetInfo(
+                    targetPos, new ItemStack(block), block.getTranslationKey(),
+                    excludedTargets.contains(targetPos), getLastTickDelivered(targetPos)));
+        }
+        return new PacketChunkPowerNodeSync(pos, isPowered(), isActive(), lastTickOutput, targets);
+    }
+
+    /**
+     * 客户端处理 GUI 同步包.
+     */
+    public void handleSyncPacket(PacketChunkPowerNodeSync packet) {
+        this.clientTargetList.clear();
+        this.clientTargetList.addAll(packet.getTargets());
+        this.clientLastTickOutput = packet.getLastTickOutput();
+        int flags = this.clientFlags & ~3;
+        if (packet.isPowered()) flags |= 1;
+        if (packet.isActive()) flags |= 2;
+        this.clientFlags = flags;
+    }
+
+    /**
+     * 客户端获取最近一次同步的目标列表.
+     */
+    public List<PacketChunkPowerNodeSync.TargetInfo> getClientTargetList() {
+        return clientTargetList;
+    }
+
     // ---------- 辅助 ----------
 
     private MachineSource getMachineSource() {
@@ -331,6 +439,11 @@ public class TileChunkPowerNode extends TileAENetworkBase implements ITickable, 
         super.readFromNBT(compound);
         this.forward = EnumFacing.byIndex(compound.getInteger("forward"));
         this.clientFlags = compound.getInteger("clientFlags");
+        this.excludedTargets.clear();
+        net.minecraft.nbt.NBTTagList excludedList = compound.getTagList("excludedTargets", 4); // 4 = NBTTagLong
+        for (int i = 0; i < excludedList.tagCount(); i++) {
+            this.excludedTargets.add(BlockPos.fromLong(((net.minecraft.nbt.NBTTagLong) excludedList.get(i)).getLong()));
+        }
         // cachedTargets 不持久化,重新扫描即可
     }
 
@@ -339,6 +452,11 @@ public class TileChunkPowerNode extends TileAENetworkBase implements ITickable, 
         super.writeToNBT(compound);
         compound.setInteger("forward", this.forward.getIndex());
         compound.setInteger("clientFlags", this.clientFlags);
+        net.minecraft.nbt.NBTTagList excludedList = new net.minecraft.nbt.NBTTagList();
+        for (BlockPos p : this.excludedTargets) {
+            excludedList.appendTag(new net.minecraft.nbt.NBTTagLong(p.toLong()));
+        }
+        compound.setTag("excludedTargets", excludedList);
         return compound;
     }
 

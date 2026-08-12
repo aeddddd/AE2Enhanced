@@ -157,18 +157,27 @@ public class BlockChunkPowerNode extends Block {
     @Override
     public boolean onBlockActivated(World world, BlockPos pos, IBlockState state, EntityPlayer player, EnumHand hand, EnumFacing facing, float hitX, float hitY, float hitZ) {
         if (hand != EnumHand.MAIN_HAND) return false;
-        if (player.isSneaking() && !world.isRemote) {
-            TileEntity te = world.getTileEntity(pos);
-            if (te instanceof TileChunkPowerNode) {
+        TileEntity te = world.getTileEntity(pos);
+        if (!(te instanceof TileChunkPowerNode)) {
+            return super.onBlockActivated(world, pos, state, player, hand, facing, hitX, hitY, hitZ);
+        }
+        if (player.isSneaking()) {
+            // 潜行右键：高亮显示供电目标
+            if (!world.isRemote) {
                 TileChunkPowerNode node = (TileChunkPowerNode) te;
                 java.util.List<BlockPos> targets = node.getCachedTargets();
                 com.github.aeddddd.ae2enhanced.AE2Enhanced.network.sendTo(
                         new com.github.aeddddd.ae2enhanced.network.packet.PacketChunkPowerHighlight(targets, 100),
                         (net.minecraft.entity.player.EntityPlayerMP) player);
-                return true;
             }
+            return true;
         }
-        return super.onBlockActivated(world, pos, state, player, hand, facing, hitX, hitY, hitZ);
+        // 普通右键：打开供电节点 GUI
+        if (!world.isRemote) {
+            player.openGui(AE2Enhanced.instance, com.github.aeddddd.ae2enhanced.gui.GuiHandler.GUI_CHUNK_POWER_NODE,
+                world, pos.getX(), pos.getY(), pos.getZ());
+        }
+        return true;
     }
 
     public enum State implements IStringSerializable {

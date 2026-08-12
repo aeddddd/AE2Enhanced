@@ -6,6 +6,8 @@ import appeng.api.networking.IGridNode;
 import appeng.api.networking.security.IActionHost;
 import appeng.api.networking.storage.IStorageGrid;
 import appeng.api.storage.IMEMonitor;
+import appeng.api.storage.IStorageChannel;
+import appeng.api.storage.data.IAEStack;
 import appeng.api.storage.data.IItemList;
 import appeng.api.util.AECableType;
 import appeng.api.util.AEPartLocation;
@@ -13,9 +15,7 @@ import appeng.me.GridAccessException;
 import appeng.me.helpers.MachineSource;
 import com.github.aeddddd.ae2enhanced.config.AE2EnhancedConfig;
 import com.github.aeddddd.ae2enhanced.registry.content.BlockRegistry;
-import com.github.aeddddd.ae2enhanced.storage.energy.AEEnergyStack;
-import com.github.aeddddd.ae2enhanced.storage.energy.IAEEnergyStack;
-import com.github.aeddddd.ae2enhanced.storage.energy.IEnergyStorageChannel;
+import com.github.aeddddd.ae2enhanced.storage.energy.EnergyChannelResolver;
 import com.github.aeddddd.ae2enhanced.storage.mana.AEManaStack;
 import com.github.aeddddd.ae2enhanced.storage.mana.IAEManaStack;
 import com.github.aeddddd.ae2enhanced.storage.mana.IManaStorageChannel;
@@ -186,6 +186,7 @@ public class TileNetworkAccessNode extends TileAENetworkBase
 
     // === RF (Forge Energy) ===
 
+    @SuppressWarnings({"rawtypes", "unchecked"})
     private void doCreativeBoostTick() {
         if (!AE2EnhancedConfig.energy.creativeRfSourceBoostEnabled) return;
         if (creativeBoostCooldown-- > 0) return;
@@ -193,17 +194,22 @@ public class TileNetworkAccessNode extends TileAENetworkBase
 
         if (!isAdjacentToCreativeRfSource()) return;
 
-        IMEMonitor<IAEEnergyStack> monitor = getEnergyMonitor();
+        IMEMonitor monitor = getEnergyMonitor();
         if (monitor == null) return;
 
         long amount = AE2EnhancedConfig.energy.getParsedBoostAmount();
         if (amount <= 0) return;
 
-        IAEEnergyStack rejected = monitor.injectItems(AEEnergyStack.create(amount), Actionable.SIMULATE, getMachineSource());
+        IAEStack request = EnergyChannelResolver.createStack(amount);
+        if (request == null) return;
+        IAEStack rejected = (IAEStack) monitor.injectItems(request, Actionable.SIMULATE, getMachineSource());
         long canAccept = amount - (rejected != null ? rejected.getStackSize() : 0);
         if (canAccept <= 0) return;
 
-        monitor.injectItems(AEEnergyStack.create(canAccept), Actionable.MODULATE, getMachineSource());
+        IAEStack input = EnergyChannelResolver.createStack(canAccept);
+        if (input != null) {
+            monitor.injectItems(input, Actionable.MODULATE, getMachineSource());
+        }
     }
 
     private boolean isAdjacentToCreativeRfSource() {
@@ -218,8 +224,9 @@ public class TileNetworkAccessNode extends TileAENetworkBase
         return false;
     }
 
+    @SuppressWarnings({"rawtypes", "unchecked"})
     private void doRfOutputTo(TileEntity te) {
-        IMEMonitor<IAEEnergyStack> monitor = getEnergyMonitor();
+        IMEMonitor monitor = getEnergyMonitor();
         if (monitor == null) return;
 
         IEnergyStorage cap = findReceivableEnergyCap(te);
@@ -229,7 +236,9 @@ public class TileNetworkAccessNode extends TileAENetworkBase
         if (demand <= 0) return;
         demand = Math.min(demand, AE2EnhancedConfig.energy.rfAccessNodeMaxTransfer);
 
-        IAEEnergyStack extracted = monitor.extractItems(AEEnergyStack.create(demand), Actionable.MODULATE, getMachineSource());
+        IAEStack request = EnergyChannelResolver.createStack(demand);
+        if (request == null) return;
+        IAEStack extracted = (IAEStack) monitor.extractItems(request, Actionable.MODULATE, getMachineSource());
         if (extracted == null || extracted.getStackSize() <= 0) return;
 
         int toInject = (int) Math.min(extracted.getStackSize(), Integer.MAX_VALUE);
@@ -237,7 +246,10 @@ public class TileNetworkAccessNode extends TileAENetworkBase
 
         long leftover = extracted.getStackSize() - actual;
         if (leftover > 0) {
-            monitor.injectItems(AEEnergyStack.create(leftover), Actionable.MODULATE, getMachineSource());
+            IAEStack rest = EnergyChannelResolver.createStack(leftover);
+            if (rest != null) {
+                monitor.injectItems(rest, Actionable.MODULATE, getMachineSource());
+            }
         }
     }
 
@@ -254,39 +266,46 @@ public class TileNetworkAccessNode extends TileAENetworkBase
     }
 
     @Override
+    @SuppressWarnings({"rawtypes", "unchecked"})
     public int receiveEnergy(int maxReceive, boolean simulate) {
         if (maxReceive <= 0 || this.mode != MODE_INPUT) return 0;
         int limit = AE2EnhancedConfig.energy.rfAccessNodeMaxTransfer;
         if (maxReceive > limit) maxReceive = limit;
-        IMEMonitor<IAEEnergyStack> monitor = getEnergyMonitor();
+        IMEMonitor monitor = getEnergyMonitor();
         if (monitor == null) return 0;
 
+        IAEStack request = EnergyChannelResolver.createStack(maxReceive);
+        if (request == null) return 0;
         Actionable action = simulate ? Actionable.SIMULATE : Actionable.MODULATE;
-        IAEEnergyStack rejected = monitor.injectItems(AEEnergyStack.create(maxReceive), action, getMachineSource());
+        IAEStack rejected = (IAEStack) monitor.injectItems(request, action, getMachineSource());
         long rejectedSize = rejected != null ? rejected.getStackSize() : 0;
         return (int) (maxReceive - rejectedSize);
     }
 
     @Override
+    @SuppressWarnings({"rawtypes", "unchecked"})
     public int extractEnergy(int maxExtract, boolean simulate) {
         if (maxExtract <= 0 || this.mode != MODE_OUTPUT) return 0;
         int limit = AE2EnhancedConfig.energy.rfAccessNodeMaxTransfer;
         if (maxExtract > limit) maxExtract = limit;
-        IMEMonitor<IAEEnergyStack> monitor = getEnergyMonitor();
+        IMEMonitor monitor = getEnergyMonitor();
         if (monitor == null) return 0;
 
+        IAEStack request = EnergyChannelResolver.createStack(maxExtract);
+        if (request == null) return 0;
         Actionable action = simulate ? Actionable.SIMULATE : Actionable.MODULATE;
-        IAEEnergyStack extracted = monitor.extractItems(AEEnergyStack.create(maxExtract), action, getMachineSource());
+        IAEStack extracted = (IAEStack) monitor.extractItems(request, action, getMachineSource());
         return extracted != null ? (int) Math.min(extracted.getStackSize(), Integer.MAX_VALUE) : 0;
     }
 
     @Override
     public int getEnergyStored() {
-        IMEMonitor<IAEEnergyStack> monitor = getEnergyMonitor();
+        IMEMonitor monitor = getEnergyMonitor();
         if (monitor == null) return 0;
-        IItemList<IAEEnergyStack> list = monitor.getStorageList();
+        IItemList list = monitor.getStorageList();
         long total = 0;
-        for (IAEEnergyStack stack : list) {
+        for (Object o : list) {
+            IAEStack stack = (IAEStack) o;
             if (stack != null) total += stack.getStackSize();
         }
         return (int) Math.min(total, Integer.MAX_VALUE);
@@ -573,9 +592,11 @@ public class TileNetworkAccessNode extends TileAENetworkBase
 
     // === Helpers ===
 
-    private IMEMonitor<IAEEnergyStack> getEnergyMonitor() {
+    @SuppressWarnings("rawtypes")
+    private IMEMonitor getEnergyMonitor() {
         try {
-            IEnergyStorageChannel channel = AEApi.instance().storage().getStorageChannel(IEnergyStorageChannel.class);
+            // 经 EnergyChannelResolver 解析当前生效的能量通道（兼容 Flux_Applied 外部通道）
+            IStorageChannel channel = EnergyChannelResolver.getChannel();
             if (channel == null) {
                 return null;
             }

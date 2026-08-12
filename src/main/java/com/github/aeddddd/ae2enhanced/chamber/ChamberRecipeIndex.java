@@ -57,7 +57,7 @@ public final class ChamberRecipeIndex {
         built = false;
     }
 
-    public static void ensureBuilt() {
+    public static synchronized void ensureBuilt() {
         if (!built) {
             built = true;
             rebuild();
@@ -66,6 +66,7 @@ public final class ChamberRecipeIndex {
 
     /**
      * 按输入 key 查询候选配方（含磨粉机惰性查询）.
+     * 返回顺序即处理优先级：黑洞 > 合并链 > 单步压印 > 硬编码（充能/聚合/种子）> 磨粉 > CT 自定义.
      */
     public static List<ChamberRecipe> recipesForInput(String key, ItemStack template) {
         ensureBuilt();
@@ -79,6 +80,18 @@ public final class ChamberRecipeIndex {
             }
         }
         return result != null ? result : Collections.emptyList();
+    }
+
+    /**
+     * 插入过滤：只有能参与某条配方的物品才允许进入处理仓
+     *（ExtendedAE 的 BaseFilter 思路：不让无关物品占用缓存槽）.
+     */
+    public static boolean isValidInput(ItemStack stack) {
+        if (stack.isEmpty()) {
+            return false;
+        }
+        String key = LongItemStore.keyOf(stack);
+        return !recipesForInput(key, stack).isEmpty();
     }
 
     public static List<ChamberRecipe> allRecipes() {
@@ -127,8 +140,10 @@ public final class ChamberRecipeIndex {
     }
 
     private static void index(ChamberRecipe recipe) {
-        for (String key : recipe.getInputs().keySet()) {
-            byInputKey.computeIfAbsent(key, k -> new ArrayList<>()).add(recipe);
+        for (ChamberRecipe.InputGroup group : recipe.getInputGroups()) {
+            for (String key : group.getKeys()) {
+                byInputKey.computeIfAbsent(key, k -> new ArrayList<>()).add(recipe);
+            }
         }
     }
 
@@ -192,6 +207,8 @@ public final class ChamberRecipeIndex {
 
         // 输出 key -> INSCRIBE 配方（用于链式合并查询）
         Map<String, IInscriberRecipe> inscribeByOutput = new HashMap<>();
+        List<ChamberRecipe> singles = new ArrayList<>();
+        List<ChamberRecipe> chains = new ArrayList<>();
         int n = 0;
         for (IInscriberRecipe recipe : all) {
             if (recipe.getProcessType() == InscriberProcessType.INSCRIBE) {
@@ -199,12 +216,12 @@ public final class ChamberRecipeIndex {
                 if (!output.isEmpty()) {
                     inscribeByOutput.putIfAbsent(LongItemStore.keyOf(output), recipe);
                 }
-                generated.add(buildInscribeSingle(recipe, "inscribe:" + (n++)));
+                singles.add(buildInscribeSingle(recipe, "inscribe:" + (n++)));
             } else {
                 // PRESS：按 top×bottom 候选组合展开（通常各 1 个）
                 for (ItemStack top : nonEmpty(recipe.getTopInputs())) {
                     for (ItemStack bottom : nonEmpty(recipe.getBottomInputs())) {
-                        generated.add(buildPressSingle(recipe, top, bottom, "press:" + (n++)));
+                        singles.add(buildPressSingle(recipe, top, bottom, "press:" + (n++)));
                     }
                 }
             }
@@ -222,10 +239,14 @@ public final class ChamberRecipeIndex {
                     if (topSrc == null || bottomSrc == null) {
                         continue;
                     }
-                    generated.add(buildChain(recipe, topSrc, bottomSrc, "chain:" + (n++)));
+                    chains.add(buildChain(recipe, topSrc, bottomSrc, "chain:" + (n++)));
                 }
             }
         }
+
+        // 优先级：合并链优先于单步配方（同一原料直接进入最深加工链）
+        generated.addAll(chains);
+        generated.addAll(singles);
     }
 
     private static List<ItemStack> nonEmpty(List<ItemStack> list) {
@@ -238,46 +259,36 @@ public final class ChamberRecipeIndex {
         return result;
     }
 
-    /** 单步 INSCRIBE：中间物消耗,压印板约束内化（无需催化剂槽）. */
+    /** 单步 INSCRIBE：中间物为替代组（任一满足）,压印板约束内化（无需催化剂槽）. */
     private static ChamberRecipe buildInscribeSingle(IInscriberRecipe recipe, String id) {
-        ChamberRecipe.Builder builder = ChamberRecipe.builder(id)
+        return ChamberRecipe.builder(id)
+                .inputAlternatives(nonEmpty(recipe.getInputs()), 1)
                 .output(recipe.getOutput())
-                .time(TIME_INSCRIBE);
-        for (ItemStack middle : nonEmpty(recipe.getInputs())) {
-            builder.input(middle, Math.max(1, middle.getCount()));
-        }
-        return builder.build();
+                .time(TIME_INSCRIBE)
+                .build();
     }
 
-    /** 单步 PRESS：上/中/下全部消耗（cells 与原版处理器配方语义）. */
+    /** 单步 PRESS：上/下各消耗 1,中间物为替代组（cells 与原版处理器配方语义）. */
     private static ChamberRecipe buildPressSingle(IInscriberRecipe recipe, ItemStack top, ItemStack bottom, String id) {
-        ChamberRecipe.Builder builder = ChamberRecipe.builder(id)
+        return ChamberRecipe.builder(id)
+                .input(top, 1)
+                .inputAlternatives(nonEmpty(recipe.getInputs()), 1)
+                .input(bottom, 1)
                 .output(recipe.getOutput())
-                .time(TIME_PRESS);
-        builder.input(top, 1);
-        for (ItemStack middle : nonEmpty(recipe.getInputs())) {
-            builder.input(middle, Math.max(1, middle.getCount()));
-        }
-        builder.input(bottom, 1);
-        return builder.build();
+                .time(TIME_PRESS)
+                .build();
     }
 
-    /** 合并链：INSCRIBE 原料 + PRESS 中间物 -> PRESS 输出,压印板约束内化. */
+    /** 合并链：三层中间物替代组 + PRESS 中间物 -> PRESS 输出,压印板约束内化. */
     private static ChamberRecipe buildChain(IInscriberRecipe press, IInscriberRecipe topSrc,
                                             IInscriberRecipe bottomSrc, String id) {
-        ChamberRecipe.Builder builder = ChamberRecipe.builder(id)
+        return ChamberRecipe.builder(id)
+                .inputAlternatives(nonEmpty(press.getInputs()), 1)
+                .inputAlternatives(nonEmpty(topSrc.getInputs()), 1)
+                .inputAlternatives(nonEmpty(bottomSrc.getInputs()), 1)
                 .output(press.getOutput())
-                .time(TIME_CHAIN);
-        for (ItemStack middle : nonEmpty(press.getInputs())) {
-            builder.input(middle, Math.max(1, middle.getCount()));
-        }
-        for (ItemStack middle : nonEmpty(topSrc.getInputs())) {
-            builder.input(middle, Math.max(1, middle.getCount()));
-        }
-        for (ItemStack middle : nonEmpty(bottomSrc.getInputs())) {
-            builder.input(middle, Math.max(1, middle.getCount()));
-        }
-        return builder.build();
+                .time(TIME_CHAIN)
+                .build();
     }
 
     // ---- 硬编码配方：充能 / 聚合 / 种子 ----

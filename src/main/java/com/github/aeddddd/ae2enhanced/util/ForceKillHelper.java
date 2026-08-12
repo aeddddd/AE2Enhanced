@@ -216,6 +216,8 @@ public final class ForceKillHelper {
      */
     public static void applyForceKill(EntityLivingBase target, Entity attacker, float damage, net.minecraft.util.DamageSource deathSource) {
         if (target.world.isRemote) return;
+        // 飞升网络链接指环的绝对防护：拦截成功则整个强杀流程中止
+        if (com.github.aeddddd.ae2enhanced.ring.RingProtection.tryBlockForceKill(target)) return;
         // 必须读取真实血量：禁疗实体的 getHealth() 会被 Mixin 伪装为 0,
         // 若直接用 getHealth() 判断,强杀流程会被误判为"目标已死"而整体跳过
         float rawHealth = getRawHealth(target);
@@ -265,6 +267,8 @@ public final class ForceKillHelper {
     public static void applyEnvironmentDamage(EntityLivingBase target, net.minecraft.util.DamageSource source, float damage) {
         if (target.world.isRemote) return;
         if (target.getHealth() <= 0.0f) return;
+        // 飞升网络链接指环的绝对防护：拦截成功则整个强杀流程中止
+        if (com.github.aeddddd.ae2enhanced.ring.RingProtection.tryBlockForceKill(target)) return;
 
         if (target instanceof net.minecraft.entity.player.EntityPlayer) {
             target.hurtResistantTime = 0;

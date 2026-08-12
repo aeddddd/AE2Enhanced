@@ -57,6 +57,9 @@ public final class ModEventHandler {
     private ModEventHandler() {}
 
     public static void register() {
+        // 指环事件处理器需先于 ModEventHandler 注册：同优先级下先注册者先执行,
+        // 保证飞升指环在死亡掉落被收集器重定向之前完成保留
+        MinecraftForge.EVENT_BUS.register(new com.github.aeddddd.ae2enhanced.ring.RingEventHandler());
         MinecraftForge.EVENT_BUS.register(new ModEventHandler());
         MinecraftForge.EVENT_BUS.register(new com.github.aeddddd.ae2enhanced.crafting.smartpattern.SmartPatternMergeHelper());
     }

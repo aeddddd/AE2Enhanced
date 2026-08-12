@@ -46,6 +46,15 @@ public class ItemConstrainedMicroSingularity extends Item {
         setRegistryName(AE2Enhanced.MOD_ID, "constrained_micro_singularity");
         setTranslationKey(AE2Enhanced.MOD_ID + ".constrained_micro_singularity");
         setMaxStackSize(1);
+        setCreativeTab(AE2Enhanced.CREATIVE_TAB);
+    }
+
+    /** 创造栏提供携带默认寿命的预设物品（对齐 1.20.1 创造栏行为）. */
+    @Override
+    public void getSubItems(net.minecraft.creativetab.CreativeTabs tab, net.minecraft.util.NonNullList<ItemStack> items) {
+        if (isInCreativeTab(tab)) {
+            items.add(createStack(TileMicroSingularity.DEFAULT_LIFE_TICKS, false));
+        }
     }
 
     /** 创建携带指定状态的被约束奇点物品. */

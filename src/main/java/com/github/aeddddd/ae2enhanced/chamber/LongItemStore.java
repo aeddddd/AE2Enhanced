@@ -8,6 +8,7 @@ import net.minecraftforge.common.util.Constants;
 
 import java.util.Collection;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -95,8 +96,38 @@ public class LongItemStore {
         return entry != null ? entry.getTemplate() : ItemStack.EMPTY;
     }
 
+    /**
+     * 整体替换内容（客户端镜像同步用,按给定顺序重建条目）.
+     */
+    public void replaceAll(List<ItemStack> templates, List<Long> counts) {
+        entries.clear();
+        for (int i = 0; i < templates.size() && i < counts.size(); i++) {
+            ItemStack template = templates.get(i);
+            if (template.isEmpty() || counts.get(i) <= 0) {
+                continue;
+            }
+            entries.put(keyOf(template), new Entry(template, counts.get(i)));
+        }
+    }
+
     public Collection<Entry> getEntries() {
         return entries.values();
+    }
+
+    /**
+     * 按插入顺序取第 index 个条目,越界返回 null（GUI 虚拟槽位映射用）.
+     */
+    public Entry entryAt(int index) {
+        if (index < 0 || index >= entries.size()) {
+            return null;
+        }
+        int i = 0;
+        for (Entry entry : entries.values()) {
+            if (i++ == index) {
+                return entry;
+            }
+        }
+        return null;
     }
 
     public int getTypeCount() {

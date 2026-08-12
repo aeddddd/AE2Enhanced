@@ -63,11 +63,25 @@ public class TileAdvancedMECollector extends TileAENetworkBase
     public static final int BUFFER_SIZE = 27;
     public static final int BUFFER_STACK_LIMIT = 4096;
 
+    /** 客户端需要渲染区域线框的收集器集合(仅客户端填充,由渲染器读取). */
+    public static final java.util.Set<TileAdvancedMECollector> CLIENT_BOUNDS_VISIBLE =
+            java.util.Collections.newSetFromMap(new java.util.WeakHashMap<>());
+
     private final AppEngInternalAEInventory config;
     private StackUpgradeInventory upgrades;
     private final ItemStackHandler buffer;
 
-    private int range = AE2EnhancedConfig.collector.defaultRange;
+    // 收集区域:中心点(相对方块坐标的偏移) + 每轴相对中心的 min/max 延伸(min ≤ 0 ≤ max)
+    private int centerOffsetX = 0;
+    private int centerOffsetY = 0;
+    private int centerOffsetZ = 0;
+    private int rangeMinX = -AE2EnhancedConfig.collector.defaultRange;
+    private int rangeMinY = -AE2EnhancedConfig.collector.defaultRange;
+    private int rangeMinZ = -AE2EnhancedConfig.collector.defaultRange;
+    private int rangeMaxX = AE2EnhancedConfig.collector.defaultRange;
+    private int rangeMaxY = AE2EnhancedConfig.collector.defaultRange;
+    private int rangeMaxZ = AE2EnhancedConfig.collector.defaultRange;
+    private boolean showBounds = false;
     private int tickCounter = 0;
     private int clientFlags = 0;
     private boolean lastPowered = false;
@@ -150,12 +164,26 @@ public class TileAdvancedMECollector extends TileAENetworkBase
     public void invalidate() {
         super.invalidate();
         CollectorRegistry.unregister(this);
+        CLIENT_BOUNDS_VISIBLE.remove(this);
     }
 
     @Override
     public void onChunkUnload() {
         super.onChunkUnload();
         CollectorRegistry.unregister(this);
+        CLIENT_BOUNDS_VISIBLE.remove(this);
+    }
+
+    /**
+     * 根据同步下来的 showBounds 状态维护客户端渲染集合.
+     */
+    private void updateClientBoundsRegistration() {
+        if (world == null || !world.isRemote) return;
+        if (this.showBounds) {
+            CLIENT_BOUNDS_VISIBLE.add(this);
+        } else {
+            CLIENT_BOUNDS_VISIBLE.remove(this);
+        }
     }
 
     @Override
@@ -281,32 +309,87 @@ public class TileAdvancedMECollector extends TileAENetworkBase
         }
     }
 
-    public int getRange() {
-        return this.range;
+    public int getCenterOffsetX() { return this.centerOffsetX; }
+    public int getCenterOffsetY() { return this.centerOffsetY; }
+    public int getCenterOffsetZ() { return this.centerOffsetZ; }
+    public int getRangeMinX() { return this.rangeMinX; }
+    public int getRangeMinY() { return this.rangeMinY; }
+    public int getRangeMinZ() { return this.rangeMinZ; }
+    public int getRangeMaxX() { return this.rangeMaxX; }
+    public int getRangeMaxY() { return this.rangeMaxY; }
+    public int getRangeMaxZ() { return this.rangeMaxZ; }
+
+    public int getDimX() { return this.rangeMaxX - this.rangeMinX + 1; }
+    public int getDimY() { return this.rangeMaxY - this.rangeMinY + 1; }
+    public int getDimZ() { return this.rangeMaxZ - this.rangeMinZ + 1; }
+
+    public boolean isShowBounds() {
+        return this.showBounds;
     }
 
-    public void setRange(int range) {
-        int max = AE2EnhancedConfig.collector.maxRange;
-        int newRange = Math.max(0, Math.min(range, max));
-        if (newRange != this.range) {
-            this.range = newRange;
+    /**
+     * 设置收集区域.中心偏移每轴限制在 ±maxCenterOffset,每轴延伸限制在 [-maxRange, 0] / [0, maxRange].
+     */
+    public void setRegion(int cx, int cy, int cz,
+                          int minX, int minY, int minZ,
+                          int maxX, int maxY, int maxZ) {
+        int maxOffset = AE2EnhancedConfig.collector.maxCenterOffset;
+        int maxRange = AE2EnhancedConfig.collector.maxRange;
+        int ncx = clamp(cx, -maxOffset, maxOffset);
+        int ncy = clamp(cy, -maxOffset, maxOffset);
+        int ncz = clamp(cz, -maxOffset, maxOffset);
+        int nMinX = clamp(minX, -maxRange, 0);
+        int nMinY = clamp(minY, -maxRange, 0);
+        int nMinZ = clamp(minZ, -maxRange, 0);
+        int nMaxX = clamp(maxX, 0, maxRange);
+        int nMaxY = clamp(maxY, 0, maxRange);
+        int nMaxZ = clamp(maxZ, 0, maxRange);
+        if (ncx == this.centerOffsetX && ncy == this.centerOffsetY && ncz == this.centerOffsetZ
+                && nMinX == this.rangeMinX && nMinY == this.rangeMinY && nMinZ == this.rangeMinZ
+                && nMaxX == this.rangeMaxX && nMaxY == this.rangeMaxY && nMaxZ == this.rangeMaxZ) {
+            return;
+        }
+        this.centerOffsetX = ncx;
+        this.centerOffsetY = ncy;
+        this.centerOffsetZ = ncz;
+        this.rangeMinX = nMinX;
+        this.rangeMinY = nMinY;
+        this.rangeMinZ = nMinZ;
+        this.rangeMaxX = nMaxX;
+        this.rangeMaxY = nMaxY;
+        this.rangeMaxZ = nMaxZ;
+        markDirty();
+        notifyClient();
+    }
+
+    public void setShowBounds(boolean show) {
+        if (show != this.showBounds) {
+            this.showBounds = show;
             markDirty();
-            if (world != null && !world.isRemote) {
-                net.minecraft.block.state.IBlockState state = world.getBlockState(pos);
-                world.notifyBlockUpdate(pos, state, state, 2);
-            }
+            notifyClient();
         }
     }
 
-    public int getActualSideLength() {
-        return this.range * 2 + 1;
+    private static int clamp(int v, int min, int max) {
+        return Math.max(min, Math.min(v, max));
+    }
+
+    private void notifyClient() {
+        if (world != null && !world.isRemote) {
+            net.minecraft.block.state.IBlockState state = world.getBlockState(pos);
+            world.notifyBlockUpdate(pos, state, state, 2);
+        }
+    }
+
+    public BlockPos getRegionCenter() {
+        return pos.add(this.centerOffsetX, this.centerOffsetY, this.centerOffsetZ);
     }
 
     public AxisAlignedBB getCollectionArea() {
-        int r = this.range;
+        BlockPos c = getRegionCenter();
         return new AxisAlignedBB(
-                pos.getX() - r, pos.getY() - r, pos.getZ() - r,
-                pos.getX() + r + 1, pos.getY() + r + 1, pos.getZ() + r + 1
+                c.getX() + this.rangeMinX, c.getY() + this.rangeMinY, c.getZ() + this.rangeMinZ,
+                c.getX() + this.rangeMaxX + 1, c.getY() + this.rangeMaxY + 1, c.getZ() + this.rangeMaxZ + 1
         );
     }
 
@@ -567,7 +650,23 @@ public class TileAdvancedMECollector extends TileAENetworkBase
     @Override
     public void readFromNBT(NBTTagCompound compound) {
         super.readFromNBT(compound);
-        this.range = compound.getInteger("range");
+        if (compound.hasKey("rangeMinX")) {
+            this.centerOffsetX = compound.getInteger("centerOffsetX");
+            this.centerOffsetY = compound.getInteger("centerOffsetY");
+            this.centerOffsetZ = compound.getInteger("centerOffsetZ");
+            this.rangeMinX = compound.getInteger("rangeMinX");
+            this.rangeMinY = compound.getInteger("rangeMinY");
+            this.rangeMinZ = compound.getInteger("rangeMinZ");
+            this.rangeMaxX = compound.getInteger("rangeMaxX");
+            this.rangeMaxY = compound.getInteger("rangeMaxY");
+            this.rangeMaxZ = compound.getInteger("rangeMaxZ");
+            this.showBounds = compound.getBoolean("showBounds");
+        } else if (compound.hasKey("range")) {
+            // 旧版本兼容:单一对称半径
+            int r = compound.getInteger("range");
+            this.rangeMinX = this.rangeMinY = this.rangeMinZ = -r;
+            this.rangeMaxX = this.rangeMaxY = this.rangeMaxZ = r;
+        }
         this.config.readFromNBT(compound, "config");
         getUpgrades().readFromNBT(compound, "upgrades");
         this.clientFlags = compound.getInteger("clientFlags");
@@ -581,7 +680,16 @@ public class TileAdvancedMECollector extends TileAENetworkBase
     @Override
     public NBTTagCompound writeToNBT(NBTTagCompound compound) {
         super.writeToNBT(compound);
-        compound.setInteger("range", this.range);
+        compound.setInteger("centerOffsetX", this.centerOffsetX);
+        compound.setInteger("centerOffsetY", this.centerOffsetY);
+        compound.setInteger("centerOffsetZ", this.centerOffsetZ);
+        compound.setInteger("rangeMinX", this.rangeMinX);
+        compound.setInteger("rangeMinY", this.rangeMinY);
+        compound.setInteger("rangeMinZ", this.rangeMinZ);
+        compound.setInteger("rangeMaxX", this.rangeMaxX);
+        compound.setInteger("rangeMaxY", this.rangeMaxY);
+        compound.setInteger("rangeMaxZ", this.rangeMaxZ);
+        compound.setBoolean("showBounds", this.showBounds);
         this.config.writeToNBT(compound, "config");
         getUpgrades().writeToNBT(compound, "upgrades");
         compound.setInteger("clientFlags", this.clientFlags);
@@ -596,7 +704,7 @@ public class TileAdvancedMECollector extends TileAENetworkBase
     @Override
     public NBTTagCompound getUpdateTag() {
         NBTTagCompound tag = super.getUpdateTag();
-        tag.setInteger("range", this.range);
+        writeRegionToNBT(tag);
         tag.setInteger("clientFlags", this.clientFlags);
         return tag;
     }
@@ -604,8 +712,35 @@ public class TileAdvancedMECollector extends TileAENetworkBase
     @Override
     public void handleUpdateTag(NBTTagCompound tag) {
         super.handleUpdateTag(tag);
-        this.range = tag.getInteger("range");
+        readRegionFromNBT(tag);
         this.clientFlags = tag.getInteger("clientFlags");
+        updateClientBoundsRegistration();
+    }
+
+    private void writeRegionToNBT(NBTTagCompound tag) {
+        tag.setInteger("centerOffsetX", this.centerOffsetX);
+        tag.setInteger("centerOffsetY", this.centerOffsetY);
+        tag.setInteger("centerOffsetZ", this.centerOffsetZ);
+        tag.setInteger("rangeMinX", this.rangeMinX);
+        tag.setInteger("rangeMinY", this.rangeMinY);
+        tag.setInteger("rangeMinZ", this.rangeMinZ);
+        tag.setInteger("rangeMaxX", this.rangeMaxX);
+        tag.setInteger("rangeMaxY", this.rangeMaxY);
+        tag.setInteger("rangeMaxZ", this.rangeMaxZ);
+        tag.setBoolean("showBounds", this.showBounds);
+    }
+
+    private void readRegionFromNBT(NBTTagCompound tag) {
+        this.centerOffsetX = tag.getInteger("centerOffsetX");
+        this.centerOffsetY = tag.getInteger("centerOffsetY");
+        this.centerOffsetZ = tag.getInteger("centerOffsetZ");
+        this.rangeMinX = tag.getInteger("rangeMinX");
+        this.rangeMinY = tag.getInteger("rangeMinY");
+        this.rangeMinZ = tag.getInteger("rangeMinZ");
+        this.rangeMaxX = tag.getInteger("rangeMaxX");
+        this.rangeMaxY = tag.getInteger("rangeMaxY");
+        this.rangeMaxZ = tag.getInteger("rangeMaxZ");
+        this.showBounds = tag.getBoolean("showBounds");
     }
 
     @Override

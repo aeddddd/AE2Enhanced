@@ -22,6 +22,7 @@ public class ItemSingularityConstrictor extends Item {
     public ItemSingularityConstrictor() {
         setRegistryName(AE2Enhanced.MOD_ID, "singularity_constrictor");
         setTranslationKey(AE2Enhanced.MOD_ID + ".singularity_constrictor");
+        setMaxStackSize(16);
         setCreativeTab(AE2Enhanced.CREATIVE_TAB);
     }
 

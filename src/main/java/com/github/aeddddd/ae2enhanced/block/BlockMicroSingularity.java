@@ -25,8 +25,8 @@ import net.minecraft.world.WorldServer;
 import javax.annotation.Nullable;
 
 /**
- * 微型奇点 —�?仪式召唤的临时黑洞方块�?
- * 不可破坏,发光,有较小的碰撞箱,300 秒后自动坍缩�?
+ * 微型奇点 — 仪式召唤的临时黑洞方块.
+ * 不可破坏,发光,有较小的碰撞箱,300 秒后自动坍缩.
  * 玩家右键可主动触发黑洞合成(配方不匹配时不销毁物品);
  * 手持燃料物品右键可延长存在时间或使奇点永久存在.
  */
@@ -121,6 +121,10 @@ public class BlockMicroSingularity extends Block {
      */
     private static void feedFuel(World world, BlockPos pos, EntityPlayer player, ItemStack held,
                                  TileMicroSingularity singularity, SingularityFuelRecipe fuel) {
+        // 已永久存在的奇点无需再喂燃料,避免白白消耗
+        if (singularity.isPermanent()) {
+            return;
+        }
         if (!player.isCreative()) {
             held.shrink(1);
         }

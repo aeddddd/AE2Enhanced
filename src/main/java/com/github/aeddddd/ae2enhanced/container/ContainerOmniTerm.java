@@ -165,7 +165,14 @@ public class ContainerOmniTerm extends ContainerMEMonitorable
         super(ip, host, (appeng.api.implementations.guiobjects.IGuiItemObject) (Object) host, false);
         this.terminalHost = host;
         this.wirelessObject = host instanceof WirelessTerminalGuiObject ? (WirelessTerminalGuiObject) host : null;
-        this.omniMonitor = host.getInventory(AEApi.instance().storage().getStorageChannel(IItemStorageChannel.class));
+        // 仅服务端解析网络 monitor：客户端的 LocatableRegistry 恒为空，
+        // WirelessTerminalGuiObject.sg 为 null，直接调用 getInventory 会在服务器环境 NPE
+        // （单机不崩溃是因为客户端与集成服务端共享同一 JVM 的静态 locatable 表）
+        if (Platform.isServer()) {
+            this.omniMonitor = host.getInventory(AEApi.instance().storage().getStorageChannel(IItemStorageChannel.class));
+        } else {
+            this.omniMonitor = null;
+        }
 
         // === 从 WorldSavedData 获取持久化存储 ===
         if (host instanceof WirelessTerminalGuiObject) {

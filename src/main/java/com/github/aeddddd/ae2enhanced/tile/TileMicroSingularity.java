@@ -152,4 +152,10 @@ public class TileMicroSingularity extends TileEntity implements ITickable {
         compound.setBoolean(NBT_PERMANENT, this.permanent);
         return compound;
     }
+
+    @Override
+    public AxisAlignedBB getRenderBoundingBox() {
+        // 吸积盘半径约 1 格,超出方块包围盒,需扩大避免视锥裁剪（对齐 1.20.1）
+        return new AxisAlignedBB(pos).grow(2.0);
+    }
 }

@@ -36,6 +36,9 @@ public final class ItemRegistry {
     // 先进ME工具
     public static ItemAdvancedMEOmniTool ME_OMNI_TOOL;
 
+    // 先进网络链接凭证
+    public static com.github.aeddddd.ae2enhanced.item.ItemNetworkLinkCredential NETWORK_LINK_CREDENTIAL;
+
     // ME 放置工具
     public static ItemMEPlacementTool ME_PLACEMENT_TOOL;
 

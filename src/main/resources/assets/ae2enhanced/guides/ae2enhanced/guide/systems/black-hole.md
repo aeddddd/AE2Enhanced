@@ -3,8 +3,8 @@ navigation:
   title: Black Hole Crafting
   parent: systems.md
   position: 20
-  icon: micro_singularity
-item_ids: [micro_singularity, stable_spacetime_manifold, differential_form_stabilizer, conformal_invariant_charge]
+  icon: constrained_micro_singularity
+item_ids: [constrained_micro_singularity, singularity_constrictor, stable_spacetime_manifold, differential_form_stabilizer, conformal_invariant_charge]
 ---
 
 # Black Hole Crafting
@@ -15,7 +15,7 @@ A singularity-based end-game crafting system: recipes are executed by throwing i
 
 1. Drop **64 AE2 singularities** and **4 nether stars** on the ground near an ME controller.
 2. Hold **1 nether star** and right-click the ME controller.
-3. A <ItemLink id="micro_singularity" /> **Micro Singularity** appears with a lifetime of 6000 ticks (300 seconds). The ritual consumes the dropped items within a 5x5x5 area.
+3. A <ItemLink id="constrained_micro_singularity" /> **Micro Singularity** appears with a lifetime of 6000 ticks (300 seconds). The ritual consumes the dropped items within a 5x5x5 area.
 
 Custom rituals can be added with CraftTweaker (`mods.ae2enhanced.SingularityRitual`).
 
@@ -28,6 +28,7 @@ Custom rituals can be added with CraftTweaker (`mods.ae2enhanced.SingularityRitu
   - <ItemLink id="differential_form_stabilizer" /> Differential Form Stabilizer: +48000 ticks (2400 s).
   - <ItemLink id="conformal_invariant_charge" /> Conformal Invariant Charge: makes it permanent.
 - When the lifetime ends it collapses and disappears.
+- Right-clicking with a <ItemLink id="singularity_constrictor" /> **Singularity Constrictor** constrains the singularity into item form (its countdown slows to 1/30 speed). Throw the item and let it rest on the ground to restore the block form, returning the empty constrictor.
 
 ## Built-in Recipes (thrown into the event horizon)
 
