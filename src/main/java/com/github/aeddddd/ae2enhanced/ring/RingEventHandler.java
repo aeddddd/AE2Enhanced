@@ -50,6 +50,21 @@ public class RingEventHandler {
         }
     }
 
+    /**
+     * ServerTickEvent.END：在全部实体 tick 与 PlayerTickEvent 之后执行,
+     * 恢复被外部禁飞模组(BrokenWings/盖亚 III 等)清除的飞行状态(最后写入者获胜).
+     */
+    @SubscribeEvent
+    public void onServerTickEnd(TickEvent.ServerTickEvent event) {
+        if (event.phase != TickEvent.Phase.END) return;
+        net.minecraft.server.MinecraftServer server =
+                net.minecraftforge.fml.common.FMLCommonHandler.instance().getMinecraftServerInstance();
+        if (server == null) return;
+        for (EntityPlayerMP player : server.getPlayerList().getPlayers()) {
+            RingManager.tickServerEndFlightRestore(player);
+        }
+    }
+
     @SubscribeEvent
     public void onLogout(PlayerLoggedOutEvent event) {
         RingManager.discard(event.player.getUniqueID());
@@ -204,7 +219,7 @@ public class RingEventHandler {
     @SubscribeEvent(priority = EventPriority.HIGHEST)
     public void onKnockBack(LivingKnockBackEvent event) {
         if (event.isCanceled()) return;
-        if (RingProtection.hasAscendedRing(event.getEntityLiving())) {
+        if (RingProtection.isPullProtectionEnabled(event.getEntityLiving())) {
             event.setCanceled(true);
         }
     }
@@ -215,7 +230,7 @@ public class RingEventHandler {
         if (event.isCanceled()) return;
         if (!(event.getEntity() instanceof EntityPlayer)) return;
         EntityPlayer player = (EntityPlayer) event.getEntity();
-        if (RingProtection.hasAscendedRing(player) && !RingProtection.isTeleportAllowed(player)) {
+        if (RingProtection.isPullProtectionEnabled(player) && !RingProtection.isTeleportAllowed(player)) {
             event.setCanceled(true);
         }
     }

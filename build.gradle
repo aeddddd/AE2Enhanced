@@ -94,6 +94,7 @@ dependencies {
     compileOnly files('libs/ModularMachinery-CE-2.2.2.jar')
     compileOnly files('libs/StorageDrawers-1.12.2-5.5.0.jar')
     compileOnly files('libs/cells-0.6.2-alpha3.jar')
+    compileOnly files('libs/cell-terminal-1.6.7-dev.jar')
 
     // Mixin: MixinBooter 本地 jar + 注解处理器
     compile files('libs/!mixinbooter-10.6.jar')
@@ -190,65 +191,29 @@ afterEvaluate {
 }
 
 // ----------------------------------------------------------------------------
-// 打包: 排除 JEI stub、打包并瘦身 fastutil、写入 FML CorePlugin manifest
+// 打包: 排除 JEI stub、按白名单打包 fastutil、写入 FML CorePlugin manifest
 // ----------------------------------------------------------------------------
 jar {
     // 排除 JEI 内部类的编译期 stub, 避免与运行时 JEI/HEI 的类冲突
     exclude 'mezz/jei/**'
 
-    // 打包 fastutil 并手动瘦身, 排除不相关的原始类型包
-    from {
+    // fastutil 瘦身白名单: 本 mod + AE2-UEL 对 fastutil 静态引用(常量池)的传递闭包,
+    // 由 research/tools/fastutil_closure.py 生成。fastutil 或 AE2 版本升级后需重新生成:
+    //   python research/tools/fastutil_closure.py build/libs/AE2Enhanced-<version>.jar \
+    //       libs/ae2-uel-v0.56.7.jar <gradle缓存中的fastutil.jar> fastutil-whitelist.txt
+    def fastutilWhitelist = file('fastutil-whitelist.txt').readLines('UTF-8') as Set
+
+    // 打包 fastutil, 仅保留白名单中的类
+    from({
         configurations.compile.findAll { it.name.contains('fastutil') }.collect { zipTree(it) }
+    }) {
+        eachFile { fc ->
+            if (fc.path.endsWith('.class') && fc.path.startsWith('it/unimi/dsi/fastutil/')
+                    && !fastutilWhitelist.contains(fc.path)) {
+                fc.exclude()
+            }
+        }
     }
-
-    // 排除 fastutil 中不相关的原始类型包
-    exclude 'it/unimi/dsi/fastutil/doubles/**'
-    exclude 'it/unimi/dsi/fastutil/shorts/**'
-    exclude 'it/unimi/dsi/fastutil/floats/**'
-    exclude 'it/unimi/dsi/fastutil/chars/**'
-    exclude 'it/unimi/dsi/fastutil/bytes/**'
-    exclude 'it/unimi/dsi/fastutil/booleans/**'
-    exclude 'it/unimi/dsi/fastutil/io/**'
-
-    // 进一步排除 objects/longs/ints 包中与其他原始类型组合的类
-    exclude 'it/unimi/dsi/fastutil/objects/Object2Double*'
-    exclude 'it/unimi/dsi/fastutil/objects/Object2Float*'
-    exclude 'it/unimi/dsi/fastutil/objects/Object2Short*'
-    exclude 'it/unimi/dsi/fastutil/objects/Object2Char*'
-    exclude 'it/unimi/dsi/fastutil/objects/Object2Byte*'
-    exclude 'it/unimi/dsi/fastutil/objects/Object2Boolean*'
-    exclude 'it/unimi/dsi/fastutil/objects/*Double*'
-    exclude 'it/unimi/dsi/fastutil/objects/*Float*'
-    exclude 'it/unimi/dsi/fastutil/objects/*Short*'
-    exclude 'it/unimi/dsi/fastutil/objects/*Char*'
-    exclude 'it/unimi/dsi/fastutil/objects/*Byte*'
-    exclude 'it/unimi/dsi/fastutil/objects/*Boolean*'
-
-    exclude 'it/unimi/dsi/fastutil/longs/Long2Double*'
-    exclude 'it/unimi/dsi/fastutil/longs/Long2Float*'
-    exclude 'it/unimi/dsi/fastutil/longs/Long2Short*'
-    exclude 'it/unimi/dsi/fastutil/longs/Long2Char*'
-    exclude 'it/unimi/dsi/fastutil/longs/Long2Byte*'
-    exclude 'it/unimi/dsi/fastutil/longs/Long2Boolean*'
-    exclude 'it/unimi/dsi/fastutil/longs/*Double*'
-    exclude 'it/unimi/dsi/fastutil/longs/*Float*'
-    exclude 'it/unimi/dsi/fastutil/longs/*Short*'
-    exclude 'it/unimi/dsi/fastutil/longs/*Char*'
-    exclude 'it/unimi/dsi/fastutil/longs/*Byte*'
-    exclude 'it/unimi/dsi/fastutil/longs/*Boolean*'
-
-    exclude 'it/unimi/dsi/fastutil/ints/Int2Double*'
-    exclude 'it/unimi/dsi/fastutil/ints/Int2Float*'
-    exclude 'it/unimi/dsi/fastutil/ints/Int2Short*'
-    exclude 'it/unimi/dsi/fastutil/ints/Int2Char*'
-    exclude 'it/unimi/dsi/fastutil/ints/Int2Byte*'
-    exclude 'it/unimi/dsi/fastutil/ints/Int2Boolean*'
-    exclude 'it/unimi/dsi/fastutil/ints/*Double*'
-    exclude 'it/unimi/dsi/fastutil/ints/*Float*'
-    exclude 'it/unimi/dsi/fastutil/ints/*Short*'
-    exclude 'it/unimi/dsi/fastutil/ints/*Char*'
-    exclude 'it/unimi/dsi/fastutil/ints/*Byte*'
-    exclude 'it/unimi/dsi/fastutil/ints/*Boolean*'
 
     manifest {
         attributes([

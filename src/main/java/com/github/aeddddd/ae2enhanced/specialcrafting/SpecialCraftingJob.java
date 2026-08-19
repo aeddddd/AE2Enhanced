@@ -1,8 +1,10 @@
 package com.github.aeddddd.ae2enhanced.specialcrafting;
 
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import javax.annotation.Nullable;
 
@@ -205,6 +207,14 @@ public class SpecialCraftingJob extends CraftingJob {
             loanStack.setStackSize(loan);
             inv.injectItems(loanStack, Actionable.MODULATE, src);
         }
+        // CrT 不消耗配方(配方级返还,如 .reuse() 催化剂):原生批量模拟只认
+        // Item 容器物,催化剂 gross 提取会误报缺料——预注入虚拟返还(不归还)
+        Map<IAEItemStack, Long> catalystInject = new LinkedHashMap<>();
+        Map<IAEItemStack, Long> catalystRebate = new LinkedHashMap<>();
+        Set<IAEItemStack> catalystExcluded = new HashSet<>();
+        catalystExcluded.add(RecursiveCraftingHelper.canon(what));
+        CatalystReturns.collect(selfRef, crafts, catalystExcluded, catalystInject, catalystRebate);
+        CatalystReturns.inject(catalystInject, inv, src);
         try {
             Ae2CraftingReflect.treeProcessRequest(pro, inv, crafts, src);
         } catch (CraftBranchFailure failure) {
@@ -221,6 +231,7 @@ public class SpecialCraftingJob extends CraftingJob {
         // 但计划语义要求 used = 种子量(inPer)——多余库存不应被 CPU 提取
         Map<IAEItemStack, Long> seeds = new LinkedHashMap<>();
         seeds.put(RecursiveCraftingHelper.canon(what), inPer);
+        seeds.putAll(catalystRebate); // 催化剂种子语义:净消耗+单次投入
         this.rebateUsed(root, seeds);
         return root;
     }
@@ -268,6 +279,14 @@ public class SpecialCraftingJob extends CraftingJob {
             loanStack.setStackSize(loan);
             inv.injectItems(loanStack, Actionable.MODULATE, src);
         }
+        // CrT 不消耗配方(同 solveSelfRef):催化剂预注入虚拟返还
+        Map<IAEItemStack, Long> catalystInject = new LinkedHashMap<>();
+        Map<IAEItemStack, Long> catalystRebate = new LinkedHashMap<>();
+        Set<IAEItemStack> catalystExcluded = new HashSet<>();
+        catalystExcluded.add(RecursiveCraftingHelper.canon(selfKey));
+        catalystExcluded.add(RecursiveCraftingHelper.canon(what));
+        CatalystReturns.collect(pattern, crafts, catalystExcluded, catalystInject, catalystRebate);
+        CatalystReturns.inject(catalystInject, inv, src);
         try {
             Ae2CraftingReflect.treeProcessRequest(pro, inv, crafts, src);
         } catch (CraftBranchFailure failure) {
@@ -283,6 +302,7 @@ public class SpecialCraftingJob extends CraftingJob {
         // used 返利:种子语义 = inX
         Map<IAEItemStack, Long> seeds = new LinkedHashMap<>();
         seeds.put(RecursiveCraftingHelper.canon(selfKey), inX);
+        seeds.putAll(catalystRebate); // 催化剂种子语义:净消耗+单次投入
         this.rebateUsed(root, seeds);
         return root;
     }

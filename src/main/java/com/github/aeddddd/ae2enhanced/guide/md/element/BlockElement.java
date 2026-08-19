@@ -11,12 +11,15 @@ public final class BlockElement {
     public enum Type {
         PARAGRAPH,
         HEADING,
-        LIST_ITEM
+        LIST_ITEM,
+        CODE_BLOCK      // 围栏代码块（```），内容预格式逐行渲染
     }
 
     private final Type type;
     private final int headingDepth;          // 仅 HEADING 有效（1-3）
     private final List<InlineElement> children;
+    private String marker;                   // 仅 LIST_ITEM 有效：有序列表序号（如 "1."），null 为无序
+    private final List<String> codeLines = new ArrayList<>(); // 仅 CODE_BLOCK 有效
 
     public BlockElement(Type type, int headingDepth) {
         this.type = type;
@@ -36,10 +39,25 @@ public final class BlockElement {
         return children;
     }
 
+    public String getMarker() {
+        return marker;
+    }
+
+    public void setMarker(String marker) {
+        this.marker = marker;
+    }
+
+    public List<String> getCodeLines() {
+        return codeLines;
+    }
+
     /**
-     * 提取纯文本（供搜索索引与锚点生成）.
+     * 提取纯文本（供锚点生成等）.
      */
     public String getPlainText() {
+        if (type == Type.CODE_BLOCK) {
+            return String.join("\n", codeLines);
+        }
         StringBuilder sb = new StringBuilder();
         for (InlineElement el : children) {
             if (el.getText() != null) {

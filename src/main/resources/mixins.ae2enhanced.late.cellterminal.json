@@ -1,0 +1,14 @@
+{
+  "package": "com.github.aeddddd.ae2enhanced.mixin.late.cellterminal",
+  "refmap": "mixin.refmap.json",
+  "target": "@env(DEFAULT)",
+  "minVersion": "0.8",
+  "compatibilityLevel": "JAVA_8",
+  "plugin": "com.github.aeddddd.ae2enhanced.mixin.CellTerminalMixinPlugin",
+  "mixins": [
+    "MixinCellTerminalContainer",
+    "MixinNetworkToolActionHandler"
+  ],
+  "client": [],
+  "server": []
+}

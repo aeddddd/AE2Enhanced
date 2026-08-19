@@ -1,12 +1,8 @@
 package com.github.aeddddd.ae2enhanced.tile;
 
 import net.minecraft.tileentity.TileEntity;
-import net.minecraft.util.EnumFacing;
-import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.chunk.Chunk;
 import net.minecraft.world.gen.ChunkProviderServer;
-import net.minecraftforge.energy.CapabilityEnergy;
-import net.minecraftforge.energy.IEnergyStorage;
 
 /**
  * 压缩区块供电节点的 TileEntity.
@@ -26,7 +22,7 @@ public class TileCompressedChunkPowerNode extends TileChunkPowerNode {
      */
     @Override
     protected void refreshTargetCache() {
-        cachedTargets.clear();
+        clearTargetCaches();
         int centerChunkX = pos.getX() >> 4;
         int centerChunkZ = pos.getZ() >> 4;
 
@@ -40,27 +36,7 @@ public class TileCompressedChunkPowerNode extends TileChunkPowerNode {
                 if (chunk == null) continue;
 
                 for (TileEntity te : chunk.getTileEntityMap().values()) {
-                    if (te == null || te.isInvalid()) continue;
-                    if (te == this) continue;
-
-                    BlockPos tp = te.getPos();
-                    boolean canReceive = false;
-                    for (EnumFacing facing : EnumFacing.values()) {
-                        if (te.hasCapability(CapabilityEnergy.ENERGY, facing)) {
-                            IEnergyStorage cap = te.getCapability(CapabilityEnergy.ENERGY, facing);
-                            if (cap != null && cap.canReceive()) {
-                                canReceive = true;
-                                break;
-                            }
-                        }
-                    }
-                    if (!canReceive) continue;
-
-                    // 黑名单检查（与基类一致,避免向 network_access_node 供电形成自循环）
-                    String blockId = world.getBlockState(tp).getBlock().getRegistryName().toString();
-                    if (BLACKLIST.contains(blockId)) continue;
-
-                    cachedTargets.add(tp.toImmutable());
+                    registerTargetIfReceivable(te);
                 }
             }
         }

@@ -1,6 +1,9 @@
 package com.github.aeddddd.ae2enhanced.specialcrafting;
 
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import appeng.api.config.Actionable;
 import appeng.api.networking.crafting.ICraftingGrid;
@@ -180,8 +183,25 @@ public final class CycleSolver {
                 inv.injectItems(loan, Actionable.MODULATE, src);
             }
         }
+        // CrT 不消耗配方(配方级返还,如 .reuse() 催化剂):各环步样板按总次数
+        // 预注入虚拟返还(不归还)——原生批量模拟只认 Item 容器物,环外催化剂输入的
+        // gross 提取会误报缺料;环键/交付键由既有贷款语义覆盖,不参与
+        Map<IAEItemStack, Long> catalystInject = new java.util.LinkedHashMap<>();
+        Map<IAEItemStack, Long> catalystRebate = new java.util.LinkedHashMap<>();
+        Set<IAEItemStack> catalystExcluded = new HashSet<>();
+        for (IAEItemStack key : keys) {
+            catalystExcluded.add(RecursiveCraftingHelper.canon(key));
+        }
+        catalystExcluded.add(RecursiveCraftingHelper.canon(what));
+        List<CycleAnalyzer.CycleStep> steps = analysis.steps();
+        for (int i = 0; i < steps.size(); i++) {
+            if (totalTimes[i] > 0) {
+                CatalystReturns.collect(steps.get(i).pattern(), totalTimes[i], catalystExcluded,
+                        catalystInject, catalystRebate);
+            }
+        }
+        CatalystReturns.inject(catalystInject, inv, src);
         try {
-            List<CycleAnalyzer.CycleStep> steps = analysis.steps();
             List<CraftingTreeProcess> pros = new java.util.ArrayList<>();
             List<CycleAnalyzer.CycleStep> proSteps = new java.util.ArrayList<>();
             for (int i = 0; i < steps.size(); i++) {
@@ -208,6 +228,12 @@ public final class CycleSolver {
                     inv.extractItems(payback, Actionable.MODULATE, src);
                 }
             }
+        }
+
+        // 催化剂 used 返利(与环键种子返利键集互斥;边界路径调用方不做环键返利,
+        // 此处就地返利保证共享模拟库存余量与网络实取一致)
+        if (!catalystRebate.isEmpty()) {
+            TreeUsedRebate.rebate(rootNode, catalystRebate);
         }
 
         // 3) 结算校验(对应 1.20.1 的 settle 步骤):线性系统的守恒记账必须经得起

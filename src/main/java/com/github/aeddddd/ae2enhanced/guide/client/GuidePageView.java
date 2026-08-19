@@ -106,6 +106,11 @@ public final class GuidePageView {
             if (lineTop + line.height < contentY() || lineTop > contentY() + contentHeight()) {
                 continue;
             }
+            // 代码块行底色（整行宽）
+            if (line.blockType == BlockElement.Type.CODE_BLOCK) {
+                GuiScreen.drawRect(contentX(), lineTop, contentX() + contentWidth(), lineTop + line.height,
+                        theme.panelBg);
+            }
             for (LayoutLine.Atom atom : line.atoms) {
                 int atomX = contentX() + atom.x;
                 if (atom.isIcon()) {
@@ -120,6 +125,11 @@ public final class GuidePageView {
                     String text = atom.bold || line.blockType == BlockElement.Type.HEADING
                             ? "§l" + atom.text : atom.text;
                     int textY = lineTop + (line.height - fr.FONT_HEIGHT);
+                    // 行内代码：文字底色
+                    if (atom.source != null && atom.source.getKind() == InlineElement.Kind.CODE) {
+                        GuiScreen.drawRect(atomX - 1, textY - 1, atomX + atom.width + 1,
+                                textY + fr.FONT_HEIGHT + 1, theme.panelBg);
+                    }
                     fr.drawString(text, atomX, textY, color);
                     // 链接悬停时下划线
                     if (linkHover) {
@@ -260,7 +270,8 @@ public final class GuidePageView {
      */
     public void scrollWheel(int dWheel) {
         if (layout == null) return;
-        this.scrollY -= (dWheel / 120) * 27;
+        // 兼容 CRL lwjglxx（返回 ±1）与标准 LWJGL2（返回 ±120）,统一按符号滚动
+        this.scrollY -= Integer.signum(dWheel) * 27;
         clampScroll();
     }
 

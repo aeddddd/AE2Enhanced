@@ -59,6 +59,9 @@ public class TileChunkPowerNode extends TileAENetworkBase implements ITickable, 
 
     private static final int CACHE_REFRESH_INTERVAL = 20;
 
+    /** 需求退避 tick 数: 目标无能量需求时跳过探测的时长 */
+    private static final int DEMAND_BACKOFF_TICKS = 10;
+
     /** 区块供电黑名单：这些方块不会被供能（避免自我循环或兼容问题） */
     protected static final Set<String> BLACKLIST = new HashSet<>();
     static {
@@ -71,6 +74,11 @@ public class TileChunkPowerNode extends TileAENetworkBase implements ITickable, 
     // 目标设备缓存(只存 BlockPos,每 tick 重新获取 TE 和 cap)
     protected final List<BlockPos> cachedTargets = new ArrayList<>();
     private int cacheRefreshCooldown = 0;
+
+    // 目标附加缓存: 可用输入面 / 能量适配器 / 需求退避,随 refreshTargetCache 重建
+    private final Map<BlockPos, EnumFacing> targetFaceCache = new HashMap<>();
+    private final Map<BlockPos, IEnergyAdapter> targetAdapterCache = new HashMap<>();
+    private final Map<BlockPos, Integer> demandBackoff = new HashMap<>();
 
     /** 排除名单：已解除绑定的设备位置，节点不再为其供电。持久化到 NBT */
     protected final Set<BlockPos> excludedTargets = new HashSet<>();
@@ -210,26 +218,55 @@ public class TileChunkPowerNode extends TileAENetworkBase implements ITickable, 
         for (BlockPos targetPos : cachedTargets) {
             if (excludedTargets.contains(targetPos)) continue;
 
+            // 需求退避: 上轮探测无需求的目标跳过,降低 capability 模拟调用频率
+            Integer backoff = demandBackoff.get(targetPos);
+            if (backoff != null) {
+                if (backoff > 1) {
+                    demandBackoff.put(targetPos, backoff - 1);
+                } else {
+                    demandBackoff.remove(targetPos);
+                }
+                continue;
+            }
+
             TileEntity te = world.getTileEntity(targetPos);
             if (te == null || te.isInvalid()) continue;
 
+            // 优先使用缓存的输入面,失效时兜底重扫 6 个面
             IEnergyStorage cap = null;
-            for (EnumFacing facing : EnumFacing.values()) {
-                if (te.hasCapability(CapabilityEnergy.ENERGY, facing)) {
-                    IEnergyStorage c = te.getCapability(CapabilityEnergy.ENERGY, facing);
-                    if (c != null && c.canReceive()) {
-                        cap = c;
-                        break;
+            EnumFacing cachedFace = targetFaceCache.get(targetPos);
+            if (cachedFace != null && te.hasCapability(CapabilityEnergy.ENERGY, cachedFace)) {
+                IEnergyStorage c = te.getCapability(CapabilityEnergy.ENERGY, cachedFace);
+                if (c != null && c.canReceive()) {
+                    cap = c;
+                }
+            }
+            if (cap == null) {
+                for (EnumFacing facing : EnumFacing.values()) {
+                    if (te.hasCapability(CapabilityEnergy.ENERGY, facing)) {
+                        IEnergyStorage c = te.getCapability(CapabilityEnergy.ENERGY, facing);
+                        if (c != null && c.canReceive()) {
+                            cap = c;
+                            targetFaceCache.put(targetPos, facing);
+                            break;
+                        }
                     }
                 }
             }
             if (cap == null) continue;
 
-            String blockId = world.getBlockState(targetPos).getBlock().getRegistryName().toString();
-            IEnergyAdapter adapter = EnergyAdapterRegistry.findAdapter(blockId);
+            IEnergyAdapter adapter = targetAdapterCache.get(targetPos);
+            if (adapter == null) {
+                String blockId = world.getBlockState(targetPos).getBlock().getRegistryName().toString();
+                adapter = EnergyAdapterRegistry.findAdapter(blockId);
+                targetAdapterCache.put(targetPos, adapter);
+            }
 
             long demand = adapter.getReceiveableEnergy(te, cap);
-            if (demand <= 0) continue;
+            if (demand <= 0) {
+                demandBackoff.put(targetPos, DEMAND_BACKOFF_TICKS);
+                continue;
+            }
 
             IAEStack request = EnergyChannelResolver.createStack(demand);
             if (request == null) continue;
@@ -265,33 +302,54 @@ public class TileChunkPowerNode extends TileAENetworkBase implements ITickable, 
      * 而非直接传 {@code null}.</p>
      */
     protected void refreshTargetCache() {
-        cachedTargets.clear();
+        clearTargetCaches();
         Chunk chunk = world.getChunk(pos);
         if (chunk == null) return;
 
         for (TileEntity te : chunk.getTileEntityMap().values()) {
-            if (te == null || te.isInvalid()) continue;
-            if (te == this) continue;
+            registerTargetIfReceivable(te);
+        }
+    }
 
-            BlockPos tp = te.getPos();
-            boolean canReceive = false;
-            for (EnumFacing facing : EnumFacing.values()) {
-                if (te.hasCapability(CapabilityEnergy.ENERGY, facing)) {
-                    IEnergyStorage cap = te.getCapability(CapabilityEnergy.ENERGY, facing);
-                    if (cap != null && cap.canReceive()) {
-                        canReceive = true;
-                        break;
-                    }
+    /**
+     * 清空目标缓存及其附加缓存(输入面/适配器/需求退避),供子类重扫前调用.
+     */
+    protected final void clearTargetCaches() {
+        cachedTargets.clear();
+        targetFaceCache.clear();
+        targetAdapterCache.clear();
+        demandBackoff.clear();
+    }
+
+    /**
+     * 扫描 TE 各朝向的能量 capability,确认可接收后登记目标,
+     * 同时记录可用输入面与能量适配器,供 tick 循环直接复用.
+     */
+    protected final void registerTargetIfReceivable(TileEntity te) {
+        if (te == null || te.isInvalid()) return;
+        if (te == this) return;
+
+        BlockPos tp = te.getPos();
+        EnumFacing receiveFace = null;
+        for (EnumFacing facing : EnumFacing.values()) {
+            if (te.hasCapability(CapabilityEnergy.ENERGY, facing)) {
+                IEnergyStorage cap = te.getCapability(CapabilityEnergy.ENERGY, facing);
+                if (cap != null && cap.canReceive()) {
+                    receiveFace = facing;
+                    break;
                 }
             }
-            if (!canReceive) continue;
-
-            // 黑名单检查（仅对找到可接收面的目标才获取 blockId）
-            String blockId = world.getBlockState(tp).getBlock().getRegistryName().toString();
-            if (BLACKLIST.contains(blockId)) continue;
-
-            cachedTargets.add(tp.toImmutable());
         }
+        if (receiveFace == null) return;
+
+        // 黑名单检查（仅对找到可接收面的目标才获取 blockId）
+        String blockId = world.getBlockState(tp).getBlock().getRegistryName().toString();
+        if (BLACKLIST.contains(blockId)) return;
+
+        BlockPos immutable = tp.toImmutable();
+        cachedTargets.add(immutable);
+        targetFaceCache.put(immutable, receiveFace);
+        targetAdapterCache.put(immutable, EnergyAdapterRegistry.findAdapter(blockId));
     }
 
     // ---------- 状态同步 ----------
@@ -400,6 +458,13 @@ public class TileChunkPowerNode extends TileAENetworkBase implements ITickable, 
                     targetPos, new ItemStack(block), block.getTranslationKey(),
                     excludedTargets.contains(targetPos), getLastTickDelivered(targetPos)));
         }
+        // 排序：已排除的排最前，其余按当前消耗 FE 从大到小
+        targets.sort((a, b) -> {
+            if (a.isExcluded() != b.isExcluded()) {
+                return a.isExcluded() ? -1 : 1;
+            }
+            return Long.compare(b.getDelivered(), a.getDelivered());
+        });
         return new PacketChunkPowerNodeSync(pos, isPowered(), isActive(), lastTickOutput, targets);
     }
 

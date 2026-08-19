@@ -45,6 +45,8 @@ public final class RingNBT {
     public static final String POTION_MODE = "RPotionMode";
     public static final String MINING_FIX = "RMiningFix";
     public static final String DMG_BLOCK = "RDmgBlock";
+    /** 飞升: 防拉扯(击退/强制位移/末影传送免疫)开关,默认开启 */
+    public static final String NO_PULL = "RNoPull";
 
     public static final int MAX_ASCEND = 16;
 
@@ -115,6 +117,8 @@ public final class RingNBT {
 
     public static boolean isFlightEnabled(ItemStack stack) { return getBool(stack, FLIGHT, false); }
     public static boolean isForceFlightEnabled(ItemStack stack) { return isAscended(stack) && getBool(stack, FORCE_FLIGHT, false); }
+    /** 防拉扯(击退/强制位移/末影传送)保护,飞升专属,默认开启. */
+    public static boolean isNoPullEnabled(ItemStack stack) { return isAscended(stack) && getBool(stack, NO_PULL, true); }
     public static boolean isNoInertiaEnabled(ItemStack stack) { return getBool(stack, NO_INERTIA, false); }
     public static boolean isWallPhaseEnabled(ItemStack stack) { return getBool(stack, WALL_PHASE, false); }
     public static boolean isNightVisionEnabled(ItemStack stack) { return getBool(stack, NIGHT_VISION, false); }

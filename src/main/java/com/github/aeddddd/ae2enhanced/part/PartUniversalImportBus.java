@@ -50,23 +50,25 @@ public class PartUniversalImportBus extends PartUniversalBusBase {
     public static final IPartModel MODELS_HAS_CHANNEL = new PartModel(new ResourceLocation[]{MODELS[0], MODELS[3]});
 
     // 源质反射缓存：静态初始化一次，加载失败（Thaumcraft/ThaumicEnergistics 缺席）则源质功能静默禁用
+    // 使用 MethodHandle(static final 可被 JIT 常量折叠内联),避免每 tick Method.invoke 的访问检查与参数装箱开销
     private static final Class<?> IE_TRANSPORT_CLASS;
-    private static final java.lang.reflect.Method ESSENTIA_IMPORT_SLOT_METHOD;
-    private static final java.lang.reflect.Method ESSENTIA_IMPORT_ALL_METHOD;
+    private static final java.lang.invoke.MethodHandle ESSENTIA_IMPORT_SLOT_HANDLE;
+    private static final java.lang.invoke.MethodHandle ESSENTIA_IMPORT_ALL_HANDLE;
     static {
         Class<?> ieTransport = null;
-        java.lang.reflect.Method importSlot = null;
-        java.lang.reflect.Method importAll = null;
+        java.lang.invoke.MethodHandle importSlot = null;
+        java.lang.invoke.MethodHandle importAll = null;
         try {
             if (Loader.isModLoaded("thaumcraft") && Loader.isModLoaded("thaumicenergistics")) {
                 ieTransport = Class.forName("thaumcraft.api.aspects.IEssentiaTransport");
                 Class<?> helperClass = Class.forName("com.github.aeddddd.ae2enhanced.util.reflection.EssentiaBusHelper");
-                importSlot = helperClass.getMethod("importEssentiaSlot",
+                java.lang.invoke.MethodHandles.Lookup lookup = java.lang.invoke.MethodHandles.publicLookup();
+                importSlot = lookup.unreflect(helperClass.getMethod("importEssentiaSlot",
                         appeng.api.networking.IGrid.class, TileEntity.class, EnumFacing.class,
-                        IAEItemStack.class, appeng.api.networking.security.IActionSource.class);
-                importAll = helperClass.getMethod("importEssentias",
+                        IAEItemStack.class, appeng.api.networking.security.IActionSource.class));
+                importAll = lookup.unreflect(helperClass.getMethod("importEssentias",
                         appeng.api.networking.IGrid.class, TileEntity.class, EnumFacing.class,
-                        appeng.tile.inventory.AppEngInternalAEInventory.class, appeng.api.networking.security.IActionSource.class);
+                        appeng.tile.inventory.AppEngInternalAEInventory.class, appeng.api.networking.security.IActionSource.class));
             }
         } catch (Throwable t) {
             ieTransport = null;
@@ -74,8 +76,8 @@ public class PartUniversalImportBus extends PartUniversalBusBase {
             importAll = null;
         }
         IE_TRANSPORT_CLASS = ieTransport;
-        ESSENTIA_IMPORT_SLOT_METHOD = importSlot;
-        ESSENTIA_IMPORT_ALL_METHOD = importAll;
+        ESSENTIA_IMPORT_SLOT_HANDLE = importSlot;
+        ESSENTIA_IMPORT_ALL_HANDLE = importAll;
     }
 
     public PartUniversalImportBus(ItemStack is) {
@@ -342,12 +344,15 @@ public class PartUniversalImportBus extends PartUniversalBusBase {
 
     @Override
     protected boolean processEssentiaSlot(TileEntity target, EnumFacing opposite, IAEItemStack filter) throws Exception {
-        if (IE_TRANSPORT_CLASS == null || ESSENTIA_IMPORT_SLOT_METHOD == null) return false;
+        if (IE_TRANSPORT_CLASS == null || ESSENTIA_IMPORT_SLOT_HANDLE == null) return false;
         if (!IE_TRANSPORT_CLASS.isInstance(target)) return false;
 
         try {
-            return (Boolean) ESSENTIA_IMPORT_SLOT_METHOD.invoke(null, this.getProxy().getGrid(), target, opposite, filter, this.source);
-        } catch (Exception e) {
+            return (boolean) ESSENTIA_IMPORT_SLOT_HANDLE.invokeExact(
+                    this.getProxy().getGrid(), target, opposite, filter, this.source);
+        } catch (Error e) {
+            throw e;
+        } catch (Throwable e) {
             AE2Enhanced.LOGGER.error("[AE2E] Essentia import slot failed", e);
             return false;
         }
@@ -355,12 +360,15 @@ public class PartUniversalImportBus extends PartUniversalBusBase {
 
     @Override
     protected boolean processEssentiaUnfiltered(TileEntity target, EnumFacing opposite) throws Exception {
-        if (IE_TRANSPORT_CLASS == null || ESSENTIA_IMPORT_ALL_METHOD == null) return false;
+        if (IE_TRANSPORT_CLASS == null || ESSENTIA_IMPORT_ALL_HANDLE == null) return false;
         if (!IE_TRANSPORT_CLASS.isInstance(target)) return false;
 
         try {
-            return (Boolean) ESSENTIA_IMPORT_ALL_METHOD.invoke(null, this.getProxy().getGrid(), target, opposite, this.config, this.source);
-        } catch (Exception e) {
+            return (boolean) ESSENTIA_IMPORT_ALL_HANDLE.invokeExact(
+                    this.getProxy().getGrid(), target, opposite, this.config, this.source);
+        } catch (Error e) {
+            throw e;
+        } catch (Throwable e) {
             AE2Enhanced.LOGGER.error("[AE2E] Essentia import unfiltered failed", e);
             return false;
         }

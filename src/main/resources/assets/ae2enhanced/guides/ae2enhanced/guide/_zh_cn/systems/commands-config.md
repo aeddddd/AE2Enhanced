@@ -13,14 +13,16 @@ navigation:
 主命令 `/ae2enhanced`, 别名 `/ae2e`, 权限等级 2:
 
 - `/ae2e channels <enable|disable|status>`: 开关 AE2 频道检查.
-- `/ae2e fastpathing <enable|disable|status>`: 实验性 O(N) 频道寻路, 下次 repath 生效.
-- `/ae2e specialcrafting <enable|disable|status>`: 特殊合成计划 (自引用 / 循环配方), 在超因果计算核心上执行.
+- `/ae2e fastpathing <enable|disable|status>`: 实验性 O(N) 频道寻路.
+- `/ae2e specialcrafting <enable|disable|status>`: 特殊合成计划 (自引用 / 循环配方), 只能在超因果计算核心上执行.
 - `/ae2e recoverhd list` / `/ae2e recoverhd <uuid>`: 列出超维度存储 UUID / 获取绑定该 UUID 的控制器.
 - `/ae2e migratefluids`: 把 AE2E 流体假物品迁移为 ae2fc 格式 (已弃用,仅用于旧存档迁移).
 - `/ae2e pd <list|info|delete|tp|invite|kick|setperm>`: [个人维度](systems/personal-dimension.md)管理.
 - `/ae2e help`: 显示帮助.
 
 ## 按键绑定
+
+以下均为默认情况下绑定的按键:
 
 - **F**: 把 JEI 悬停物品的名称填入终端搜索框.
 - **Shift+E**: 打开全能终端.
@@ -29,7 +31,7 @@ navigation:
 - **G** (游戏内): ME 放置工具径向菜单.
 - **G** (GUI 中悬停物品): 按住打开对应指南页.
 
-## 配置节 (ae2enhanced.cfg)
+## 配置 (ae2enhanced.cfg)
 
 - `BlackHole`: `damageMode` (ALL / NON_CREATIVE / NONE).
 - `Crafting`: `maxParallel` 16384, `maxActiveOrders` 8, `specialCrafting`, `dagPlannerMode`.

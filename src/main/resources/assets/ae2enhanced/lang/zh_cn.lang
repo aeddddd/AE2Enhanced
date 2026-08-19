@@ -469,6 +469,12 @@ gui.ae2enhanced.emc_interface.prev=上一页
 gui.ae2enhanced.emc_interface.next=下一页
 chat.ae2enhanced.emc_interface.bound=EMC 接口已绑定至 %s
 chat.ae2enhanced.emc_interface.no_permission=§c你没有权限管理此 EMC 接口
+gui.ae2enhanced.emc_interface.mode_normal=模式: 普通
+gui.ae2enhanced.emc_interface.mode_creative=§6模式: 创造
+chat.ae2enhanced.emc_interface.creative_enabled=§6已开启创造模式: 取出物品不再消耗 EMC
+chat.ae2enhanced.emc_interface.creative_disabled=已关闭创造模式: 取出物品将重新消耗 EMC
+chat.ae2enhanced.emc_interface.creative_denied=§c创造模式需要绑定玩家的 EMC 达到上限 (9.2E)
+gui.ae2enhanced.cellterminal.emc_interface=EMC 接口
 
 # ME 放置工具
 item.ae2enhanced.me_placement_tool.name=ME 放置工具
@@ -482,10 +488,10 @@ message.ae2enhanced.placement.no_configured_item=未配置放置物品
 message.ae2enhanced.placement.network_missing=网络中缺少：%s
 message.ae2enhanced.placement.cannot_place=无法放置于此
 message.ae2enhanced.placement.no_storage=未找到 ME 存储
-message.ae2enhanced.placement.not_implemented=功能尚未实现
 
 message.ae2enhanced.placement.nothing_to_undo=没有可撤销的操作
 message.ae2enhanced.placement.undone=已撤销放置
+message.ae2enhanced.placement.mode_changed=放置模式：%s
 
 key.ae2enhanced.placement_radial=ME 放置工具径向菜单
 gui.ae2enhanced.placement_radial.title=选择放置预设
@@ -501,7 +507,6 @@ gui.ae2enhanced.placement_restriction.east_west=东西
 
 gui.ae2enhanced.placement.mode.single=单格放置
 gui.ae2enhanced.placement.mode.bulk=批量放置
-gui.ae2enhanced.placement.mode.cable=线缆放置
 gui.ae2enhanced.placement.cable_color=线缆颜色：%s
 
 item.ae2enhanced.me_omni_tool.placement.selected=已选择：%s（%s）
@@ -630,6 +635,8 @@ gui.ae2enhanced.ring.flight=飞行
 gui.ae2enhanced.ring.flight.desc=允许飞行。优先消耗绑定网络中的 RF,网络不可达时使用内部缓存。
 gui.ae2enhanced.ring.force_flight=强制飞行
 gui.ae2enhanced.ring.force_flight.desc=仅限飞升。绕过各类模组的禁飞限制,能耗更高。
+gui.ae2enhanced.ring.no_pull=防拉扯
+gui.ae2enhanced.ring.no_pull.desc=仅限飞升。免疫击退与强制位移/拉扯,默认开启。
 gui.ae2enhanced.ring.fly_speed=飞行速度
 gui.ae2enhanced.ring.fly_speed.desc=飞行速度,以原版默认值 (100%%) 为基准的百分比。
 gui.ae2enhanced.ring.walk_tweak=行走速度调整

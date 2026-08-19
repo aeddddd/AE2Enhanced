@@ -23,6 +23,9 @@ public class EnergyAdapterRegistry {
     private static final IEnergyAdapter FALLBACK = new ForgeEnergyAdapter();
     private static boolean initialized = false;
 
+    /** blockId -> adapter 匹配结果备忘,避免每 tick 逐适配器字符串匹配 */
+    private static final java.util.Map<String, IEnergyAdapter> RESOLVE_CACHE = new java.util.HashMap<>();
+
     /**
      * 初始化注册表.线程安全,重复调用无效果.
      */
@@ -64,12 +67,19 @@ public class EnergyAdapterRegistry {
      */
     public static IEnergyAdapter findAdapter(String blockId) {
         init();
+        IEnergyAdapter cached = RESOLVE_CACHE.get(blockId);
+        if (cached != null) {
+            return cached;
+        }
+        IEnergyAdapter found = FALLBACK;
         for (IEnergyAdapter adapter : ADAPTERS) {
             if (adapter.canHandle(blockId)) {
-                return adapter;
+                found = adapter;
+                break;
             }
         }
-        return FALLBACK;
+        RESOLVE_CACHE.put(blockId, found);
+        return found;
     }
 
     /**

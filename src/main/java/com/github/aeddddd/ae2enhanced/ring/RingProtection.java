@@ -90,6 +90,12 @@ public final class RingProtection {
 
     // ==================== 传送/位移 ====================
 
+    /** 防拉扯保护(击退/强制位移/末影传送免疫)是否开启: 飞升专属,可在 GUI 关闭. */
+    public static boolean isPullProtectionEnabled(EntityLivingBase entity) {
+        ItemStack ring = getRing(entity);
+        return !ring.isEmpty() && RingNBT.isNoPullEnabled(ring);
+    }
+
     /** 标记玩家接下来 ticks 内的位移为本 mod 合法行为(如穿墙自救、Blink). */
     public static void allowTeleport(UUID playerId, long expiryWorldTime) {
         TELEPORT_ALLOW.put(playerId, expiryWorldTime);

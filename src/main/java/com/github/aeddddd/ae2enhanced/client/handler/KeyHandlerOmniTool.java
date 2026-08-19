@@ -73,7 +73,7 @@ public class KeyHandlerOmniTool {
     @SubscribeEvent
     public void onMouseInput(MouseEvent event) {
         net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getMinecraft();
-        if (mc.player == null) return;
+        if (mc.player == null || mc.currentScreen != null) return;
 
         ItemStack held = mc.player.getHeldItemMainhand();
         boolean isPlacementTool = held.getItem() instanceof com.github.aeddddd.ae2enhanced.item.ItemMEPlacementTool;

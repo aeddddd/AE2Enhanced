@@ -39,6 +39,12 @@ public class GuiEMCInterface extends GuiContainer {
     private final TileEMCInterface tile;
     private final ContainerEMCInterface container;
 
+    // 模式切换文本的点击区域(在 drawGuiContainerForegroundLayer 中更新)
+    private int modeTextX;
+    private int modeTextW;
+    private static final int MODE_TEXT_Y = 6;
+    private static final int MODE_TEXT_H = 8;
+
     public GuiEMCInterface(InventoryPlayer playerInventory, ContainerEMCInterface container) {
         super(container);
         this.tile = container.getTile();
@@ -78,6 +84,18 @@ public class GuiEMCInterface extends GuiContainer {
         String title = I18n.format("gui.ae2enhanced.emc_interface.title");
         this.fontRenderer.drawString(title,
                 (this.xSize - this.fontRenderer.getStringWidth(title)) / 2, 6, 0x404040);
+
+        // 模式切换: 标题行右侧,点击切换(仅已绑定时显示;解锁校验在服务端)
+        if (tile.isBound()) {
+            boolean creative = tile.isCreativeMode();
+            String modeText = I18n.format(creative
+                    ? "gui.ae2enhanced.emc_interface.mode_creative"
+                    : "gui.ae2enhanced.emc_interface.mode_normal");
+            this.modeTextW = this.fontRenderer.getStringWidth(modeText);
+            this.modeTextX = this.xSize - 8 - this.modeTextW;
+            this.fontRenderer.drawString(modeText, this.modeTextX, MODE_TEXT_Y,
+                    creative ? 0xFFAA00 : 0x404040);
+        }
 
         String pageText = String.format("%d/%d", this.container.getCurrentPage() + 1, TileEMCInterface.WHITELIST_PAGES);
         this.fontRenderer.drawString(pageText,
@@ -128,8 +146,21 @@ public class GuiEMCInterface extends GuiContainer {
                 playClickSound();
                 return;
             }
+
+            // 点击模式文本 -> 请求切换创造/普通模式
+            if (tile.isBound() && isMouseOverModeText(mouseX, mouseY)) {
+                AE2Enhanced.network.sendToServer(
+                        new com.github.aeddddd.ae2enhanced.network.packet.PacketEMCInterfaceMode(tile.getPos()));
+                playClickSound();
+                return;
+            }
         }
         super.mouseClicked(mouseX, mouseY, mouseButton);
+    }
+
+    private boolean isMouseOverModeText(int mouseX, int mouseY) {
+        return mouseX >= guiLeft + modeTextX && mouseX < guiLeft + modeTextX + modeTextW
+                && mouseY >= guiTop + MODE_TEXT_Y && mouseY < guiTop + MODE_TEXT_Y + MODE_TEXT_H;
     }
 
     private void playClickSound() {

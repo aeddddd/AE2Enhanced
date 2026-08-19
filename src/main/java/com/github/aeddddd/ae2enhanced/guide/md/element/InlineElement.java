@@ -10,6 +10,7 @@ public final class InlineElement {
 
     public enum Kind {
         TEXT,       // 普通文本 run
+        CODE,       // 行内代码 `code`（带底色渲染，无点击行为）
         LINK,       // 页面链接 / 外部链接（文本显示，点击跳转）
         ITEM_LINK,  // <ItemLink> 内联物品图标
         BREAK       // 显式换行（列表项分隔等内部使用）
@@ -31,6 +32,10 @@ public final class InlineElement {
 
     public static InlineElement text(String text, boolean bold) {
         return new InlineElement(Kind.TEXT, text, bold, null, null);
+    }
+
+    public static InlineElement code(String text) {
+        return new InlineElement(Kind.CODE, text, false, null, null);
     }
 
     public static InlineElement link(String displayText, String target) {

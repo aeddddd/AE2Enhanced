@@ -32,7 +32,7 @@ All integration is optional: the corresponding content only loads when the mod i
 ## ProjectE
 
 - The <ItemLink id="emc_interface" /> **EMC Interface** exposes the bound player's transmutation knowledge as an item source of the ME network (one-way: network items are generated from the EMC balance, nothing is injected back).
-- Binds to the placing player; **Shift + right-click** the GUI title to rebind (owner or level-2 operator). Extraction is blocked while the owner is offline.
+- Binds to the placing player; **Shift + right-click** the GUI title to rebind (owner or level-2 operator). Extraction also works while the owner is offline (EMC is deducted from the saved player data).
 - A 2040-slot whitelist (20 pages x 102) limits which items are exposed; empty whitelist exposes nothing.
 - Idle power 5 AE; requires config `EMCInterface.enabled` (default on).
 

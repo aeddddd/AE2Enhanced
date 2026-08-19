@@ -77,7 +77,7 @@ public final class PlayerAbilityApplier {
         }
     }
 
-    private static void setFlySpeedSafe(PlayerCapabilities cap, float speed) {
+    public static void setFlySpeedSafe(PlayerCapabilities cap, float speed) {
         if (SET_FLY_SPEED != null) {
             try {
                 SET_FLY_SPEED.invoke(cap, speed);
@@ -95,7 +95,7 @@ public final class PlayerAbilityApplier {
         }
     }
 
-    private static void setWalkSpeedSafe(PlayerCapabilities cap, float speed) {
+    public static void setWalkSpeedSafe(PlayerCapabilities cap, float speed) {
         if (SET_WALK_SPEED != null) {
             try {
                 SET_WALK_SPEED.invoke(cap, speed);
@@ -113,7 +113,7 @@ public final class PlayerAbilityApplier {
         }
     }
 
-    private static float getFlySpeedSafe(PlayerCapabilities cap) {
+    public static float getFlySpeedSafe(PlayerCapabilities cap) {
         try {
             return cap.getFlySpeed();
         } catch (Exception e) {
@@ -127,7 +127,7 @@ public final class PlayerAbilityApplier {
         }
     }
 
-    private static float getWalkSpeedSafe(PlayerCapabilities cap) {
+    public static float getWalkSpeedSafe(PlayerCapabilities cap) {
         try {
             return cap.getWalkSpeed();
         } catch (Exception e) {

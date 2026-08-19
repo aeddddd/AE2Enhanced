@@ -96,7 +96,7 @@ public class ProcessingPatternBuilder {
         };
     }
 
-    private static IAEItemStack[] condense(List<IAEItemStack> stacks) {
+    static IAEItemStack[] condense(List<IAEItemStack> stacks) {
         Map<IAEItemStack, IAEItemStack> merged = new LinkedHashMap<>();
         for (IAEItemStack stack : stacks) {
             IAEItemStack key = stack.copy();

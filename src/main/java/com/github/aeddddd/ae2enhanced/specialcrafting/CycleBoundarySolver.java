@@ -1,8 +1,10 @@
 package com.github.aeddddd.ae2enhanced.specialcrafting;
 
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import net.minecraft.world.World;
 
@@ -142,6 +144,13 @@ public final class CycleBoundarySolver {
             loanStack.setStackSize(loan);
             inv.injectItems(loanStack, Actionable.MODULATE, src);
         }
+        // CrT 不消耗配方(同根请求路径):催化剂预注入虚拟返还(不归还)
+        Map<IAEItemStack, Long> catalystInject = new LinkedHashMap<>();
+        Map<IAEItemStack, Long> catalystRebate = new LinkedHashMap<>();
+        Set<IAEItemStack> catalystExcluded = new HashSet<>();
+        catalystExcluded.add(RecursiveCraftingHelper.canon(what));
+        CatalystReturns.collect(selfRef, crafts, catalystExcluded, catalystInject, catalystRebate);
+        CatalystReturns.inject(catalystInject, inv, src);
         try {
             Ae2CraftingReflect.treeProcessRequest(pro, inv, crafts, src);
         } catch (CraftBranchFailure failure) {
@@ -157,6 +166,7 @@ public final class CycleBoundarySolver {
         // used 返利:种子语义 = inPer(与根请求路径一致)
         Map<IAEItemStack, Long> seeds = new LinkedHashMap<>();
         seeds.put(RecursiveCraftingHelper.canon(what), inPer);
+        seeds.putAll(catalystRebate); // 催化剂种子语义:净消耗+单次投入
         TreeUsedRebate.rebate(rootNode, seeds);
 
         // 结算:取走交付量(边界需求),种子保留

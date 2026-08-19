@@ -97,7 +97,7 @@ public final class ModEventHandler {
     }
 
     /**
-     * ME 放置工具：左键点击方块时，若已设置线缆起点，则设为终点并放置线缆。
+     * ME 放置工具 / 先进 ME 工具放置模式：左键点击方块时，若已设置线缆起点，则设为终点并放置线缆。
      */
     @SubscribeEvent(priority = EventPriority.HIGHEST)
     public void onPlacementToolLeftClick(PlayerInteractEvent.LeftClickBlock event) {
@@ -105,7 +105,10 @@ public final class ModEventHandler {
 
         EntityPlayer player = event.getEntityPlayer();
         ItemStack stack = player.getHeldItemMainhand();
-        if (!(stack.getItem() instanceof ItemMEPlacementTool)) return;
+        boolean isPlacementTool = stack.getItem() instanceof ItemMEPlacementTool;
+        boolean isOmniPlacement = stack.getItem() instanceof ItemAdvancedMEOmniTool
+                && ItemAdvancedMEOmniTool.getMode(stack) == ItemAdvancedMEOmniTool.MODE_PLACEMENT;
+        if (!isPlacementTool && !isOmniPlacement) return;
 
         PlacementConfig config = new PlacementConfig(stack);
         BlockPos start = config.getCableStart();
@@ -114,6 +117,14 @@ public final class ModEventHandler {
         event.setCanceled(true);
         BlockPos end = event.getPos().offset(event.getFace());
         AE2Enhanced.network.sendToServer(new com.github.aeddddd.ae2enhanced.network.packet.PacketPlacementCablePlace(start, end));
+    }
+
+    /**
+     * 玩家退出时清理放置工具的撤销记录，避免长期驻留内存。
+     */
+    @SubscribeEvent
+    public void onPlayerLoggedOut(net.minecraftforge.fml.common.gameevent.PlayerEvent.PlayerLoggedOutEvent event) {
+        com.github.aeddddd.ae2enhanced.util.placement.PlacementToolHelper.clearUndoData(event.player.getUniqueID());
     }
 
     /**
@@ -152,6 +163,18 @@ public final class ModEventHandler {
                 return;
             }
         }
+    }
+
+    /**
+     * 先进 ME 工具的掉落重定向（背包/AE 模式）。
+     * 必须以 LOWEST 优先级执行：BOP 的 SilkTouchEventHandler 在 NORMAL 优先级会对
+     * IBOPBlock 重新向列表填入 getPickBlock 掉落；若在 HIGHEST 清空列表会被其重新填充，
+     * 且 Forge 的精准采集分支无视 dropChance 无条件生成列表内物品，导致背包与原地双重掉落。
+     */
+    @SubscribeEvent(priority = EventPriority.LOWEST)
+    public void onHarvestDropsOmniTool(BlockEvent.HarvestDropsEvent event) {
+        if (event.getWorld().isRemote || event.isCanceled()) return;
+        if (event.getDrops().isEmpty()) return;
 
         EntityPlayer player = event.getHarvester();
         if (player == null) return;

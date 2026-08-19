@@ -28,6 +28,7 @@ import it.unimi.dsi.fastutil.objects.Object2LongArrayMap;
 
 import com.github.aeddddd.ae2enhanced.specialcrafting.Ae2CraftingReflect;
 import com.github.aeddddd.ae2enhanced.specialcrafting.CycleBoundarySolver;
+import com.github.aeddddd.ae2enhanced.specialcrafting.RecipeRemainingResolver;
 import com.github.aeddddd.ae2enhanced.specialcrafting.RecursiveCraftingHelper;
 
 /**
@@ -236,39 +237,64 @@ public final class DagExecutor {
                         long childRequest = SaturatedMath.multiply(edge.perCraft(), times);
                         requests.merge(edge.child(), childRequest, SaturatedMath::add);
                     }
-                    // 容器物返还:消耗 N 份输入回记容器——自返还容器(容器本身是本样板
+                    // 返还物回记:消耗 N 份输入回记返还——自返还(返还物本身是本样板
                     // 的输入,催化剂型)按 times-1 计(最后一份无法自供,保住种子提取);
-                    // 跨样板复用的容器按全额 times 计(下游拓扑序后提取);零网络来源
-                    // 的自举容器由扫描后的高水位修正补记 missing=1(对齐原生)
-                    for (IAEItemStack input : node.pattern.getCondensedInputs()) {
-                        if (input == null) {
-                            continue;
+                    // 跨样板复用的返还物按全额 times 计(下游拓扑序后提取);零网络来源
+                    // 的自举返还由扫描后的高水位修正补记 missing=1(对齐原生).
+                    // 可合成样板以配方 getRemainingItems 为准(覆盖 CrT reuse 等
+                    // 不消耗实现);其余回退 Item 容器 API(与旧逻辑一致)
+                    Map<IAEItemStack, Long> remainingTable = RecipeRemainingResolver
+                            .remainingPerCraft(node.pattern);
+                    if (remainingTable != null) {
+                        for (Map.Entry<IAEItemStack, Long> entry : remainingTable.entrySet()) {
+                            long perCraft = entry.getValue();
+                            if (perCraft <= 0) {
+                                continue;
+                            }
+                            boolean selfReturn = containsInput(node.pattern, entry.getKey());
+                            long creditTimes = selfReturn ? times - 1 : times;
+                            if (creditTimes <= 0) {
+                                continue;
+                            }
+                            long credit = SaturatedMath.multiply(perCraft, creditTimes);
+                            IAEItemStack creditStack = entry.getKey().copy();
+                            creditStack.setStackSize(credit);
+                            inv.injectItems(creditStack, Actionable.MODULATE, src);
+                            IAEItemStack containerKey = RecursiveCraftingHelper.canon(creditStack);
+                            synthetic.merge(containerKey, credit, Long::sum);
+                            containerKeys.add(containerKey);
                         }
-                        Item item = input.getItem();
-                        ItemStack def = input.getDefinition();
-                        if (item == null || !item.hasContainerItem(def)) {
-                            continue;
+                    } else {
+                        for (IAEItemStack input : node.pattern.getCondensedInputs()) {
+                            if (input == null) {
+                                continue;
+                            }
+                            Item item = input.getItem();
+                            ItemStack def = input.getDefinition();
+                            if (item == null || !item.hasContainerItem(def)) {
+                                continue;
+                            }
+                            ItemStack containerStack = item.getContainerItem(def);
+                            if (containerStack.isEmpty()) {
+                                continue;
+                            }
+                            IAEItemStack containerAe = AEItemStack.fromItemStack(containerStack);
+                            if (containerAe == null) {
+                                continue;
+                            }
+                            boolean selfReturn = containsInput(node.pattern, containerAe);
+                            long creditTimes = selfReturn ? times - 1 : times;
+                            if (creditTimes <= 0) {
+                                continue;
+                            }
+                            containerAe = containerAe.copy();
+                            long credit = SaturatedMath.multiply(input.getStackSize(), creditTimes);
+                            containerAe.setStackSize(credit);
+                            inv.injectItems(containerAe, Actionable.MODULATE, src);
+                            IAEItemStack containerKey = RecursiveCraftingHelper.canon(containerAe);
+                            synthetic.merge(containerKey, credit, Long::sum);
+                            containerKeys.add(containerKey);
                         }
-                        ItemStack containerStack = item.getContainerItem(def);
-                        if (containerStack.isEmpty()) {
-                            continue;
-                        }
-                        IAEItemStack containerAe = AEItemStack.fromItemStack(containerStack);
-                        if (containerAe == null) {
-                            continue;
-                        }
-                        boolean selfReturn = containsInput(node.pattern, containerAe);
-                        long creditTimes = selfReturn ? times - 1 : times;
-                        if (creditTimes <= 0) {
-                            continue;
-                        }
-                        containerAe = containerAe.copy();
-                        long credit = SaturatedMath.multiply(input.getStackSize(), creditTimes);
-                        containerAe.setStackSize(credit);
-                        inv.injectItems(containerAe, Actionable.MODULATE, src);
-                        IAEItemStack containerKey = RecursiveCraftingHelper.canon(containerAe);
-                        synthetic.merge(containerKey, credit, Long::sum);
-                        containerKeys.add(containerKey);
                     }
                     for (IAEItemStack output : node.pattern.getCondensedOutputs()) {
                         if (output == null) {

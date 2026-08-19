@@ -10,23 +10,23 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
- * 飞升指环绝对防护(与项目强制击杀同层级)：
+ * 飞升凭证绝对防护(与项目强制击杀同层级)：
  * 1. damageEntity：拦截绕过 Forge 事件的直接伤害(如物质炮共形处决)
  * 2. setHealth：拦截外部直接扣血写入
  * 3. onDeath：拦截强制死亡回调
- * MC 原生类,remap=true.
+ * MC 原生类; remap=false + MCP/SRG 双名数组(规避 jar 内 refmap 滞后问题).
  */
-@Mixin(value = EntityLivingBase.class, remap = true)
+@Mixin(value = EntityLivingBase.class, remap = false)
 public class MixinRingDamageProtection {
 
-    @Inject(method = "damageEntity", at = @At("HEAD"), cancellable = true)
+    @Inject(method = {"damageEntity", "func_70665_d"}, at = @At("HEAD"), cancellable = true)
     private void ae2e$blockBypassDamage(DamageSource source, float amount, CallbackInfo ci) {
         if (RingProtection.isAbsoluteProtectionActive((EntityLivingBase) (Object) this)) {
             ci.cancel();
         }
     }
 
-    @Inject(method = "setHealth", at = @At("HEAD"), cancellable = true)
+    @Inject(method = {"setHealth", "func_70606_j"}, at = @At("HEAD"), cancellable = true)
     private void ae2e$blockHealthWrite(float health, CallbackInfo ci) {
         EntityLivingBase self = (EntityLivingBase) (Object) this;
         if (!(self instanceof EntityPlayer)) return;
@@ -37,7 +37,7 @@ public class MixinRingDamageProtection {
         }
     }
 
-    @Inject(method = "onDeath", at = @At("HEAD"), cancellable = true)
+    @Inject(method = {"onDeath", "func_70645_a"}, at = @At("HEAD"), cancellable = true)
     private void ae2e$blockForcedDeath(DamageSource cause, CallbackInfo ci) {
         EntityLivingBase self = (EntityLivingBase) (Object) this;
         if (RingProtection.isAbsoluteProtectionActive(self)) {

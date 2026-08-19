@@ -9,7 +9,7 @@ item_ids: [constrained_micro_singularity, singularity_constrictor, stable_spacet
 
 # 黑洞合成
 
-以奇点为核心的终局合成系统: 把原料投入事件视界来执行配方.
+以奇点为核心的合成系统: 把原料投入事件视界来执行配方.
 
 ## 世界合成
 
@@ -30,24 +30,6 @@ item_ids: [constrained_micro_singularity, singularity_constrictor, stable_spacet
 - 存在时间耗尽后奇点坍缩消失.
 - 手持 <ItemLink id="singularity_constrictor" /> **奇点约束器**右键可将奇点约束为物品形态 (倒计时以 1/30 速度流逝). 扔出物品落地静置后恢复为方块形态, 并在原地返还空的约束器.
 
-## 内置配方 (投入事件视界)
-
-
-存在魔改情况下以实际情况为准.
-- 16 个 16384k 空间组件 + 64 个奇点 = 稳态时空流形.
-- 128 个奇点 + 16 个下界之星 = 微分形式稳定单元.
-- 16 个稳态时空流形 + 16 个微分形式稳定单元 = 共形不变荷.
-- 64 个空白样板 = [智能空白样板](devices/smart-pattern.md).
-- 1024 个加速卡 + 1024 个容量卡 + 64 个奇点 = [虚拟并行卡](devices/central-interface.md)等级 1.
-- 16 张某等级虚拟并行卡 = 下一等级 (默认最高合成到等级 6).
-
-## CraftTweaker
-
-- `mods.ae2enhanced.BlackHole.addRecipe(output, inputs)` / `removeRecipe(id)`.
-- `mods.ae2enhanced.SingularityRitual.addRecipe(id, droppedInputs, heldItem, targetBlock, lifetimeTicks)`.
-- `mods.ae2enhanced.SingularityFuel.addFuel(id, item, ticks)` / `addPermanentFuel(id, item)`.
-- `mods.ae2enhanced.AssemblyHub.registerParallelUpgrade(card, maxStack, values)` / `registerSpeedUpgrade(...)`.
-
 ## 物质炮弹药
 
-共形不变荷被注册为物质炮弹药, 权重 1E8 (约 5,000,000 点伤害). 使用其作为弹药会延长射程至128格,同时具有穿透效果.
+共形不变荷被注册为物质炮弹药, 使用其作为弹药会延长射程至128格,同时具有穿透效果.

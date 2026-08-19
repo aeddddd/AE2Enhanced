@@ -27,7 +27,6 @@ import javax.annotation.Nullable;
  * 优先级：
  * 1. 副手物品（如果是方块/线缆/Part）。
  * 2. 当前径向预设。
- * 3. 批量模式下被点击的方块（建筑手杖模式：对着相同方块铺设）。
  */
 public final class PlacementTargetResolver {
 
@@ -56,8 +55,6 @@ public final class PlacementTargetResolver {
             return preset.copy();
         }
 
-        // 3. 批量模式下的被点击方块（如果玩家配置了点击同材质铺设）
-        // 单格模式不走这条，返回空
         return ItemStack.EMPTY;
     }
 

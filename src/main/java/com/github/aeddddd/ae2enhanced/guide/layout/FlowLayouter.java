@@ -82,21 +82,40 @@ public final class FlowLayouter {
                 }
             }
 
-            List<LayoutLine> blockLines = layoutFlow(block.getChildren(), fr, blockWidth, y, xOffset);
-            if (blockLines.isEmpty()) {
-                blockLines.add(new LayoutLine(y, fr.FONT_HEIGHT));
+            List<LayoutLine> blockLines;
+            if (block.getType() == BlockElement.Type.CODE_BLOCK) {
+                // 围栏代码块：预格式逐行渲染，不换行、不解析内联
+                blockLines = new ArrayList<>();
+                int lineY = y;
+                for (String codeLine : block.getCodeLines()) {
+                    LayoutLine line = new LayoutLine(lineY, fr.FONT_HEIGHT);
+                    if (!codeLine.isEmpty()) {
+                        line.atoms.add(new LayoutLine.Atom(0, fr.getStringWidth(codeLine), codeLine, false, null));
+                    }
+                    blockLines.add(line);
+                    lineY += fr.FONT_HEIGHT;
+                }
+                if (blockLines.isEmpty()) {
+                    blockLines.add(new LayoutLine(y, fr.FONT_HEIGHT));
+                }
+            } else {
+                blockLines = layoutFlow(block.getChildren(), fr, blockWidth, y, xOffset);
+                if (blockLines.isEmpty()) {
+                    blockLines.add(new LayoutLine(y, fr.FONT_HEIGHT));
+                }
             }
-            // 标记行所属块类型（渲染层据此选择标题/正文样式）
+            // 标记行所属块类型（渲染层据此选择标题/正文/代码样式）
             for (LayoutLine line : blockLines) {
                 line.blockType = block.getType();
                 line.headingDepth = block.getHeadingDepth();
             }
 
-            // 列表项：首行加项目符号（相对块原点负偏移）
+            // 列表项：首行加序号/项目符号（相对块原点负偏移）
             if (block.getType() == BlockElement.Type.LIST_ITEM) {
+                String bullet = (block.getMarker() != null ? block.getMarker() : "•") + " ";
                 LayoutLine firstLine = blockLines.get(0);
-                int bulletWidth = fr.getStringWidth("• ");
-                firstLine.atoms.add(0, new LayoutLine.Atom(-bulletWidth, bulletWidth, "•", false, null));
+                int bulletWidth = fr.getStringWidth(bullet);
+                firstLine.atoms.add(0, new LayoutLine.Atom(-bulletWidth, bulletWidth, bullet, false, null));
             }
 
             result.lines.addAll(blockLines);
@@ -123,6 +142,7 @@ public final class FlowLayouter {
         for (InlineElement el : elements) {
             switch (el.getKind()) {
                 case TEXT:
+                case CODE:
                 case LINK:
                     appendText(el, fr, lineWidth, xOffset, lines, s);
                     break;

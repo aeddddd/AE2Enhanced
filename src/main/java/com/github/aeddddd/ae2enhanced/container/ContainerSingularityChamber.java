@@ -1,9 +1,9 @@
 package com.github.aeddddd.ae2enhanced.container;
 
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
+import appeng.api.config.Upgrades;
 import com.github.aeddddd.ae2enhanced.chamber.LongItemStore;
 import com.github.aeddddd.ae2enhanced.container.slot.SlotLongStore;
-import com.github.aeddddd.ae2enhanced.item.ItemUpgradeCard;
 import com.github.aeddddd.ae2enhanced.item.ItemVirtualParallelCard;
 import com.github.aeddddd.ae2enhanced.network.packet.PacketChamberSync;
 import com.github.aeddddd.ae2enhanced.tile.TileSingularityChamber;
@@ -45,28 +45,28 @@ public class ContainerSingularityChamber extends Container {
         for (int row = 0; row < 3; row++) {
             for (int col = 0; col < 9; col++) {
                 addSlotToContainer(new SlotLongStore(tile.getInputStore(), row * 9 + col,
-                        7 + col * 18, 18 + row * 18));
+                        8 + col * 18, 26 + row * 18));
             }
         }
         // 输出缓冲虚拟槽 9×1
         for (int col = 0; col < TileSingularityChamber.OUTPUT_TYPES; col++) {
-            addSlotToContainer(new SlotLongStore(tile.getOutputStore(), col, 7 + col * 18, 88));
+            addSlotToContainer(new SlotLongStore(tile.getOutputStore(), col, 8 + col * 18, 120));
         }
 
-        // 并行卡槽
-        addSlotToContainer(new SlotItemHandler(tile.getCardSlots(), TileSingularityChamber.SLOT_PARALLEL, 7, 148) {
+        // 卡片槽：右侧竖条,0=并行卡,1-4=升级卡（槽内缘 x=186）
+        addSlotToContainer(new SlotItemHandler(tile.getCardSlots(), TileSingularityChamber.SLOT_PARALLEL, 186, 8) {
             @Override
             public boolean isItemValid(ItemStack stack) {
                 return stack.getItem() instanceof ItemVirtualParallelCard;
             }
         });
-        // 加速卡槽 ×4
+        // 升级卡槽 ×4（加速卡 / 容量卡,接受 AE2 生态 IUpgradeModule 含 AE2 原生卡）
         for (int i = 0; i < 4; i++) {
-            addSlotToContainer(new SlotItemHandler(tile.getCardSlots(), 1 + i, 25 + i * 18, 148) {
+            addSlotToContainer(new SlotItemHandler(tile.getCardSlots(), 1 + i, 186, 26 + i * 18) {
                 @Override
                 public boolean isItemValid(ItemStack stack) {
-                    return stack.getItem() instanceof ItemUpgradeCard
-                            && stack.getMetadata() == ItemUpgradeCard.META_SPEED;
+                    return TileSingularityChamber.isUpgradeCard(stack, Upgrades.SPEED)
+                            || TileSingularityChamber.isUpgradeCard(stack, Upgrades.CAPACITY);
                 }
             });
         }
@@ -74,11 +74,11 @@ public class ContainerSingularityChamber extends Container {
         // 玩家物品栏
         for (int row = 0; row < 3; row++) {
             for (int col = 0; col < 9; col++) {
-                addSlotToContainer(new Slot(playerInv, col + row * 9 + 9, 7 + col * 18, 172 + row * 18));
+                addSlotToContainer(new Slot(playerInv, col + row * 9 + 9, 8 + col * 18, 152 + row * 18));
             }
         }
         for (int col = 0; col < 9; col++) {
-            addSlotToContainer(new Slot(playerInv, col, 7 + col * 18, 230));
+            addSlotToContainer(new Slot(playerInv, col, 8 + col * 18, 210));
         }
     }
 
@@ -170,8 +170,8 @@ public class ContainerSingularityChamber extends Container {
 
         if (index >= PLAYER_INV_START) {
             boolean isCard = stack.getItem() instanceof ItemVirtualParallelCard
-                    || (stack.getItem() instanceof ItemUpgradeCard
-                    && stack.getMetadata() == ItemUpgradeCard.META_SPEED);
+                    || TileSingularityChamber.isUpgradeCard(stack, Upgrades.SPEED)
+                    || TileSingularityChamber.isUpgradeCard(stack, Upgrades.CAPACITY);
             if (isCard) {
                 if (!mergeItemStack(stack, SLOT_PARALLEL, SLOT_SPEED_START + 4, false)) {
                     return ItemStack.EMPTY;
@@ -220,7 +220,7 @@ public class ContainerSingularityChamber extends Container {
 
     private PacketChamberSync buildSyncPacket() {
         PacketChamberSync packet = new PacketChamberSync(
-                tile.getPos(), tile.getEnergy(),
+                tile.getPos(), tile.getEnergy(), tile.getMaxEnergy(),
                 tile.getParallelChannels(), tile.getUsedChannels(), tile.getActiveJobCount(),
                 tile.getRedstoneMode().ordinal());
         for (LongItemStore.Entry entry : tile.getInputStore().getEntries()) {

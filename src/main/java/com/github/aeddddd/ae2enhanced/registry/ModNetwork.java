@@ -145,5 +145,7 @@ public final class ModNetwork {
                 com.github.aeddddd.ae2enhanced.network.packet.PacketChunkPowerNodeSync.class, 56, Side.CLIENT);
         nw.registerMessage(com.github.aeddddd.ae2enhanced.network.packet.PacketChunkPowerNodeAction.Handler.class,
                 com.github.aeddddd.ae2enhanced.network.packet.PacketChunkPowerNodeAction.class, 57, Side.SERVER);
+        nw.registerMessage(com.github.aeddddd.ae2enhanced.network.packet.PacketEMCInterfaceMode.Handler.class,
+                com.github.aeddddd.ae2enhanced.network.packet.PacketEMCInterfaceMode.class, 58, Side.SERVER);
     }
 }

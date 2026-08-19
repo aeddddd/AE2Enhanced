@@ -2,6 +2,7 @@ package com.github.aeddddd.ae2enhanced.ring;
 
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
 import com.github.aeddddd.ae2enhanced.config.AE2EnhancedConfig;
+import com.github.aeddddd.ae2enhanced.dimension.rules.PlayerAbilityApplier;
 import com.github.aeddddd.ae2enhanced.item.ItemAdvancedMEOmniTool;
 import com.github.aeddddd.ae2enhanced.item.ItemNetworkLinkCredential;
 import com.github.aeddddd.ae2enhanced.util.placement.PlacementConfig;
@@ -38,7 +39,7 @@ public final class RingManager {
     private static final UUID REACH_MODIFIER_UUID = UUID.fromString("a3e9c1d2-7b4f-4e6a-9c8d-1f2a3b4c5d6e");
     private static final String REACH_MODIFIER_NAME = "ae2enhanced:network_link_ring_reach";
 
-    /** 能力快照(参照 PlayerAbilityApplier 的快照/恢复范式) */
+    /** 能力快照(参照 PlayerAbilityApplier 的快照/恢复范式,速度读写走反射安全路径) */
     private static final class CapSnapshot {
         final boolean allowFlying;
         final boolean isFlying;
@@ -48,8 +49,8 @@ public final class RingManager {
         CapSnapshot(PlayerCapabilities cap) {
             this.allowFlying = cap.allowFlying;
             this.isFlying = cap.isFlying;
-            this.flySpeed = cap.getFlySpeed();
-            this.walkSpeed = cap.getWalkSpeed();
+            this.flySpeed = PlayerAbilityApplier.getFlySpeedSafe(cap);
+            this.walkSpeed = PlayerAbilityApplier.getWalkSpeedSafe(cap);
         }
     }
 
@@ -62,6 +63,12 @@ public final class RingManager {
     private static final Map<UUID, Boolean> SATURATION_ACTIVE = new HashMap<>();
     /** III 阶段免死冷却到期时间(世界时间) */
     private static final Map<UUID, Long> DEATH_BLOCK_CD = new HashMap<>();
+    /** 飞升强制飞行: tick 末观察到的飞行状态(检测外部清除并恢复) */
+    private static final Map<UUID, Boolean> PREV_FLYING = new HashMap<>();
+    /** 飞升凭证最后持有时间(反 disarm 找回依据) */
+    private static final Map<UUID, Long> ASCENDED_LAST_SEEN = new HashMap<>();
+    /** 玩家上一 tick 所在维度(Vethea 切换检测) */
+    private static final Map<UUID, Integer> LAST_DIMENSION = new HashMap<>();
 
     public static void discard(UUID playerId) {
         SNAPSHOTS.remove(playerId);
@@ -69,6 +76,9 @@ public final class RingManager {
         LAST_POS.remove(playerId);
         SATURATION_ACTIVE.remove(playerId);
         DEATH_BLOCK_CD.remove(playerId);
+        PREV_FLYING.remove(playerId);
+        ASCENDED_LAST_SEEN.remove(playerId);
+        LAST_DIMENSION.remove(playerId);
         RingEnergyHandler.discard(playerId);
         RingProtection.discard(playerId);
     }
@@ -101,10 +111,15 @@ public final class RingManager {
     // ==================== 服务端 tick ====================
 
     public static void tickServer(EntityPlayerMP player) {
+        tickVetheaConsolidation(player);
         ItemStack ring = RingLocator.findRing(player);
         if (ring.isEmpty()) {
+            tryRecoverDisarmedCredential(player);
             restoreAll(player);
             return;
+        }
+        if (RingNBT.isAscended(ring)) {
+            ASCENDED_LAST_SEEN.put(player.getUniqueID(), player.world.getTotalWorldTime());
         }
         if (player.isCreative() || player.isSpectator()) {
             // 创造/观察者拥有自身能力体系,指环仅保留防护/回血/供能等非能力功能
@@ -150,12 +165,12 @@ public final class RingManager {
         float targetWalk = RingNBT.isWalkTweakEnabled(ring)
                 ? clamp(RingNBT.getWalkSpeed(ring), 0.05f, maxWalk)
                 : snapshot.walkSpeed;
-        if (Math.abs(cap.getFlySpeed() - targetFly) > 1e-4f) {
-            cap.setFlySpeed(targetFly);
+        if (Math.abs(PlayerAbilityApplier.getFlySpeedSafe(cap) - targetFly) > 1e-4f) {
+            PlayerAbilityApplier.setFlySpeedSafe(cap, targetFly);
             changed = true;
         }
-        if (Math.abs(cap.getWalkSpeed() - targetWalk) > 1e-4f) {
-            cap.setPlayerWalkSpeed(targetWalk);
+        if (Math.abs(PlayerAbilityApplier.getWalkSpeedSafe(cap) - targetWalk) > 1e-4f) {
+            PlayerAbilityApplier.setWalkSpeedSafe(cap, targetWalk);
             changed = true;
         }
 
@@ -176,8 +191,8 @@ public final class RingManager {
                     RingEnergyHandler.price(ring, AE2EnhancedConfig.ring.saturationCostPerTick));
             SATURATION_ACTIVE.put(player.getUniqueID(), saturation);
             if (saturation) {
-                player.getFoodStats().setFoodLevel(20);
-                player.getFoodStats().setFoodSaturationLevel(5.0f);
+                setFoodLevelSafe(player.getFoodStats(), 20);
+                setFoodSaturationSafe(player.getFoodStats(), 5.0f);
             }
             // 异常位移回滚
             tickDisplacementGuard(player);
@@ -409,12 +424,12 @@ public final class RingManager {
             }
             changed = true;
         }
-        if (Math.abs(cap.getFlySpeed() - snapshot.flySpeed) > 1e-4f) {
-            cap.setFlySpeed(snapshot.flySpeed);
+        if (Math.abs(PlayerAbilityApplier.getFlySpeedSafe(cap) - snapshot.flySpeed) > 1e-4f) {
+            PlayerAbilityApplier.setFlySpeedSafe(cap, snapshot.flySpeed);
             changed = true;
         }
-        if (Math.abs(cap.getWalkSpeed() - snapshot.walkSpeed) > 1e-4f) {
-            cap.setPlayerWalkSpeed(snapshot.walkSpeed);
+        if (Math.abs(PlayerAbilityApplier.getWalkSpeedSafe(cap) - snapshot.walkSpeed) > 1e-4f) {
+            PlayerAbilityApplier.setWalkSpeedSafe(cap, snapshot.walkSpeed);
             changed = true;
         }
         if (changed) {
@@ -450,6 +465,273 @@ public final class RingManager {
                 && player.moveForward == 0.0f && player.moveStrafing == 0.0f) {
             player.motionX = 0.0;
             player.motionZ = 0.0;
+        }
+    }
+
+    // ==================== 反 disarm 找回(飞升) ====================
+
+    /**
+     * 飞升凭证被外部强制移除(如盖亚 III 的 disarm 直清槽位,不走 InventoryPlayer.clear)时,
+     * 从玩家附近的掉落物中找回同一个物品实体并吸回背包.
+     * 只找回不复制：必须找到真实的掉落物实体才恢复,杜绝物品复制.
+     */
+    private static void tryRecoverDisarmedCredential(EntityPlayerMP player) {
+        UUID id = player.getUniqueID();
+        Long lastSeen = ASCENDED_LAST_SEEN.get(id);
+        if (lastSeen == null) return;
+        long now = player.world.getTotalWorldTime();
+        if (now - lastSeen > 600) {
+            // 脱离持有状态太久(正常丢弃/存入容器),不再追踪
+            ASCENDED_LAST_SEEN.remove(id);
+            return;
+        }
+        for (net.minecraft.entity.item.EntityItem item : player.world.getEntitiesWithinAABB(
+                net.minecraft.entity.item.EntityItem.class,
+                player.getEntityBoundingBox().grow(16.0))) {
+            ItemStack stack = item.getItem();
+            if (!stack.isEmpty() && stack.getItem() instanceof ItemNetworkLinkCredential
+                    && RingNBT.isAscended(stack)) {
+                ItemStack taken = item.getItem().copy();
+                item.setDead();
+                if (!player.inventory.addItemStackToInventory(taken)) {
+                    player.dropItem(taken, false);
+                }
+                ASCENDED_LAST_SEEN.put(id, now);
+                AE2Enhanced.LOGGER.info("[AE2E] Recovered ascended NetworkLinkCredential for player {}",
+                        player.getName());
+                return;
+            }
+        }
+    }
+
+    // ==================== 梦魇世界(Vethea)物品整合(飞升) ====================
+    // DivineRPG 进出 Vethea 时将背包/饰品整体序列化到玩家持久 NBT
+    // (PlayerPersisted → divinerpg → OverworldInv/VetheaInv/Baubles_Overworld/Baubles_Vethea)
+    // 并换装另一侧存档.饰品槽交换不走 InventoryPlayer.clear,clear mixin 管不到,
+    // 凭证会被存走导致 Vethea 内失效;而背包侧 clear 保护又会在存档里留下冗余副本.
+    // 此处做精确的维度切换整合,不变量: 切换后玩家身上恰好持有原有数量的凭证,
+    // 刚保存一侧的存档列表中零冗余副本(杜绝复制).
+
+    /** 维度切换后检查并整合飞升凭证(仅 DivineRPG 存在且涉及 Vethea 时). */
+    private static void tickVetheaConsolidation(EntityPlayerMP player) {
+        if (!Loader.isModLoaded("divinerpg")) return;
+        UUID id = player.getUniqueID();
+        int dim = player.dimension;
+        Integer prev = LAST_DIMENSION.put(id, dim);
+        if (prev == null || prev == dim) return;
+        boolean toVethea = isVetheaDimension(dim);
+        if (!toVethea && !isVetheaDimension(prev)) return;
+
+        net.minecraft.nbt.NBTTagCompound persisted =
+                player.getEntityData().getCompoundTag(EntityPlayer.PERSISTED_NBT_TAG);
+        if (!persisted.hasKey("divinerpg")) return;
+        net.minecraft.nbt.NBTTagCompound divine = persisted.getCompoundTag("divinerpg");
+
+        int held = RingLocator.countAscended(player);
+        if (held == 0) {
+            // 凭证被换装存进了存档(饰品交换/槽位覆盖),取回一枚还给玩家
+            for (String key : new String[]{"OverworldInv", "VetheaInv", "Baubles_Overworld", "Baubles_Vethea"}) {
+                ItemStack cred = extractOneCredential(divine, key);
+                if (!cred.isEmpty()) {
+                    if (!player.inventory.addItemStackToInventory(cred)) {
+                        player.dropItem(cred, false);
+                    }
+                    AE2Enhanced.LOGGER.info(
+                            "[AE2E] Recovered ascended credential from Vethea storage ({}) for player {}",
+                            key, player.getName());
+                    return;
+                }
+            }
+        } else {
+            // 玩家通过 clear 保护携带了凭证,刚保存一侧存档中的同物条目是冗余快照,移除防复制
+            String[] justSaved = toVethea
+                    ? new String[]{"OverworldInv", "Baubles_Overworld"}
+                    : new String[]{"VetheaInv", "Baubles_Vethea"};
+            int toRemove = held;
+            for (String key : justSaved) {
+                toRemove -= removeCredentialEntries(divine, key, toRemove);
+                if (toRemove <= 0) break;
+            }
+        }
+    }
+
+    private static boolean isVetheaDimension(int dim) {
+        try {
+            net.minecraft.world.DimensionType type = net.minecraftforge.common.DimensionManager.getProviderType(dim);
+            return type != null && type.getName() != null
+                    && type.getName().toLowerCase(java.util.Locale.ROOT).contains("vethea");
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    private static boolean isAscendedCredentialNBT(net.minecraft.nbt.NBTTagCompound entry) {
+        return entry != null && !entry.getKeySet().isEmpty()
+                && "ae2enhanced:network_link_credential".equals(entry.getString("id"))
+                && entry.getCompoundTag("tag").getBoolean(RingNBT.ASCENDED);
+    }
+
+    /** 从存档列表取出一枚飞升凭证并移除其条目(饰品列表索引即槽位,置空而非移除). */
+    private static ItemStack extractOneCredential(net.minecraft.nbt.NBTTagCompound divine, String key) {
+        if (!divine.hasKey(key)) return ItemStack.EMPTY;
+        net.minecraft.nbt.NBTTagList list = divine.getTagList(key, 10);
+        boolean baubleList = key.startsWith("Baubles_");
+        for (int i = 0; i < list.tagCount(); i++) {
+            net.minecraft.nbt.NBTTagCompound entry = list.getCompoundTagAt(i);
+            if (isAscendedCredentialNBT(entry)) {
+                ItemStack stack = new ItemStack(entry);
+                if (baubleList) {
+                    list.set(i, new net.minecraft.nbt.NBTTagCompound());
+                } else {
+                    list.removeTag(i);
+                }
+                return stack;
+            }
+        }
+        return ItemStack.EMPTY;
+    }
+
+    /** 从存档列表移除至多 max 个飞升凭证条目,返回移除数. */
+    private static int removeCredentialEntries(net.minecraft.nbt.NBTTagCompound divine, String key, int max) {
+        if (!divine.hasKey(key) || max <= 0) return 0;
+        net.minecraft.nbt.NBTTagList list = divine.getTagList(key, 10);
+        boolean baubleList = key.startsWith("Baubles_");
+        int removed = 0;
+        for (int i = list.tagCount() - 1; i >= 0 && removed < max; i--) {
+            if (isAscendedCredentialNBT(list.getCompoundTagAt(i))) {
+                if (baubleList) {
+                    list.set(i, new net.minecraft.nbt.NBTTagCompound());
+                } else {
+                    list.removeTag(i);
+                }
+                removed++;
+            }
+        }
+        return removed;
+    }
+
+    // ==================== 强制飞行 tick 末恢复(飞升) ====================
+    // 其他模组的禁飞(BrokenWings/额外植物学盖亚 III 等)在实体 tick 或 PlayerTickEvent 中
+    // 清除 isFlying/allowFlying;ServerTickEvent.END/ClientTickEvent.END 在所有这些之后执行,
+    // 最后写入者获胜,实现稳定的强制飞行.
+
+    /** ServerTickEvent.END 调用：恢复被外部清除的服务端飞行状态. */
+    public static void tickServerEndFlightRestore(EntityPlayerMP player) {
+        ItemStack ring = RingLocator.findRing(player);
+        if (ring.isEmpty() || !RingNBT.isForceFlightEnabled(ring) || player.isCreative() || player.isSpectator()) {
+            PREV_FLYING.remove(player.getUniqueID());
+            return;
+        }
+        PlayerCapabilities cap = player.capabilities;
+        boolean wasFlying = Boolean.TRUE.equals(PREV_FLYING.get(player.getUniqueID()));
+        boolean changed = false;
+        if (!cap.allowFlying) {
+            cap.allowFlying = true;
+            changed = true;
+        }
+        // 玩家上一 tick 末处于飞行、本 tick 被外部清除且仍在空中 → 恢复
+        if (!cap.isFlying && wasFlying && !player.onGround) {
+            cap.isFlying = true;
+            player.fallDistance = 0.0f;
+            changed = true;
+        }
+        PREV_FLYING.put(player.getUniqueID(), cap.isFlying);
+        if (changed) {
+            player.sendPlayerAbilities();
+        }
+    }
+
+    /** ClientTickEvent.END 调用：客户端镜像恢复(移动由客户端权威计算). */
+    public static void tickClientEndFlightRestore(EntityPlayer player) {
+        ItemStack ring = RingLocator.findRing(player);
+        if (ring.isEmpty() || !RingNBT.isForceFlightEnabled(ring) || player.isCreative() || player.isSpectator()) {
+            return;
+        }
+        PlayerCapabilities cap = player.capabilities;
+        boolean wasFlying = Boolean.TRUE.equals(PREV_FLYING.get(player.getUniqueID()));
+        if (!cap.allowFlying) {
+            cap.allowFlying = true;
+        }
+        if (!cap.isFlying && wasFlying && !player.onGround) {
+            cap.isFlying = true;
+            player.fallDistance = 0.0f;
+        }
+        PREV_FLYING.put(player.getUniqueID(), cap.isFlying);
+    }
+
+    // ==================== FoodStats 反射安全写入 ====================
+    // 与 PlayerAbilityApplier 相同的兜底策略：MCP 名反射 → SRG 名反射 → 直接写字段,
+    // 兼容 Cleanroom/Mohist 等 PlayerCapabilities/FoodStats 方法被剥离或改名的环境.
+
+    private static final java.lang.reflect.Method SET_FOOD_LEVEL;
+    private static final java.lang.reflect.Method SET_FOOD_SATURATION;
+    private static final java.lang.reflect.Field FOOD_LEVEL_FIELD;
+    private static final java.lang.reflect.Field FOOD_SATURATION_FIELD;
+
+    static {
+        SET_FOOD_LEVEL = findFoodMethod("setFoodLevel", "func_75114_a", int.class);
+        SET_FOOD_SATURATION = findFoodMethod("setFoodSaturationLevel", "func_75119_b", float.class);
+        FOOD_LEVEL_FIELD = findFoodField("foodLevel", "field_75127_a");
+        FOOD_SATURATION_FIELD = findFoodField("foodSaturationLevel", "field_75125_b");
+    }
+
+    private static java.lang.reflect.Method findFoodMethod(String mcp, String srg, Class<?>... params) {
+        for (String name : new String[]{mcp, srg}) {
+            try {
+                java.lang.reflect.Method m = net.minecraft.util.FoodStats.class.getDeclaredMethod(name, params);
+                m.setAccessible(true);
+                return m;
+            } catch (Exception ignored) {
+            }
+        }
+        AE2Enhanced.LOGGER.warn("[AE2E] Could not find FoodStats method {} or {}", mcp, srg);
+        return null;
+    }
+
+    private static java.lang.reflect.Field findFoodField(String mcp, String srg) {
+        for (String name : new String[]{mcp, srg}) {
+            try {
+                java.lang.reflect.Field f = net.minecraft.util.FoodStats.class.getDeclaredField(name);
+                f.setAccessible(true);
+                return f;
+            } catch (Exception ignored) {
+            }
+        }
+        AE2Enhanced.LOGGER.warn("[AE2E] Could not find FoodStats field {} or {}", mcp, srg);
+        return null;
+    }
+
+    private static void setFoodLevelSafe(net.minecraft.util.FoodStats stats, int level) {
+        if (SET_FOOD_LEVEL != null) {
+            try {
+                SET_FOOD_LEVEL.invoke(stats, level);
+                return;
+            } catch (Exception ignored) {
+            }
+        }
+        if (FOOD_LEVEL_FIELD != null) {
+            try {
+                FOOD_LEVEL_FIELD.setInt(stats, level);
+            } catch (Exception e) {
+                AE2Enhanced.LOGGER.warn("[AE2E] Failed to set FoodStats.foodLevel", e);
+            }
+        }
+    }
+
+    private static void setFoodSaturationSafe(net.minecraft.util.FoodStats stats, float saturation) {
+        if (SET_FOOD_SATURATION != null) {
+            try {
+                SET_FOOD_SATURATION.invoke(stats, saturation);
+                return;
+            } catch (Exception ignored) {
+            }
+        }
+        if (FOOD_SATURATION_FIELD != null) {
+            try {
+                FOOD_SATURATION_FIELD.setFloat(stats, saturation);
+            } catch (Exception e) {
+                AE2Enhanced.LOGGER.warn("[AE2E] Failed to set FoodStats.foodSaturationLevel", e);
+            }
         }
     }
 

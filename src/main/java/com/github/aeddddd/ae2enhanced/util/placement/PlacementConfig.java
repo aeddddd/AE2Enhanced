@@ -36,15 +36,30 @@ public class PlacementConfig {
 
     public PlacementConfig(ItemStack stack) {
         this.stack = stack;
-        if (!stack.hasTagCompound()) {
-            stack.setTagCompound(new NBTTagCompound());
-        }
         NBTTagCompound tag = stack.getTagCompound();
-        if (!tag.hasKey(NBT_ROOT)) {
-            tag.setTag(NBT_ROOT, new NBTTagCompound());
+        if (tag != null && tag.hasKey(NBT_ROOT)) {
+            this.root = tag.getCompoundTag(NBT_ROOT);
+            migrateLegacyData();
+        } else {
+            // 未挂载的空配置：getter 只读不写入，避免客户端渲染路径给 ItemStack 写入幽灵 NBT。
+            // 任何 setter 会通过 attach() 惰性挂载到 ItemStack。
+            this.root = new NBTTagCompound();
         }
-        this.root = tag.getCompoundTag(NBT_ROOT);
-        migrateLegacyData();
+    }
+
+    /**
+     * 将 root 挂载到 ItemStack NBT（写入前必须调用）。
+     */
+    private NBTTagCompound attach() {
+        NBTTagCompound tag = stack.getTagCompound();
+        if (tag == null) {
+            tag = new NBTTagCompound();
+            stack.setTagCompound(tag);
+        }
+        if (!tag.hasKey(NBT_ROOT)) {
+            tag.setTag(NBT_ROOT, root);
+        }
+        return root;
     }
 
     // ========== 预设槽 ==========
@@ -79,6 +94,7 @@ public class PlacementConfig {
 
     public void setStackInSlot(int slot, ItemStack stack) {
         if (slot < 0 || slot >= MAX_PRESETS) return;
+        NBTTagCompound root = attach();
         NBTTagList list = root.getTagList(NBT_PRESETS, 10);
         // 查找并移除旧槽位
         for (int i = 0; i < list.tagCount(); i++) {
@@ -122,7 +138,7 @@ public class PlacementConfig {
     public void setSelectedSlot(int slot) {
         if (slot < -1) slot = -1;
         if (slot >= MAX_PRESETS) slot = MAX_PRESETS - 1;
-        root.setInteger(NBT_SELECTED_SLOT, slot);
+        attach().setInteger(NBT_SELECTED_SLOT, slot);
     }
 
     public ItemStack getSelectedStack() {
@@ -138,7 +154,7 @@ public class PlacementConfig {
     }
 
     public void setPlacementMode(PlacementMode mode) {
-        root.setByte(NBT_PLACEMENT_MODE, (byte) mode.ordinal());
+        attach().setByte(NBT_PLACEMENT_MODE, (byte) mode.ordinal());
     }
 
     // ========== 线缆颜色 ==========
@@ -152,7 +168,7 @@ public class PlacementConfig {
     }
 
     public void setCableColor(AEColor color) {
-        root.setByte(NBT_CABLE_COLOR, (byte) color.ordinal());
+        attach().setByte(NBT_CABLE_COLOR, (byte) color.ordinal());
     }
 
     // ========== 触及距离（仅 Omni Tool） ==========
@@ -170,7 +186,7 @@ public class PlacementConfig {
     public void setReachDistance(float reach) {
         if (reach < MIN_REACH_DISTANCE) reach = MIN_REACH_DISTANCE;
         if (reach > MAX_REACH_DISTANCE) reach = MAX_REACH_DISTANCE;
-        root.setFloat(NBT_REACH_DISTANCE, reach);
+        attach().setFloat(NBT_REACH_DISTANCE, reach);
     }
 
     // ========== 批量放置方向锁 ==========
@@ -180,7 +196,7 @@ public class PlacementConfig {
     }
 
     public void setPlacementRestriction(PlacementRestriction restriction) {
-        root.setByte(NBT_PLACEMENT_RESTRICTION, (byte) restriction.ordinal());
+        attach().setByte(NBT_PLACEMENT_RESTRICTION, (byte) restriction.ordinal());
     }
 
     // ========== 线缆起点 ==========
@@ -196,9 +212,9 @@ public class PlacementConfig {
 
     public void setCableStart(BlockPos pos) {
         if (pos == null) {
-            root.setLong(NBT_CABLE_START, -1L);
+            attach().setLong(NBT_CABLE_START, -1L);
         } else {
-            root.setLong(NBT_CABLE_START, pos.toLong());
+            attach().setLong(NBT_CABLE_START, pos.toLong());
         }
     }
 

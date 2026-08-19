@@ -2,12 +2,21 @@ package com.github.aeddddd.ae2enhanced.integration.projecte;
 
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
 import net.minecraft.item.ItemStack;
+import net.minecraft.nbt.CompressedStreamTools;
+import net.minecraft.nbt.NBTTagCompound;
+import net.minecraftforge.common.DimensionManager;
+import net.minecraftforge.common.util.Constants;
 import net.minecraftforge.fml.common.Loader;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.lang.reflect.Method;
 import java.math.BigInteger;
+import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
 import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
@@ -268,6 +277,98 @@ public final class ProjectEHelper {
             syncMethod.invoke(provider, player);
         } catch (Exception e) {
             AE2Enhanced.LOGGER.warn("[AE2E] Failed to sync knowledge provider", e);
+        }
+    }
+
+    // ---- 离线玩家数据直接读写 ----
+
+    /** MixinKnowledgeImpl 写入的 BigInteger EMC NBT 键名 */
+    private static final String NBT_EMC_BIG = "ae2e.transmutationEmcBig";
+    /** KnowledgeImpl.Provider.NAME: projecte:knowledge */
+    private static final String NBT_KNOWLEDGE_CAP = "projecte:knowledge";
+    private static final BigInteger LONG_MAX_BI = BigInteger.valueOf(Long.MAX_VALUE);
+
+    private static boolean transmutationOfflineClearResolved = false;
+    private static Method transmutationOfflineClearMethod;
+
+    /**
+     * 从离线玩家的存档数据中扣减 EMC.
+     *
+     * <p>ProjectE 的 TransmutationOffline provider 是只读快照,无法通过 API 扣减,
+     * 因此直接改写 playerdata/&lt;uuid&gt;.dat 中的知识能力 NBT,随后清除
+     * ProjectE 的离线缓存使后续读取重新加载.</p>
+     *
+     * <p>仅在玩家离线时调用(调用方保证). 玩家数据文件此时未被服务器加载,无并发冲突.</p>
+     *
+     * @param uuid 玩家 UUID
+     * @param cost 扣减的 EMC 数量
+     * @return 扣减成功返回 true;数据缺失或 IO 失败返回 false
+     */
+    public static boolean subtractEmcOffline(@Nullable UUID uuid, @Nonnull BigInteger cost) {
+        if (!isAvailable() || uuid == null || cost.signum() <= 0) return false;
+        File saveRoot = DimensionManager.getCurrentSaveRootDirectory();
+        if (saveRoot == null) return false;
+        File playerDataDir = new File(saveRoot, "playerdata");
+        File datFile = new File(playerDataDir, uuid.toString() + ".dat");
+        if (!datFile.isFile()) return false;
+        try {
+            NBTTagCompound playerDat;
+            try (FileInputStream in = new FileInputStream(datFile)) {
+                playerDat = CompressedStreamTools.readCompressed(in);
+            }
+            NBTTagCompound forgeCaps = playerDat.getCompoundTag("ForgeCaps");
+            NBTTagCompound knowledge = forgeCaps.getCompoundTag(NBT_KNOWLEDGE_CAP);
+
+            BigInteger current;
+            if (knowledge.hasKey(NBT_EMC_BIG, Constants.NBT.TAG_BYTE_ARRAY)) {
+                current = new BigInteger(knowledge.getByteArray(NBT_EMC_BIG));
+            } else {
+                current = BigInteger.valueOf(knowledge.getLong("transmutationEmc"));
+            }
+            BigInteger updated = current.subtract(cost);
+            if (updated.signum() < 0) updated = BigInteger.ZERO;
+
+            knowledge.setByteArray(NBT_EMC_BIG, updated.toByteArray());
+            // 同步 long 字段,与 MixinKnowledgeImpl.ae2e$syncEmcField 行为一致
+            knowledge.setLong("transmutationEmc",
+                    updated.compareTo(LONG_MAX_BI) >= 0 ? Long.MAX_VALUE : updated.longValue());
+            forgeCaps.setTag(NBT_KNOWLEDGE_CAP, knowledge);
+            playerDat.setTag("ForgeCaps", forgeCaps);
+
+            // 原子写回: 先写临时文件再替换,避免中途崩溃损坏存档
+            File tmpFile = new File(playerDataDir, uuid.toString() + ".dat.tmp");
+            try (FileOutputStream out = new FileOutputStream(tmpFile)) {
+                CompressedStreamTools.writeCompressed(playerDat, out);
+            }
+            Files.move(tmpFile.toPath(), datFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
+
+            clearOfflineCache(uuid);
+            return true;
+        } catch (Exception e) {
+            AE2Enhanced.LOGGER.warn("[AE2E] Failed to deduct offline EMC for {}", uuid, e);
+            return false;
+        }
+    }
+
+    /**
+     * 清除 ProjectE TransmutationOffline 的离线缓存,使下次读取重新从磁盘加载.
+     */
+    private static void clearOfflineCache(@Nonnull UUID uuid) {
+        if (!transmutationOfflineClearResolved) {
+            transmutationOfflineClearResolved = true;
+            try {
+                transmutationOfflineClearMethod =
+                        Class.forName("moze_intel.projecte.impl.TransmutationOffline").getMethod("clear", UUID.class);
+            } catch (Exception e) {
+                AE2Enhanced.LOGGER.debug("[AE2E] TransmutationOffline.clear not found, offline cache may go stale", e);
+            }
+        }
+        if (transmutationOfflineClearMethod != null) {
+            try {
+                transmutationOfflineClearMethod.invoke(null, uuid);
+            } catch (Exception e) {
+                AE2Enhanced.LOGGER.warn("[AE2E] Failed to clear ProjectE offline cache for {}", uuid, e);
+            }
         }
     }
 

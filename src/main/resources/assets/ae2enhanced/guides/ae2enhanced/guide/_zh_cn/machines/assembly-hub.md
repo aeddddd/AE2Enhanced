@@ -9,7 +9,7 @@ item_ids: [assembly_controller, assembly_me_interface, assembly_casing, assembly
 
 # 超因果装配枢纽
 
-<ItemLink id="assembly_controller" /> **装配枢纽控制器**是大规模并行自动合成多方块的核心. 每个样板槽独立执行任务, 可同时运行数百个合成作业.
+<ItemLink id="assembly_controller" /> **装配枢纽控制器**是大规模并行自动合成多方块的核心. 每个样板槽独立执行任务, 可同时运行极大量合成任务.
 
 ## 结构
 
@@ -21,14 +21,12 @@ item_ids: [assembly_controller, assembly_me_interface, assembly_casing, assembly
 - 128 个 <ItemLink id="assembly_inner_wall" /> 装配枢纽内壁
 - 32 个 <ItemLink id="assembly_stabilizer" /> 装配枢纽稳定器
 
-控制器 GUI 可自动补齐缺失的结构方块: 创造模式免费, 生存模式消耗背包中的方块.
 
 ## 样板槽
 
 - 每页 102 槽 (17 列 x 6 行), 默认 5 页.
 - 每张**维度折叠模块** (容量) 增加 5 页, 上限 30 页.
 - 总数上限 2880 槽, 仅接受合成样板.
-- 最多缓冲 4096 个挂起产物.
 
 ## 升级卡
 

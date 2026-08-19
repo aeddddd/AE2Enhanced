@@ -54,9 +54,9 @@ public class GuiOmniToolConfig extends GuiContainer {
     private static final int PID_CONFORMAL = 6;
     private static final int PID_ADVANCED_SILK = 7;
     private static final int PID_WALL_PHASE = 8;
-    private static final int PID_CABLE_COLOR = 9;
-    private static final int PID_REACH_DISTANCE = 10;
-    private static final int PID_PLACEMENT_RESTRICTION = 11;
+    private static final int PID_CABLE_COLOR = OmniToolUpgrades.PARAM_CABLE_COLOR;
+    private static final int PID_REACH_DISTANCE = OmniToolUpgrades.PARAM_REACH_DISTANCE;
+    private static final int PID_PLACEMENT_RESTRICTION = OmniToolUpgrades.PARAM_PLACEMENT_RESTRICTION;
     private static final int PID_COUNT = 12;
     private static final int PID_ENCHANT_BASE = 1000;
 
@@ -154,7 +154,7 @@ public class GuiOmniToolConfig extends GuiContainer {
                 (s, v) -> OmniToolUpgrades.setBlinkDistance(s, v)),
         new ParamDef(PID_COOLDOWN, "gui.ae2enhanced.omni_tool_config.break_cooldown",
                 "gui.ae2enhanced.omni_tool_config.break_cooldown.desc",
-                0, 100, s -> true,
+                0, 10, s -> true,
                 OmniToolUpgrades::getBreakCooldown,
                 OmniToolUpgrades::setBreakCooldown),
         new ParamDef(PID_CHAOS_KILL, "gui.ae2enhanced.omni_tool_config.chaos_force_kill",

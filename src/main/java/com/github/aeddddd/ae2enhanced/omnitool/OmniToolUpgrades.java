@@ -16,6 +16,15 @@ public final class OmniToolUpgrades {
 
     private OmniToolUpgrades() {}
 
+    // ==================== 参数开关 ID（与 GuiOmniToolConfig 的参数位掩码对应） ====================
+
+    /** 线缆颜色（放置模式） */
+    public static final int PARAM_CABLE_COLOR = 9;
+    /** 触及距离（放置模式） */
+    public static final int PARAM_REACH_DISTANCE = 10;
+    /** 批量放置方向锁（放置模式） */
+    public static final int PARAM_PLACEMENT_RESTRICTION = 11;
+
     // ==================== Mode ====================
 
     public static int getMode(ItemStack stack) {

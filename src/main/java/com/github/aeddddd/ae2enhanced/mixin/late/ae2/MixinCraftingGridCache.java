@@ -36,6 +36,7 @@ import appeng.api.storage.data.IAEItemStack;
 
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
 import com.github.aeddddd.ae2enhanced.config.AE2EnhancedConfig;
+import com.github.aeddddd.ae2enhanced.specialcrafting.NetworkPatternIndex;
 import com.github.aeddddd.ae2enhanced.specialcrafting.SpecialCraftingJob;
 import com.github.aeddddd.ae2enhanced.specialcrafting.SpecialCraftingRuntime;
 import com.github.aeddddd.ae2enhanced.specialcrafting.SpecialLog;
@@ -81,9 +82,34 @@ public class MixinCraftingGridCache implements com.github.aeddddd.ae2enhanced.mi
     @Unique
     private final Set<TileComputationCore> ae2enhanced$computationCores = new HashSet<>();
 
+    /** 网络样板缓存索引(SCC/副产物倒排/detector memo),惰性构建;volatile 保证计算线程可见. */
+    @Unique
+    private volatile NetworkPatternIndex ae2enhanced$patternIndex;
+
     @Override
     public Set<IAEItemStack> ae2enhanced$craftableKeys() {
         return new HashSet<>(this.craftableItems.keySet());
+    }
+
+    @Override
+    public NetworkPatternIndex ae2enhanced$patternIndex() {
+        NetworkPatternIndex idx = this.ae2enhanced$patternIndex;
+        if (idx == null) {
+            synchronized (this) {
+                idx = this.ae2enhanced$patternIndex;
+                if (idx == null) {
+                    idx = NetworkPatternIndex.build((ICraftingGrid) (Object) this);
+                    this.ae2enhanced$patternIndex = idx;
+                }
+            }
+        }
+        return idx;
+    }
+
+    /** 样板集重建后索引失效(下一次访问惰性重建). */
+    @Inject(method = "recalculateCraftingPatterns", at = @At("TAIL"), require = 0)
+    private void ae2enhanced$invalidatePatternIndex(CallbackInfo ci) {
+        this.ae2enhanced$patternIndex = null;
     }
 
     @Shadow

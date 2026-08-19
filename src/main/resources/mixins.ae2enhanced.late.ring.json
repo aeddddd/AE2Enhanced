@@ -9,10 +9,13 @@
     "MixinRingPotionImmunity",
     "MixinRingDamageProtection",
     "MixinRingInventoryClear",
+    "MixinRingInvWrapperGuard",
     "MixinRingTeleportGuard",
     "MixinRingNightVision",
     "MixinRingExhaustion"
   ],
-  "client": [],
+  "client": [
+    "MixinRingNightVisionRenderer"
+  ],
   "server": []
 }

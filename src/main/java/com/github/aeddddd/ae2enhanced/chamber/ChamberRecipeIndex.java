@@ -196,6 +196,14 @@ public final class ChamberRecipeIndex {
 
     // ---- 压印器（含多步合一） ----
 
+    /**
+     * 读取压印注册表并按"输出物品"聚合生成配方.
+     *
+     * <p>AE2 的 JSON 加载器会把矿辞展开成整条替代列表,且多个 mod 可能对同一输出
+     * 重复注册配方（如凿子为赛特斯石英注册大量变体）.为避免 JEI 配方页被刷屏,
+     * 这里按输出合并：同一输出的所有输入并入同一替代组,一个输出只产生一条配方
+     * （JEI 槽位内循环展示替代品）.</p>
+     */
     private static void buildInscriberChains() {
         List<IInscriberRecipe> all;
         try {
@@ -205,48 +213,109 @@ public final class ChamberRecipeIndex {
             return;
         }
 
-        // 输出 key -> INSCRIBE 配方（用于链式合并查询）
-        Map<String, IInscriberRecipe> inscribeByOutput = new HashMap<>();
-        List<ChamberRecipe> singles = new ArrayList<>();
-        List<ChamberRecipe> chains = new ArrayList<>();
-        int n = 0;
+        // 1) INSCRIBE 按输出聚合：输出 key -> 中间物替代列表
+        Map<String, ItemStack> inscribeOut = new LinkedHashMap<>();
+        Map<String, List<ItemStack>> inscribeMid = new LinkedHashMap<>();
         for (IInscriberRecipe recipe : all) {
-            if (recipe.getProcessType() == InscriberProcessType.INSCRIBE) {
-                ItemStack output = recipe.getOutput();
-                if (!output.isEmpty()) {
-                    inscribeByOutput.putIfAbsent(LongItemStore.keyOf(output), recipe);
-                }
-                singles.add(buildInscribeSingle(recipe, "inscribe:" + (n++)));
-            } else {
-                // PRESS：按 top×bottom 候选组合展开（通常各 1 个）
-                for (ItemStack top : nonEmpty(recipe.getTopInputs())) {
-                    for (ItemStack bottom : nonEmpty(recipe.getBottomInputs())) {
-                        singles.add(buildPressSingle(recipe, top, bottom, "press:" + (n++)));
-                    }
-                }
-            }
-        }
-
-        // 链式合并：PRESS 的上/下消耗物均有 INSCRIBE 来源时,合并为"原料 -> 处理器"单步
-        for (IInscriberRecipe recipe : all) {
-            if (recipe.getProcessType() != InscriberProcessType.PRESS) {
+            if (recipe.getProcessType() != InscriberProcessType.INSCRIBE || recipe.getOutput().isEmpty()) {
                 continue;
             }
+            String outKey = LongItemStore.keyOf(recipe.getOutput());
+            inscribeOut.putIfAbsent(outKey, recipe.getOutput());
+            mergeStacks(inscribeMid.computeIfAbsent(outKey, k -> new ArrayList<>()),
+                    nonEmpty(recipe.getInputs()));
+        }
+
+        // 2) PRESS 按输出聚合,并尝试链式合并（上/下消耗物均有 INSCRIBE 来源时）
+        Map<String, ItemStack> pressOut = new LinkedHashMap<>();
+        Map<String, List<ItemStack>> pressTop = new LinkedHashMap<>();
+        Map<String, List<ItemStack>> pressMid = new LinkedHashMap<>();
+        Map<String, List<ItemStack>> pressBot = new LinkedHashMap<>();
+        Map<String, ItemStack> chainOut = new LinkedHashMap<>();
+        Map<String, List<ItemStack>> chainMid = new LinkedHashMap<>();
+        Map<String, List<ItemStack>> chainTopSrc = new LinkedHashMap<>();
+        Map<String, List<ItemStack>> chainBotSrc = new LinkedHashMap<>();
+        for (IInscriberRecipe recipe : all) {
+            if (recipe.getProcessType() != InscriberProcessType.PRESS || recipe.getOutput().isEmpty()) {
+                continue;
+            }
+            String outKey = LongItemStore.keyOf(recipe.getOutput());
+            pressOut.putIfAbsent(outKey, recipe.getOutput());
+            mergeStacks(pressMid.computeIfAbsent(outKey, k -> new ArrayList<>()), nonEmpty(recipe.getInputs()));
+            mergeStacks(pressTop.computeIfAbsent(outKey, k -> new ArrayList<>()), nonEmpty(recipe.getTopInputs()));
+            mergeStacks(pressBot.computeIfAbsent(outKey, k -> new ArrayList<>()), nonEmpty(recipe.getBottomInputs()));
+
+            // 链式合并：任一上消耗物 + 任一下消耗物都能找到 INSCRIBE 来源即可成链
+            List<ItemStack> topSrcMids = null;
             for (ItemStack top : nonEmpty(recipe.getTopInputs())) {
-                for (ItemStack bottom : nonEmpty(recipe.getBottomInputs())) {
-                    IInscriberRecipe topSrc = inscribeByOutput.get(LongItemStore.keyOf(top));
-                    IInscriberRecipe bottomSrc = inscribeByOutput.get(LongItemStore.keyOf(bottom));
-                    if (topSrc == null || bottomSrc == null) {
-                        continue;
-                    }
-                    chains.add(buildChain(recipe, topSrc, bottomSrc, "chain:" + (n++)));
+                List<ItemStack> mids = inscribeMid.get(LongItemStore.keyOf(top));
+                if (mids != null) {
+                    topSrcMids = mids;
+                    break;
                 }
+            }
+            List<ItemStack> botSrcMids = null;
+            for (ItemStack bottom : nonEmpty(recipe.getBottomInputs())) {
+                List<ItemStack> mids = inscribeMid.get(LongItemStore.keyOf(bottom));
+                if (mids != null) {
+                    botSrcMids = mids;
+                    break;
+                }
+            }
+            if (topSrcMids != null && botSrcMids != null) {
+                chainOut.putIfAbsent(outKey, recipe.getOutput());
+                mergeStacks(chainMid.computeIfAbsent(outKey, k -> new ArrayList<>()), nonEmpty(recipe.getInputs()));
+                mergeStacks(chainTopSrc.computeIfAbsent(outKey, k -> new ArrayList<>()), topSrcMids);
+                mergeStacks(chainBotSrc.computeIfAbsent(outKey, k -> new ArrayList<>()), botSrcMids);
             }
         }
 
-        // 优先级：合并链优先于单步配方（同一原料直接进入最深加工链）
-        generated.addAll(chains);
-        generated.addAll(singles);
+        // 3) 生成：优先级 合并链 > 单步 PRESS > 单步 INSCRIBE（同一原料进入最深加工链）
+        int n = 0;
+        for (Map.Entry<String, ItemStack> entry : chainOut.entrySet()) {
+            String outKey = entry.getKey();
+            generated.add(ChamberRecipe.builder("chain:" + (n++))
+                    .inputAlternatives(chainMid.get(outKey), 1)
+                    .inputAlternatives(chainTopSrc.get(outKey), 1)
+                    .inputAlternatives(chainBotSrc.get(outKey), 1)
+                    .output(entry.getValue())
+                    .time(TIME_CHAIN)
+                    .build());
+        }
+        for (Map.Entry<String, ItemStack> entry : pressOut.entrySet()) {
+            String outKey = entry.getKey();
+            generated.add(ChamberRecipe.builder("press:" + (n++))
+                    .inputAlternatives(pressTop.get(outKey), 1)
+                    .inputAlternatives(pressMid.get(outKey), 1)
+                    .inputAlternatives(pressBot.get(outKey), 1)
+                    .output(entry.getValue())
+                    .time(TIME_PRESS)
+                    .build());
+        }
+        for (Map.Entry<String, ItemStack> entry : inscribeOut.entrySet()) {
+            generated.add(ChamberRecipe.builder("inscribe:" + (n++))
+                    .inputAlternatives(inscribeMid.get(entry.getKey()), 1)
+                    .output(entry.getValue())
+                    .time(TIME_INSCRIBE)
+                    .build());
+        }
+    }
+
+    /** 将 stacks 并入替代列表,按 key 去重. */
+    private static void mergeStacks(List<ItemStack> target, List<ItemStack> stacks) {
+        for (ItemStack stack : stacks) {
+            String key = LongItemStore.keyOf(stack);
+            boolean exists = false;
+            for (ItemStack existing : target) {
+                if (LongItemStore.keyOf(existing).equals(key)) {
+                    exists = true;
+                    break;
+                }
+            }
+            if (!exists) {
+                target.add(stack);
+            }
+        }
     }
 
     private static List<ItemStack> nonEmpty(List<ItemStack> list) {
@@ -257,38 +326,6 @@ public final class ChamberRecipeIndex {
             }
         }
         return result;
-    }
-
-    /** 单步 INSCRIBE：中间物为替代组（任一满足）,压印板约束内化（无需催化剂槽）. */
-    private static ChamberRecipe buildInscribeSingle(IInscriberRecipe recipe, String id) {
-        return ChamberRecipe.builder(id)
-                .inputAlternatives(nonEmpty(recipe.getInputs()), 1)
-                .output(recipe.getOutput())
-                .time(TIME_INSCRIBE)
-                .build();
-    }
-
-    /** 单步 PRESS：上/下各消耗 1,中间物为替代组（cells 与原版处理器配方语义）. */
-    private static ChamberRecipe buildPressSingle(IInscriberRecipe recipe, ItemStack top, ItemStack bottom, String id) {
-        return ChamberRecipe.builder(id)
-                .input(top, 1)
-                .inputAlternatives(nonEmpty(recipe.getInputs()), 1)
-                .input(bottom, 1)
-                .output(recipe.getOutput())
-                .time(TIME_PRESS)
-                .build();
-    }
-
-    /** 合并链：三层中间物替代组 + PRESS 中间物 -> PRESS 输出,压印板约束内化. */
-    private static ChamberRecipe buildChain(IInscriberRecipe press, IInscriberRecipe topSrc,
-                                            IInscriberRecipe bottomSrc, String id) {
-        return ChamberRecipe.builder(id)
-                .inputAlternatives(nonEmpty(press.getInputs()), 1)
-                .inputAlternatives(nonEmpty(topSrc.getInputs()), 1)
-                .inputAlternatives(nonEmpty(bottomSrc.getInputs()), 1)
-                .output(press.getOutput())
-                .time(TIME_CHAIN)
-                .build();
     }
 
     // ---- 硬编码配方：充能 / 聚合 / 种子 ----

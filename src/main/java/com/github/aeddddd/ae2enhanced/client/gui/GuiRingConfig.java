@@ -52,6 +52,7 @@ public class GuiRingConfig extends GuiContainer {
     private static final int PID_POTION_MODE = 14;
     private static final int PID_MINING = 15;
     private static final int PID_DMG_BLOCK = 16;
+    private static final int PID_NO_PULL = 17;
 
     // ---- UV坐标(与先进 ME 工具 GUI 相同) ----
     private static final int LEFT_BTN_X = 4;
@@ -170,6 +171,9 @@ public class GuiRingConfig extends GuiContainer {
         new ParamDef(PID_FORCE_FLIGHT, "gui.ae2enhanced.ring.force_flight", "gui.ae2enhanced.ring.force_flight.desc",
                 0, 1, RingNBT::isAscended,
                 c -> boolVal(c, RingNBT.FORCE_FLIGHT, false), (c, v) -> c.setBoolean(RingNBT.FORCE_FLIGHT, v > 0)),
+        new ParamDef(PID_NO_PULL, "gui.ae2enhanced.ring.no_pull", "gui.ae2enhanced.ring.no_pull.desc",
+                0, 1, RingNBT::isAscended,
+                c -> boolVal(c, RingNBT.NO_PULL, true), (c, v) -> c.setBoolean(RingNBT.NO_PULL, v > 0)),
     };
 
     private final EntityPlayer player;

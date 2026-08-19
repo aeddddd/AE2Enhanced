@@ -536,22 +536,4 @@ public class VirtualBatchEngine {
         }
     }
 
-    /**
-     * 判断 handler 返回的虚拟成本中是否包含非物品 IAEStack（如流体、能量、Mana 等）。
-     */
-    public static boolean hasMixedStackTypes(IVirtualBatchCraftingHandler handler,
-                                              World world,
-                                              TargetBinding target,
-                                              InventoryCrafting table,
-                                              IAEItemStack[] outputs,
-                                              ICraftingPatternDetails details) {
-        List<IAEStack> costs = handler.getVirtualCost(world, target.pos, table, outputs, 1, details);
-        if (costs == null || costs.isEmpty()) return false;
-        for (IAEStack cost : costs) {
-            if (cost != null && !(cost instanceof IAEItemStack)) {
-                return true;
-            }
-        }
-        return false;
-    }
 }

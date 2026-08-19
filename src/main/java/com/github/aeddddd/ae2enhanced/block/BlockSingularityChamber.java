@@ -38,6 +38,24 @@ public class BlockSingularityChamber extends Block {
         return true;
     }
 
+    // ---- 透明框架外观：非实心 + CUTOUT 渲染层,窗口可见内部 TESR 奇点 ----
+
+    @Override
+    public boolean isOpaqueCube(IBlockState state) {
+        return false;
+    }
+
+    @Override
+    public boolean isFullCube(IBlockState state) {
+        return false;
+    }
+
+    @net.minecraftforge.fml.relauncher.SideOnly(net.minecraftforge.fml.relauncher.Side.CLIENT)
+    @Override
+    public net.minecraft.util.BlockRenderLayer getRenderLayer() {
+        return net.minecraft.util.BlockRenderLayer.CUTOUT;
+    }
+
     @Nullable
     @Override
     public TileEntity createTileEntity(World world, IBlockState state) {

@@ -3,22 +3,45 @@ package com.github.aeddddd.ae2enhanced.mixin.late.ae2;
 import appeng.helpers.PatternHelper;
 import net.minecraft.inventory.Container;
 import net.minecraft.inventory.InventoryCrafting;
+import net.minecraft.item.crafting.IRecipe;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Redirect;
 
+import com.github.aeddddd.ae2enhanced.mixin.bridge.IPatternHelperAccess;
+
 /**
  * 将 PatternHelper 中的 InventoryCrafting 在 processing 模式下从 4×4 扩展为 10×10,
  * 以支持超过 16 个输入的 processing pattern.
+ * <p>同时实现 {@link IPatternHelperAccess}:暴露构造时匹配的配方与编码输入模板,
+ * 供配方返还物识别(CrT 不消耗物品)使用.</p>
  */
 @Mixin(value = PatternHelper.class, remap = false)
-public class MixinPatternHelper {
+public class MixinPatternHelper implements IPatternHelperAccess {
 
     @Shadow
     @Final
     private boolean isCrafting;
+
+    @Shadow
+    @Final
+    private IRecipe standardRecipe;
+
+    @Shadow
+    @Final
+    private InventoryCrafting crafting;
+
+    @Override
+    public IRecipe ae2enhanced$standardRecipe() {
+        return this.standardRecipe;
+    }
+
+    @Override
+    public InventoryCrafting ae2enhanced$craftingTemplate() {
+        return this.crafting;
+    }
 
     @Redirect(
         method = "<init>",

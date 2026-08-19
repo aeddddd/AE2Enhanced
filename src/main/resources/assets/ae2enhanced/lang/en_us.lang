@@ -471,6 +471,12 @@ gui.ae2enhanced.emc_interface.prev=Prev
 gui.ae2enhanced.emc_interface.next=Next
 chat.ae2enhanced.emc_interface.bound=EMC Interface bound to %s
 chat.ae2enhanced.emc_interface.no_permission=§cYou don't have permission to manage this EMC Interface
+gui.ae2enhanced.emc_interface.mode_normal=Mode: Normal
+gui.ae2enhanced.emc_interface.mode_creative=§6Mode: Creative
+chat.ae2enhanced.emc_interface.creative_enabled=§6Creative mode enabled: extraction no longer consumes EMC
+chat.ae2enhanced.emc_interface.creative_disabled=Creative mode disabled: extraction consumes EMC again
+chat.ae2enhanced.emc_interface.creative_denied=§cCreative mode requires the bound player's EMC to reach the cap (9.2E)
+gui.ae2enhanced.cellterminal.emc_interface=EMC Interface
 
 # ME Placement Tool
 item.ae2enhanced.me_placement_tool.name=ME Placement Tool
@@ -484,10 +490,10 @@ message.ae2enhanced.placement.no_configured_item=No placement item configured
 message.ae2enhanced.placement.network_missing=Network missing: %s
 message.ae2enhanced.placement.cannot_place=Cannot place here
 message.ae2enhanced.placement.no_storage=No ME storage found
-message.ae2enhanced.placement.not_implemented=Not implemented yet
 
 message.ae2enhanced.placement.nothing_to_undo=Nothing to undo
 message.ae2enhanced.placement.undone=Placement undone
+message.ae2enhanced.placement.mode_changed=Placement mode: %s
 
 key.ae2enhanced.placement_radial=ME Placement Tool Radial Menu
 gui.ae2enhanced.placement_radial.title=Select Placement Preset
@@ -503,7 +509,6 @@ gui.ae2enhanced.placement_restriction.east_west=East-West
 
 gui.ae2enhanced.placement.mode.single=Single Placement
 gui.ae2enhanced.placement.mode.bulk=Bulk Placement
-gui.ae2enhanced.placement.mode.cable=Cable Placement
 gui.ae2enhanced.placement.cable_color=Cable Color: %s
 
 item.ae2enhanced.me_omni_tool.placement.selected=Selected: %s (%s)
@@ -631,6 +636,8 @@ gui.ae2enhanced.ring.flight=Flight
 gui.ae2enhanced.ring.flight.desc=Allow flight. Drains RF from the bound network, or the internal buffer when the network is unavailable.
 gui.ae2enhanced.ring.force_flight=Force Flight
 gui.ae2enhanced.ring.force_flight.desc=Ascended only. Bypasses server and mod flight restrictions. Higher RF cost.
+gui.ae2enhanced.ring.no_pull=Anti-Pull
+gui.ae2enhanced.ring.no_pull.desc=Ascended only. Immune to knockback and forced teleport/pull. On by default.
 gui.ae2enhanced.ring.fly_speed=Fly Speed
 gui.ae2enhanced.ring.fly_speed.desc=Flight speed as a percentage of the vanilla default (100%%).
 gui.ae2enhanced.ring.walk_tweak=Walk Speed Tweak

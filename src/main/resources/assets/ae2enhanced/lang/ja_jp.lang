@@ -438,7 +438,6 @@ message.ae2enhanced.placement.no_configured_item=No placement item configured
 message.ae2enhanced.placement.network_missing=Network missing: %s
 message.ae2enhanced.placement.cannot_place=Cannot place here
 message.ae2enhanced.placement.no_storage=No ME storage found
-message.ae2enhanced.placement.not_implemented=Not implemented yet
 
 message.ae2enhanced.placement.nothing_to_undo=Nothing to undo
 message.ae2enhanced.placement.undone=Placement undone
@@ -457,7 +456,6 @@ gui.ae2enhanced.placement_restriction.east_west=East-West
 
 gui.ae2enhanced.placement.mode.single=Single Placement
 gui.ae2enhanced.placement.mode.bulk=Bulk Placement
-gui.ae2enhanced.placement.mode.cable=Cable Placement
 gui.ae2enhanced.placement.cable_color=Cable Color: %s
 
 item.ae2enhanced.me_omni_tool.placement.selected=Selected: %s (%s)

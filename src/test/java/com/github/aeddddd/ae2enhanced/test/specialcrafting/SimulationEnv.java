@@ -201,6 +201,12 @@ public class SimulationEnv {
         }
 
         @Override
+        public com.github.aeddddd.ae2enhanced.specialcrafting.NetworkPatternIndex ae2enhanced$patternIndex() {
+            // 测试环境样板集可随时增删,每次重建(规模小,不计成本)
+            return com.github.aeddddd.ae2enhanced.specialcrafting.NetworkPatternIndex.build(this);
+        }
+
+        @Override
         public ImmutableCollection<ICraftingPatternDetails> getCraftingFor(IAEItemStack whatToCraft,
                 ICraftingPatternDetails details, int slotIndex, World world) {
             List<ICraftingPatternDetails> list = patterns.get(RecursiveCraftingHelper.canon(whatToCraft));

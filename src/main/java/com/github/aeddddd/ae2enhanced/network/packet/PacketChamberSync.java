@@ -43,7 +43,8 @@ public class PacketChamberSync implements IMessage {
     }
 
     private BlockPos pos;
-    private int energy;
+    private long energy;
+    private long maxEnergy;
     private long parallelChannels;
     private long usedChannels;
     private int activeJobs;
@@ -57,10 +58,11 @@ public class PacketChamberSync implements IMessage {
     public PacketChamberSync() {
     }
 
-    public PacketChamberSync(BlockPos pos, int energy, long parallelChannels, long usedChannels, int activeJobs,
-                             int redstoneMode) {
+    public PacketChamberSync(BlockPos pos, long energy, long maxEnergy, long parallelChannels, long usedChannels,
+                             int activeJobs, int redstoneMode) {
         this.pos = pos;
         this.energy = energy;
+        this.maxEnergy = maxEnergy;
         this.parallelChannels = parallelChannels;
         this.usedChannels = usedChannels;
         this.activeJobs = activeJobs;
@@ -89,8 +91,12 @@ public class PacketChamberSync implements IMessage {
         return pos;
     }
 
-    public int getEnergy() {
+    public long getEnergy() {
         return energy;
+    }
+
+    public long getMaxEnergy() {
+        return maxEnergy;
     }
 
     public long getParallelChannels() {
@@ -128,7 +134,8 @@ public class PacketChamberSync implements IMessage {
     @Override
     public void fromBytes(ByteBuf buf) {
         pos = new BlockPos(buf.readInt(), buf.readInt(), buf.readInt());
-        energy = buf.readInt();
+        energy = buf.readLong();
+        maxEnergy = buf.readLong();
         parallelChannels = buf.readLong();
         usedChannels = buf.readLong();
         activeJobs = buf.readInt();
@@ -158,7 +165,8 @@ public class PacketChamberSync implements IMessage {
         buf.writeInt(pos.getX());
         buf.writeInt(pos.getY());
         buf.writeInt(pos.getZ());
-        buf.writeInt(energy);
+        buf.writeLong(energy);
+        buf.writeLong(maxEnergy);
         buf.writeLong(parallelChannels);
         buf.writeLong(usedChannels);
         buf.writeInt(activeJobs);

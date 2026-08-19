@@ -1,14 +1,4 @@
-# ============================================================================
-# AE2Enhanced .gitignore
-# 策略: 白名单 —— 仅编译所需内容 + 两份 README + LICENSE 纳入版本控制
-# 文档(docs/, github-wiki/)、研究资料(research/)、构建产物(build/, run*/),
-# IDE 配置(.idea/, .vscode/, .trae/)、运行时日志等一律排除
-# ============================================================================
-
-# 默认忽略根目录下所有内容
 /*
-
-# --- 构建系统 ---
 !/.gitignore
 !/build.gradle
 !/settings.gradle
@@ -16,14 +6,8 @@
 !/gradlew
 !/gradlew.bat
 !/gradle/
-
-# --- 源码与资源 ---
 !/src/
-
-# --- 本地编译依赖 (libs/ 中的 jar 为编译依赖, 加入版本控制) ---
 !/libs/
-
-# --- 项目说明与许可 ---
 !/README.md
 !/README_zh.md
 !/LICENSE

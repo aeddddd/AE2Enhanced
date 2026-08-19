@@ -112,11 +112,13 @@ public class PacketRingConfig implements IMessage {
                 tag.setBoolean(RingNBT.DMG_BLOCK, true);
             }
 
-            // ---- 阶段 IV(飞升): 强制飞行仅限飞升指环 ----
+            // ---- 阶段 IV(飞升): 强制飞行/防拉扯仅限飞升指环 ----
             if (RingNBT.isAscended(ring)) {
                 copyBool(cfg, tag, RingNBT.FORCE_FLIGHT);
+                copyBool(cfg, tag, RingNBT.NO_PULL);
             } else {
                 tag.setBoolean(RingNBT.FORCE_FLIGHT, false);
+                tag.setBoolean(RingNBT.NO_PULL, true);
             }
 
             // 强制同步到客户端(覆盖手上/背包/饰品中的同一堆叠)

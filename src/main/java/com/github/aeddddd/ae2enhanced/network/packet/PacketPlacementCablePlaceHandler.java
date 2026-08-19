@@ -1,5 +1,6 @@
 package com.github.aeddddd.ae2enhanced.network.packet;
 
+import com.github.aeddddd.ae2enhanced.item.ItemAdvancedMEOmniTool;
 import com.github.aeddddd.ae2enhanced.item.ItemMEPlacementTool;
 import com.github.aeddddd.ae2enhanced.util.placement.PlacementToolHelper;
 import net.minecraft.entity.player.EntityPlayerMP;
@@ -16,15 +17,25 @@ public class PacketPlacementCablePlaceHandler implements IMessageHandler<PacketP
         EntityPlayerMP player = ctx.getServerHandler().player;
         player.getServerWorld().addScheduledTask(() -> {
             ItemStack stack = player.getHeldItemMainhand();
-            if (!(stack.getItem() instanceof ItemMEPlacementTool)) {
+            EnumHand hand = EnumHand.MAIN_HAND;
+            if (!isPlacementItem(stack)) {
                 stack = player.getHeldItemOffhand();
-                if (!(stack.getItem() instanceof ItemMEPlacementTool)) {
+                hand = EnumHand.OFF_HAND;
+                if (!isPlacementItem(stack)) {
                     return;
                 }
             }
             PlacementToolHelper.placeCableBetween(player, player.world,
-                    message.getStart(), message.getEnd(), EnumHand.MAIN_HAND, stack);
+                    message.getStart(), message.getEnd(), hand, stack);
+            // 与右键两点流程保持一致：放置完成后清除起点
+            new com.github.aeddddd.ae2enhanced.util.placement.PlacementConfig(stack).setCableStart(null);
         });
         return null;
+    }
+
+    private static boolean isPlacementItem(ItemStack stack) {
+        if (stack.getItem() instanceof ItemMEPlacementTool) return true;
+        return stack.getItem() instanceof ItemAdvancedMEOmniTool
+                && ItemAdvancedMEOmniTool.getMode(stack) == ItemAdvancedMEOmniTool.MODE_PLACEMENT;
     }
 }

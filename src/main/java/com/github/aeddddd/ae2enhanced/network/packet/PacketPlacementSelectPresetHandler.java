@@ -1,6 +1,5 @@
 package com.github.aeddddd.ae2enhanced.network.packet;
 
-import com.github.aeddddd.ae2enhanced.client.gui.GuiPlacementRadialMenu;
 import com.github.aeddddd.ae2enhanced.item.ItemAdvancedMEOmniTool;
 import com.github.aeddddd.ae2enhanced.item.ItemMEPlacementTool;
 import com.github.aeddddd.ae2enhanced.util.placement.PlacementConfig;
@@ -12,6 +11,9 @@ import net.minecraftforge.fml.common.network.simpleimpl.IMessageHandler;
 import net.minecraftforge.fml.common.network.simpleimpl.MessageContext;
 
 public class PacketPlacementSelectPresetHandler implements IMessageHandler<PacketPlacementSelectPreset, IMessage> {
+
+    /** 与 GuiPlacementRadialMenu.SLOT_EMPTY 对应的"清空选择"槽位值（避免服务端引用客户端类） */
+    private static final int SLOT_EMPTY = -2;
 
     @Override
     public IMessage onMessage(PacketPlacementSelectPreset message, MessageContext ctx) {
@@ -30,11 +32,13 @@ public class PacketPlacementSelectPresetHandler implements IMessageHandler<Packe
 
             if (slot >= 0 && slot < PlacementConfig.MAX_PRESETS) {
                 config.setSelectedSlot(slot);
-            } else if (slot == GuiPlacementRadialMenu.SLOT_EMPTY) {
+            } else if (slot == SLOT_EMPTY) {
                 config.setSelectedSlot(-1);
             } else if (slot == PlacementConfig.MAX_PRESETS) {
-                // 中键选取当前准星目标
-                RayTraceResult ray = player.rayTrace(5.0, 1.0f);
+                // 中键选取当前准星目标；Omni Tool 使用配置的触及距离
+                double reach = stack.getItem() instanceof ItemAdvancedMEOmniTool
+                        ? config.getReachDistance() : 5.0;
+                RayTraceResult ray = player.rayTrace(reach, 1.0f);
                 if (ray == null || ray.typeOfHit != RayTraceResult.Type.BLOCK) return;
 
                 ItemStack pick = com.github.aeddddd.ae2enhanced.util.placement.PlacementTargetResolver.pickRepresentativeStack(player.world, ray.getBlockPos());

@@ -12,6 +12,7 @@ import appeng.api.util.AEColor;
 import appeng.api.util.AEPartLocation;
 import appeng.facade.FacadePart;
 import appeng.facade.IFacadeItem;
+import com.github.aeddddd.ae2enhanced.omnitool.OmniToolUpgrades;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.item.ItemBlock;
@@ -46,6 +47,13 @@ public final class PlacementToolHelper {
             return size() > 100;
         }
     };
+
+    /**
+     * 玩家退出时清理其撤销记录，避免长期驻留内存。
+     */
+    public static void clearUndoData(UUID playerId) {
+        PLAYER_UNDO.remove(playerId);
+    }
 
     // ==================== 单格放置 ====================
 
@@ -110,20 +118,35 @@ public final class PlacementToolHelper {
         placeStack.setCount(1);
 
         BlockPos blockPlacePos = pos.offset(side);
-        BlockSnapshot preSnapshot = BlockSnapshot.getBlockSnapshot(world, blockPlacePos);
+
+        // 确定放置目标类型与撤销快照位置：
+        // 方块放在 side 偏移位置；Part/Facade 安置在被点击的宿主方块内，快照需拍宿主位置
+        PlacementTarget targetType;
+        BlockPos snapshotPos;
+        if (placeStack.getItem() instanceof ItemBlock) {
+            targetType = PlacementTarget.BLOCK;
+            snapshotPos = blockPlacePos;
+        } else if (placeStack.getItem() instanceof IPartItem) {
+            targetType = PlacementTarget.PART;
+            snapshotPos = pos;
+        } else if (placeStack.getItem() instanceof IFacadeItem) {
+            targetType = PlacementTarget.FACADE;
+            snapshotPos = pos;
+        } else {
+            targetType = PlacementTarget.OTHER;
+            snapshotPos = null;
+        }
+        BlockSnapshot preSnapshot = snapshotPos != null
+                ? BlockSnapshot.getBlockSnapshot(world, snapshotPos) : null;
 
         boolean placed = false;
-        PlacementTarget targetType = PlacementTarget.OTHER;
 
         try {
-            if (placeStack.getItem() instanceof ItemBlock) {
-                targetType = PlacementTarget.BLOCK;
+            if (targetType == PlacementTarget.BLOCK) {
                 placed = tryPlaceBlock(player, world, pos, side, hand, placeStack, hitX, hitY, hitZ);
-            } else if (placeStack.getItem() instanceof IPartItem) {
-                targetType = PlacementTarget.PART;
+            } else if (targetType == PlacementTarget.PART) {
                 placed = tryPlacePart(player, world, pos, side, hand, placeStack);
-            } else if (placeStack.getItem() instanceof IFacadeItem) {
-                targetType = PlacementTarget.FACADE;
+            } else if (targetType == PlacementTarget.FACADE) {
                 placed = tryPlaceFacade(player, world, pos, side, placeStack);
             }
         } catch (Exception e) {
@@ -133,7 +156,7 @@ public final class PlacementToolHelper {
         if (placed) {
             IAEItemStack extracted = monitor.extractItems(toExtract, Actionable.MODULATE, SecurityTerminalBindingHelper.createPlayerSource(player));
             if (extracted == null || extracted.getStackSize() < 1) {
-                rollbackSingle(world, pos, side, preSnapshot.getCurrentBlock(), targetType);
+                rollbackSingle(world, pos, side, preSnapshot != null ? preSnapshot.getCurrentBlock() : null, targetType);
                 player.sendMessage(new net.minecraft.util.text.TextComponentTranslation("message.ae2enhanced.placement.network_missing",
                         target.getDisplayName()));
                 return false;
@@ -145,7 +168,7 @@ public final class PlacementToolHelper {
             player.swingArm(hand);
 
             UndoRecord record = new UndoRecord();
-            if (targetType == PlacementTarget.BLOCK) {
+            if (preSnapshot != null) {
                 record.snapshots.add(preSnapshot);
             }
             record.consumed.put(request.copy().setStackSize(1), 1L);
@@ -194,7 +217,12 @@ public final class PlacementToolHelper {
             return false;
         }
 
-        List<BlockPos> positions = ConstructionWandHelper.calculatePositions(world, pos, side, config.getPlacementRestriction());
+        PlacementRestriction restriction = config.getPlacementRestriction();
+        // 参数开关：禁用方向锁时按无锁处理
+        if (!OmniToolUpgrades.isParamEnabled(toolStack, OmniToolUpgrades.PARAM_PLACEMENT_RESTRICTION)) {
+            restriction = PlacementRestriction.NO_LOCK;
+        }
+        List<BlockPos> positions = ConstructionWandHelper.calculatePositions(world, pos, side, restriction);
         if (positions.isEmpty()) {
             player.sendMessage(new net.minecraft.util.text.TextComponentTranslation("message.ae2enhanced.placement.cannot_place"));
             return false;
@@ -296,19 +324,21 @@ public final class PlacementToolHelper {
     // ==================== 线缆放置 ====================
 
     /**
-     * 放置单格线缆，使用配置颜色。
+     * 放置单格线缆，使用配置颜色（受参数开关控制）。
      */
     private static boolean placeSingleCable(EntityPlayer player, World world, BlockPos pos, EnumFacing side,
                                             EnumHand hand, ItemStack toolStack, ItemStack baseCable, AEColor color) {
         BlockPos placePos = pos.offset(side);
-        List<BlockPos> placed = CablePlacementHelper.placeCable(player, world, placePos, placePos,
+        CablePlacementHelper.CableResult result = CablePlacementHelper.placeCable(player, world, placePos, placePos,
                 hand, toolStack, baseCable, color);
-        if (placed.isEmpty()) return false;
+        if (result.placed.isEmpty()) return false;
+
+        recordCableUndo(player, result);
         return true;
     }
 
     /**
-     * 执行两点线缆放置（右键起点 + 左键终点）。
+     * 执行两点线缆放置（右键起点 + 右键/左键终点）。
      *
      * @return 是否成功放置任意线缆
      */
@@ -324,17 +354,35 @@ public final class PlacementToolHelper {
             return false;
         }
 
-        AEColor color = config.getCableColor();
-        List<BlockPos> placed = CablePlacementHelper.placeCable(player, world, start, end, hand, toolStack, target, color);
-        if (placed.isEmpty()) return false;
+        AEColor color = resolveCableColor(toolStack, config);
+        CablePlacementHelper.CableResult result = CablePlacementHelper.placeCable(player, world, start, end, hand, toolStack, target, color);
+        if (result.placed.isEmpty()) return false;
 
-        // 记录撤销（线缆放置使用 BlockSnapshot 方式记录，因为路径上的方块可能原本是空气）
+        recordCableUndo(player, result);
+        return true;
+    }
+
+    /**
+     * 将线缆放置结果写入撤销记录（放置前快照 + 消耗退款信息）。
+     */
+    private static void recordCableUndo(EntityPlayer player, CablePlacementHelper.CableResult result) {
         UndoRecord record = new UndoRecord();
-        for (BlockPos p : placed) {
-            record.snapshots.add(BlockSnapshot.getBlockSnapshot(world, p));
+        record.snapshots.addAll(result.preSnapshots);
+        if (result.consumedType != null && result.consumedCount > 0) {
+            record.consumed.put(result.consumedType, (long) result.consumedCount);
         }
         PLAYER_UNDO.put(player.getUniqueID(), record);
-        return true;
+    }
+
+    /**
+     * 解析实际使用的线缆颜色。Omni Tool 禁用线缆颜色参数时返回 null（使用网络线缆原色）。
+     */
+    @Nullable
+    private static AEColor resolveCableColor(ItemStack toolStack, PlacementConfig config) {
+        if (!OmniToolUpgrades.isParamEnabled(toolStack, OmniToolUpgrades.PARAM_CABLE_COLOR)) {
+            return null;
+        }
+        return config.getCableColor();
     }
 
     // ==================== 撤销 ====================
@@ -427,8 +475,9 @@ public final class PlacementToolHelper {
         return false;
     }
 
+    @Nullable
     private static AEColor configColor(ItemStack toolStack) {
-        return new PlacementConfig(toolStack).getCableColor();
+        return resolveCableColor(toolStack, new PlacementConfig(toolStack));
     }
 
     private static boolean tryPlaceBlockAt(EntityPlayer player, World world, BlockPos placePos, EnumFacing side,

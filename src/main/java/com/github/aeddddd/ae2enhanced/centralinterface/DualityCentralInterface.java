@@ -255,41 +255,9 @@ public class DualityCentralInterface implements appeng.util.inv.IAEAppEngInvento
             AE2Enhanced.LOGGER.debug("[AE2E-Diag] pushPattern target={} handler={} baseParallel={} pendingLimit={} virtualParallel={} globalCooldown={}",
                     target.pos, handler.getClass().getSimpleName(), baseVirtualParallel, pendingLimit, virtualParallel, globalVirtualCooling);
 
-            // 对包含非物品 IAEStack 类型（流体、能量、气体等）的配方，优先尝试物理发配，
-            // 因为虚拟批量的网络资源核算对非物品资源更复杂，物理发配更可靠。
-            boolean preferPhysical = false;
-            if (canUseVirtual) {
-                IVirtualBatchCraftingHandler vh = (IVirtualBatchCraftingHandler) handler;
-                InventoryCrafting virtualTable = copyInventoryCrafting(table);
-                preferPhysical = VirtualBatchEngine.hasMixedStackTypes(vh, world, target, virtualTable, outputs, patternDetails);
-            }
-
-            if (preferPhysical && handler.hasCapability(HandlerCapabilities.PHYSICAL)) {
-                if (this.physicalDispatcher.dispatch(grid, patternDetails, table, target, handler)) {
-                    this.lastVirtualBatchSize = 1;
-                    return true;
-                }
-                // 物理发配失败时回退到虚拟批量
-                if (!globalVirtualCooling) {
-                    attemptedVirtual = true;
-                    IVirtualBatchCraftingHandler vh = (IVirtualBatchCraftingHandler) handler;
-                    if (!vh.skipCooldownOnSingleBatch()) {
-                        attemptedNonSkippableVirtual = true;
-                    }
-                    long actualParallel = this.virtualBatchEngine.execute(grid, patternDetails, table, target, vh, virtualParallel);
-                    if (actualParallel > 0) {
-                        this.lastVirtualBatchSize = actualParallel;
-                        if (actualParallel > 1 || !vh.skipCooldownOnSingleBatch()) {
-                            this.globalVirtualCooldown = AE2EnhancedConfig.centralInterface.virtualCooldownGlobalTicks;
-                        }
-                        tryWakeTickDevice();
-                        return true;
-                    }
-                }
-                continue;
-            }
-
-            // 优先尝试虚拟批量合成（handler 支持虚拟批量即可，virtualParallel 仅限制最大并行数）
+            // 优先尝试虚拟批量合成（handler 支持虚拟批量即可，virtualParallel 仅限制最大并行数）。
+            // 包含非物品 IAEStack 成本（Mana、源质、LP、星光、流体、气体等）的配方同样走此路径：
+            // VirtualBatchEngine 的双池模型对非物品资源从网络全额核算提取，无需物理优先。
             // 注意：纯虚拟 handler（如 Extended Crafting 工作台）即使 virtualParallel=1 也必须走此路径，
             // 否则订单剩余 1 份时会因无物理能力而直接失败。
             if (canUseVirtual

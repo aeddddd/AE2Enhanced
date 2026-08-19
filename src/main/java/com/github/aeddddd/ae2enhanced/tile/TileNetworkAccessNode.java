@@ -70,6 +70,12 @@ public class TileNetworkAccessNode extends TileAENetworkBase
     private int creativeBoostCooldown = 0;
     private int mode = MODE_INPUT;
 
+    /** 输出模式邻居探测退避 tick 数: 无能量需求的邻居跳过的时长 */
+    private static final int RF_NEIGHBOR_BACKOFF_TICKS = 10;
+    // 按朝向缓存邻居的可充能面与需求退避,避免每 tick × 6 邻居重复 6 面 capability 扫描与模拟充能
+    private final EnumFacing[] rfFaceCache = new EnumFacing[6];
+    private final int[] rfDemandBackoff = new int[6];
+
     public TileNetworkAccessNode() {
         initPoolReflection();
         initAltarReflection();
@@ -168,13 +174,15 @@ public class TileNetworkAccessNode extends TileAENetworkBase
     }
 
     private void doOutputTick() {
+        // 能量监视器每 tick 只解析一次,不再逐邻居重复查询网格缓存
+        IMEMonitor energyMonitor = getEnergyMonitor();
         for (EnumFacing facing : EnumFacing.values()) {
             BlockPos neighborPos = this.pos.offset(facing);
             if (!this.world.isBlockLoaded(neighborPos)) continue;
             TileEntity te = this.world.getTileEntity(neighborPos);
             if (te == null || te.isInvalid() || te == this) continue;
 
-            doRfOutputTo(te);
+            doRfOutputTo(energyMonitor, te, facing);
             if (Loader.isModLoaded("botania") && poolReflectionReady && isManaPool(te)) {
                 doPoolFill(te);
             }
@@ -225,15 +233,26 @@ public class TileNetworkAccessNode extends TileAENetworkBase
     }
 
     @SuppressWarnings({"rawtypes", "unchecked"})
-    private void doRfOutputTo(TileEntity te) {
-        IMEMonitor monitor = getEnergyMonitor();
+    private void doRfOutputTo(IMEMonitor monitor, TileEntity te, EnumFacing fromFacing) {
+        int idx = fromFacing.ordinal();
+        // 需求退避: 无需求/无 capability 的邻居跳过探测,降低模拟调用频率
+        if (rfDemandBackoff[idx] > 0) {
+            rfDemandBackoff[idx]--;
+            return;
+        }
         if (monitor == null) return;
 
-        IEnergyStorage cap = findReceivableEnergyCap(te);
-        if (cap == null) return;
+        IEnergyStorage cap = findReceivableEnergyCap(te, fromFacing);
+        if (cap == null) {
+            rfDemandBackoff[idx] = RF_NEIGHBOR_BACKOFF_TICKS;
+            return;
+        }
 
         int demand = cap.receiveEnergy(Integer.MAX_VALUE, true);
-        if (demand <= 0) return;
+        if (demand <= 0) {
+            rfDemandBackoff[idx] = RF_NEIGHBOR_BACKOFF_TICKS;
+            return;
+        }
         demand = Math.min(demand, AE2EnhancedConfig.energy.rfAccessNodeMaxTransfer);
 
         IAEStack request = EnergyChannelResolver.createStack(demand);
@@ -253,15 +272,26 @@ public class TileNetworkAccessNode extends TileAENetworkBase
         }
     }
 
-    private IEnergyStorage findReceivableEnergyCap(TileEntity te) {
+    private IEnergyStorage findReceivableEnergyCap(TileEntity te, EnumFacing fromFacing) {
+        int idx = fromFacing.ordinal();
+        // 优先复用缓存的可充能面,失效时兜底重扫 6 个面
+        EnumFacing cached = rfFaceCache[idx];
+        if (cached != null && te.hasCapability(CapabilityEnergy.ENERGY, cached)) {
+            IEnergyStorage c = te.getCapability(CapabilityEnergy.ENERGY, cached);
+            if (c != null && c.canReceive()) {
+                return c;
+            }
+        }
         for (EnumFacing f : EnumFacing.values()) {
             if (te.hasCapability(CapabilityEnergy.ENERGY, f)) {
                 IEnergyStorage c = te.getCapability(CapabilityEnergy.ENERGY, f);
                 if (c != null && c.canReceive()) {
+                    rfFaceCache[idx] = f;
                     return c;
                 }
             }
         }
+        rfFaceCache[idx] = null;
         return null;
     }
 

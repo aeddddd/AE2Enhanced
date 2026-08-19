@@ -23,8 +23,10 @@ public class LateMixinLoader implements ILateMixinLoader {
                 "mixins.ae2enhanced.late.json",
                 "mixins.ae2enhanced.late.tii.json",
                 "mixins.ae2enhanced.late.thaumic.json",
-                "mixins.ae2enhanced.late.gas.json",
-                "mixins.ae2enhanced.late.ring.json"
+                "mixins.ae2enhanced.late.gas.json"
+                // 注意: mixins.ae2enhanced.late.ring.json 目标全为 MC/Forge 原生类,
+                // 已移至 AssemblyMixinPlugin 的 early 注册(Cleanroom 下 late 注册
+                // 原生类目标会因 "loaded too early" 被静默拒绝).
         ));
         if (!Ae2fcCompat.AE2FC_LOADED) {
             configs.add("mixins.ae2enhanced.late.fluid.json");
@@ -34,6 +36,9 @@ public class LateMixinLoader implements ILateMixinLoader {
         }
         if (Loader.isModLoaded("cells")) {
             configs.add("mixins.ae2enhanced.late.cells.json");
+        }
+        if (Loader.isModLoaded("cellterminal")) {
+            configs.add("mixins.ae2enhanced.late.cellterminal.json");
         }
         if (Loader.isModLoaded("thermalexpansion")) {
             configs.add("mixins.ae2enhanced.late.thermal.json");

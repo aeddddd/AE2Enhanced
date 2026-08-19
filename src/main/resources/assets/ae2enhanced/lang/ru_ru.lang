@@ -415,13 +415,11 @@ gui.ae2enhanced.placement_tool.no_selection=Элемент не выбран
 
 gui.ae2enhanced.placement.mode.single=Одиночное размещение
 gui.ae2enhanced.placement.mode.bulk=Массовое размещение
-gui.ae2enhanced.placement.mode.cable=Размещение кабеля
 gui.ae2enhanced.placement.cable_color=Цвет кабеля: %s
 message.ae2enhanced.placement.no_configured_item=Не настроен предмет для размещения
 message.ae2enhanced.placement.network_missing=Отсутствует сеть: %s
 message.ae2enhanced.placement.cannot_place=Нельзя разместить здесь
 message.ae2enhanced.placement.no_storage=Не найдено ME-хранилище
-message.ae2enhanced.placement.not_implemented=Ещё не реализовано
 gui.ae2enhanced.placement_tool.page=Страница %d/%d
 gui.ae2enhanced.placement_tool.count=Количество: %d
 message.ae2enhanced.placement.nothing_to_undo=Нечего отменить

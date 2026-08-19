@@ -20,8 +20,27 @@ public final class SpecialRecipeDetector {
 
     /**
      * 请求 {@code what} 是否可能涉及特殊配方.
+     * <p>结果只依赖网络样板集(与库存无关),按请求键 memo 于 {@link NetworkPatternIndex},
+     * 随样板集重建一并失效——每个计算请求都会经过本判定,memo 消除重复的全网络扫描.</p>
      */
     public static boolean mayInvolveSpecialRecipes(ICraftingGrid cc, IAEItemStack what, World world) {
+        NetworkPatternIndex index = NetworkPatternIndex.of(cc);
+        IAEItemStack memoKey = null;
+        if (index != null) {
+            memoKey = RecursiveCraftingHelper.canon(what);
+            Boolean memo = index.detectorVerdict(memoKey);
+            if (memo != null) {
+                return memo;
+            }
+        }
+        boolean verdict = detect(cc, what, world);
+        if (index != null) {
+            index.memoDetectorVerdict(memoKey, verdict);
+        }
+        return verdict;
+    }
+
+    private static boolean detect(ICraftingGrid cc, IAEItemStack what, World world) {
         // 阶段 1:候选样板含自引用(净产出自引用,或任意精确自引用 key)
         for (ICraftingPatternDetails pattern : cc.getCraftingFor(what, null, -1, world)) {
             if (RecursiveCraftingHelper.isNetPositiveSelfRef(pattern, what)) {

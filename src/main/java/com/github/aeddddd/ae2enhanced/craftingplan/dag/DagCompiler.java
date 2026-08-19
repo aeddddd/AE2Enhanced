@@ -16,6 +16,7 @@ import appeng.api.networking.crafting.ICraftingPatternDetails;
 import appeng.api.storage.data.IAEItemStack;
 
 import com.github.aeddddd.ae2enhanced.specialcrafting.CycleAnalyzer;
+import com.github.aeddddd.ae2enhanced.specialcrafting.RecipeRemainingResolver;
 import com.github.aeddddd.ae2enhanced.specialcrafting.RecursiveCraftingHelper;
 
 /**
@@ -49,7 +50,7 @@ public final class DagCompiler {
     private final Set<IAEItemStack> boundaryKeys;
     /** true = 第一遍(只探环,容忍回落);false = 第二遍(正式编译). */
     private final boolean detectOnly;
-    /** 两遍编译共享的生产者索引(成环检测的副产物倒排只建一次). */
+    /** 两遍编译共享的生产者索引(成环检测的副产物倒排只建一次;SCC 快路径经其共享索引). */
     private final CycleAnalyzer.ProducerIndex producerIndex;
     /** 本趟编译是否产出了多样板节点(传导到 DagGraph.hasMultiBranch). */
     private boolean sawMultiBranch;
@@ -204,8 +205,16 @@ public final class DagCompiler {
         return outPer;
     }
 
-    /** 任一输入带容器返还(多分支节点的容器语义不予接管). */
+    /**
+     * 任一输入带返还(多分支节点的返还语义不予接管).
+     * 可合成样板以配方 getRemainingItems 判定(覆盖 CrT reuse 等不消耗实现);
+     * 其余回退 Item 容器 API.
+     */
     private static boolean hasContainerInput(ICraftingPatternDetails pattern) {
+        Map<IAEItemStack, Long> remaining = RecipeRemainingResolver.remainingPerCraft(pattern);
+        if (remaining != null) {
+            return !remaining.isEmpty();
+        }
         for (IAEItemStack input : pattern.getCondensedInputs()) {
             if (input == null || input.getItem() == null) {
                 continue;
@@ -224,6 +233,12 @@ public final class DagCompiler {
      * 首个循环不预贷),执行器统一回记,见 DagExecutor.</p>
      */
     private static boolean isClean(ICraftingPatternDetails pattern) {
+        // processing 样板无替代输入概念,且原生 PatternHelper.getSubstituteInputs
+        // 在 standardRecipe == null 时必 NPE(直接读取其配料表)——必须短路,
+        // 否则任何含 processing 样板的请求都会异常回落原生并刷警告日志
+        if (!pattern.isCraftable()) {
+            return true;
+        }
         IAEItemStack[] inputs = pattern.getInputs();
         for (int slot = 0; slot < inputs.length; slot++) {
             if (inputs[slot] == null) {

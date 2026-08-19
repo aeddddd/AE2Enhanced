@@ -160,7 +160,8 @@ public final class GuideNavigationPanel {
     }
 
     public void scrollWheel(int dWheel) {
-        this.scrollY -= (dWheel / 120) * ROW_HEIGHT * 2;
+        // 兼容 CRL lwjglxx（返回 ±1）与标准 LWJGL2（返回 ±120）,统一按符号滚动
+        this.scrollY -= Integer.signum(dWheel) * ROW_HEIGHT * 2;
         clampScroll();
     }
 

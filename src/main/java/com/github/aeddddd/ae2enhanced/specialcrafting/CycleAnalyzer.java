@@ -136,12 +136,22 @@ public final class CycleAnalyzer {
         private final ICraftingGrid cc;
         private final World world;
         private final Map<IAEItemStack, List<ICraftingPatternDetails>> cache = new LinkedHashMap<>();
+        /** 网络级共享索引(SCC/副产物倒排);非本模组缓存实现(如测试模拟网格)为 null. */
+        @Nullable
+        private final NetworkPatternIndex shared;
         @Nullable
         private Map<IAEItemStack, List<ICraftingPatternDetails>> byproductIndex;
 
         public ProducerIndex(ICraftingGrid cc, World world) {
             this.cc = cc;
             this.world = world;
+            this.shared = NetworkPatternIndex.of(cc);
+        }
+
+        /** 网络级共享索引(可为 null). */
+        @Nullable
+        NetworkPatternIndex shared() {
+            return this.shared;
         }
 
         /** 生产 {@code current} 的全部样板:主产出索引快路径 + 副产物倒排(按键缓存). */
@@ -155,10 +165,16 @@ public final class CycleAnalyzer {
                     this.world)) {
                 out.add(pattern);
             }
-            for (ICraftingPatternDetails pattern : this.byproductIndex()
-                    .getOrDefault(current, Collections.emptyList())) {
-                if (!out.contains(pattern)) {
-                    out.add(pattern);
+            List<ICraftingPatternDetails> extra = this.byproductIndex().getOrDefault(current,
+                    Collections.emptyList());
+            if (!extra.isEmpty()) {
+                Set<ICraftingPatternDetails> seen = Collections
+                        .newSetFromMap(new java.util.IdentityHashMap<>());
+                seen.addAll(out);
+                for (ICraftingPatternDetails pattern : extra) {
+                    if (seen.add(pattern)) {
+                        out.add(pattern);
+                    }
                 }
             }
             this.cache.put(current, out);
@@ -166,10 +182,15 @@ public final class CycleAnalyzer {
         }
 
         /**
-         * 副产物生产者倒排:输出键 → 以它为非主索引输出的样板列表.懒建,只扫一次.
+         * 副产物生产者倒排:输出键 → 以它为非主索引输出的样板列表.
+         * 优先复用网络级共享索引(全样板扫描一次建成);不可用时按旧路径自建.
          */
         private Map<IAEItemStack, List<ICraftingPatternDetails>> byproductIndex() {
             if (this.byproductIndex == null) {
+                if (this.shared != null) {
+                    this.byproductIndex = this.shared.byproductMap();
+                    return this.byproductIndex;
+                }
                 this.byproductIndex = new LinkedHashMap<>();
                 if (this.cc instanceof com.github.aeddddd.ae2enhanced.mixin.bridge.ICraftingGridCacheAccess) {
                     for (IAEItemStack craftable : ((com.github.aeddddd.ae2enhanced.mixin.bridge.ICraftingGridCacheAccess) this.cc)
@@ -286,6 +307,12 @@ public final class CycleAnalyzer {
      */
     public static boolean isCycleStep(ICraftingGrid cc, World world, ICraftingPatternDetails pattern,
             ProducerIndex producerIndex) {
+        // 快路径:网络级 SCC 索引 O(输入×输出) 查表,取代逐节点 budget DFS
+        // (旧路径在数千节点计划中逐节点重复遍历,是编译主瓶颈;语义等价且不受 512 截断)
+        NetworkPatternIndex shared = producerIndex.shared();
+        if (shared != null) {
+            return shared.isCycleStep(pattern);
+        }
         Set<IAEItemStack> outputs = new HashSet<>();
         for (IAEItemStack output : pattern.getCondensedOutputs()) {
             if (output != null) {

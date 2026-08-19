@@ -363,10 +363,10 @@ public class AE2EnhancedConfig {
         @Config.Comment({
             "Maximum walk/fly speed percentage configurable on the ring",
             "(100 = vanilla default).",
-            "Range: 100 ~ 4000, Default: 200"
+            "Range: 100 ~ 4000, Default: 800"
         })
         @Config.RangeInt(min = 100, max = 4000)
-        public int maxSpeedPercent = 200;
+        public int maxSpeedPercent = 800;
 
         @Config.Comment({
             "Maximum jump height percentage configurable on the ring.",
@@ -485,19 +485,12 @@ public class AE2EnhancedConfig {
     public static class Chamber {
 
         @Config.Comment({
-            "Maximum FE the Singularity Processing Chamber may consume per tick",
-            "(job start energy is charged upfront: energyPerBatch x batches).",
-            "Range: 1000 ~ 2147483647, Default: 1000000"
-        })
-        @Config.RangeInt(min = 1000, max = Integer.MAX_VALUE)
-        public int maxEnergyPerTick = 1000000;
-
-        @Config.Comment({
-            "FE consumed per recipe batch when a processing job starts.",
-            "Range: 1 ~ 2147483647, Default: 1000"
+            "Total FE consumed per recipe batch. Per-tick draw = energyPerBatch x batches / job ticks,",
+            "so capacity cards (8x job time) dilute the per-tick cost.",
+            "Range: 1 ~ 2147483647, Default: 16384"
         })
         @Config.RangeInt(min = 1, max = Integer.MAX_VALUE)
-        public int energyPerBatch = 1000;
+        public int energyPerBatch = 16384;
 
         @Config.Comment({
             "Whether the Singularity Processing Chamber requires an ME channel",
@@ -600,10 +593,10 @@ public class AE2EnhancedConfig {
         @Config.Comment({
             "Maximum break cooldown in ticks for Universal Mode.",
             "Players can configure a shorter cooldown in-game, but cannot exceed this value.",
-            "Range: 0 ~ 200, Default: 20"
+            "Range: 0 ~ 200, Default: 5"
         })
         @Config.RangeInt(min = 0, max = 200)
-        public int maxBreakCooldown = 20;
+        public int maxBreakCooldown = 5;
 
         @Config.Comment({
             "Base attack damage dealt by the Omni Tool in normal mode.",
@@ -824,6 +817,15 @@ public class AE2EnhancedConfig {
         })
         @Config.RangeInt(min = 0, max = 1000)
         public int idlePower = 5;
+
+        @Config.Comment({
+            "Minimum interval (ticks) between ProjectE knowledge syncs triggered by EMC extraction.",
+            "Extraction only changes the EMC balance, not the knowledge list, so syncs are",
+            "coalesced: the transmutation table GUI EMC value may lag by up to this many ticks.",
+            "Range: 1 ~ 200, Default: 10"
+        })
+        @Config.RangeInt(min = 1, max = 200)
+        public int syncIntervalTicks = 10;
     }
 
     public static class CentralInterface {

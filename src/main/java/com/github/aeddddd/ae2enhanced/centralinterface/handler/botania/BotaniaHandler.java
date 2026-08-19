@@ -826,14 +826,11 @@ public class BotaniaHandler implements IRemoteHandler, IVirtualBatchCraftingHand
         if (recipe == null) return costs;
         List<ItemStack> available = collectNonEmpty(ingredients);
         for (Object req : BotaniaReflectionHelper.elvenTradeGetInputs(recipe)) {
-            for (int i = 0; i < available.size(); i++) {
-                if (matchesRecipeObject(req, available.get(i))) {
-                    IAEItemStack cost = AEItemStack.fromItemStack(available.remove(i).copy());
-                    cost.setStackSize(count);
-                    costs.add(cost);
-                    break;
-                }
-            }
+            ItemStack consumed = consumeFromAvailable(available, req);
+            if (consumed.isEmpty()) continue;
+            IAEItemStack cost = AEItemStack.fromItemStack(consumed);
+            cost.setStackSize((long) consumed.getCount() * count);
+            costs.add(cost);
         }
         return costs;
     }
@@ -896,15 +893,8 @@ public class BotaniaHandler implements IRemoteHandler, IVirtualBatchCraftingHand
         Object recipe = findRuneAltarRecipeByOutput(outputs[0].createItemStack());
         if (recipe == null) return false;
         List<ItemStack> available = collectNonEmpty(ingredients);
-        boolean hasLivingrock = false;
-        for (int i = available.size() - 1; i >= 0; i--) {
-            ItemStack stack = available.get(i);
-            if (stack.getItem() == Item.getItemFromBlock(BotaniaReflectionHelper.BLOCK_LIVINGROCK) && stack.getMetadata() == 0) {
-                hasLivingrock = true;
-                available.remove(i);
-                break;
-            }
-        }
+        ItemStack livingrockTemplate = new ItemStack(Item.getItemFromBlock(BotaniaReflectionHelper.BLOCK_LIVINGROCK), 1, 0);
+        boolean hasLivingrock = !consumeFromAvailable(available, livingrockTemplate).isEmpty();
         return hasLivingrock && matchRecipeInputs(BotaniaReflectionHelper.petalsGetInputs(recipe), available);
     }
 
@@ -916,27 +906,21 @@ public class BotaniaHandler implements IRemoteHandler, IVirtualBatchCraftingHand
 
         List<ItemStack> available = collectNonEmpty(ingredients);
         // 先扣活石
-        for (int i = 0; i < available.size(); i++) {
-            ItemStack stack = available.get(i);
-            if (stack.getItem() == Item.getItemFromBlock(BotaniaReflectionHelper.BLOCK_LIVINGROCK) && stack.getMetadata() == 0) {
-                IAEItemStack cost = AEItemStack.fromItemStack(stack.copy());
-                cost.setStackSize(count);
-                costs.add(cost);
-                available.remove(i);
-                break;
-            }
+        ItemStack livingrockTemplate = new ItemStack(Item.getItemFromBlock(BotaniaReflectionHelper.BLOCK_LIVINGROCK), 1, 0);
+        ItemStack livingrock = consumeFromAvailable(available, livingrockTemplate);
+        if (!livingrock.isEmpty()) {
+            IAEItemStack cost = AEItemStack.fromItemStack(livingrock);
+            cost.setStackSize((long) livingrock.getCount() * count);
+            costs.add(cost);
         }
 
         // 再扣配方输入
         for (Object req : BotaniaReflectionHelper.petalsGetInputs(recipe)) {
-            for (int i = 0; i < available.size(); i++) {
-                if (matchesRecipeObject(req, available.get(i))) {
-                    IAEItemStack cost = AEItemStack.fromItemStack(available.remove(i).copy());
-                    cost.setStackSize(count);
-                    costs.add(cost);
-                    break;
-                }
-            }
+            ItemStack consumed = consumeFromAvailable(available, req);
+            if (consumed.isEmpty()) continue;
+            IAEItemStack cost = AEItemStack.fromItemStack(consumed);
+            cost.setStackSize((long) consumed.getCount() * count);
+            costs.add(cost);
         }
 
         costs.add(AEManaStack.create((long) BotaniaReflectionHelper.runeAltarRecipeGetManaUsage(recipe) * count));
@@ -981,14 +965,11 @@ public class BotaniaHandler implements IRemoteHandler, IVirtualBatchCraftingHand
             if (!stack.isEmpty() && !isSeed(stack)) available.add(stack.copy());
         }
         for (Object req : BotaniaReflectionHelper.petalsGetInputs(recipe)) {
-            for (int i = 0; i < available.size(); i++) {
-                if (matchesRecipeObject(req, available.get(i))) {
-                    IAEItemStack cost = AEItemStack.fromItemStack(available.remove(i).copy());
-                    cost.setStackSize(count);
-                    costs.add(cost);
-                    break;
-                }
-            }
+            ItemStack consumed = consumeFromAvailable(available, req);
+            if (consumed.isEmpty()) continue;
+            IAEItemStack cost = AEItemStack.fromItemStack(consumed);
+            cost.setStackSize((long) consumed.getCount() * count);
+            costs.add(cost);
         }
         return costs;
     }
@@ -1019,17 +1000,36 @@ public class BotaniaHandler implements IRemoteHandler, IVirtualBatchCraftingHand
 
     private boolean matchRecipeInputs(List<?> required, List<ItemStack> available) {
         for (Object req : required) {
-            boolean found = false;
-            for (int i = 0; i < available.size(); i++) {
-                if (matchesRecipeObject(req, available.get(i))) {
-                    available.remove(i);
-                    found = true;
-                    break;
-                }
-            }
-            if (!found) return false;
+            if (consumeFromAvailable(available, req).isEmpty()) return false;
         }
         return available.isEmpty();
+    }
+
+    /**
+     * 从 available 中按配方输入 req 消耗一份物品.
+     *
+     * <p>按需求量逐个缩减而非整栈移除,支持同种物品堆叠在同一槽位
+     * (例如配方需要 2 个相同花瓣而样板将其堆叠在单个槽位).</p>
+     *
+     * @param available 可用物品列表(会被就地修改)
+     * @param req       配方输入(ItemStack 或 oreDict 字符串)
+     * @return 实际消耗的物品(count 为每份消耗量);无匹配或数量不足返回 {@link ItemStack#EMPTY}
+     */
+    private ItemStack consumeFromAvailable(List<ItemStack> available, Object req) {
+        int needed = 1;
+        if (req instanceof ItemStack) {
+            needed = Math.max(1, ((ItemStack) req).getCount());
+        }
+        for (int i = 0; i < available.size(); i++) {
+            ItemStack stack = available.get(i);
+            if (!matchesRecipeObject(req, stack) || stack.getCount() < needed) continue;
+            ItemStack consumed = stack.copy();
+            consumed.setCount(needed);
+            stack.shrink(needed);
+            if (stack.isEmpty()) available.remove(i);
+            return consumed;
+        }
+        return ItemStack.EMPTY;
     }
 
     private boolean matchesRecipeObject(Object obj, ItemStack stack) {

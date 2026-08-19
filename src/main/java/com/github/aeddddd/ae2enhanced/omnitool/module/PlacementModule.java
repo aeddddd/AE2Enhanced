@@ -105,7 +105,9 @@ public class PlacementModule implements IOmniToolModule {
     @Override
     public Multimap<String, AttributeModifier> getAttributeModifiers(EntityEquipmentSlot slot, ItemStack stack) {
         Multimap<String, AttributeModifier> multimap = HashMultimap.create();
-        if (slot == EntityEquipmentSlot.MAINHAND) {
+        if (slot == EntityEquipmentSlot.MAINHAND
+                && com.github.aeddddd.ae2enhanced.omnitool.OmniToolUpgrades.isParamEnabled(
+                        stack, com.github.aeddddd.ae2enhanced.omnitool.OmniToolUpgrades.PARAM_REACH_DISTANCE)) {
             PlacementConfig config = new PlacementConfig(stack);
             float reach = config.getReachDistance();
             // 玩家基础触及距离为 5.0，因此 modifier = reach - 5.0

@@ -27,9 +27,19 @@ public final class MarkdownParser {
         String[] lines = body.split("\n", -1);
         StringBuilder paragraph = new StringBuilder();
 
-        for (String rawLine : lines) {
-            String line = rawLine;
-            String trimmed = line.trim();
+        for (int li = 0; li < lines.length; li++) {
+            String trimmed = lines[li].trim();
+
+            // 围栏代码块：``` 开始，到下一个 ``` 或文件结束
+            if (trimmed.startsWith("```")) {
+                flushParagraph(blocks, paragraph);
+                BlockElement code = new BlockElement(BlockElement.Type.CODE_BLOCK, 0);
+                while (++li < lines.length && !lines[li].trim().startsWith("```")) {
+                    code.getCodeLines().add(lines[li]);
+                }
+                blocks.add(code);
+                continue;
+            }
 
             if (trimmed.isEmpty()) {
                 flushParagraph(blocks, paragraph);
@@ -47,11 +57,23 @@ public final class MarkdownParser {
                 continue;
             }
 
-            // 列表项（仅一层）
+            // 无序列表项（仅一层）
             if (trimmed.startsWith("- ") || trimmed.equals("-")) {
                 flushParagraph(blocks, paragraph);
                 String text = trimmed.length() > 2 ? trimmed.substring(2).trim() : "";
                 BlockElement item = new BlockElement(BlockElement.Type.LIST_ITEM, 0);
+                item.getChildren().addAll(parseInline(text));
+                blocks.add(item);
+                continue;
+            }
+
+            // 有序列表项：数字 + ". "（如 "1. "）
+            int orderedEnd = orderedMarkerEnd(trimmed);
+            if (orderedEnd > 0) {
+                flushParagraph(blocks, paragraph);
+                BlockElement item = new BlockElement(BlockElement.Type.LIST_ITEM, 0);
+                item.setMarker(trimmed.substring(0, orderedEnd - 1));
+                String text = trimmed.substring(orderedEnd).trim();
                 item.getChildren().addAll(parseInline(text));
                 blocks.add(item);
                 continue;
@@ -65,6 +87,21 @@ public final class MarkdownParser {
         }
         flushParagraph(blocks, paragraph);
         return blocks;
+    }
+
+    /**
+     * 若 trimmed 以 "数字. " 开头，返回序号文本结束后的下标（含 ". "），否则返回 0.
+     */
+    private static int orderedMarkerEnd(String trimmed) {
+        int i = 0;
+        while (i < trimmed.length() && Character.isDigit(trimmed.charAt(i))) {
+            i++;
+        }
+        if (i > 0 && i + 1 < trimmed.length()
+                && trimmed.charAt(i) == '.' && trimmed.charAt(i + 1) == ' ') {
+            return i + 2;
+        }
+        return 0;
     }
 
     private static void flushParagraph(List<BlockElement> blocks, StringBuilder paragraph) {
@@ -97,6 +134,27 @@ public final class MarkdownParser {
         int n = text.length();
 
         while (i < n) {
+            // 行内代码：`code` 或 ``code``（反引号数量需配对）
+            if (text.charAt(i) == '`') {
+                int ticks = 1;
+                while (i + ticks < n && text.charAt(i + ticks) == '`') {
+                    ticks++;
+                }
+                String fence = text.substring(i, i + ticks);
+                int close = text.indexOf(fence, i + ticks);
+                if (close > 0) {
+                    flushText(out, buf, bold);
+                    String codeText = text.substring(i + ticks, close);
+                    if (!codeText.isEmpty()) {
+                        out.add(InlineElement.code(codeText));
+                    }
+                    i = close + ticks;
+                    continue;
+                }
+                buf.append(text.charAt(i));
+                i++;
+                continue;
+            }
             // **bold** 切换
             if (text.startsWith("**", i)) {
                 flushText(out, buf, bold);

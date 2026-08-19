@@ -218,6 +218,8 @@ public class TileAssemblyController extends TileAENetworkBase implements ICrafti
 
     /** 缓存样板是否为纯虚拟合成(getRemainingItems 全空),String key 避免 hash 碰撞 */
     private final Map<ICraftingPatternDetails, Boolean> patternVirtualCache = new HashMap<>();
+    /** 样板解码缓存: 槽位 -> (物品快照, 解码结果). 避免网格每次重算都重建 PatternHelper + 配方匹配 */
+    private final Map<Integer, PatternCacheEntry> patternDetailsCache = new HashMap<>();
     private final List<ItemStack> pendingOutputs = new ArrayList<>();
     private static final int MAX_PENDING_OUTPUTS = 4096;
     private static final int BLACK_HOLE_OVERFLOW_TYPES = 5;
@@ -1184,17 +1186,52 @@ public class TileAssemblyController extends TileAENetworkBase implements ICrafti
         int patternSlots = getPatternSlotCount();
         for (int i = UPGRADE_SLOTS; i < UPGRADE_SLOTS + patternSlots; i++) {
             ItemStack stack = itemHandler.getStackInSlot(i);
-            if (stack.isEmpty()) continue;
+            if (stack.isEmpty()) {
+                patternDetailsCache.remove(i);
+                continue;
+            }
 
             if (stack.getItem() instanceof ICraftingPatternItem) {
-                ICraftingPatternDetails pattern = ((ICraftingPatternItem) stack.getItem()).getPatternForItem(stack, world);
+                ICraftingPatternDetails pattern = getCachedPatternDetails(i, stack);
                 // ae2fc 流体替换合成样板 isCraftable() 恒为 false,需显式放行
                 if (pattern != null && (pattern.isCraftable() || Ae2fcFluidPatternHelper.isFluidCraftPattern(pattern))) {
                     craftingTracker.addCraftingOption(medium, pattern);
                     prefillVirtualCache(pattern);
                 }
+            } else {
+                patternDetailsCache.remove(i);
             }
         }
+    }
+
+    /** 样板解码缓存条目: 以物品快照做命中校验(忽略数量),避免槽位内容变化后误用旧解码结果 */
+    private static final class PatternCacheEntry {
+        final ItemStack snapshot;
+        final ICraftingPatternDetails details;
+
+        PatternCacheEntry(ItemStack snapshot, ICraftingPatternDetails details) {
+            this.snapshot = snapshot;
+            this.details = details;
+        }
+    }
+
+    /**
+     * 获取槽位样板的解码结果,命中缓存(物品快照一致)则直接复用,
+     * 否则调用 {@link ICraftingPatternItem#getPatternForItem} 解码并写入缓存.
+     */
+    @Nullable
+    private ICraftingPatternDetails getCachedPatternDetails(int slot, ItemStack stack) {
+        PatternCacheEntry entry = patternDetailsCache.get(slot);
+        if (entry != null && ItemStack.areItemStacksEqualUsingNBTShareTag(entry.snapshot, stack)) {
+            return entry.details;
+        }
+        ICraftingPatternDetails details = ((ICraftingPatternItem) stack.getItem()).getPatternForItem(stack, world);
+        if (details != null) {
+            patternDetailsCache.put(slot, new PatternCacheEntry(stack.copy(), details));
+        } else {
+            patternDetailsCache.remove(slot);
+        }
+        return details;
     }
 
     /**
@@ -1275,7 +1312,7 @@ public class TileAssemblyController extends TileAENetworkBase implements ICrafti
                 ItemStack stack = itemHandler.getStackInSlot(i);
                 if (stack.isEmpty()) continue;
                 if (stack.getItem() instanceof ICraftingPatternItem) {
-                    ICraftingPatternDetails pattern = ((ICraftingPatternItem) stack.getItem()).getPatternForItem(stack, world);
+                    ICraftingPatternDetails pattern = getCachedPatternDetails(i, stack);
                     if (pattern != null && pattern.isCraftable()) {
                         prefillVirtualCache(pattern);
                     }
@@ -1364,7 +1401,7 @@ public class TileAssemblyController extends TileAENetworkBase implements ICrafti
                 ItemStack stack = itemHandler.getStackInSlot(i);
                 if (stack.isEmpty()) continue;
                 if (stack.getItem() instanceof ICraftingPatternItem) {
-                    ICraftingPatternDetails pattern = ((ICraftingPatternItem) stack.getItem()).getPatternForItem(stack, world);
+                    ICraftingPatternDetails pattern = getCachedPatternDetails(i, stack);
                     if (pattern != null && pattern.isCraftable()) {
                         prefillVirtualCache(pattern);
                     }

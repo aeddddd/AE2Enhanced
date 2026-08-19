@@ -28,10 +28,15 @@ public class AssemblyMixinPlugin implements IFMLLoadingPlugin, IEarlyMixinLoader
 
     private static final String CONFIG_EARLY = "mixins.ae2enhanced.early.json";
     private static final String CONFIG_EARLY_PROJECTE = "mixins.ae2enhanced.early.projecte.json";
+    // 指环 mixin 全部以 MC/Forge 原生类为目标,必须走 early 注册:
+    // Cleanroom 下原生类在 late mixin 应用前已被加载,late 注册会被静默拒绝
+    // (实测: Cleanroom 服务端 /clear 防护不生效,日志无任何 ring 配置记录).
+    // mixin 应用是纯 ASM 字节码读取,不会过早加载本 mod 处理器类.
+    private static final String CONFIG_EARLY_RING = "mixins.ae2enhanced.late.ring.json";
 
     @Override
     public List<String> getMixinConfigs() {
-        return Arrays.asList(CONFIG_EARLY, CONFIG_EARLY_PROJECTE);
+        return Arrays.asList(CONFIG_EARLY, CONFIG_EARLY_PROJECTE, CONFIG_EARLY_RING);
     }
 
     @Override

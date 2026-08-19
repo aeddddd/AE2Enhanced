@@ -50,23 +50,25 @@ public class PartUniversalExportBus extends PartUniversalBusBase {
     public static final IPartModel MODELS_HAS_CHANNEL = new PartModel(new ResourceLocation[]{MODELS[0], MODELS[3]});
 
     // 源质反射缓存：静态初始化一次，加载失败（Thaumcraft/ThaumicEnergistics 缺席）则源质功能静默禁用
+    // 使用 MethodHandle(static final 可被 JIT 常量折叠内联),避免每 tick Method.invoke 的访问检查与参数装箱开销
     private static final Class<?> IE_TRANSPORT_CLASS;
-    private static final java.lang.reflect.Method ESSENTIA_EXPORT_SLOT_METHOD;
-    private static final java.lang.reflect.Method ESSENTIA_EXPORT_ALL_METHOD;
+    private static final java.lang.invoke.MethodHandle ESSENTIA_EXPORT_SLOT_HANDLE;
+    private static final java.lang.invoke.MethodHandle ESSENTIA_EXPORT_ALL_HANDLE;
     static {
         Class<?> ieTransport = null;
-        java.lang.reflect.Method exportSlot = null;
-        java.lang.reflect.Method exportAll = null;
+        java.lang.invoke.MethodHandle exportSlot = null;
+        java.lang.invoke.MethodHandle exportAll = null;
         try {
             if (Loader.isModLoaded("thaumcraft") && Loader.isModLoaded("thaumicenergistics")) {
                 ieTransport = Class.forName("thaumcraft.api.aspects.IEssentiaTransport");
                 Class<?> helperClass = Class.forName("com.github.aeddddd.ae2enhanced.util.reflection.EssentiaBusHelper");
-                exportSlot = helperClass.getMethod("exportEssentiaSlot",
+                java.lang.invoke.MethodHandles.Lookup lookup = java.lang.invoke.MethodHandles.publicLookup();
+                exportSlot = lookup.unreflect(helperClass.getMethod("exportEssentiaSlot",
                         appeng.api.networking.IGrid.class, TileEntity.class, EnumFacing.class,
-                        IAEItemStack.class, appeng.api.networking.security.IActionSource.class);
-                exportAll = helperClass.getMethod("exportEssentias",
+                        IAEItemStack.class, appeng.api.networking.security.IActionSource.class));
+                exportAll = lookup.unreflect(helperClass.getMethod("exportEssentias",
                         appeng.api.networking.IGrid.class, TileEntity.class, EnumFacing.class,
-                        appeng.tile.inventory.AppEngInternalAEInventory.class, appeng.api.networking.security.IActionSource.class);
+                        appeng.tile.inventory.AppEngInternalAEInventory.class, appeng.api.networking.security.IActionSource.class));
             }
         } catch (Throwable t) {
             ieTransport = null;
@@ -74,8 +76,8 @@ public class PartUniversalExportBus extends PartUniversalBusBase {
             exportAll = null;
         }
         IE_TRANSPORT_CLASS = ieTransport;
-        ESSENTIA_EXPORT_SLOT_METHOD = exportSlot;
-        ESSENTIA_EXPORT_ALL_METHOD = exportAll;
+        ESSENTIA_EXPORT_SLOT_HANDLE = exportSlot;
+        ESSENTIA_EXPORT_ALL_HANDLE = exportAll;
     }
 
     public PartUniversalExportBus(net.minecraft.item.ItemStack is) {
@@ -319,12 +321,15 @@ public class PartUniversalExportBus extends PartUniversalBusBase {
 
     @Override
     protected boolean processEssentiaSlot(TileEntity target, EnumFacing opposite, IAEItemStack filter) throws Exception {
-        if (IE_TRANSPORT_CLASS == null || ESSENTIA_EXPORT_SLOT_METHOD == null) return false;
+        if (IE_TRANSPORT_CLASS == null || ESSENTIA_EXPORT_SLOT_HANDLE == null) return false;
         if (!IE_TRANSPORT_CLASS.isInstance(target)) return false;
 
         try {
-            return (Boolean) ESSENTIA_EXPORT_SLOT_METHOD.invoke(null, this.getProxy().getGrid(), target, opposite, filter, this.source);
-        } catch (Exception e) {
+            return (boolean) ESSENTIA_EXPORT_SLOT_HANDLE.invokeExact(
+                    this.getProxy().getGrid(), target, opposite, filter, this.source);
+        } catch (Error e) {
+            throw e;
+        } catch (Throwable e) {
             AE2Enhanced.LOGGER.error("[AE2E] Essentia export slot failed", e);
             return false;
         }
@@ -332,12 +337,15 @@ public class PartUniversalExportBus extends PartUniversalBusBase {
 
     @Override
     protected boolean processEssentiaUnfiltered(TileEntity target, EnumFacing opposite) throws Exception {
-        if (IE_TRANSPORT_CLASS == null || ESSENTIA_EXPORT_ALL_METHOD == null) return false;
+        if (IE_TRANSPORT_CLASS == null || ESSENTIA_EXPORT_ALL_HANDLE == null) return false;
         if (!IE_TRANSPORT_CLASS.isInstance(target)) return false;
 
         try {
-            return (Boolean) ESSENTIA_EXPORT_ALL_METHOD.invoke(null, this.getProxy().getGrid(), target, opposite, this.config, this.source);
-        } catch (Exception e) {
+            return (boolean) ESSENTIA_EXPORT_ALL_HANDLE.invokeExact(
+                    this.getProxy().getGrid(), target, opposite, this.config, this.source);
+        } catch (Error e) {
+            throw e;
+        } catch (Throwable e) {
             AE2Enhanced.LOGGER.error("[AE2E] Essentia export unfiltered failed", e);
             return false;
         }

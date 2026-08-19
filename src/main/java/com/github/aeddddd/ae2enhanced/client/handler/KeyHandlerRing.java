@@ -60,4 +60,17 @@ public class KeyHandlerRing {
             AE2Enhanced.network.sendToServer(new PacketRingManualHeal());
         }
     }
+
+    /**
+     * ClientTickEvent.END：客户端镜像恢复被外部禁飞模组清除的飞行状态
+     * (移动由客户端权威计算,必须在客户端恢复).
+     */
+    @SubscribeEvent
+    public void onClientTickEnd(net.minecraftforge.fml.common.gameevent.TickEvent.ClientTickEvent event) {
+        if (event.phase != net.minecraftforge.fml.common.gameevent.TickEvent.Phase.END) return;
+        net.minecraft.client.entity.EntityPlayerSP player = net.minecraft.client.Minecraft.getMinecraft().player;
+        if (player != null) {
+            com.github.aeddddd.ae2enhanced.ring.RingManager.tickClientEndFlightRestore(player);
+        }
+    }
 }

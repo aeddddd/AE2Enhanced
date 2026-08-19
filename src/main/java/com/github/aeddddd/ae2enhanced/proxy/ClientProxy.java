@@ -111,6 +111,9 @@ public class ClientProxy extends CommonProxy {
 
         ClientRegistry.bindTileEntitySpecialRenderer(TileAssemblyController.class, new RenderBlackHole());
         ClientRegistry.bindTileEntitySpecialRenderer(TileMicroSingularity.class, new RenderMicroSingularity());
+        ClientRegistry.bindTileEntitySpecialRenderer(
+                com.github.aeddddd.ae2enhanced.tile.TileSingularityChamber.class,
+                new com.github.aeddddd.ae2enhanced.client.render.RenderTileSingularityChamber());
         ClientRegistry.bindTileEntitySpecialRenderer(TileHyperdimensionalController.class, new RenderHyperdimensionalController());
         ClientRegistry.bindTileEntitySpecialRenderer(TileComputationCore.class, new RenderComputationCore());
         ClientRegistry.bindTileEntitySpecialRenderer(

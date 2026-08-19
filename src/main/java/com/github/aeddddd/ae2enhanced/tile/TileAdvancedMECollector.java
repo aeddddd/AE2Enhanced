@@ -298,15 +298,28 @@ public class TileAdvancedMECollector extends TileAENetworkBase
         }
     }
 
+    // isActive 每 tick 记忆化: CollectorRegistry 在每次掉落物生成时都会调用,
+    // proxy 查询每 tick 最多一次即可(网络状态变化以 tick 为粒度)
+    private boolean activeCacheServer = false;
+    private long activeCacheTick = Long.MIN_VALUE;
+
     public boolean isActive() {
         if (world != null && world.isRemote) {
             return isPowered() && (this.clientFlags & 2) == 2;
         }
-        try {
-            return getProxy().isActive();
-        } catch (Exception e) {
-            return false;
+        long now = world != null ? world.getTotalWorldTime() : Long.MIN_VALUE;
+        if (now == activeCacheTick) {
+            return activeCacheServer;
         }
+        boolean active;
+        try {
+            active = getProxy().isActive();
+        } catch (Exception e) {
+            active = false;
+        }
+        activeCacheServer = active;
+        activeCacheTick = now;
+        return active;
     }
 
     public int getCenterOffsetX() { return this.centerOffsetX; }
@@ -385,12 +398,28 @@ public class TileAdvancedMECollector extends TileAENetworkBase
         return pos.add(this.centerOffsetX, this.centerOffsetY, this.centerOffsetZ);
     }
 
+    // getCollectionArea 缓存: 以 9 个区域参数做快照校验(比较开销远低于每次新建
+    // BlockPos + AxisAlignedBB),参数被 setRegion/readFromNBT 等修改后自动重建
+    private AxisAlignedBB cachedArea = null;
+    private int areaSnapshotCenterX, areaSnapshotCenterY, areaSnapshotCenterZ;
+    private int areaSnapshotMinX, areaSnapshotMinY, areaSnapshotMinZ;
+    private int areaSnapshotMaxX, areaSnapshotMaxY, areaSnapshotMaxZ;
+
     public AxisAlignedBB getCollectionArea() {
-        BlockPos c = getRegionCenter();
-        return new AxisAlignedBB(
-                c.getX() + this.rangeMinX, c.getY() + this.rangeMinY, c.getZ() + this.rangeMinZ,
-                c.getX() + this.rangeMaxX + 1, c.getY() + this.rangeMaxY + 1, c.getZ() + this.rangeMaxZ + 1
-        );
+        if (cachedArea == null
+                || areaSnapshotCenterX != centerOffsetX || areaSnapshotCenterY != centerOffsetY || areaSnapshotCenterZ != centerOffsetZ
+                || areaSnapshotMinX != rangeMinX || areaSnapshotMinY != rangeMinY || areaSnapshotMinZ != rangeMinZ
+                || areaSnapshotMaxX != rangeMaxX || areaSnapshotMaxY != rangeMaxY || areaSnapshotMaxZ != rangeMaxZ) {
+            areaSnapshotCenterX = centerOffsetX; areaSnapshotCenterY = centerOffsetY; areaSnapshotCenterZ = centerOffsetZ;
+            areaSnapshotMinX = rangeMinX; areaSnapshotMinY = rangeMinY; areaSnapshotMinZ = rangeMinZ;
+            areaSnapshotMaxX = rangeMaxX; areaSnapshotMaxY = rangeMaxY; areaSnapshotMaxZ = rangeMaxZ;
+            BlockPos c = getRegionCenter();
+            cachedArea = new AxisAlignedBB(
+                    c.getX() + this.rangeMinX, c.getY() + this.rangeMinY, c.getZ() + this.rangeMinZ,
+                    c.getX() + this.rangeMaxX + 1, c.getY() + this.rangeMaxY + 1, c.getZ() + this.rangeMaxZ + 1
+            );
+        }
+        return cachedArea;
     }
 
     // ---- 过滤库存与升级槽 ----

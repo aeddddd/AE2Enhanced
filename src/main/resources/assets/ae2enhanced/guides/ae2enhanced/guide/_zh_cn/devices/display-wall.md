@@ -15,8 +15,7 @@ item_ids: [display_panel, display_frame_dark, display_frame_light]
 
 1. 用显示面板摆一个**宽 2~16、高 2~9** 的实心矩形,所有面板朝向必须一致(朝向即显示面).
 2. 屏幕自动成型,左下角面板成为主控.
-3. 周边可围一圈<ItemLink id="display_frame_dark" /> 深色或<ItemLink id="display_frame_light" /> 浅色边框(纯装饰);浅色边框多于深色时屏幕使用浅色主题.
-4. 任意一面用线缆接入 ME 网络即可.**不占用频道**,能耗为 `宽 x 高 x 2 AE/t`(配置 `displayWall.powerPerBlock`).
+3. 任意一面用线缆接入 ME 网络即可.**不占用频道**,能耗为 `宽 x 高 x 2 AE/t`(配置 `displayWall.powerPerBlock`).
 
 ## 配置
 
@@ -28,9 +27,8 @@ item_ids: [display_panel, display_frame_dark, display_frame_light]
 
 潜行+右键屏幕可不打开 GUI 直接循环切换图表类型.
 
-## 细节
+## 相关细节
 
-- 每秒采样一次并降采样:5 分钟内 1 秒粒度,1 小时内 10 秒粒度,24 小时内 1 分钟粒度.历史数据跨重启保留.
+- 每秒采样一次并降采样:5 分钟内 1 秒频率,1 小时内 10 秒频率,24 小时内 1 分钟频率.
 - 断网或区块卸载期间的数据空洞在图表上显示为断线.
-- Y 轴使用 1/2/5 步进与 k/M 缩写;自动量程平滑过渡不会跳变.
-- 破坏任意面板屏幕即解体,修复后自动重新成型.
+- Y 轴使用 1/2/5 步进与 k/M 缩写;

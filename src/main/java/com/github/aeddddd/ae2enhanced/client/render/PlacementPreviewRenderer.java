@@ -56,7 +56,11 @@ public class PlacementPreviewRenderer {
         double py = player.lastTickPosY + (player.posY - player.lastTickPosY) * event.getPartialTicks();
         double pz = player.lastTickPosZ + (player.posZ - player.lastTickPosZ) * event.getPartialTicks();
 
-        RayTraceResult ray = player.rayTrace(32.0, event.getPartialTicks());
+        // Omni Tool 放置模式使用配置的触及距离；ME 放置工具使用当前模式的基础触及距离
+        Minecraft mc = Minecraft.getMinecraft();
+        double reach = isOmniPlacement ? config.getReachDistance()
+                : (mc.playerController != null ? mc.playerController.getBlockReachDistance() : 5.0);
+        RayTraceResult ray = player.rayTrace(reach, event.getPartialTicks());
         if (ray == null || ray.typeOfHit != RayTraceResult.Type.BLOCK) return;
 
         GlStateManager.pushMatrix();
@@ -77,13 +81,12 @@ public class PlacementPreviewRenderer {
         BlockPos cableStart = config.getCableStart();
         if (cableStart != null) {
             drawBoxEdges(buffer, new AxisAlignedBB(cableStart).grow(0.005), 1.0f, 0.5f, 0.0f, 0.8f);
-            if (ray != null) {
-                BlockPos end = ray.getBlockPos().offset(ray.sideHit);
-                List<BlockPos> path = CablePlacementHelper.calculatePath(cableStart, end);
-                for (BlockPos pos : path) {
-                    if (!pos.equals(cableStart)) {
-                        drawBoxEdges(buffer, new AxisAlignedBB(pos).grow(0.002), R, G, B, 0.4f);
-                    }
+            BlockPos end = ray.getBlockPos().offset(ray.sideHit);
+            List<BlockPos> path = CablePlacementHelper.calculatePath(cableStart, end);
+            for (BlockPos pos : path) {
+                // 起点已用橙色高亮，跳过避免重复绘制
+                if (!pos.equals(cableStart)) {
+                    drawBoxEdges(buffer, new AxisAlignedBB(pos).grow(0.002), R, G, B, 0.4f);
                 }
             }
         }
@@ -92,7 +95,13 @@ public class PlacementPreviewRenderer {
         PlacementMode mode = config.getPlacementMode();
         ItemStack target = PlacementTargetResolver.resolveBulk(player, world, ray.getBlockPos());
         if (mode == PlacementMode.BULK && !target.isEmpty()) {
-            List<BlockPos> positions = ConstructionWandHelper.calculatePositions(world, ray.getBlockPos(), ray.sideHit, config.getPlacementRestriction());
+            com.github.aeddddd.ae2enhanced.util.placement.PlacementRestriction restriction = config.getPlacementRestriction();
+            // 参数开关：禁用方向锁时按无锁预览
+            if (isOmniPlacement && !com.github.aeddddd.ae2enhanced.omnitool.OmniToolUpgrades.isParamEnabled(
+                    stack, com.github.aeddddd.ae2enhanced.omnitool.OmniToolUpgrades.PARAM_PLACEMENT_RESTRICTION)) {
+                restriction = com.github.aeddddd.ae2enhanced.util.placement.PlacementRestriction.NO_LOCK;
+            }
+            List<BlockPos> positions = ConstructionWandHelper.calculatePositions(world, ray.getBlockPos(), ray.sideHit, restriction);
             for (BlockPos pos : positions) {
                 drawBoxEdges(buffer, new AxisAlignedBB(pos).grow(0.002), R, G, B, A);
             }

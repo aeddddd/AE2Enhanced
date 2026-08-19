@@ -37,7 +37,7 @@ public class AE2Enhanced {
 
     public static final String MOD_ID = "ae2enhanced";
     public static final String MOD_NAME = "AE2Enhanced";
-    public static final String VERSION = "1.7.2";
+    public static final String VERSION = "1.7.5";
 
     public static final String CLIENT_PROXY = "com.github.aeddddd.ae2enhanced.proxy.ClientProxy";
     public static final String SERVER_PROXY = "com.github.aeddddd.ae2enhanced.proxy.CommonProxy";
@@ -93,6 +93,17 @@ public class AE2Enhanced {
     @Mod.EventHandler
     public void postInit(FMLPostInitializationEvent event) {
         proxy.postInit(event);
+
+        // 元件终端(Cell Terminal)集成: 注册 EMC 接口的存储总线扫描器.
+        // 经 Class.forName 隔离,避免无条件加载类引用 cellterminal 类
+        if (net.minecraftforge.fml.common.Loader.isModLoaded("cellterminal")) {
+            try {
+                Class<?> clazz = Class.forName("com.github.aeddddd.ae2enhanced.integration.cellterminal.CellTerminalIntegration");
+                clazz.getMethod("init").invoke(null);
+            } catch (Exception e) {
+                LOGGER.warn("[AE2E] Failed to register Cell Terminal integration", e);
+            }
+        }
     }
 
     @Mod.EventHandler

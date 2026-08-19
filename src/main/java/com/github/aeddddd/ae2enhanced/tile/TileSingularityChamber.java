@@ -14,7 +14,6 @@ import com.github.aeddddd.ae2enhanced.chamber.ChamberRecipe;
 import com.github.aeddddd.ae2enhanced.chamber.ChamberRecipeIndex;
 import com.github.aeddddd.ae2enhanced.chamber.LongItemStore;
 import com.github.aeddddd.ae2enhanced.config.AE2EnhancedConfig;
-import com.github.aeddddd.ae2enhanced.item.ItemUpgradeCard;
 import com.github.aeddddd.ae2enhanced.item.ItemVirtualParallelCard;
 import com.github.aeddddd.ae2enhanced.registry.content.BlockRegistry;
 import net.minecraft.item.Item;
@@ -59,11 +58,10 @@ import java.util.Map;
  */
 public class TileSingularityChamber extends TileAENetworkBase implements ITickable, IActionHost {
 
-    public static final int ENERGY_CAPACITY = Integer.MAX_VALUE;
     public static final int INPUT_TYPES = 27;
     public static final int OUTPUT_TYPES = 9;
     public static final int CARD_SLOTS = 5;
-    /** 卡片槽 0：虚拟并行卡；1-4：加速卡 */
+    /** 卡片槽 0：虚拟并行卡；1-4：升级卡（加速/容量,接受 AE2 生态 IUpgradeModule） */
     public static final int SLOT_PARALLEL = 0;
 
     private static final int SCAN_INTERVAL = 5;
@@ -78,7 +76,7 @@ public class TileSingularityChamber extends TileAENetworkBase implements ITickab
         }
     }
 
-    private int energy = 0;
+    private long energy = 0;
     private final LongItemStore inputStore = new LongItemStore(INPUT_TYPES);
     private final LongItemStore outputStore = new LongItemStore(OUTPUT_TYPES);
     private final ItemStackHandler cardSlots = new MarkDirtyItemHandler(CARD_SLOTS);
@@ -96,7 +94,8 @@ public class TileSingularityChamber extends TileAENetworkBase implements ITickab
     private final IEnergyStorage energyWrapper = new IEnergyStorage() {
         @Override
         public int receiveEnergy(int maxReceive, boolean simulate) {
-            int accepted = Math.min(maxReceive, ENERGY_CAPACITY - energy);
+            long room = getMaxEnergy() - energy;
+            int accepted = (int) Math.min(maxReceive, Math.min(Integer.MAX_VALUE, Math.max(0, room)));
             if (!simulate && accepted > 0) {
                 energy += accepted;
                 inputsDirty = true;
@@ -112,12 +111,12 @@ public class TileSingularityChamber extends TileAENetworkBase implements ITickab
 
         @Override
         public int getEnergyStored() {
-            return energy;
+            return (int) Math.min(Integer.MAX_VALUE, energy);
         }
 
         @Override
         public int getMaxEnergyStored() {
-            return ENERGY_CAPACITY;
+            return (int) Math.min(Integer.MAX_VALUE, getMaxEnergy());
         }
 
         @Override
@@ -266,16 +265,13 @@ public class TileSingularityChamber extends TileAENetworkBase implements ITickab
 
         boolean paused = isPaused();
 
-        // 推进并结算任务：能耗随 tick 均摊支付,付不起则挂起（不销毁产物）
+        // 推进并结算任务：能耗随 tick 均摊支付（缓冲不足时从 ME 网络拉取）,付不起则挂起
         if (!paused && !jobs.isEmpty()) {
-            int tickBudget = AE2EnhancedConfig.chamber.maxEnergyPerTick;
             Iterator<Job> it = jobs.iterator();
             while (it.hasNext()) {
                 Job job = it.next();
                 long cost = job.costThisTick();
-                if (cost <= 0 || (energy >= cost && tickBudget >= cost)) {
-                    energy -= (int) cost;
-                    tickBudget -= (int) cost;
+                if (tryPay(cost)) {
                     job.paid += cost;
                     job.progress++;
                 }
@@ -323,24 +319,112 @@ public class TileSingularityChamber extends TileAENetworkBase implements ITickab
 
     // ---- 任务调度 ----
 
+    /**
+     * 升级卡判定：走 AE2 升级模块生态（IUpgradeModule）,
+     * 同时接受 AE2 原生加速/容量卡与本 mod 的升级卡.
+     */
+    public static boolean isUpgradeCard(ItemStack stack, appeng.api.config.Upgrades type) {
+        return !stack.isEmpty()
+                && stack.getItem() instanceof appeng.api.implementations.items.IUpgradeModule
+                && ((appeng.api.implementations.items.IUpgradeModule) stack.getItem()).getType(stack) == type;
+    }
+
+    /**
+     * 并行通道数 = 虚拟并行卡值 × 4^容量卡数（饱和至 Long.MAX_VALUE）.
+     */
     public long getParallelChannels() {
+        long base = 1;
         ItemStack card = cardSlots.getStackInSlot(SLOT_PARALLEL);
         if (!card.isEmpty() && card.getItem() instanceof ItemVirtualParallelCard) {
-            return ItemVirtualParallelCard.getParallel(card);
+            base = ItemVirtualParallelCard.getParallel(card);
         }
-        return 1;
+        return saturatingMul(base, saturatingPow(4, getCapacityCards()));
     }
 
     public int getSpeedCards() {
         int count = 0;
         for (int i = 1; i < CARD_SLOTS; i++) {
-            ItemStack stack = cardSlots.getStackInSlot(i);
-            if (!stack.isEmpty() && stack.getItem() instanceof ItemUpgradeCard
-                    && stack.getMetadata() == ItemUpgradeCard.META_SPEED) {
+            if (isUpgradeCard(cardSlots.getStackInSlot(i), appeng.api.config.Upgrades.SPEED)) {
                 count++;
             }
         }
         return count;
+    }
+
+    public int getCapacityCards() {
+        int count = 0;
+        for (int i = 1; i < CARD_SLOTS; i++) {
+            if (isUpgradeCard(cardSlots.getStackInSlot(i), appeng.api.config.Upgrades.CAPACITY)) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    /**
+     * 任务耗时 = 配方基础时间 × 8^容量卡 / 4^加速卡.
+     * 容量卡以耗时换通道（变相摊薄每 tick 能耗）,加速卡以每 tick 能耗换速度.
+     */
+    private long computeJobTime(int baseTicks) {
+        long time = saturatingMul(baseTicks, saturatingPow(8, getCapacityCards()));
+        long divisor = saturatingPow(4, getSpeedCards());
+        return Math.max(1, time / divisor);
+    }
+
+    private static long saturatingPow(long base, int exp) {
+        long result = 1;
+        for (int i = 0; i < exp; i++) {
+            result = saturatingMul(result, base);
+        }
+        return result;
+    }
+
+    private static long saturatingMul(long a, long b) {
+        if (a <= 0 || b <= 0) {
+            return a <= 0 && b <= 0 ? a : Math.max(a, b);
+        }
+        if (a > Long.MAX_VALUE / b) {
+            return Long.MAX_VALUE;
+        }
+        return a * b;
+    }
+
+    /**
+     * 能量缓冲上限：2.1G FE（int 上限）.
+     * 超出缓冲的能耗在支付时直接从 ME 网络按 long 规模拉取（见 {@link #tryPay}）.
+     */
+    public long getMaxEnergy() {
+        return Integer.MAX_VALUE;
+    }
+
+    /**
+     * 支付一笔能耗：优先扣内部缓冲,不足部分从 ME 网络实时拉取补足（long 规模）.
+     * 缓冲 + 网络仍不足则返回 false（任务挂起）,已拉取的能量留在缓冲内供下次使用.
+     */
+    private boolean tryPay(long cost) {
+        if (cost <= 0) {
+            return true;
+        }
+        long missing = cost - energy;
+        if (missing > 0) {
+            try {
+                appeng.api.networking.energy.IEnergyGrid grid = getProxy().getEnergy();
+                // 1 AE = 2 FE;上取整避免换算截断导致差 1 FE 永远付不起
+                double aeNeeded = Math.ceil(
+                        appeng.api.config.PowerUnits.RF.convertTo(appeng.api.config.PowerUnits.AE, missing));
+                double pulled = grid.extractAEPower(aeNeeded, Actionable.MODULATE,
+                        appeng.api.config.PowerMultiplier.CONFIG);
+                energy += (long) appeng.api.config.PowerUnits.AE.convertTo(
+                        appeng.api.config.PowerUnits.RF, pulled);
+            } catch (GridAccessException | IllegalStateException ignored) {
+                // 未联网/节点未就绪：仅内部缓冲可用
+            }
+        }
+        if (energy >= cost) {
+            energy -= cost;
+            return true;
+        }
+        return false;
     }
 
     public long getUsedChannels() {
@@ -386,8 +470,6 @@ public class TileSingularityChamber extends TileAENetworkBase implements ITickab
             available.put(LongItemStore.keyOf(entry.getTemplate()), entry.getCount());
         }
 
-        int speedDivisor = 1 + getSpeedCards();
-
         for (LongItemStore.Entry entry : new ArrayList<>(inputStore.getEntries())) {
             if (free <= 0) {
                 break;
@@ -404,7 +486,7 @@ public class TileSingularityChamber extends TileAENetworkBase implements ITickab
                 }
                 long batches = recipe.maxBatches(available);
                 batches = Math.min(batches, free);
-                batches = Math.min(batches, (long) (energy / perBatch));
+                batches = Math.min(batches, energy / perBatch);
                 if (batches <= 0) {
                     continue;
                 }
@@ -423,7 +505,7 @@ public class TileSingularityChamber extends TileAENetworkBase implements ITickab
                 }
                 free -= batches;
 
-                long requiredTime = Math.max(1, recipe.getTimeTicks() / speedDivisor);
+                long requiredTime = computeJobTime(recipe.getTimeTicks());
                 jobs.add(new Job(recipe, batches, requiredTime, (long) perBatch * batches));
                 inputsDirty = true;
                 break;
@@ -575,7 +657,7 @@ public class TileSingularityChamber extends TileAENetworkBase implements ITickab
 
     // ---- 外部访问 ----
 
-    public int getEnergy() {
+    public long getEnergy() {
         return energy;
     }
 
@@ -717,7 +799,7 @@ public class TileSingularityChamber extends TileAENetworkBase implements ITickab
     @Override
     public void readFromNBT(NBTTagCompound compound) {
         super.readFromNBT(compound);
-        energy = compound.getInteger("Energy");
+        energy = Math.min(compound.getLong("Energy"), getMaxEnergy());
         inputStore.readFromNBT(compound.getTagList("Input", Constants.NBT.TAG_COMPOUND));
         outputStore.readFromNBT(compound.getTagList("Output", Constants.NBT.TAG_COMPOUND));
         cardSlots.deserializeNBT(compound.getCompoundTag("Cards"));
@@ -733,7 +815,7 @@ public class TileSingularityChamber extends TileAENetworkBase implements ITickab
     @Override
     public NBTTagCompound writeToNBT(NBTTagCompound compound) {
         compound = super.writeToNBT(compound);
-        compound.setInteger("Energy", energy);
+        compound.setLong("Energy", energy);
         compound.setTag("Input", inputStore.writeToNBT());
         compound.setTag("Output", outputStore.writeToNBT());
         compound.setTag("Cards", cardSlots.serializeNBT());
