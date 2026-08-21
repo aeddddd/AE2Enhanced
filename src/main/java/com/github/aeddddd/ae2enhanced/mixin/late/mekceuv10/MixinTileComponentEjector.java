@@ -47,6 +47,9 @@ public abstract class MixinTileComponentEjector {
         }
 
         for (IInventorySlot slot : outputSlots) {
+            if (this.tileEntity.isContainerExtractionGuarded(slot)) {
+                continue;
+            }
             ItemStack stack = slot.getStack();
             if (stack.isEmpty()
                     || slot.extractItem(1, Action.SIMULATE, AutomationType.EXTERNAL).isEmpty()) {

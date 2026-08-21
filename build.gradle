@@ -68,7 +68,7 @@ dependencies {
     // 可选集成 (compileOnly): 第三方 mod 类一律通过反射隔离访问,
     // 运行时按对应 mod 是否安装进行条件加载
     compileOnly files('libs/ae2fc-2.7.10-unofficial.jar')
-    compileOnly files('libs/Mekanism-CE-Unofficial-All-10.0.0.450-dev.jar')
+    compileOnly files('libs/Mekanism-CE-Unofficial-All-10.0.3.550-dev.jar')
     compileOnly files('libs/Mekanism-1.12.2-9.8.3.390.jar')
     compileOnly files('libs/MekanismEnergistics-0.1.5.jar')
     compileOnly files('libs/Thaumcraft-1.12.2-6.1.BETA26.jar')
