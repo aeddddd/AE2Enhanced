@@ -6,12 +6,15 @@ import appeng.api.networking.IGridNode;
 import appeng.api.networking.crafting.ICraftingCPU;
 import appeng.api.networking.crafting.ICraftingJob;
 import appeng.api.networking.crafting.ICraftingLink;
+import appeng.api.networking.crafting.ICraftingMedium;
+import appeng.api.networking.crafting.ICraftingPatternDetails;
 import appeng.api.networking.crafting.ICraftingRequester;
 import appeng.api.networking.events.MENetworkCraftingCpuChange;
 import appeng.api.networking.security.IActionSource;
 import appeng.me.cache.CraftingGridCache;
 import appeng.me.cluster.implementations.CraftingCPUCluster;
 import appeng.crafting.CraftingLink;
+import com.github.aeddddd.ae2enhanced.tile.TileAssemblyController;
 import com.github.aeddddd.ae2enhanced.tile.TileComputationCore;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
@@ -82,6 +85,36 @@ public class MixinCraftingGridCache implements com.github.aeddddd.ae2enhanced.mi
     @Unique
     private final Set<TileComputationCore> ae2enhanced$computationCores = new HashSet<>();
 
+    /** 网络内装配中枢控制器节点计数,>0 时合成 CPU 才需要批量结算扫描. */
+    @Unique
+    private int ae2enhanced$assemblyHubCount;
+
+    @Override
+    public boolean ae2enhanced$hasAssemblyHub() {
+        return ae2enhanced$assemblyHubCount > 0;
+    }
+
+    /** getMediums 结果 memo(按 details 实例身份),recalculateCraftingPatterns 时失效. */
+    @Unique
+    private final java.util.IdentityHashMap<ICraftingPatternDetails, List<ICraftingMedium>> ae2enhanced$mediumsMemo =
+        new java.util.IdentityHashMap<>();
+
+    @Shadow
+    public List<ICraftingMedium> getMediums(ICraftingPatternDetails key) {
+        // shadow
+        return null;
+    }
+
+    @Override
+    public List<ICraftingMedium> ae2enhanced$getMediumsMemo(ICraftingPatternDetails details) {
+        List<ICraftingMedium> list = ae2enhanced$mediumsMemo.get(details);
+        if (list == null) {
+            list = this.getMediums(details);
+            ae2enhanced$mediumsMemo.put(details, list);
+        }
+        return list;
+    }
+
     /** 网络样板缓存索引(SCC/副产物倒排/detector memo),惰性构建;volatile 保证计算线程可见. */
     @Unique
     private volatile NetworkPatternIndex ae2enhanced$patternIndex;
@@ -110,6 +143,8 @@ public class MixinCraftingGridCache implements com.github.aeddddd.ae2enhanced.mi
     @Inject(method = "recalculateCraftingPatterns", at = @At("TAIL"), require = 0)
     private void ae2enhanced$invalidatePatternIndex(CallbackInfo ci) {
         this.ae2enhanced$patternIndex = null;
+        // craftingMethods 已重建,mediums memo 同步失效
+        this.ae2enhanced$mediumsMemo.clear();
     }
 
     @Shadow
@@ -222,6 +257,9 @@ public class MixinCraftingGridCache implements com.github.aeddddd.ae2enhanced.mi
 
     @Inject(method = "addNode", at = @At("HEAD"))
     private void ae2enhanced$onAddNode(IGridNode node, IGridHost host, CallbackInfo ci) {
+        if (host instanceof TileAssemblyController) {
+            ae2enhanced$assemblyHubCount++;
+        }
         if (host instanceof TileComputationCore) {
             TileComputationCore core = (TileComputationCore) host;
             ae2enhanced$computationCores.add(core);
@@ -233,6 +271,9 @@ public class MixinCraftingGridCache implements com.github.aeddddd.ae2enhanced.mi
 
     @Inject(method = "removeNode", at = @At("HEAD"))
     private void ae2enhanced$onRemoveNode(IGridNode node, IGridHost host, CallbackInfo ci) {
+        if (host instanceof TileAssemblyController && ae2enhanced$assemblyHubCount > 0) {
+            ae2enhanced$assemblyHubCount--;
+        }
         if (host instanceof TileComputationCore) {
             TileComputationCore core = (TileComputationCore) host;
             ae2enhanced$computationCores.remove(core);

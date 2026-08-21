@@ -1,0 +1,13 @@
+{
+  "package": "com.github.aeddddd.ae2enhanced.mixin.late.ae2fc",
+  "plugin": "com.github.aeddddd.ae2enhanced.mixin.Ae2fcMixinPlugin",
+  "refmap": "mixin.refmap.json",
+  "target": "@env(DEFAULT)",
+  "minVersion": "0.8",
+  "compatibilityLevel": "JAVA_8",
+  "mixins": [
+    "MixinFluidConvertingInventoryAdaptor"
+  ],
+  "client": [],
+  "server": []
+}

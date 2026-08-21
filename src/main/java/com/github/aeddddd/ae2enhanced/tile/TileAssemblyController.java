@@ -110,6 +110,10 @@ public class TileAssemblyController extends TileAENetworkBase implements ICrafti
             if (slot >= UPGRADE_SLOTS && world != null && !world.isRemote) {
                 patternsDirty = true;
             }
+            // 并行升级槽内容变化时并行上限缓存失效
+            if (slot == ItemUpgradeCard.META_PARALLEL) {
+                cachedParallelCap = -1;
+            }
             // 扩容升级增加时自动扩展容量
             if (slot == ItemUpgradeCard.META_CAPACITY && world != null && !world.isRemote) {
                 ensurePatternCapacity();
@@ -218,6 +222,10 @@ public class TileAssemblyController extends TileAENetworkBase implements ICrafti
 
     /** 缓存样板是否为纯虚拟合成(getRemainingItems 全空),String key 避免 hash 碰撞 */
     private final Map<ICraftingPatternDetails, Boolean> patternVirtualCache = new HashMap<>();
+    /** getParallelCap 缓存:槽位 0 内容变化或升级注册表修订时失效(-1 = 未缓存).
+     *  isBusy() 每 tick 调用,未缓存时 keyOf 的字符串拼接是 spark 采样热点之一. */
+    private long cachedParallelCap = -1;
+    private long cachedParallelCapRevision = -1;
     /** 样板解码缓存: 槽位 -> (物品快照, 解码结果). 避免网格每次重算都重建 PatternHelper + 配方匹配 */
     private final Map<Integer, PatternCacheEntry> patternDetailsCache = new HashMap<>();
     private final List<ItemStack> pendingOutputs = new ArrayList<>();
@@ -271,6 +279,17 @@ public class TileAssemblyController extends TileAENetworkBase implements ICrafti
      * 若槽位中放置的是 CraftTweaker 注册的自定义并行升级卡,则使用注册表的值.
      */
     public long getParallelCap() {
+        long revision = AssemblyHubUpgradeRegistry.getRevision();
+        if (cachedParallelCap >= 0 && cachedParallelCapRevision == revision) {
+            return cachedParallelCap;
+        }
+        long result = computeParallelCap();
+        cachedParallelCap = result;
+        cachedParallelCapRevision = revision;
+        return result;
+    }
+
+    private long computeParallelCap() {
         ItemStack stack = itemHandler.getStackInSlot(0);
         if (stack.isEmpty()) {
             return 64;

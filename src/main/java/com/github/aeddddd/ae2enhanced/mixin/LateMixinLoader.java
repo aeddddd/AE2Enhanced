@@ -30,6 +30,8 @@ public class LateMixinLoader implements ILateMixinLoader {
         ));
         if (!Ae2fcCompat.AE2FC_LOADED) {
             configs.add("mixins.ae2enhanced.late.fluid.json");
+        } else {
+            configs.add("mixins.ae2enhanced.late.ae2fc.json");
         }
         if (Loader.isModLoaded("storagedrawers")) {
             configs.add("mixins.ae2enhanced.late.sd.json");

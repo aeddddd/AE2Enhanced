@@ -480,11 +480,20 @@ public class TileHyperdimensionalController extends TileAENetworkBase implements
     }
 
     /** 待冲刷的变更通知: key 为 IStorageChannel(可选通道以 Object 持有),value 为该通道本 tick 的变更列表 */
-    private final java.util.Map<Object, java.util.List<Object>> pendingAlterations = new java.util.LinkedHashMap<>();
+    private java.util.Map<Object, java.util.List<Object>> pendingAlterations = new java.util.LinkedHashMap<>();
+
+    /**
+     * pendingAlterations 的访问锁.
+     * StellarCore 等 mod 会并行化 FluxNetworks 能量传输,receiveEnergy → injectItems
+     * 可能从非主线程并发调用 queueAlteration,普通 LinkedHashMap 会抛 CME.
+     */
+    private final Object alterationLock = new Object();
 
     private void queueAlteration(Object channel, Object change) {
         if (channel == null || change == null) return;
-        pendingAlterations.computeIfAbsent(channel, k -> new java.util.ArrayList<>()).add(change);
+        synchronized (alterationLock) {
+            pendingAlterations.computeIfAbsent(channel, k -> new java.util.ArrayList<>()).add(change);
+        }
     }
 
     /**
@@ -493,13 +502,19 @@ public class TileHyperdimensionalController extends TileAENetworkBase implements
      */
     @SuppressWarnings({"unchecked", "rawtypes"})
     private void flushPendingAlterations() {
-        if (pendingAlterations.isEmpty()) return;
+        // 在锁内原子交换 map,冲刷期间新入队的通知落到下一 tick,既不丢通知也不会 CME
+        java.util.Map<Object, java.util.List<Object>> batch;
+        synchronized (alterationLock) {
+            if (pendingAlterations.isEmpty()) return;
+            batch = pendingAlterations;
+            pendingAlterations = new java.util.LinkedHashMap<>();
+        }
         try {
             appeng.api.networking.IGrid grid = getProxy().getGrid();
             if (grid != null) {
                 appeng.api.networking.storage.IStorageGrid storageGrid = grid.getCache(appeng.api.networking.storage.IStorageGrid.class);
                 if (storageGrid != null) {
-                    for (java.util.Map.Entry<Object, java.util.List<Object>> entry : pendingAlterations.entrySet()) {
+                    for (java.util.Map.Entry<Object, java.util.List<Object>> entry : batch.entrySet()) {
                         storageGrid.postAlterationOfStoredItems(
                             (appeng.api.storage.IStorageChannel) entry.getKey(),
                             (Iterable) entry.getValue(), machineSource);
@@ -508,8 +523,6 @@ public class TileHyperdimensionalController extends TileAENetworkBase implements
             }
         } catch (Exception e) {
             com.github.aeddddd.ae2enhanced.AE2Enhanced.LOGGER.warn("[AE2E] Failed to post batched alterations", e);
-        } finally {
-            pendingAlterations.clear();
         }
     }
 

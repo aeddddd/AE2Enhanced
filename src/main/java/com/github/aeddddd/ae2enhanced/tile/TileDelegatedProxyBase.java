@@ -11,6 +11,7 @@ import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.math.BlockPos;
 
 import javax.annotation.Nonnull;
+import java.lang.ref.WeakReference;
 
 /**
  * 委托控制器代理的网络接口 TileEntity 基类.
@@ -26,6 +27,14 @@ public abstract class TileDelegatedProxyBase<C extends TileEntity & IGridProxyab
 
     private BlockPos controllerPos;
 
+    /**
+     * getController 结果缓存(弱引用).
+     * isBusy()/pushPattern() 在 AE2 合成循环中每 tick 每个 medium 被调用,
+     * 每次 world.getTileEntity 的 chunk 查找是 spark 采样热点之一;
+     * 控制器绑定后位置基本不变,缓存 + isInvalid 校验可消除重复查找.
+     */
+    private WeakReference<C> cachedController;
+
     // ---- 子类必须实现 ----
 
     protected abstract Class<C> getControllerClass();
@@ -36,6 +45,7 @@ public abstract class TileDelegatedProxyBase<C extends TileEntity & IGridProxyab
 
     public void setControllerPos(BlockPos pos) {
         this.controllerPos = pos;
+        this.cachedController = null;
         markDirty();
     }
 
@@ -45,8 +55,14 @@ public abstract class TileDelegatedProxyBase<C extends TileEntity & IGridProxyab
 
     public C getController() {
         if (controllerPos == null || world == null) return null;
+        C cached = cachedController != null ? cachedController.get() : null;
+        if (cached != null && !cached.isInvalid() && cached.getWorld() == world) {
+            return cached;
+        }
         TileEntity te = world.getTileEntity(controllerPos);
-        return getControllerClass().isInstance(te) ? getControllerClass().cast(te) : null;
+        C result = getControllerClass().isInstance(te) ? getControllerClass().cast(te) : null;
+        cachedController = result != null ? new WeakReference<>(result) : null;
+        return result;
     }
 
     // ---- IGridProxyable 实现 ----

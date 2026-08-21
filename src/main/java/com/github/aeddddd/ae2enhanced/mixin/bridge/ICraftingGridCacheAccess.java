@@ -1,7 +1,10 @@
 package com.github.aeddddd.ae2enhanced.mixin.bridge;
 
+import java.util.List;
 import java.util.Set;
 
+import appeng.api.networking.crafting.ICraftingMedium;
+import appeng.api.networking.crafting.ICraftingPatternDetails;
 import appeng.api.storage.data.IAEItemStack;
 
 import com.github.aeddddd.ae2enhanced.specialcrafting.NetworkPatternIndex;
@@ -21,4 +24,20 @@ public interface ICraftingGridCacheAccess {
      * 惰性构建,recalculateCraftingPatterns 后失效重建;计算线程并发安全.
      */
     NetworkPatternIndex ae2enhanced$patternIndex();
+
+    /**
+     * 网络中是否存在装配中枢控制器节点.
+     * 供合成 CPU 批量结算注入快速早退,避免无装配中枢时
+     * 每 tick 对每个任务执行 getMediums 的 map 查找（触发样板深层 NBT 比较）.
+     */
+    boolean ae2enhanced$hasAssemblyHub();
+
+    /**
+     * getMediums 的 memo 版本:按 details 实例身份缓存结果,
+     * recalculateCraftingPatterns 时统一失效.
+     * 原生 getMediums 是 equals 语义的 HashMap 查找,每 tick × 每 task 重复执行
+     * 会反复触发样板 equals/hashCode 的深层 NBT 比较(spark 热点 16%).
+     * memo 命中路径无 equals 调用;未命中回退原生查找并登记.
+     */
+    List<ICraftingMedium> ae2enhanced$getMediumsMemo(ICraftingPatternDetails details);
 }

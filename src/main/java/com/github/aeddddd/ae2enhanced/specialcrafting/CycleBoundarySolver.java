@@ -48,21 +48,25 @@ public final class CycleBoundarySolver {
     }
 
     /**
+     * @param budget 单趟 DAG 执行内所有循环边界共享的分析预算(总开销封顶);
+     *        超预算按 {@link BoundaryResult#FALLBACK} 回落(与不可解同语义)
      * @return 求解结果;仅 {@link BoundaryResult#FALLBACK} 时调用方才整单回落原生.
      */
     public static BoundaryResult solveInto(ICraftingGrid cc, CraftingJob job, IAEItemStack what, long target,
-            MECraftingInventory inv, CraftingTreeNode rootNode, IActionSource src, World world)
-            throws InterruptedException {
+            MECraftingInventory inv, CraftingTreeNode rootNode, IActionSource src, World world,
+            AnalysisBudget budget) throws InterruptedException {
         // ① 净增殖自引用（单节点自环）
         for (ICraftingPatternDetails pattern : cc.getCraftingFor(what, null, -1, world)) {
             if (RecursiveCraftingHelper.isNetPositiveSelfRef(pattern, what)) {
                 return solveDup(cc, job, pattern, what, target, inv, rootNode, src);
             }
         }
+        NetworkPatternIndex index = NetworkPatternIndex.of(cc);
         // ② 跨样板环:并集优先(θ 形共享结构),再逐环迭代
         boolean overflow = false;
         List<List<CycleAnalyzer.CycleStep>> cycles = CycleAnalyzer.findCyclesThrough(cc, what, world);
-        CycleAnalyzer.Analysis union = CycleAnalyzer.analyzeUnion(cycles);
+        CycleAnalyzer.Analysis union = budget.expired() ? null
+                : CycleAnalyzer.analyzeUnionMemo(index, cycles);
         if (union != null && union.rateClass() == CycleAnalyzer.RateClass.PRODUCTIVE) {
             CycleSolver.SolveResult r = CycleSolver.trySolve(cc, job, union, inv, what, target, rootNode,
                     src);
@@ -72,7 +76,12 @@ public final class CycleBoundarySolver {
             overflow |= r == CycleSolver.SolveResult.OVERFLOW;
         }
         for (List<CycleAnalyzer.CycleStep> cycle : cycles) {
-            CycleAnalyzer.Analysis analysis = CycleAnalyzer.analyze(cycle);
+            if (budget.expired()) {
+                SpecialLog.info("[DAG] 循环边界分析超共享预算(>{}ms),整单回落: {}×{}",
+                        AnalysisBudget.SOLVE_BUDGET_MS, what, target);
+                return BoundaryResult.FALLBACK;
+            }
+            CycleAnalyzer.Analysis analysis = CycleAnalyzer.analyzeMemo(index, cycle);
             if (analysis == null || analysis.rateClass() != CycleAnalyzer.RateClass.PRODUCTIVE) {
                 continue;
             }
@@ -85,7 +94,12 @@ public final class CycleBoundarySolver {
         }
         // ③ 催化环:边界 key 是某中性/增殖环发射的环外副产物(深层 A→X+B、B→A 中的 X)
         for (List<CycleAnalyzer.CycleStep> cycle : CycleAnalyzer.findCatalyticCycles(cc, what, world)) {
-            CycleAnalyzer.Analysis analysis = CycleAnalyzer.analyze(cycle);
+            if (budget.expired()) {
+                SpecialLog.info("[DAG] 催化环分析超共享预算(>{}ms),整单回落: {}×{}",
+                        AnalysisBudget.SOLVE_BUDGET_MS, what, target);
+                return BoundaryResult.FALLBACK;
+            }
+            CycleAnalyzer.Analysis analysis = CycleAnalyzer.analyzeMemo(index, cycle);
             if (analysis == null || analysis.rateClass() == CycleAnalyzer.RateClass.DISSIPATIVE) {
                 continue;
             }

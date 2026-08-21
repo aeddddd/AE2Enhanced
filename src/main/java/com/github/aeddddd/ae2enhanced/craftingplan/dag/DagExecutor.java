@@ -27,6 +27,7 @@ import appeng.util.item.AEItemStack;
 import it.unimi.dsi.fastutil.objects.Object2LongArrayMap;
 
 import com.github.aeddddd.ae2enhanced.specialcrafting.Ae2CraftingReflect;
+import com.github.aeddddd.ae2enhanced.specialcrafting.AnalysisBudget;
 import com.github.aeddddd.ae2enhanced.specialcrafting.CycleBoundarySolver;
 import com.github.aeddddd.ae2enhanced.specialcrafting.RecipeRemainingResolver;
 import com.github.aeddddd.ae2enhanced.specialcrafting.RecursiveCraftingHelper;
@@ -164,6 +165,9 @@ public final class DagExecutor {
         Set<IAEItemStack> containerKeys = new LinkedHashSet<>(); // 收到容器返还的 key
         boolean hasCycleBoundary = false;
         long totalExtracted = 0;
+        // 单趟内所有循环边界共享的分析预算(O(n³) 大整数求解总开销封顶,
+        // 大 SCC 网络下超预算整单回落原生,与不可解同语义)
+        AnalysisBudget analysisBudget = AnalysisBudget.solve();
 
         for (DagGraph.DagNode node : graph.topoOrder) {
             long need = requests.getOrDefault(node, 0L);
@@ -176,7 +180,7 @@ public final class DagExecutor {
                 CraftingTreeNode subtreeRoot = node == graph.root ? rootNode
                         : new CraftingTreeNode(cc, job, node.key.copy(), null, -1, 0);
                 CycleBoundarySolver.BoundaryResult boundary = CycleBoundarySolver.solveInto(cc, job, node.key,
-                        need, inv, subtreeRoot, src, world);
+                        need, inv, subtreeRoot, src, world, analysisBudget);
                 if (boundary == CycleBoundarySolver.BoundaryResult.FALLBACK) {
                     throw new DagFallback("cycle_boundary_unsolvable:" + node.key);
                 }

@@ -172,7 +172,8 @@ public class VirtualBatchEngine {
             }
 
             if (!VirtualCostExtractor.simulateExtract(storage, netCosts, source, itemSource)) {
-                logFail(world, target, "simulateExtract failed for parallel=" + actualParallel);
+                logFail(world, target, "simulateExtract failed for parallel=" + actualParallel
+                        + ", netCosts=[" + describeCosts(netCosts) + "]");
                 return 0;
             }
 
@@ -184,7 +185,7 @@ public class VirtualBatchEngine {
 
             List<IAEStack> extracted = VirtualCostExtractor.extractAll(storage, netCosts, source, itemSource);
             if (extracted == null) {
-                logFail(world, target, "extractAll failed");
+                logFail(world, target, "extractAll failed, netCosts=[" + describeCosts(netCosts) + "]");
                 return 0;
             }
 
@@ -288,7 +289,13 @@ public class VirtualBatchEngine {
             double perOp = AE2EnhancedConfig.centralInterface.virtualParallelEnergyCost;
             if (perOp > 0) {
                 double availableEnergy = VirtualCostExtractor.queryAvailableEnergy(energy);
-                actual = Math.min(actual, (long) (availableEnergy / perOp));
+                long energySupported = (long) (availableEnergy / perOp);
+                if (energySupported <= 0) {
+                    logFail(world, target, "computeActualParallel returned 0: no resource cost, energy insufficient availableEnergy="
+                            + availableEnergy + " AE, perOp=" + perOp + " AE");
+                    return 0;
+                }
+                actual = Math.min(actual, energySupported);
             }
             return actual > 0 ? actual : 0;
         }
@@ -300,28 +307,65 @@ public class VirtualBatchEngine {
             if (cost == null || cost.getStackSize() <= 0) continue;
             long perCopySize = cost.getStackSize();
             long supported;
+            long available;
             if (cost instanceof IAEItemStack) {
                 // 物品：从 CPU 内部缓存核算（任务已预留整单材料）；
                 // CPU 已预提取 1 份到 table，缓存只需支撑 parallel - 1 份
-                long cpuAvailable = VirtualCostExtractor.queryAvailable(storage, cost, source, itemSource);
-                supported = (cpuAvailable / perCopySize) + 1;
+                available = VirtualCostExtractor.queryAvailable(storage, cost, source, itemSource);
+                supported = (available / perCopySize) + 1;
             } else {
                 // 非物品资源 CPU 不会预提取，网络需提供完整 parallel 份
-                long networkAvailable = VirtualCostExtractor.queryAvailable(storage, cost, source, null);
-                supported = networkAvailable / perCopySize;
+                available = VirtualCostExtractor.queryAvailable(storage, cost, source, null);
+                supported = available / perCopySize;
             }
-            if (supported <= 0) return 0;
+            if (supported <= 0) {
+                logFail(world, target, "computeActualParallel returned 0: resource " + describeCost(cost)
+                        + " perCopy=" + perCopySize + " available=" + available
+                        + " | costs=" + describeCosts(mergedCosts));
+                return 0;
+            }
             if (supported >= Long.MAX_VALUE) supported = Long.MAX_VALUE;
             actual = Math.min(actual, supported);
-            if (actual <= 0) return 0;
+            if (actual <= 0) {
+                logFail(world, target, "computeActualParallel returned 0: clamped to 0 by " + describeCost(cost)
+                        + " supported=" + supported);
+                return 0;
+            }
         }
 
         double perOp = AE2EnhancedConfig.centralInterface.virtualParallelEnergyCost;
         if (perOp > 0) {
             double availableEnergy = VirtualCostExtractor.queryAvailableEnergy(energy);
-            actual = Math.min(actual, (long) (availableEnergy / perOp));
+            long energySupported = (long) (availableEnergy / perOp);
+            if (energySupported <= 0) {
+                logFail(world, target, "computeActualParallel returned 0: energy insufficient availableEnergy="
+                        + availableEnergy + " AE, perOp=" + perOp + " AE");
+                return 0;
+            }
+            actual = Math.min(actual, energySupported);
         }
         return actual > 0 ? actual : 0;
+    }
+
+    /**
+     * 资源描述（用于失败日志）：物品显示名称+数量，其他类型显示类名+数量。
+     */
+    private static String describeCost(IAEStack stack) {
+        if (stack instanceof IAEItemStack) {
+            ItemStack is = ((IAEItemStack) stack).createItemStack();
+            return is.isEmpty() ? String.valueOf(stack) : is.getDisplayName() + " x" + stack.getStackSize();
+        }
+        return stack.getClass().getSimpleName() + " x" + stack.getStackSize() + " [" + stack + "]";
+    }
+
+    private static String describeCosts(List<IAEStack> costs) {
+        StringBuilder sb = new StringBuilder();
+        for (IAEStack c : costs) {
+            if (c == null) continue;
+            if (sb.length() > 0) sb.append(", ");
+            sb.append(describeCost(c));
+        }
+        return sb.toString();
     }
 
     /**

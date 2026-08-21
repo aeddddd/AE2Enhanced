@@ -207,6 +207,19 @@ public class SimulationEnv {
         }
 
         @Override
+        public boolean ae2enhanced$hasAssemblyHub() {
+            // 测试环境无装配中枢
+            return false;
+        }
+
+        @Override
+        public java.util.List<appeng.api.networking.crafting.ICraftingMedium> ae2enhanced$getMediumsMemo(
+                appeng.api.networking.crafting.ICraftingPatternDetails details) {
+            // 测试环境无合成介质
+            return java.util.Collections.emptyList();
+        }
+
+        @Override
         public ImmutableCollection<ICraftingPatternDetails> getCraftingFor(IAEItemStack whatToCraft,
                 ICraftingPatternDetails details, int slotIndex, World world) {
             List<ICraftingPatternDetails> list = patterns.get(RecursiveCraftingHelper.canon(whatToCraft));

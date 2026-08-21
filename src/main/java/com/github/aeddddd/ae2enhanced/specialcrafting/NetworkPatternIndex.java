@@ -43,6 +43,8 @@ public final class NetworkPatternIndex {
     private final Map<IAEItemStack, Integer> sccId;
     private final Map<IAEItemStack, Boolean> detectorMemo = new ConcurrentHashMap<>();
     private final Map<ICraftingPatternDetails, Boolean> cycleStepMemo = new ConcurrentHashMap<>();
+    /** 环分析 memo:环签名 → 分析结果(含 null=已确认不可解);随样板集一并失效. */
+    private final Map<CycleAnalyzer.CycleSignature, java.util.Optional<CycleAnalyzer.Analysis>> analysisMemo = new ConcurrentHashMap<>();
 
     private NetworkPatternIndex(Map<IAEItemStack, List<ICraftingPatternDetails>> byproduct,
             Map<IAEItemStack, Integer> sccId) {
@@ -152,7 +154,7 @@ public final class NetworkPatternIndex {
         return false;
     }
 
-    /** detector 判定 memo:键为 canon(请求物);结果仅依赖样板集，随索引一并失效. */
+    /** detector 判定 memo:键为 canon(请求物);结果仅依赖样板集,随索引一并失效. */
     @Nullable
     public Boolean detectorVerdict(IAEItemStack canonKey) {
         return this.detectorMemo.get(canonKey);
@@ -160,6 +162,22 @@ public final class NetworkPatternIndex {
 
     public void memoDetectorVerdict(IAEItemStack canonKey, boolean verdict) {
         this.detectorMemo.put(canonKey, verdict);
+    }
+
+    /**
+     * 环分析 memo:签名命中即复用(含"已确认不可解"的空结果),未命中调用 solver
+     * 计算并记忆.Analysis 内部数组调用方只读,可安全共享.
+     */
+    @Nullable
+    CycleAnalyzer.Analysis analysisMemo(CycleAnalyzer.CycleSignature signature,
+            java.util.function.Supplier<CycleAnalyzer.Analysis> solver) {
+        java.util.Optional<CycleAnalyzer.Analysis> cached = this.analysisMemo.get(signature);
+        if (cached != null) {
+            return cached.orElse(null);
+        }
+        CycleAnalyzer.Analysis solved = solver.get();
+        this.analysisMemo.putIfAbsent(signature, java.util.Optional.ofNullable(solved));
+        return solved;
     }
 
     /**

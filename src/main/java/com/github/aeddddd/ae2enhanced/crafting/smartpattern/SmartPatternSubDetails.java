@@ -28,6 +28,7 @@ public class SmartPatternSubDetails implements ICraftingPatternDetails {
     private final IAEItemStack[] condensedInputs;
     private final IAEItemStack[] condensedOutputs;
     private final IAEItemStack pattern; // 用于 equals/hashCode
+    private final int cachedHashCode; // 构造时计算一次,避免 map 查找热点路径反复遍历数组 + NBT 比较
     private int priority = 0;
 
     public SmartPatternSubDetails(@Nonnull ItemStack parentPattern, @Nonnull SmartRecipe recipe) {
@@ -36,6 +37,10 @@ public class SmartPatternSubDetails implements ICraftingPatternDetails {
         this.condensedInputs = condenseStacks(recipe.getInputs());
         this.condensedOutputs = condenseStacks(recipe.getOutputs());
         this.pattern = AEItemStack.fromItemStack(parentPattern);
+        int hash = Boolean.hashCode(recipe.isCrafting());
+        hash = 31 * hash + Arrays.hashCode(recipe.getInputs());
+        hash = 31 * hash + Arrays.hashCode(recipe.getOutputs());
+        this.cachedHashCode = hash;
     }
 
     @Override
@@ -161,6 +166,8 @@ public class SmartPatternSubDetails implements ICraftingPatternDetails {
         if (this == obj) return true;
         if (!(obj instanceof SmartPatternSubDetails)) return false;
         SmartPatternSubDetails other = (SmartPatternSubDetails) obj;
+        // 哈希短路:不等则必然不相等,跳过深层 NBT 比较
+        if (this.cachedHashCode != other.cachedHashCode) return false;
         return recipe.isCrafting() == other.recipe.isCrafting()
             && Arrays.equals(recipe.getInputs(), other.recipe.getInputs())
             && Arrays.equals(recipe.getOutputs(), other.recipe.getOutputs());
@@ -168,9 +175,6 @@ public class SmartPatternSubDetails implements ICraftingPatternDetails {
 
     @Override
     public int hashCode() {
-        int result = Boolean.hashCode(recipe.isCrafting());
-        result = 31 * result + Arrays.hashCode(recipe.getInputs());
-        result = 31 * result + Arrays.hashCode(recipe.getOutputs());
-        return result;
+        return cachedHashCode;
     }
 }

@@ -34,6 +34,13 @@ public class AssemblyHubUpgradeRegistry {
 
     private static final Map<String, UpgradeDefinition> DEFINITIONS = new ConcurrentHashMap<>();
 
+    /** 注册表修订号:register/removeById 时递增,供 TileAssemblyController 缓存失效判断. */
+    private static volatile long revision;
+
+    public static long getRevision() {
+        return revision;
+    }
+
     public static String keyOf(ItemStack stack) {
         if (stack == null || stack.isEmpty()) return "";
         net.minecraft.util.ResourceLocation reg = stack.getItem().getRegistryName();
@@ -48,6 +55,7 @@ public class AssemblyHubUpgradeRegistry {
 
     public static void register(UpgradeDefinition def) {
         DEFINITIONS.put(keyOf(def.item), def);
+        revision++;
     }
 
     /**
@@ -58,7 +66,11 @@ public class AssemblyHubUpgradeRegistry {
      */
     public static boolean removeById(String id) {
         if (id == null || id.isEmpty()) return false;
-        return DEFINITIONS.remove(id) != null;
+        boolean removed = DEFINITIONS.remove(id) != null;
+        if (removed) {
+            revision++;
+        }
+        return removed;
     }
 
     @Nullable

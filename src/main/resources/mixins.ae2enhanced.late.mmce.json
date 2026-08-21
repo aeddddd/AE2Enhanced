@@ -7,7 +7,9 @@
   "compatibilityLevel": "JAVA_8",
   "mixins": [
     "MixinMEPatternProvider",
-    "MixinPatternItemFilter"
+    "MixinPatternItemFilter",
+    "MixinIItemHandlerImpl",
+    "MixinIOInventory"
   ],
   "client": [],
   "server": []

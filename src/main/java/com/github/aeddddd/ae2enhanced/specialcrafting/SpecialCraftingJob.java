@@ -309,15 +309,20 @@ public class SpecialCraftingJob extends CraftingJob {
 
     /**
      * 阶段 2:跨样板增殖环闭式解.枚举候选环（长环优先）,迭代求解直到成功.
+     * <p>分析总预算 {@link AnalysisBudget#SOLVE_BUDGET_MS}:大 SCC 网络的
+     * O(n³) 大整数求解不再失控（超预算回落原生,与既有 FALLBACK 语义一致）;
+     * 分析结果按环签名 memo,同环跨请求/跨边界只算一次.</p>
      */
     @Nullable
     private CraftingTreeNode solveCycle(ICraftingGrid cc, IAEItemStack what, long target, IActionSource src)
             throws InterruptedException {
+        AnalysisBudget budget = AnalysisBudget.solve();
+        NetworkPatternIndex index = NetworkPatternIndex.of(cc);
         List<List<CycleAnalyzer.CycleStep>> cycles = CycleAnalyzer.findCyclesThrough(cc, what, this.world);
         if (!cycles.isEmpty()) {
             SpecialLog.info("[特殊配方] 循环链求解: {}×{},找到 {} 个候选环", what, target, cycles.size());
             // θ 形共享结构(多个环共享同一中间样板)先尝试候选环并集联立求解
-            CycleAnalyzer.Analysis union = CycleAnalyzer.analyzeUnion(cycles);
+            CycleAnalyzer.Analysis union = CycleAnalyzer.analyzeUnionMemo(index, cycles);
             if (union != null && union.rateClass() == CycleAnalyzer.RateClass.PRODUCTIVE) {
                 CraftingTreeNode root = this.tryCycleAnalysis(cc, union, what, target, src);
                 if (root != null) {
@@ -325,7 +330,12 @@ public class SpecialCraftingJob extends CraftingJob {
                 }
             }
             for (List<CycleAnalyzer.CycleStep> cycle : cycles) {
-                CycleAnalyzer.Analysis analysis = CycleAnalyzer.analyze(cycle);
+                if (budget.expired()) {
+                    SpecialLog.info("[特殊配方] 环分析超求解预算(>{}ms),回落原生: {}×{}",
+                            AnalysisBudget.SOLVE_BUDGET_MS, what, target);
+                    return null;
+                }
+                CycleAnalyzer.Analysis analysis = CycleAnalyzer.analyzeMemo(index, cycle);
                 if (analysis == null) {
                     SpecialLog.info("[特殊配方] 候选环({} 步)不可解(秩不足/无正整数解/超 long),跳过",
                             cycle.size());
@@ -344,7 +354,12 @@ public class SpecialCraftingJob extends CraftingJob {
         // 所有候选环均不适用 → 尝试催化环(请求物是某中性/增殖环发射的环外副产物,
         // 如 1A→1X+1B、1B→1A 请求 X——X 不在环键上,常规环枚举不可见)
         for (List<CycleAnalyzer.CycleStep> cycle : CycleAnalyzer.findCatalyticCycles(cc, what, this.world)) {
-            CycleAnalyzer.Analysis analysis = CycleAnalyzer.analyze(cycle);
+            if (budget.expired()) {
+                SpecialLog.info("[特殊配方] 催化环分析超求解预算(>{}ms),回落原生: {}×{}",
+                        AnalysisBudget.SOLVE_BUDGET_MS, what, target);
+                return null;
+            }
+            CycleAnalyzer.Analysis analysis = CycleAnalyzer.analyzeMemo(index, cycle);
             if (analysis == null || analysis.rateClass() == CycleAnalyzer.RateClass.DISSIPATIVE) {
                 continue;
             }

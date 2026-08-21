@@ -2,16 +2,25 @@ package com.github.aeddddd.ae2enhanced.specialcrafting;
 
 import java.util.List;
 
+import javax.annotation.Nullable;
+
 import net.minecraft.world.World;
 
 import appeng.api.networking.crafting.ICraftingGrid;
 import appeng.api.networking.crafting.ICraftingPatternDetails;
 import appeng.api.storage.data.IAEItemStack;
 
+import com.github.aeddddd.ae2enhanced.config.AE2EnhancedConfig;
+
 /**
  * 特殊配方预扫描（路由点 A 的判定逻辑,移植自 1.20.1）.
  * <p>检测范围:阶段 1 净产出自引用样板（如 A+2B→2A)+ 阶段 2 跨样板增殖环
  * （简单环且净乘积率 > 1,如 A→2B,B→A).未命中零副作用,请求完全走原生计算.</p>
+ * <p><b>服务器线程保护</b>:本判定在 {@code beginCraftingJob}（服务器线程）同步执行,
+ * 环分析为 O(n³) 大整数运算（大 SCC 网络可达秒级以上,曾是看门狗根因）——
+ * 分析总耗时受配置预算（{@code crafting.specialDetectorBudgetMs},默认 1s）约束,
+ * 超时保守漏判（该请求不路由特殊求解器,回落 DAG/原生,行为与现状一致）;
+ * 分析结果按环签名 memo 于 {@link NetworkPatternIndex},同环跨请求只算一次.</p>
  */
 public final class SpecialRecipeDetector {
 
@@ -33,14 +42,15 @@ public final class SpecialRecipeDetector {
                 return memo;
             }
         }
-        boolean verdict = detect(cc, what, world);
+        boolean verdict = detect(cc, what, world, index);
         if (index != null) {
             index.memoDetectorVerdict(memoKey, verdict);
         }
         return verdict;
     }
 
-    private static boolean detect(ICraftingGrid cc, IAEItemStack what, World world) {
+    private static boolean detect(ICraftingGrid cc, IAEItemStack what, World world,
+            @Nullable NetworkPatternIndex index) {
         // 阶段 1:候选样板含自引用(净产出自引用,或任意精确自引用 key)
         for (ICraftingPatternDetails pattern : cc.getCraftingFor(what, null, -1, world)) {
             if (RecursiveCraftingHelper.isNetPositiveSelfRef(pattern, what)) {
@@ -50,20 +60,30 @@ public final class SpecialRecipeDetector {
                 return true;
             }
         }
-        // 阶段 2:经过请求物的候选环中存在可解增殖环(含 θ 形共享结构的并集分析)
+        // 阶段 2:经过请求物的候选环中存在可解增殖环(含 θ 形共享结构的并集分析);
+        // 服务器线程预算:超时保守漏判(回落 DAG/原生),大 SCC 网络不再卡死 tick
+        AnalysisBudget budget = AnalysisBudget.ofMillis(AE2EnhancedConfig.crafting.specialDetectorBudgetMs);
         List<List<CycleAnalyzer.CycleStep>> cycles = CycleAnalyzer.findCyclesThrough(cc, what, world);
         for (List<CycleAnalyzer.CycleStep> cycle : cycles) {
-            CycleAnalyzer.Analysis analysis = CycleAnalyzer.analyze(cycle);
+            if (budget.expired()) {
+                SpecialLog.info("[特殊配方] detector 分析超预算(>{}ms),保守漏判: {}",
+                        AE2EnhancedConfig.crafting.specialDetectorBudgetMs, what);
+                return false;
+            }
+            CycleAnalyzer.Analysis analysis = CycleAnalyzer.analyzeMemo(index, cycle);
             if (analysis != null && analysis.rateClass() == CycleAnalyzer.RateClass.PRODUCTIVE) {
                 return true;
             }
         }
-        CycleAnalyzer.Analysis union = CycleAnalyzer.analyzeUnion(cycles);
-        if (union != null && union.rateClass() == CycleAnalyzer.RateClass.PRODUCTIVE) {
-            return true;
+        if (!budget.expired()) {
+            CycleAnalyzer.Analysis union = CycleAnalyzer.analyzeUnionMemo(index, cycles);
+            if (union != null && union.rateClass() == CycleAnalyzer.RateClass.PRODUCTIVE) {
+                return true;
+            }
         }
         // 催化环:what 不在任何环上(否则按环键语义处理,中性环不接管),
         // 且生产 what 的样板本身是环步骤——环发射 what 为环外副产物
+        // (SCC 索引 O(1) 查表,不受预算影响)
         if (cycles.isEmpty()) {
             for (ICraftingPatternDetails pattern : cc.getCraftingFor(what, null, -1, world)) {
                 if (CycleAnalyzer.isCycleStep(cc, world, pattern)) {

@@ -121,6 +121,12 @@ public final class CycleAnalyzer {
     private static final int MAX_VISITED = 512;
     /** 单次请求最多枚举的候选环数量. */
     private static final int MAX_CYCLES = 64;
+    /**
+     * 零空间求解的环规模硬上限(键数).超限直接返回 null(保守漏判):
+     * 求解为 O(n³) 大整数运算,真实网络几乎不存在 256 键以上的可解环,
+     * 硬上限为病态网络提供确定性兜底.
+     */
+    private static final int MAX_SOLVE_STEPS = 256;
 
     private CycleAnalyzer() {
     }
@@ -494,8 +500,8 @@ public final class CycleAnalyzer {
     @Nullable
     private static Analysis solveSystem(List<IAEItemStack> keys, List<CycleStep> steps) {
         int n = steps.size();
-        if (n < 2 || keys.size() != n) {
-            return null;
+        if (n < 2 || keys.size() != n || n > MAX_SOLVE_STEPS) {
+            return null; // 超规模上限:保守漏判(回落原生),防病态网络卡死计算
         }
 
         // 系数矩阵 coeff[step][key] = 该样板每份对该 key 的净产出(产出-消耗)
@@ -592,38 +598,100 @@ public final class CycleAnalyzer {
     }
 
     /**
-     * 求 (n-1)×n 整数矩阵的正整数零空间向量（广义叉积,Bareiss 精确行列式）.
+     * 求 (n-1)×n 整数矩阵的正整数零空间向量（一次 Bareiss 消元 + 回代,O(n³)).
+     * <p>数学等价于旧实现"逐列求 n 个 (n-1) 阶余子式"(O(n⁴)——256 键环实测单次
+     * 19 秒,是复杂下单触发服务器看门狗的根因）:满秩 (n-1) 时零空间一维,取自由
+     * 变量 = 主元子式行列式（±),回代各分量恰为 ±删列余子式（必为整数,防御性
+     * 校验整除）,随后做与旧实现一致的符号规范化与 gcd 约分.</p>
      *
      * @return 已约分的正整数向量;秩不足或不存在全正解时返回 null.
      */
     @Nullable
     private static BigInteger[] nullSpaceVector(BigInteger[][] balance, int n) {
-        BigInteger[] v = new BigInteger[n];
-        boolean allZero = true;
+        // Bareiss 无分数消元到行阶梯(仅行/列交换,零空间经列置换跟踪还原)
+        BigInteger[][] m = new BigInteger[n - 1][];
+        for (int i = 0; i < n - 1; i++) {
+            m[i] = balance[i].clone();
+        }
+        int[] colOfVar = new int[n]; // 消元后第 j 列对应的原变量下标
         for (int j = 0; j < n; j++) {
-            BigInteger[][] sub = new BigInteger[n - 1][n - 1];
-            for (int r = 0; r < n - 1; r++) {
-                int c = 0;
-                for (int k = 0; k < n; k++) {
-                    if (k != j) {
-                        sub[r][c++] = balance[r][k];
+            colOfVar[j] = j;
+        }
+        BigInteger prevPivot = BigInteger.ONE;
+        for (int k = 0; k < n - 1; k++) {
+            // 主元搜索:行 k..n-2 × 列 k..n-1 中首个非零元(列扫描优先,免列交换)
+            int pivotRow = -1;
+            int pivotCol = -1;
+            outer: for (int c = k; c < n; c++) {
+                for (int r = k; r < n - 1; r++) {
+                    if (!m[r][c].equals(BigInteger.ZERO)) {
+                        pivotRow = r;
+                        pivotCol = c;
+                        break outer;
                     }
                 }
             }
-            BigInteger det = determinant(sub, n - 1);
-            v[j] = (j % 2 == 0) ? det : det.negate();
-            if (!v[j].equals(BigInteger.ZERO)) {
-                allZero = false;
+            if (pivotRow < 0) {
+                return null; // 秩 < n-1,欠定 → 不接管(与旧实现 allZero 同语义)
             }
+            if (pivotRow != k) {
+                BigInteger[] tmp = m[k];
+                m[k] = m[pivotRow];
+                m[pivotRow] = tmp;
+            }
+            if (pivotCol != k) {
+                for (int r = 0; r < n - 1; r++) {
+                    BigInteger tmp = m[r][k];
+                    m[r][k] = m[r][pivotCol];
+                    m[r][pivotCol] = tmp;
+                }
+                int tmp = colOfVar[k];
+                colOfVar[k] = colOfVar[pivotCol];
+                colOfVar[pivotCol] = tmp;
+            }
+            for (int i = k + 1; i < n - 1; i++) {
+                for (int j = k + 1; j < n; j++) {
+                    m[i][j] = m[i][j].multiply(m[k][k])
+                            .subtract(m[i][k].multiply(m[k][j]))
+                            .divide(prevPivot);
+                }
+                m[i][k] = BigInteger.ZERO;
+            }
+            prevPivot = m[k][k];
         }
-        if (allZero) {
-            return null; // 秩 < n-1,欠定 → 不接管
+
+        // 回代:自由变量 = 末列对应原变量,取其值为 ±主元子式行列式;
+        // 由齐次系统余子式定理,各分量恰为 ±删列余子式,回代整除必精确
+        BigInteger[] v = new BigInteger[n];
+        for (int j = 0; j < n; j++) {
+            v[j] = BigInteger.ZERO;
         }
+        v[colOfVar[n - 1]] = m[n - 2][n - 2];
+        for (int k = n - 2; k >= 0; k--) {
+            BigInteger acc = BigInteger.ZERO;
+            for (int j = k + 1; j < n; j++) {
+                acc = acc.add(m[k][j].multiply(v[colOfVar[j]]));
+            }
+            BigInteger[] qr = acc.negate().divideAndRemainder(m[k][k]);
+            if (!qr[1].equals(BigInteger.ZERO)) {
+                return null; // 整性破坏(理论不可达):保守不接管
+            }
+            v[colOfVar[k]] = qr[0];
+        }
+
+        // 符号规范化与 gcd 约分(与旧实现一致)
+        boolean allZero = true;
         boolean anyPos = false;
         boolean anyNeg = false;
         for (BigInteger x : v) {
+            if (!x.equals(BigInteger.ZERO)) {
+                allZero = false;
+            }
             anyPos |= x.signum() > 0;
             anyNeg |= x.signum() < 0;
+        }
+        if (allZero) {
+            return null;
         }
         if (anyNeg) {
             for (int j = 0; j < n; j++) {
@@ -645,45 +713,65 @@ public final class CycleAnalyzer {
         return v;
     }
 
+    // ==================== 分析结果 memo(跨边界/跨请求复用) ====================
+
     /**
-     * Bareiss 无分数高斯消元求精确行列式.
+     * 环签名：顺序的 (样板 identity, fromKey, toKey) 三元组序列.
+     * {@link #analyze} 的结果由该序列完全确定（键序/闭式解/种子前缀均派生于此）;
+     * 并集分析把候选环当"样板袋"处理（逐 pattern 去重、与环边界无关）,
+     * 故扁平化序列同样精确.
      */
-    private static BigInteger determinant(BigInteger[][] matrix, int n) {
-        if (n == 0) {
-            return BigInteger.ONE;
-        }
-        BigInteger[][] m = new BigInteger[n][n];
-        for (int i = 0; i < n; i++) {
-            m[i] = matrix[i].clone();
-        }
-        BigInteger prevPivot = BigInteger.ONE;
-        int sign = 1;
-        for (int k = 0; k < n - 1; k++) {
-            if (m[k][k].equals(BigInteger.ZERO)) {
-                int swap = -1;
-                for (int r = k + 1; r < n; r++) {
-                    if (!m[r][k].equals(BigInteger.ZERO)) {
-                        swap = r;
-                        break;
-                    }
-                }
-                if (swap < 0) {
-                    return BigInteger.ZERO;
-                }
-                BigInteger[] tmp = m[k];
-                m[k] = m[swap];
-                m[swap] = tmp;
-                sign = -sign;
+    static final class CycleSignature {
+        private final List<Object> parts;
+        private final int hash;
+
+        CycleSignature(List<CycleStep> steps) {
+            this.parts = new ArrayList<>(steps.size() * 3);
+            for (CycleStep step : steps) {
+                this.parts.add(step.pattern());
+                this.parts.add(step.fromKey());
+                this.parts.add(step.toKey());
             }
-            for (int i = k + 1; i < n; i++) {
-                for (int j = k + 1; j < n; j++) {
-                    m[i][j] = m[i][j].multiply(m[k][k])
-                            .subtract(m[i][k].multiply(m[k][j]))
-                            .divide(prevPivot);
-                }
-            }
-            prevPivot = m[k][k];
+            this.hash = this.parts.hashCode();
         }
-        return sign > 0 ? m[n - 1][n - 1] : m[n - 1][n - 1].negate();
+
+        @Override
+        public boolean equals(Object o) {
+            return o instanceof CycleSignature && this.parts.equals(((CycleSignature) o).parts);
+        }
+
+        @Override
+        public int hashCode() {
+            return this.hash;
+        }
+    }
+
+    /**
+     * 带网络级 memo 的 {@link #analyze}:同一环（签名相同）在不同边界节点/不同请求间
+     * 只分析一次，消除"边界节点数 × 候选环数"的重复求解（大 SCC 网络的乘性开销）;
+     * 索引不可用（测试模拟网格）时直通.
+     */
+    @Nullable
+    public static Analysis analyzeMemo(@Nullable NetworkPatternIndex index, List<CycleStep> cycle) {
+        if (index == null || cycle == null) {
+            return analyze(cycle);
+        }
+        return index.analysisMemo(new CycleSignature(cycle), () -> analyze(cycle));
+    }
+
+    /**
+     * 带网络级 memo 的 {@link #analyzeUnion}（扁平化签名，见 {@link CycleSignature}).
+     */
+    @Nullable
+    public static Analysis analyzeUnionMemo(@Nullable NetworkPatternIndex index,
+            List<List<CycleStep>> cycles) {
+        if (index == null || cycles == null || cycles.size() < 2) {
+            return analyzeUnion(cycles);
+        }
+        List<CycleStep> flat = new ArrayList<>();
+        for (List<CycleStep> cycle : cycles) {
+            flat.addAll(cycle);
+        }
+        return index.analysisMemo(new CycleSignature(flat), () -> analyzeUnion(cycles));
     }
 }

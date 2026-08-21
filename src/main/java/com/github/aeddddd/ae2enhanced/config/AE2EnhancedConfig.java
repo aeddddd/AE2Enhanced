@@ -540,6 +540,18 @@ public class AE2EnhancedConfig {
             "Default: DEFAULT"
         })
         public DagPlannerMode dagPlannerMode = DagPlannerMode.DEFAULT;
+
+        @Config.Comment({
+            "Time budget (milliseconds) for the special-recipe detector, which runs",
+            "on the SERVER THREAD when a crafting job is requested. If cycle analysis",
+            "exceeds this budget, that request conservatively skips special routing and",
+            "falls back to the DAG/vanilla path (same behavior as a non-special request,",
+            "never wrong). Prevents server watchdog timeouts on networks with very",
+            "large cyclic recipe components (analysis is O(n^3) big-integer math).",
+            "Range: 10 ~ 60000, Default: 1000"
+        })
+        @Config.RangeInt(min = 10, max = 60000)
+        public int specialDetectorBudgetMs = 1000;
     }
 
     /** DAG 计划引擎模式(kill-switch). */

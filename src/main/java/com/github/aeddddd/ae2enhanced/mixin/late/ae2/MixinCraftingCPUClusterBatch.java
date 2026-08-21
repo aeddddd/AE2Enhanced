@@ -10,6 +10,8 @@ import appeng.me.cache.CraftingGridCache;
 import appeng.me.cluster.implementations.CraftingCPUCluster;
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
 import com.github.aeddddd.ae2enhanced.mixin.bridge.IComputationCoreAccess;
+import com.github.aeddddd.ae2enhanced.mixin.bridge.ICraftingGridCacheAccess;
+import com.github.aeddddd.ae2enhanced.mixin.bridge.IMeInventoryVersionAccess;
 import com.github.aeddddd.ae2enhanced.mixin.late.accessor.ITaskProgressAccessor;
 import com.github.aeddddd.ae2enhanced.specialcrafting.SelfRefOutputGate;
 import com.github.aeddddd.ae2enhanced.specialcrafting.SpecialCraftingRuntime;
@@ -26,6 +28,7 @@ import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 import java.util.ArrayList;
@@ -155,10 +158,28 @@ public abstract class MixinCraftingCPUClusterBatch {
         }
     }
 
+    /**
+     * AE2 原生 executeCrafting 内 visitedMediums 补充队列时也会调 getMediums
+     * （CraftingCPUCluster 第 520 行）, mediums 队列每 tick 可能重建,
+     * 同样走 memo 避免重复的 equals 语义 map 查找(深层 NBT 比较热点).
+     */
+    @Redirect(method = "executeCrafting", at = @At(value = "INVOKE",
+        target = "Lappeng/me/cache/CraftingGridCache;getMediums(Lappeng/api/networking/crafting/ICraftingPatternDetails;)Ljava/util/List;"),
+        require = 0)
+    private List<ICraftingMedium> ae2enhanced$memoizeNativeGetMediums(CraftingGridCache cache,
+            ICraftingPatternDetails details) {
+        return ((ICraftingGridCacheAccess) cache).ae2enhanced$getMediumsMemo(details);
+    }
+
     @Inject(method = "executeCrafting", at = @At("HEAD"))
     private void batchProcessVirtualTasks(IEnergyGrid energy, CraftingGridCache cache, CallbackInfo ci) {
         // CrazyAE 兼容：跳过批量合成注入,避免与其修改后的 executeCrafting 冲突.
         if (((IComputationCoreAccess) this).ae2enhanced$getComputationCore() != null && CRAZYAE_LOADED) return;
+
+        // 性能早退：网络中不存在装配中枢时,批量结算不可能命中,
+        // 直接跳过——getMediums 的 map 查找会对每个任务触发样板 equals/hashCode
+        // 的深层 NBT 比较,是合成 CPU 每 tick 的主要开销之一(spark 采样确认).
+        if (!((ICraftingGridCacheAccess) cache).ae2enhanced$hasAssemblyHub()) return;
 
         CraftingCPUCluster cpu;
         boolean anyOurTask = false;
@@ -184,7 +205,7 @@ public abstract class MixinCraftingCPUClusterBatch {
                     long remaining = ((ITaskProgressAccessor) progress).ae2e$getValue();
                     if (remaining <= 0) continue;
 
-                    List<ICraftingMedium> mediums = cache.getMediums(details);
+                    List<ICraftingMedium> mediums = ((ICraftingGridCacheAccess) cache).ae2enhanced$getMediumsMemo(details);
                     if (mediums == null || mediums.isEmpty()) continue;
 
                     for (ICraftingMedium medium : mediums) {
@@ -321,6 +342,8 @@ public abstract class MixinCraftingCPUClusterBatch {
                                     IAEItemStack product = outputTemplate.copy();
                                     product.setStackSize(totalCount);
                                     itemList.add(product);
+                                    // 直接写入底层 IItemList,绕过 injectItems,需显式递增库存版本号
+                                    ((IMeInventoryVersionAccess) meInv).ae2e$bumpVersion();
                                     this.postChange(product.copy(), source);
                                     this.postCraftingStatusChange(product.copy());
 
@@ -599,6 +622,8 @@ public abstract class MixinCraftingCPUClusterBatch {
                                 IAEItemStack product = outputTemplate.copy();
                                 product.setStackSize(totalCount);
                                 itemList.add(product);
+                                // 直接写入底层 IItemList,绕过 injectItems,需显式递增库存版本号
+                                ((IMeInventoryVersionAccess) meInv).ae2e$bumpVersion();
                                 this.postChange(product.copy(), source);
                                 this.postCraftingStatusChange(product.copy());
 
