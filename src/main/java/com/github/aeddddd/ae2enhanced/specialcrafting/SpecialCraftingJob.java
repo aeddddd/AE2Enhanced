@@ -259,7 +259,7 @@ public class SpecialCraftingJob extends CraftingJob
         CatalystReturns.collect(selfRef, crafts, catalystExcluded, catalystInject, catalystRebate);
         CatalystReturns.inject(catalystInject, inv, src);
         try {
-            Ae2CraftingReflect.treeProcessRequest(pro, inv, crafts, src);
+            BatchSubcraft.requestStep(pro, cc, this, inv, crafts, src);
         } catch (CraftBranchFailure failure) {
             return null; // 非自输入不足 → 原生兜底(缺料报告)
         } finally {
@@ -331,7 +331,7 @@ public class SpecialCraftingJob extends CraftingJob
         CatalystReturns.collect(pattern, crafts, catalystExcluded, catalystInject, catalystRebate);
         CatalystReturns.inject(catalystInject, inv, src);
         try {
-            Ae2CraftingReflect.treeProcessRequest(pro, inv, crafts, src);
+            BatchSubcraft.requestStep(pro, cc, this, inv, crafts, src);
         } catch (CraftBranchFailure failure) {
             return null; // 其他输入不足 → 原生兜底(缺料报告)
         } finally {
@@ -432,7 +432,7 @@ public class SpecialCraftingJob extends CraftingJob
         MECraftingInventory inv = new MECraftingInventory(Ae2CraftingReflect.getOriginal(this), true, false, true);
         CraftingTreeNode root = new CraftingTreeNode(cc, this, what.copy(), null, -1, 0);
         CycleSolver.SolveResult result = CycleSolver.trySolveCatalytic(cc, this, analysis, xPerRound, inv,
-                what, target, root, src);
+                what, target, root, src, this.world);
         if (result == CycleSolver.SolveResult.OVERFLOW) {
             return this.missingRoot(cc, what, target);
         }
@@ -470,7 +470,8 @@ public class SpecialCraftingJob extends CraftingJob
         MECraftingInventory inv = new MECraftingInventory(Ae2CraftingReflect.getOriginal(this), true, false, true);
         // 关键差异:不执行 ignore(what),保留网络库存中的种子
         CraftingTreeNode root = new CraftingTreeNode(cc, this, what.copy(), null, -1, 0);
-        CycleSolver.SolveResult result = CycleSolver.trySolve(cc, this, analysis, inv, what, target, root, src);
+        CycleSolver.SolveResult result = CycleSolver.trySolve(cc, this, analysis, inv, what, target, root,
+                src, this.world);
         if (result == CycleSolver.SolveResult.OVERFLOW) {
             return this.missingRoot(cc, what, target);
         }

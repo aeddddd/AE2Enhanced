@@ -62,6 +62,14 @@ public final class PlanTracker {
             return "dagFallback";
         }
         if (job instanceof DagCraftingJob) {
+            // DAG 回落原生(super.run())的耗时由 MixinCraftingJob RETURN 钩子计时——
+            // 已挂原生预算(deadline 非 0)即处于回落段,归入 dagToNative,
+            // 否则 dag 尾部样本会把"DAG 快速失败 + 原生烧预算"误记成 DAG 慢
+            if (job instanceof com.github.aeddddd.ae2enhanced.mixin.bridge.ICraftingJobBudgetAccess
+                    && ((com.github.aeddddd.ae2enhanced.mixin.bridge.ICraftingJobBudgetAccess) job)
+                            .ae2enhanced$nativeCalcDeadlineNanos() != 0L) {
+                return "dagToNative";
+            }
             return "dag";
         }
         return "native";

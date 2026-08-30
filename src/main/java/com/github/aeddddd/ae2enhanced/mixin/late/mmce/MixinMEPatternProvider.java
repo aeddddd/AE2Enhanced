@@ -49,8 +49,9 @@ public abstract class MixinMEPatternProvider {
     @Shadow
     protected AppEngInternalInventory patterns;
 
+    /** MMCE-CE 2.3.2 起为定长数组(36 槽位),旧版 MMCE 为 List——本 mixin 仅适配 CE. */
     @Shadow
-    protected List<ICraftingPatternDetails> details;
+    protected ICraftingPatternDetails[] details;
 
     @Shadow
     protected MEPatternProvider.WorkModeSetting workMode;
@@ -88,7 +89,7 @@ public abstract class MixinMEPatternProvider {
         List<SmartPatternSubDetails> expanded = ItemSmartPattern.expandPatterns(stack, world);
 
         ICraftingPatternDetails first = expanded.isEmpty() ? null : expanded.get(0);
-        this.details.set(slot, first);
+        this.details[slot] = first;
         if (expanded.size() > 1) {
             this.ae2e$extraDetails.put(slot, new ArrayList<>(expanded.subList(1, expanded.size())));
         }
@@ -142,8 +143,11 @@ public abstract class MixinMEPatternProvider {
         if (pattern == null || this.ae2e$extraDetails.isEmpty()) {
             return;
         }
-        if (this.details.indexOf(pattern) != -1) {
-            return; // 原逻辑可处理
+        // MMCE-CE 2.3.2 起 details 为定长数组,手动线性查找替代 List.indexOf
+        for (ICraftingPatternDetails d : this.details) {
+            if (pattern.equals(d)) {
+                return; // 原逻辑可处理
+            }
         }
         for (Map.Entry<Integer, List<ICraftingPatternDetails>> entry : this.ae2e$extraDetails.entrySet()) {
             for (ICraftingPatternDetails detail : entry.getValue()) {

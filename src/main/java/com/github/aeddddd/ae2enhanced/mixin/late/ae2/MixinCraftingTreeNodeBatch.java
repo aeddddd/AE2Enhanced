@@ -35,6 +35,9 @@ import java.util.ArrayList;
 @Mixin(value = CraftingTreeNode.class, remap = false)
 public abstract class MixinCraftingTreeNodeBatch {
 
+    /** 二分定位开关：-Dae2e.disableTreeBatch=true 时计算侧批量请求完全禁用（原生逐份）. */
+    private static final boolean AE2E_DISABLE_TREE_BATCH = Boolean.getBoolean("ae2e.disableTreeBatch");
+
     @Shadow
     private ArrayList<CraftingTreeProcess> nodes;
 
@@ -50,6 +53,10 @@ public abstract class MixinCraftingTreeNodeBatch {
     private IAEItemStack ae2e$batchedBranchRequest(CraftingTreeProcess pro, MECraftingInventory subInv,
             long times, IActionSource src, Operation<IAEItemStack> original,
             @Local(argsOnly = true) long l) {
+        // 二分定位开关：-Dae2e.disableTreeBatch=true 时完全走原生路径
+        if (AE2E_DISABLE_TREE_BATCH) {
+            return original.call(pro, subInv, times, src);
+        }
         // 单供应者分支（含自引用逐份语义）与任何非 1 份调用：原样透传
         if (this.nodes.size() <= 1 || times != 1L) {
             return original.call(pro, subInv, times, src);

@@ -37,7 +37,7 @@ public class AE2Enhanced {
 
     public static final String MOD_ID = "ae2enhanced";
     public static final String MOD_NAME = "AE2Enhanced";
-    public static final String VERSION = "1.7.6.3-fix1";
+    public static final String VERSION = "1.7.6.5";
 
     public static final String CLIENT_PROXY = "com.github.aeddddd.ae2enhanced.proxy.ClientProxy";
     public static final String SERVER_PROXY = "com.github.aeddddd.ae2enhanced.proxy.CommonProxy";

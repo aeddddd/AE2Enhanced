@@ -90,6 +90,13 @@ public final class DagGraph {
          * 编译规则:成环样板不参与常规分支(全部成环才收缩为循环边界).
          */
         public final List<Branch> extraBranches = new ArrayList<>();
+        /**
+         * 环盲降级切的"纯库存"别名叶子(仅 TERMINAL):提取只见网络真实库存,
+         * 不得吃祖先样板注入的合成侧产出/返还余额——对齐原生 notRecursive
+         * 时序语义(子请求发生时祖先样板尚未产出入账),否则自环键会被
+         * 祖先产出双重计数,缺料凭空消失.
+         */
+        public boolean cycleBlindAlias;
 
         DagNode(Kind kind, IAEItemStack key, long outputPerCraft, @Nullable ICraftingPatternDetails pattern) {
             this.kind = kind;

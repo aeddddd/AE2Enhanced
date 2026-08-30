@@ -6,6 +6,7 @@
   "compatibilityLevel": "JAVA_8",
   "mixins": [
     "ae2.MixinInventoryPlayer",
+    "ae2.MixinPlatformCraftExtract",
     "entity.MixinEntityDataManager",
     "entity.MixinEntityLivingBase",
     "world.MixinBlockSpawnAsEntity",
@@ -20,6 +21,7 @@
   "client": [
     "world.MixinPlayerControllerMP",
     "terminal.MixinGuiScreenPlanHooks",
+    "terminal.MixinGuiContainerPlanHooks",
     "accessor.IGuiScreenAccessor"
   ],
   "server": []

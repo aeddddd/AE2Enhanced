@@ -7,25 +7,16 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-import java.io.IOException;
-
 /**
- * GuiScreen 层的计划视图事件转发: keyTyped / updateScreen.
- * <p>目标是补获未自行覆写 keyTyped 的计划视图 GUI(如 GuiCraftingCPU)的键盘事件,
- * 供搜索框输入; 已覆写 keyTyped 的 GUI(如 GuiCraftConfirm)在自身 mixin 中先行消费,
- * 未消费的事件最终到达此处时接口实现会按焦点状态自行忽略.</p>
- * <p>目标为 Minecraft 原生类, 使用默认 remap=true.</p>
+ * GuiScreen 层的计划视图事件转发: updateScreen.
+ * <p>供搜索框光标闪烁. 注意: keyTyped 不能在 GuiScreen 层挂钩——
+ * GuiContainer 覆写了 keyTyped 且不调用 super, 容器类 GUI 的按键事件
+ * 永远到不了 GuiScreen.keyTyped; 按键分发见 {@link MixinGuiContainerPlanHooks}.</p>
+ * <p>目标为 Minecraft 原生类, 使用默认 remap=true, 必须 early 注册
+ * (Cleanroom 下 late 注册原生类目标会被静默拒绝).</p>
  */
 @Mixin(GuiScreen.class)
 public abstract class MixinGuiScreenPlanHooks {
-
-    @Inject(method = "keyTyped", at = @At("HEAD"), cancellable = true)
-    private void ae2enhanced$dispatchPlanKeyTyped(char typedChar, int keyCode, CallbackInfo ci) throws IOException {
-        if ((Object) this instanceof IPlanViewHost
-                && ((IPlanViewHost) (Object) this).ae2enhanced$planKeyTyped(typedChar, keyCode)) {
-            ci.cancel();
-        }
-    }
 
     @Inject(method = "updateScreen", at = @At("HEAD"))
     private void ae2enhanced$dispatchPlanUpdateScreen(CallbackInfo ci) {

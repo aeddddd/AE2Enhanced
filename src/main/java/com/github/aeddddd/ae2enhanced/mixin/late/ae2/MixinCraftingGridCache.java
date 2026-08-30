@@ -147,6 +147,19 @@ public class MixinCraftingGridCache implements com.github.aeddddd.ae2enhanced.mi
         this.ae2enhanced$mediumsMemo.clear();
     }
 
+    /**
+     * addCraftingOption 会在不重算的情况下向 craftingMethods 动态注册 medium
+     * （接口上线/样板插入后）。若 memo 此前缓存了空兜底列表（ImmutableList.of()），
+     * 新列表写入 craftingMethods 后 memo 仍返回空——task 发配队列恒空、永不发配。
+     * memo 按实例身份键控，而 api 与 task 持有的 details 可能是内容相等但不同实例，
+     * 无法精确移除，故整体清空（注册事件低频，重建成本可忽略）。
+     */
+    @Inject(method = "addCraftingOption", at = @At("HEAD"), require = 0)
+    private void ae2enhanced$invalidateMediumsMemoOnOption(ICraftingMedium medium,
+            ICraftingPatternDetails api, CallbackInfo ci) {
+        this.ae2enhanced$mediumsMemo.clear();
+    }
+
     @Shadow
     @Final
     private static ExecutorService CRAFTING_POOL;

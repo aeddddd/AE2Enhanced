@@ -1,8 +1,10 @@
 package com.github.aeddddd.ae2enhanced.specialcrafting;
 
 import java.math.BigInteger;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -117,10 +119,17 @@ public final class CycleAnalyzer {
         }
     }
 
-    /** detector/求解共用的遍历预算,避免超大网络下 DFS 失控. */
-    private static final int MAX_VISITED = 512;
+    /** detector/求解共用的遍历预算,避免超大网络下 DFS 失控(SCC 剪枝为主防御,此为兜底). */
+    private static final int MAX_VISITED = 4096;
     /** 单次请求最多枚举的候选环数量. */
-    private static final int MAX_CYCLES = 64;
+    private static final int MAX_CYCLES = 256;
+    /**
+     * 环枚举的最大环长(IDDFS 逐轮加深到此上限).更长的环键数超出求解上限
+     * (MAX_SOLVE_STEPS),本就不可解;巨网中枚举巨环只会烧预算.
+     */
+    private static final int MAX_CYCLE_DEPTH = 8;
+    /** IDDFS 每轮的访问预算. */
+    private static final int MAX_VISITED_PER_ROUND = 1024;
     /**
      * 零空间求解的环规模硬上限(键数).超限直接返回 null(保守漏判):
      * 求解为 O(n³) 大整数运算,真实网络几乎不存在 256 键以上的可解环,
@@ -158,6 +167,38 @@ public final class CycleAnalyzer {
         @Nullable
         NetworkPatternIndex shared() {
             return this.shared;
+        }
+
+        /** 短环参与判定 memo(按样板实例;两遍编译/多键复用,枢纽 BFS 只跑一次). */
+        private final java.util.IdentityHashMap<ICraftingPatternDetails, Boolean> shortCycleMemo =
+                new java.util.IdentityHashMap<>();
+
+        /** 边界可解性判定 memo(按 canon 键;含环枚举/分析,必须只算一次). */
+        private final Map<IAEItemStack, Boolean> boundaryWorthMemo = new LinkedHashMap<>();
+
+        /** 样板是否参与短环(带 memo;语义见 {@link CycleAnalyzer#participatesInShortCycle}). */
+        public boolean participatesInShortCycle(ICraftingPatternDetails pattern) {
+            Boolean cached = this.shortCycleMemo.get(pattern);
+            if (cached != null) {
+                return cached;
+            }
+            boolean result = CycleAnalyzer.participatesInShortCycle(this.cc, this.world, pattern,
+                    this);
+            this.shortCycleMemo.put(pattern, result);
+            return result;
+        }
+
+        /** 边界键是否值得交给循环求解器(带 memo;语义见 {@link CycleAnalyzer#boundaryWorthSolving}). */
+        public boolean boundaryWorthSolving(IAEItemStack key, List<ICraftingPatternDetails> topLayer) {
+            IAEItemStack canon = RecursiveCraftingHelper.canon(key);
+            Boolean cached = this.boundaryWorthMemo.get(canon);
+            if (cached != null) {
+                return cached;
+            }
+            boolean result = CycleAnalyzer.boundaryWorthSolving(this.cc, this.world, canon, topLayer,
+                    this);
+            this.boundaryWorthMemo.put(canon, result);
+            return result;
         }
 
         /** 生产 {@code current} 的全部样板:主产出索引快路径 + 副产物倒排(按键缓存). */
@@ -226,6 +267,163 @@ public final class CycleAnalyzer {
         }
     }
 
+    /** 短环参与判定的跳数上限(本样板边 + 8 跳 = 环长 ≤ 9). */
+    private static final int SHORT_CYCLE_DEPTH = 8;
+    /** 短环判定 BFS 的键访问规模上限. */
+    private static final int SHORT_CYCLE_VISITED = 768;
+
+    /**
+     * 样板是否参与"短环":存在某输出键 O 与非自身输入键 I,使 I↝O 在
+     * {@link #SHORT_CYCLE_DEPTH} 跳内可达(加上本样板的 O→I 边即成环).
+     * <p>用途:巨型 SCC 中经门控物品长链闭合的<b>伪环</b>(拓扑同 SCC 但环长
+     * 十余跳、生产不可用,如奇点压缩机样板)不触发边界坍缩;真增产环/催化环的
+     * 共输入回路都在几跳之内.判定沿"被产生"边 BFS,visited 键数受限.</p>
+     */
+    public static boolean participatesInShortCycle(ICraftingGrid cc, World world,
+            ICraftingPatternDetails pattern, ProducerIndex producerIndex) {
+        Set<IAEItemStack> outputs = new HashSet<>();
+        for (IAEItemStack output : pattern.getCondensedOutputs()) {
+            if (output != null && output.getStackSize() > 0) {
+                outputs.add(RecursiveCraftingHelper.canon(output));
+            }
+        }
+        for (IAEItemStack input : pattern.getCondensedInputs()) {
+            if (input == null || input.getStackSize() <= 0) {
+                continue;
+            }
+            IAEItemStack from = RecursiveCraftingHelper.canon(input);
+            if (outputs.contains(from)) {
+                continue; // 自引用边不参与(dup 由专门闭式路径处理)
+            }
+            for (IAEItemStack out : outputs) {
+                if (reachesWithin(producerIndex, from, out)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /** BFS:from ↝ to(沿"被产生"边:v → 其生产样板的输入)在跳数上限内可达. */
+    private static boolean reachesWithin(ProducerIndex producerIndex, IAEItemStack from,
+            IAEItemStack to) {
+        Map<IAEItemStack, Integer> depth = new HashMap<>();
+        ArrayDeque<IAEItemStack> queue = new ArrayDeque<>();
+        depth.put(from, 0);
+        queue.add(from);
+        while (!queue.isEmpty()) {
+            IAEItemStack cur = queue.poll();
+            int d = depth.get(cur);
+            if (d >= SHORT_CYCLE_DEPTH) {
+                continue;
+            }
+            for (ICraftingPatternDetails producer : producerIndex.producersOf(cur)) {
+                for (IAEItemStack in : producer.getCondensedInputs()) {
+                    if (in == null || in.getStackSize() <= 0) {
+                        continue;
+                    }
+                    IAEItemStack next = RecursiveCraftingHelper.canon(in);
+                    if (next.equals(to)) {
+                        return true;
+                    }
+                    if (depth.size() >= SHORT_CYCLE_VISITED) {
+                        return false; // 枢纽扇出失控,保守判"非短环"
+                    }
+                    if (!depth.containsKey(next)) {
+                        depth.put(next, d + 1);
+                        queue.add(next);
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    /**
+     * 编译期"边界是否值得交给循环求解器"判定（坍缩与求解资格的统一判据）:
+     * <ol>
+     * <li>顶层样板净增自引用（dup 闭式快速路径）;</li>
+     * <li>过键短环任一可分析且增产，或并集增产（真增产环）;</li>
+     * <li>催化潜力：顶层样板是某非耗散短环的步骤,且本键<b>不在</b>该环环键上
+     * （环外发射产出,如 1A→1X+1B / 1B→1A 中的 X)。本键在环键上的中性环
+     * （锭⇄粒⇄块转换)不算——那是库存转换语义,环盲展开即可,原生同语义;</li>
+     * </ol>
+     * 三者皆否 → 伪环/纯耗散环/巨环,不值得建边界（求解必败）,应环盲展开.
+     * 枚举与分析均走 memo({@link NetworkPatternIndex#cyclesThrough} 等),多键复用.
+     * <p>③ 先经 {@link #participatesInShortCycle} 按样板剪枝:催化环必含顶层样板
+     * 且环长 ≤ {@link #MAX_CYCLE_DEPTH},不参与短环的样板其输入枚举(枢纽键上
+     * 逐个 IDDFS)纯属烧预算——实测整合包巨网中该枚举占边界判定耗时主体.</p>
+     */
+    public static boolean boundaryWorthSolving(ICraftingGrid cc, World world, IAEItemStack key,
+            List<ICraftingPatternDetails> topLayer, ProducerIndex producerIndex) {
+        IAEItemStack canon = RecursiveCraftingHelper.canon(key);
+        for (ICraftingPatternDetails pattern : topLayer) {
+            if (RecursiveCraftingHelper.isNetPositiveSelfRef(pattern, canon)) {
+                return true; // ① dup 闭式路径
+            }
+        }
+        // ② 前置剪枝:过键短环的第一步必用 canon 的某个生产者样板;若所有生产者
+        // 样板都不参与短环(BFS 判定比 IDDFS 枚举便宜,且按样板 memo),则 ②
+        // 不可能成立——巨型 SCC 伪环键(拓扑同 SCC 但环长十余跳)在此快速判否,
+        // 避免每个边界键都烧一轮 7×1024 的 IDDFS 枚举
+        boolean anyShortCycleProducer = false;
+        for (ICraftingPatternDetails pattern : producerIndex.producersOf(canon)) {
+            if (participatesInShortCycle(cc, world, pattern, producerIndex)) {
+                anyShortCycleProducer = true;
+                break;
+            }
+        }
+        if (anyShortCycleProducer) {
+            List<List<CycleStep>> cycles = findCyclesThrough(cc, canon, world);
+            for (List<CycleStep> cycle : cycles) {
+                Analysis analysis = analyze(cycle);
+                if (analysis != null && analysis.rateClass() == RateClass.PRODUCTIVE) {
+                    return true; // ② 增产短环
+                }
+            }
+            Analysis union = analyzeUnion(cycles);
+            if (union != null && union.rateClass() == RateClass.PRODUCTIVE) {
+                return true; // ② 并集增产
+            }
+        }
+        for (ICraftingPatternDetails pattern : topLayer) {
+            // ③ 的环必含该样板且长度 ≤ MAX_CYCLE_DEPTH(⇒ 样板参与短环);
+            // 不参与短环的样板直接跳过——否则其每个枢纽输入都要跑一轮 IDDFS
+            if (!participatesInShortCycle(cc, world, pattern, producerIndex)) {
+                continue;
+            }
+            for (IAEItemStack input : pattern.getCondensedInputs()) {
+                if (input == null || input.getStackSize() <= 0) {
+                    continue;
+                }
+                IAEItemStack inputKey = RecursiveCraftingHelper.canon(input);
+                if (inputKey.equals(canon)) {
+                    continue; // 自引用已由①处理
+                }
+                for (List<CycleStep> cycle : findCyclesThrough(cc, inputKey, world)) {
+                    boolean stepOfPattern = false;
+                    boolean keyOnCycle = false;
+                    for (CycleStep step : cycle) {
+                        if (step.pattern() == pattern) {
+                            stepOfPattern = true;
+                        }
+                        if (step.fromKey().equals(canon) || step.toKey().equals(canon)) {
+                            keyOnCycle = true;
+                        }
+                    }
+                    if (!stepOfPattern || keyOnCycle) {
+                        continue;
+                    }
+                    Analysis analysis = analyze(cycle);
+                    if (analysis != null && analysis.rateClass() != RateClass.DISSIPATIVE) {
+                        return true; // ③ 催化潜力(环外发射)
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
     /**
      * 枚举经过 {@code root} 的所有简单环（长度 ≥ 2;自引用环由阶段 1 处理,此处跳过）,
      * 按环长度降序返回（长环的键集更完整,优先尝试）.
@@ -233,24 +431,50 @@ public final class CycleAnalyzer {
      * 都视为被该样板生产——否则经副产物闭合的催化环(如 1A→1X+1B、1B→1A)不可见.</p>
      */
     public static List<List<CycleStep>> findCyclesThrough(ICraftingGrid cc, IAEItemStack root, World world) {
-        int[] budget = { MAX_VISITED };
-        List<List<CycleStep>> cycles = new ArrayList<>();
-        Set<IAEItemStack> onPath = new HashSet<>();
         IAEItemStack rootKey = RecursiveCraftingHelper.canon(root);
-        onPath.add(rootKey);
-        LinkedHashMap<IAEItemStack, CycleStep> chain = new LinkedHashMap<>();
-        dfs(cc, world, rootKey, rootKey, onPath, chain, budget, cycles, new ProducerIndex(cc, world));
+        // 枚举只依赖样板集:经网络级索引 memo(随样板集失效),同一环键跨边界/跨请求复用
+        NetworkPatternIndex sharedIndex = NetworkPatternIndex.of(cc);
+        if (sharedIndex != null) {
+            List<List<CycleStep>> memo = sharedIndex.cyclesThrough(rootKey);
+            if (memo != null) {
+                return memo;
+            }
+        }
+        List<List<CycleStep>> cycles = new ArrayList<>();
+        Set<String> seenSignatures = new HashSet<>(); // 跨轮去重(IDDFS 前轮发现的环会在后轮重复出现)
+        ProducerIndex producerIndex = new ProducerIndex(cc, world);
+        Integer rootScc = sharedIndex != null ? sharedIndex.sccIdOf(rootKey) : null;
+        // IDDFS:按环长从小到大逐轮加深。巨网枢纽(煤/红石等数千扇出)会把单轮 DFS
+        // 预算烧在浅层分支上,深度无界时短环可能永远枚举不到(实测:奇点/烈焰粉的
+        // 短环被红石枢纽挤掉,只枚举到数百键的不可解巨环);逐轮加深保证短环优先且
+        // 确定性地进入结果集,环长超 MAX_CYCLE_DEPTH 的环本就超出求解上限
+        for (int depthLimit = 2; depthLimit <= MAX_CYCLE_DEPTH
+                && cycles.size() < MAX_CYCLES; depthLimit++) {
+            int[] budget = { MAX_VISITED_PER_ROUND };
+            Set<IAEItemStack> onPath = new HashSet<>();
+            onPath.add(rootKey);
+            LinkedHashMap<IAEItemStack, CycleStep> chain = new LinkedHashMap<>();
+            dfs(cc, world, rootKey, rootKey, onPath, chain, budget, cycles, producerIndex,
+                    sharedIndex, rootScc, depthLimit, seenSignatures);
+        }
         cycles.sort((a, b) -> Integer.compare(b.size(), a.size()));
+        if (sharedIndex != null) {
+            sharedIndex.memoCyclesThrough(rootKey, cycles); // 只读共享,调用方不得修改
+        }
         return cycles;
     }
 
     /**
      * 沿"被产生"边回溯 DFS:current 由某 pattern 产生,其输入 from 即反向边.
      * from == root 时闭合为环并记录（继续搜索其他环）.
+     * sharedIndex/rootScc 非空时按 SCC 剪枝:只递归与 root 同 SCC 的键;
+     * depthLimit 为当前轮环长上限(IDDFS);seenSignatures 跨轮去重.
      */
     private static void dfs(ICraftingGrid cc, World world, IAEItemStack root, IAEItemStack current,
             Set<IAEItemStack> onPath, LinkedHashMap<IAEItemStack, CycleStep> chain, int[] budget,
-            List<List<CycleStep>> cycles, ProducerIndex producerIndex) {
+            List<List<CycleStep>> cycles, ProducerIndex producerIndex,
+            @Nullable NetworkPatternIndex sharedIndex, @Nullable Integer rootScc, int depthLimit,
+            Set<String> seenSignatures) {
         if (budget[0]-- <= 0 || cycles.size() >= MAX_CYCLES) {
             return;
         }
@@ -280,7 +504,9 @@ public final class CycleAnalyzer {
                     List<CycleStep> chainSteps = new ArrayList<>(chain.values());
                     Collections.reverse(chainSteps);
                     steps.addAll(chainSteps);
-                    cycles.add(steps);
+                    if (seenSignatures.add(cycleSignature(steps))) {
+                        cycles.add(steps);
+                    }
                     if (cycles.size() >= MAX_CYCLES) {
                         return;
                     }
@@ -289,13 +515,31 @@ public final class CycleAnalyzer {
                 if (onPath.contains(from)) {
                     continue; // 只接受经过 root 的简单环
                 }
+                if (rootScc != null && !rootScc.equals(sharedIndex.sccIdOf(from))) {
+                    continue; // 非本 SCC 的键不可能闭合回 root,剪掉枢纽扇出
+                }
+                if (chain.size() + 2 > depthLimit) {
+                    continue; // 本轮深度耗尽:新步 + 闭合边超出环长上限
+                }
                 onPath.add(from);
                 chain.put(from, step);
-                dfs(cc, world, root, from, onPath, chain, budget, cycles, producerIndex);
+                dfs(cc, world, root, from, onPath, chain, budget, cycles, producerIndex,
+                        sharedIndex, rootScc, depthLimit, seenSignatures);
                 chain.remove(from);
                 onPath.remove(from);
             }
         }
+    }
+
+    /** 环签名(键序无关):跨轮去重;同键对不同样板视为不同环(次数解不同). */
+    private static String cycleSignature(List<CycleStep> steps) {
+        List<String> parts = new ArrayList<>(steps.size());
+        for (CycleStep step : steps) {
+            parts.add(step.fromKey() + ">" + step.toKey() + "#"
+                    + System.identityHashCode(step.pattern()));
+        }
+        Collections.sort(parts);
+        return String.join("|", parts);
     }
 
     /**

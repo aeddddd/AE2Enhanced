@@ -41,15 +41,28 @@ public final class NetworkPatternIndex {
     private final Map<IAEItemStack, List<ICraftingPatternDetails>> byproduct;
     /** canon 键 → SCC 编号（边：样板输出键 → 样板输入键）. */
     private final Map<IAEItemStack, Integer> sccId;
+    /** SCC 编号 → 键数(巨型分量识别:预检用其判定"蛛网子树"爆炸风险). */
+    private final Map<Integer, Integer> sccSizes;
     private final Map<IAEItemStack, Boolean> detectorMemo = new ConcurrentHashMap<>();
     private final Map<ICraftingPatternDetails, Boolean> cycleStepMemo = new ConcurrentHashMap<>();
     /** 环分析 memo:环签名 → 分析结果(含 null=已确认不可解);随样板集一并失效. */
     private final Map<CycleAnalyzer.CycleSignature, java.util.Optional<CycleAnalyzer.Analysis>> analysisMemo = new ConcurrentHashMap<>();
+    /**
+     * 环枚举 memo:canon 请求键 → 过该键的全部简单环(只读共享,调用方不得修改).
+     * 枚举只依赖样板集(与库存无关),随索引一并失效;复杂订单中同一环键会被多个
+     * CYCLE 边界节点/催化环兜底反复枚举(budget=512 的 DFS),memo 消除重复枚举.
+     */
+    private final Map<IAEItemStack, List<List<CycleAnalyzer.CycleStep>>> cyclesMemo = new ConcurrentHashMap<>();
 
     private NetworkPatternIndex(Map<IAEItemStack, List<ICraftingPatternDetails>> byproduct,
             Map<IAEItemStack, Integer> sccId) {
         this.byproduct = byproduct;
         this.sccId = sccId;
+        Map<Integer, Integer> sizes = new HashMap<>();
+        for (Integer id : sccId.values()) {
+            sizes.merge(id, 1, Integer::sum);
+        }
+        this.sccSizes = sizes;
     }
 
     /**
@@ -118,6 +131,19 @@ public final class NetworkPatternIndex {
         return this.byproduct;
     }
 
+    /** 键所属 SCC 编号（不在键图中返回 null）;供环枚举的同 SCC 剪枝. */
+    @Nullable
+    public Integer sccIdOf(IAEItemStack canonKey) {
+        return this.sccId.get(canonKey);
+    }
+
+    /** 键所属 SCC 的规模(键数;不在键图中返回 0);供"蛛网子树"爆炸预检. */
+    public int sccSizeOf(IAEItemStack canonKey) {
+        Integer id = this.sccId.get(canonKey);
+        Integer size = id == null ? null : this.sccSizes.get(id);
+        return size == null ? 0 : size;
+    }
+
     /**
      * 样板是否成环步骤：某输入键与某输出键处于同一 SCC
      * （输入键可经"被产生"边回到输出键 ⇔ 同 SCC，因本样板自带 输出→输入 边）.
@@ -162,6 +188,18 @@ public final class NetworkPatternIndex {
 
     public void memoDetectorVerdict(IAEItemStack canonKey, boolean verdict) {
         this.detectorMemo.put(canonKey, verdict);
+    }
+
+    /**
+     * 环枚举 memo:命中即返回(只读共享);未命中由调用方计算后 {@link #memoCyclesThrough} 记忆.
+     */
+    @Nullable
+    public List<List<CycleAnalyzer.CycleStep>> cyclesThrough(IAEItemStack canonKey) {
+        return this.cyclesMemo.get(canonKey);
+    }
+
+    public void memoCyclesThrough(IAEItemStack canonKey, List<List<CycleAnalyzer.CycleStep>> cycles) {
+        this.cyclesMemo.putIfAbsent(canonKey, cycles);
     }
 
     /**

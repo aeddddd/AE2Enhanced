@@ -85,6 +85,10 @@ public abstract class MixinCraftingCPUClusterAggregate {
     @Unique
     private static final Map<String, Long> AE2E_DEBUG_THROTTLE = new java.util.HashMap<>();
 
+    /** 二分定位开关：-Dae2e.disableAggregate=true 时聚合发配完全禁用（原生逐份）. */
+    @Unique
+    private static final boolean AE2E_DISABLE_AGGREGATE = Boolean.getBoolean("ae2e.disableAggregate");
+
     /** medium 批量容量上限（AIMD：失败减半，成功触顶翻倍；缺省无上限）. */
     @Unique
     private final IdentityHashMap<ICraftingMedium, Long> ae2e$batchCeilings = new IdentityHashMap<>();

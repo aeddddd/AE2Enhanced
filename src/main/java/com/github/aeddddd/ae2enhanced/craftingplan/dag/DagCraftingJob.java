@@ -20,6 +20,7 @@ import appeng.crafting.MECraftingInventory;
 import appeng.hooks.TickHandler;
 
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
+import com.github.aeddddd.ae2enhanced.diag.metrics.MetricsRegistry;
 import com.github.aeddddd.ae2enhanced.diag.plan.PlanTracker;
 import com.github.aeddddd.ae2enhanced.specialcrafting.Ae2CraftingReflect;
 import com.github.aeddddd.ae2enhanced.specialcrafting.NativeCalcBudget;
@@ -47,6 +48,10 @@ public class DagCraftingJob extends CraftingJob
     /** 原生回落计算预算状态（MixinCraftingJob 的 handlePausing 心跳读取）. */
     private long nativeCalcDeadlineNanos;
     private boolean nativeCalcAborted;
+
+    /** 最近一次 DAG 回落原因（冒号前段作为指标键）,供 run() 回落路径计数. */
+    @Nullable
+    private String lastFallbackReason;
 
     @Override
     public long ae2enhanced$nativeCalcDeadlineNanos() {
@@ -88,6 +93,9 @@ public class DagCraftingJob extends CraftingJob
                 Ae2CraftingReflect.setAvailableCheck(this, null);
                 // 回落原生:挂计算预算——病态计划的原生递归可能永不结束,
                 // 而下单流程(如 RandomComplement 的 setJob 混入)会同步阻塞服务器线程
+                recordFallback(this.lastFallbackReason);
+                MetricsRegistry.timer("plan.computeMs.dagPhase")
+                        .record(System.nanoTime() - planStart);
                 NativeCalcBudget.arm(this);
                 delegatedToNative = true;
                 super.run();
@@ -109,6 +117,9 @@ public class DagCraftingJob extends CraftingJob
         } catch (Throwable t) {
             AE2Enhanced.LOGGER.warn("DAG 计划异常,回落原生计算: {}", t.toString());
             Ae2CraftingReflect.setAvailableCheck(this, null);
+            recordFallback(this.lastFallbackReason != null ? this.lastFallbackReason : "exception");
+            MetricsRegistry.timer("plan.computeMs.dagPhase")
+                    .record(System.nanoTime() - planStart);
             NativeCalcBudget.arm(this);
             delegatedToNative = true;
             super.run();
@@ -120,6 +131,15 @@ public class DagCraftingJob extends CraftingJob
         }
     }
 
+    /** 回落原因计数:reason 取冒号前段(排除物品键等变长部分),键不存在计 unknown. */
+    private static void recordFallback(@Nullable String reason) {
+        String key = reason == null ? "unknown" : reason.split(":")[0];
+        MetricsRegistry.counter("plan.fallback." + key).increment();
+    }
+
+    /** 环盲降级重试上限:每次把一个不可解边界键转为环盲重编译. */
+    private static final int MAX_BLIND_RETRIES = 8;
+
     /**
      * @return 物化完成的根节点;任何不适用情形返回 null（调用方回落原生）.
      */
@@ -129,40 +149,107 @@ public class DagCraftingJob extends CraftingJob
         ICraftingGrid cc = Ae2CraftingReflect.getCc(this);
         IAEItemStack output = this.getOutput();
 
-        DagGraph graph;
-        try {
-            graph = DagCompiler.compile(cc, output, this.world);
-        } catch (DagFallback fallback) {
-            SpecialLog.info("[DAG] 编译回落({}): {}", fallback.reason, output);
-            return null;
-        }
+        DagGraph graph = null;
+        CraftingTreeNode root = null;
+        DagExecutor.Result result = null;
+        // 环盲降级:边界求解失败(伪环/耗散环本就无解)时,把该键转为环盲重编译——
+        // 按原生 notRecursive 语义展开(回边切纯库存叶子),逐键降级直到计划成型
+        java.util.Set<IAEItemStack> cycleBlind = new java.util.HashSet<>();
+        // 跨波次共享的编译上下文:边界判定/矿词展开按不可变样板记忆,波次间复用
+        com.github.aeddddd.ae2enhanced.specialcrafting.CycleAnalyzer.ProducerIndex sharedProducerIndex =
+                new com.github.aeddddd.ae2enhanced.specialcrafting.CycleAnalyzer.ProducerIndex(cc,
+                        this.world);
+        java.util.Map<appeng.api.networking.crafting.ICraftingPatternDetails, java.util.Map<IAEItemStack, java.util.List<IAEItemStack>>> sharedSubstituteCache =
+                new java.util.IdentityHashMap<>();
+        // 最终兜底波次:重试预算耗尽后置位,下一波编译一切回边目标都按环盲处理
+        // (巨网中"盲化→暴露新边界"的打地鼠可无限继续,该波保证收敛)
+        boolean allCyclesBlind = false;
+        for (int attempt = 0;; attempt++) {
+            long compileStart = System.nanoTime();
+            try {
+                graph = DagCompiler.compile(cc, output, this.world, cycleBlind, sharedProducerIndex,
+                        sharedSubstituteCache, allCyclesBlind);
+            } catch (DagFallback fallback) {
+                this.lastFallbackReason = fallback.reason;
+                SpecialLog.info("[DAG] 编译回落({}): {}", fallback.reason, output);
+                return null;
+            } finally {
+                MetricsRegistry.timer("plan.phase.dag.compileMs")
+                        .record(System.nanoTime() - compileStart);
+            }
 
-        // 趟 1:非模拟语义(多样板节点分支按供给容量封顶 = 真分支耗尽)
-        DagExecutor.Result result;
-        CraftingTreeNode root;
-        try {
-            root = this.executePass(graph, output, cc, src, false);
-            result = this.lastPassResult;
-        } catch (DagFallback fallback) {
-            SpecialLog.info("[DAG] 执行回落({}): {}", fallback.reason, output);
-            return null;
-        }
-        if (!result.missingItems.isEmpty()) {
-            // 原生 simulation 标志由失败重试置位;DAG 缺料不抛异常,须显式置位,
-            // 否则产出"有缺料却标记可提交"的不一致计划
-            Ae2CraftingReflect.setSimulate(this, true);
-            if (graph.hasMultiBranch) {
-                // 趟 2(移植自 1.20.1):镜像原生失败重试——模拟语义下首分支不封顶
-                // ("乐观幻影生产"),缺料浮现于分支 1 原料层,分支 2 不参与;
-                // 单分支图两趟等价,无需重算(既有单趟行为,parity 测试锁定)
-                try {
-                    root = this.executePass(graph, output, cc, src, true);
-                    result = this.lastPassResult;
-                } catch (DagFallback fallback) {
-                    SpecialLog.info("[DAG] 模拟趟执行回落({}): {}", fallback.reason, output);
-                    return null;
+            // 趟 1:非模拟语义(多样板节点分支按供给容量封顶 = 真分支耗尽)
+            long pass1Start = System.nanoTime();
+            try {
+                root = this.executePass(graph, output, cc, src, false);
+                result = this.lastPassResult;
+            } catch (DagFallback fallback) {
+                if (!fallback.blindKeys.isEmpty() && attempt < MAX_BLIND_RETRIES
+                        && cycleBlind.addAll(fallback.blindKeys)) {
+                    SpecialLog.info("[DAG] 边界求解失败,降级环盲重编译(波次 {},新增 {} 键): {}",
+                            attempt + 1, fallback.blindKeys.size(), fallback.blindKeys);
+                    MetricsRegistry.counter("plan.dag.cycleBlindRetry").increment();
+                    continue;
+                }
+                // 重试预算耗尽:下一波编译进入全环盲兜底(一切回边目标切库存叶子,
+                // 不再产生循环边界)——病态巨网订单逐波打地鼠可能超预算,跌回原生
+                // 递归即高请求计算卡死(生产事故语义);全盲波缺料如实上报且必然收敛
+                if (!fallback.blindKeys.isEmpty() && attempt >= MAX_BLIND_RETRIES
+                        && !allCyclesBlind) {
+                    allCyclesBlind = true;
+                    SpecialLog.info("[DAG] 环盲重试预算耗尽,进入全环盲兜底波次(剩余 {} 键不再尝试求解)",
+                            fallback.blindKeys.size());
+                    MetricsRegistry.counter("plan.dag.cycleBlindFinalSweep").increment();
+                    continue;
+                }
+                this.lastFallbackReason = fallback.reason;
+                SpecialLog.info("[DAG] 执行回落({}): {}", fallback.reason, output);
+                return null;
+            } finally {
+                MetricsRegistry.timer("plan.phase.dag.pass1Ms")
+                        .record(System.nanoTime() - pass1Start);
+            }
+
+            if (!result.missingItems.isEmpty()) {
+                // 原生 simulation 标志由失败重试置位;DAG 缺料不抛异常,须显式置位,
+                // 否则产出"有缺料却标记可提交"的不一致计划
+                Ae2CraftingReflect.setSimulate(this, true);
+                if (graph.hasMultiBranch) {
+                    // 趟 2(移植自 1.20.1):镜像原生失败重试——模拟语义下首分支不封顶
+                    // ("乐观幻影生产"),缺料浮现于分支 1 原料层,分支 2 不参与;
+                    // 单分支图两趟等价,无需重算(既有单趟行为,parity 测试锁定)
+                    long pass2Start = System.nanoTime();
+                    try {
+                        root = this.executePass(graph, output, cc, src, true);
+                        result = this.lastPassResult;
+                    } catch (DagFallback fallback) {
+                        if (!fallback.blindKeys.isEmpty() && attempt < MAX_BLIND_RETRIES
+                                && cycleBlind.addAll(fallback.blindKeys)) {
+                            SpecialLog.info("[DAG] 模拟趟边界求解失败,降级环盲重编译(新增 {} 键): {}",
+                                    fallback.blindKeys.size(), fallback.blindKeys);
+                            MetricsRegistry.counter("plan.dag.cycleBlindRetry").increment();
+                            continue;
+                        }
+                        // 与趟 1 同理:重试预算耗尽后进入全环盲兜底波次保证收敛,
+                        // 否则模拟趟在此跌回原生递归(高请求计算卡死)
+                        if (!fallback.blindKeys.isEmpty() && attempt >= MAX_BLIND_RETRIES
+                                && !allCyclesBlind) {
+                            allCyclesBlind = true;
+                            SpecialLog.info("[DAG] 模拟趟环盲重试预算耗尽,进入全环盲兜底波次(剩余 {} 键不再尝试求解)",
+                                    fallback.blindKeys.size());
+                            MetricsRegistry.counter("plan.dag.cycleBlindFinalSweep").increment();
+                            continue;
+                        }
+                        this.lastFallbackReason = fallback.reason;
+                        SpecialLog.info("[DAG] 模拟趟执行回落({}): {}", fallback.reason, output);
+                        return null;
+                    } finally {
+                        MetricsRegistry.timer("plan.phase.dag.pass2Ms")
+                                .record(System.nanoTime() - pass2Start);
+                    }
                 }
             }
+            break;
         }
         this.hasCycleBoundary = result.hasCycleBoundary;
         SpecialLog.info("[DAG] 计划完成: {}×{},节点 {},循环边界 {}", output, output.getStackSize(),

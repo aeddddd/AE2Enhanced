@@ -35,7 +35,8 @@ import java.util.List;
  * 本 mixin 完整复刻原方法逻辑, 仅将 fuzzy 分支的全表扫描结果按 tick 缓存
  * (见 CraftFuzzyCandidateCache), 候选被抽空时自动失效并重扫, 语义与原实现一致.
  *
- * 位于 mixins.ae2enhanced.late.json, 无条件加载.
+ * 位于 mixins.ae2enhanced.early.json：部分整合包的 coremod 在 late 配置生效前
+ * 就加载 appeng.util.Platform（"loaded too early" 导致 mixin 被拒），故提前注册.
  */
 @Mixin(value = Platform.class, remap = false)
 public abstract class MixinPlatformCraftExtract {

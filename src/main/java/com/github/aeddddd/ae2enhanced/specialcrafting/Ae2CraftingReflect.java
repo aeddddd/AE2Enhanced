@@ -49,6 +49,14 @@ public final class Ae2CraftingReflect {
     private static final Method NODE_SET_SIMULATE;
     private static final Method INV_IGNORE;
     private static final Method PROCESS_ADD_PROCESS;
+    private static final Field NODE_PARENT;
+    private static final Field NODE_EMITTED;
+    private static final Method NODE_ADD_NODE;
+    private static final Field PROCESS_CONTAINERS;
+    private static final Method PROCESS_ADD_CONTAINERS;
+    private static final Method JOB_CHECK_USE;
+    private static final Method JOB_REFUND;
+    private static final Method NODE_GET_SLOT;
 
     static {
         try {
@@ -102,6 +110,23 @@ public final class Ae2CraftingReflect {
             INV_IGNORE.setAccessible(true);
             PROCESS_ADD_PROCESS = CraftingTreeProcess.class.getDeclaredMethod("addProcess");
             PROCESS_ADD_PROCESS.setAccessible(true);
+            NODE_PARENT = CraftingTreeNode.class.getDeclaredField("parent");
+            NODE_PARENT.setAccessible(true);
+            NODE_EMITTED = CraftingTreeNode.class.getDeclaredField("howManyEmitted");
+            NODE_EMITTED.setAccessible(true);
+            NODE_ADD_NODE = CraftingTreeNode.class.getDeclaredMethod("addNode");
+            NODE_ADD_NODE.setAccessible(true);
+            PROCESS_CONTAINERS = CraftingTreeProcess.class.getDeclaredField("containers");
+            PROCESS_CONTAINERS.setAccessible(true);
+            PROCESS_ADD_CONTAINERS = CraftingTreeProcess.class.getDeclaredMethod("addContainers",
+                    IAEItemStack.class);
+            PROCESS_ADD_CONTAINERS.setAccessible(true);
+            JOB_CHECK_USE = CraftingJob.class.getDeclaredMethod("checkUse", IAEItemStack.class);
+            JOB_CHECK_USE.setAccessible(true);
+            JOB_REFUND = CraftingJob.class.getDeclaredMethod("refund", IAEItemStack.class);
+            JOB_REFUND.setAccessible(true);
+            NODE_GET_SLOT = CraftingTreeNode.class.getDeclaredMethod("getSlot");
+            NODE_GET_SLOT.setAccessible(true);
         } catch (ReflectiveOperationException e) {
             throw new ExceptionInInitializerError(e);
         }
@@ -358,6 +383,98 @@ public final class Ae2CraftingReflect {
             PROCESS_ADD_PROCESS.invoke(pro);
         } catch (ReflectiveOperationException e) {
             throw new IllegalStateException("调用 CraftingTreeProcess.addProcess 失败", e);
+        }
+    }
+
+    /** CraftingTreeNode.parent(包私有):该输入节点所属的样板 process,根请求节点为 null. */
+    @javax.annotation.Nullable
+    public static CraftingTreeProcess getNodeParent(CraftingTreeNode node) {
+        try {
+            return (CraftingTreeProcess) NODE_PARENT.get(node);
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException("访问 CraftingTreeNode.parent 失败", e);
+        }
+    }
+
+    /** CraftingTreeNode.howManyEmitted(私有):发射台免费满足的数量,populatePlan/setJob 读取. */
+    public static void setNodeEmitted(CraftingTreeNode node, long emitted) {
+        try {
+            NODE_EMITTED.setLong(node, emitted);
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException("写入 CraftingTreeNode.howManyEmitted 失败", e);
+        }
+    }
+
+    /** CraftingTreeNode.addNode(包私有,惰性):按 notRecursive 过滤构建候选 process 列表. */
+    public static void nodeAddNode(CraftingTreeNode node) {
+        try {
+            NODE_ADD_NODE.invoke(node);
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException("调用 CraftingTreeNode.addNode 失败", e);
+        }
+    }
+
+    /** CraftingTreeNode.bytes 为 int 字段(原生如此),读取当前值. */
+    public static long getNodeBytes(CraftingTreeNode node) {
+        try {
+            return NODE_BYTES.getInt(node);
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException("访问 CraftingTreeNode.bytes 失败", e);
+        }
+    }
+
+    /**
+     * CraftingTreeProcess.containers(私有)取出并清空:复刻原生 request 尾部
+     * "注入累积容器物并置 null"的语义.
+     */
+    @SuppressWarnings("unchecked")
+    public static ArrayList<IAEItemStack> processDrainContainers(CraftingTreeProcess pro) {
+        try {
+            ArrayList<IAEItemStack> containers = (ArrayList<IAEItemStack>) PROCESS_CONTAINERS.get(pro);
+            PROCESS_CONTAINERS.set(pro, null);
+            return containers;
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException("访问 CraftingTreeProcess.containers 失败", e);
+        }
+    }
+
+    /** CraftingTreeProcess.addContainers(包私有):子请求提取到带容器物时回记容器. */
+    public static void processAddContainer(CraftingTreeProcess pro, IAEItemStack container) {
+        try {
+            PROCESS_ADD_CONTAINERS.invoke(pro, container);
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException("调用 CraftingTreeProcess.addContainers 失败", e);
+        }
+    }
+
+    /**
+     * CraftingJob.checkUse(包私有):从 availableCheck 实取并返回记账用堆叠
+     *(不可用时返回 null,调用方不记 used).
+     */
+    @javax.annotation.Nullable
+    public static IAEItemStack jobCheckUse(CraftingJob job, IAEItemStack available) {
+        try {
+            return (IAEItemStack) JOB_CHECK_USE.invoke(job, available);
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException("调用 CraftingJob.checkUse 失败", e);
+        }
+    }
+
+    /** CraftingJob.refund(包私有):把堆叠退回 availableCheck(分支失败退款). */
+    public static void jobRefund(CraftingJob job, IAEItemStack stack) {
+        try {
+            JOB_REFUND.invoke(job, stack);
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException("调用 CraftingJob.refund 失败", e);
+        }
+    }
+
+    /** CraftingTreeNode.getSlot(包私有):该输入节点在父样板中的槽位(根节点为 -1). */
+    public static int getNodeSlot(CraftingTreeNode node) {
+        try {
+            return (Integer) NODE_GET_SLOT.invoke(node);
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException("调用 CraftingTreeNode.getSlot 失败", e);
         }
     }
 }

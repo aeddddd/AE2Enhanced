@@ -18,6 +18,7 @@ import com.github.aeddddd.ae2enhanced.AE2Enhanced;
 import com.github.aeddddd.ae2enhanced.config.AE2EnhancedConfig;
 import com.github.aeddddd.ae2enhanced.diag.DiagReport;
 import com.github.aeddddd.ae2enhanced.diag.DiagSwitch;
+import com.github.aeddddd.ae2enhanced.diag.harvest.RecipeHarvester;
 import com.github.aeddddd.ae2enhanced.diag.check.CheckResult;
 import com.github.aeddddd.ae2enhanced.diag.check.DiagChecks;
 import com.github.aeddddd.ae2enhanced.diag.check.SystemCheck;
@@ -90,7 +91,7 @@ public class CommandAE2Enhanced extends CommandBase {
     @Override
     @Nonnull
     public String getUsage(@Nonnull ICommandSender sender) {
-        return "/ae2e <channels|fastpathing|specialcrafting|recoverhd|testhd|migratefluids|chamberdebug|diag|debug|perf|pd|help>";
+        return "/ae2e <channels|fastpathing|specialcrafting|recoverhd|testhd|migratefluids|chamberdebug|diag|debug|perf|harvest|pd|help>";
     }
 
     /**
@@ -111,7 +112,7 @@ public class CommandAE2Enhanced extends CommandBase {
 
     private static final String[] SUBCOMMANDS = {
             "channels", "fastpathing", "specialcrafting", "recoverhd", "testhd", "migratefluids",
-            "chamberdebug", "diag", "debug", "perf", "plan", "pd", "help"
+            "chamberdebug", "diag", "debug", "perf", "plan", "harvest", "pd", "help"
     };
     private static final String[] DIAG_SUBCOMMANDS = {"check", "report"};
     private static final String[] DIAG_CHECK_SYSTEMS = {"all", "storage", "channels", "recipes", "grid", "personaldim"};
@@ -314,6 +315,10 @@ public class CommandAE2Enhanced extends CommandBase {
                 if (!requireAnalysis(sender)) return;
                 executePlan(sender, args);
                 break;
+            case "harvest":
+                if (!requireAdmin(sender)) return;
+                executeHarvest(sender);
+                break;
             case "help":
                 executeHelp(sender);
                 break;
@@ -484,6 +489,9 @@ public class CommandAE2Enhanced extends CommandBase {
         sender.sendMessage(new TextComponentString(TextFormatting.GRAY + "  Crafting plan path stats (special/dag/fallback/native counts, compute time, conservation check)."));
         sender.sendMessage(new TextComponentString(TextFormatting.YELLOW + "/ae2e plan running"));
         sender.sendMessage(new TextComponentString(TextFormatting.GRAY + "  List busy crafting CPUs with progress, co-processors and elapsed time."));
+        sender.sendMessage(new TextComponentString(TextFormatting.YELLOW + "/ae2e harvest"));
+        sender.sendMessage(new TextComponentString(TextFormatting.GRAY + "  Harvest final recipe registries (crafting/furnace/ore dict/machines) to logs/ae2enhanced/harvest-<ts>.json."));
+        sender.sendMessage(new TextComponentString(TextFormatting.GRAY + "  Dev/test workflow: snapshot feeds the modpack recipe simulation fixture (research/harvest/, not committed)."));
         sender.sendMessage(new TextComponentString(TextFormatting.YELLOW + "/ae2e help"));
         sender.sendMessage(new TextComponentString(TextFormatting.GRAY + "  Display this help message."));
         sender.sendMessage(new TextComponentString(TextFormatting.AQUA + "=============================================="));
@@ -557,6 +565,20 @@ public class CommandAE2Enhanced extends CommandBase {
             sender.sendMessage(msg(TextFormatting.RED, "chat.ae2enhanced.diag.report_failed"));
         } else {
             sender.sendMessage(msg(TextFormatting.GREEN, "chat.ae2enhanced.diag.report_done", file.getPath()));
+        }
+    }
+
+    /**
+     * 整合包配方快照采集（测试工作流）:终态注册表 → logs/ae2enhanced/harvest-*.json,
+     * 供 ModpackFixture 在虚拟测试中重放（快照拷入 research/harvest/,不入 Git）.
+     */
+    private void executeHarvest(@Nonnull ICommandSender sender) {
+        sender.sendMessage(msg(TextFormatting.AQUA, "chat.ae2enhanced.harvest.start"));
+        File file = RecipeHarvester.harvest();
+        if (file == null) {
+            sender.sendMessage(msg(TextFormatting.RED, "chat.ae2enhanced.harvest.failed"));
+        } else {
+            sender.sendMessage(msg(TextFormatting.GREEN, "chat.ae2enhanced.harvest.done", file.getPath()));
         }
     }
 

@@ -575,6 +575,18 @@ public class AE2EnhancedConfig {
         public int nativeCalcBudgetMs = 30000;
 
         @Config.Comment({
+            "Wall-clock budget (milliseconds) for solving ONE cycle boundary inside a",
+            "DAG plan. Vanilla batch simulation degrades to a per-unit loop with a full",
+            "inventory snapshot per unit on multi-producer subtrees; on pathological",
+            "modpack webs a single boundary solve can burn the entire job budget",
+            "(observed 20-35s). On expiry the boundary is treated as unsolvable and the",
+            "plan is recompiled cycle-blind (truthful missing-materials report).",
+            "Range: 200 ~ 30000, Default: 1500"
+        })
+        @Config.RangeInt(min = 200, max = 30000)
+        public int cycleBoundarySolveBudgetMs = 1500;
+
+        @Config.Comment({
             "Maximum number of DAG plan graph nodes before the DAG planner declines",
             "and falls back to vanilla calculation. Large modpack autocrafting orders",
             "can legitimately exceed 100k distinct items; the planner is linear in",

@@ -45,7 +45,6 @@ import java.util.Map;
 @Mixin(value = CraftingCPUCluster.class, remap = false, priority = 1000)
 public abstract class MixinCraftingCPUClusterBatch {
 
-    @Unique
     @Shadow
     private boolean isComplete;
 

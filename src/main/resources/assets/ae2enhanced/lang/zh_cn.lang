@@ -711,6 +711,9 @@ chat.ae2enhanced.diag.header=[AE2E-Diag] === %s (%s) ===
 chat.ae2enhanced.diag.report_generating=[AE2E-Diag] 正在生成诊断报告...
 chat.ae2enhanced.diag.report_failed=[AE2E-Diag] 报告写入失败,详见服务端日志。
 chat.ae2enhanced.diag.report_done=[AE2E-Diag] 报告已写入: %s
+chat.ae2enhanced.harvest.start=[AE2E-Harvest] 正在采集终态配方注册表...
+chat.ae2enhanced.harvest.failed=[AE2E-Harvest] 快照写入失败,详见服务端日志。
+chat.ae2enhanced.harvest.done=[AE2E-Harvest] 快照已写入: %s
 
 chat.ae2enhanced.debug.switches=[AE2E-Debug] 诊断开关:
 chat.ae2enhanced.debug.unknown=[AE2E-Debug] 未知开关: %s (可用: %s)

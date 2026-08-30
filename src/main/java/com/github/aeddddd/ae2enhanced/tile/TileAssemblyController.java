@@ -817,45 +817,25 @@ public class TileAssemblyController extends TileAENetworkBase implements ICrafti
     }
 
     /**
-     * 虚拟轨道：普通合成,直接产出 1 份产物注入 AE 网络.
+     * 虚拟轨道：普通合成,产出 1 份产物.
      * 并行度由 isBusy() 控制：AE2 会多次调用 pushPattern,每次 1 份.
-     * 网络未就绪时返回 false,让 AE 重试.
+     * 网络未就绪时返回 false,让 AE2 重试.
+     *
+     * <p>产物必须经 pendingOutputs 异步弹出（与 executeRealCrafting 一致），
+     * 不得在 pushPattern 内同步注入网络：CPU 在 pushPattern 返回后才登记
+     * waitingFor 预期（CraftingCPUCluster 原生 :595-599），同步注入的回流产物
+     * 会因找不到预期而落入网络存储，预期永不消解——任务残留"合成中"无法完成。</p>
      */
     private boolean executeVirtualCrafting(ICraftingPatternDetails patternDetails, InventoryCrafting table) {
         ItemStack output = patternDetails.getOutput(table, world);
         if (output.isEmpty()) return false;
 
-        // 网络未就绪：拒绝,让 AE 稍后重试
+        // 网络未就绪：拒绝,让 AE2 稍后重试
         AENetworkProxy proxy = getProxy();
         IGridNode node = proxy.getNode();
         if (node == null || node.getGrid() == null) return false;
 
-        IStorageGrid storage = node.getGrid().getCache(IStorageGrid.class);
-        IItemStorageChannel channel = AEApi.instance().storage().getStorageChannel(IItemStorageChannel.class);
-        IMEMonitor<IAEItemStack> monitor = storage.getInventory(channel);
-
-        IAEItemStack aeOutput = channel.createStack(output);
-        if (aeOutput == null) return false;
-
-        // 只注入 1 份(AE2 每次 pushPattern 只发配 1 份输入)
-        aeOutput.setStackSize(output.getCount());
-        IAEItemStack remainder = monitor.injectItems(aeOutput, Actionable.MODULATE, getEffectiveSource());
-
-        if (remainder == null || remainder.getStackSize() == 0) {
-            // 全部注入成功
-            jobTimers.add(getCraftingTicks());
-            return true;
-        }
-
-        // 网络满载：将剩余放入 pendingOutputs,下一 tick 再试
-        long remCount = remainder.getStackSize();
-        while (remCount > 0) {
-            int batch = (int) Math.min(remCount, output.getMaxStackSize());
-            ItemStack stack = output.copy();
-            stack.setCount(batch);
-            pendingOutputs.add(stack);
-            remCount -= batch;
-        }
+        pendingOutputs.add(output.copy());
         jobTimers.add(getCraftingTicks());
         return true;
     }

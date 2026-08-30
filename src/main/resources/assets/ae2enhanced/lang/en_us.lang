@@ -712,6 +712,9 @@ chat.ae2enhanced.diag.header=[AE2E-Diag] === %s (%s) ===
 chat.ae2enhanced.diag.report_generating=[AE2E-Diag] Generating diagnostic report...
 chat.ae2enhanced.diag.report_failed=[AE2E-Diag] Failed to write report, see server log.
 chat.ae2enhanced.diag.report_done=[AE2E-Diag] Report written to: %s
+chat.ae2enhanced.harvest.start=[AE2E-Harvest] Harvesting final recipe registries...
+chat.ae2enhanced.harvest.failed=[AE2E-Harvest] Failed to write snapshot, see server log.
+chat.ae2enhanced.harvest.done=[AE2E-Harvest] Snapshot written to: %s
 
 chat.ae2enhanced.debug.switches=[AE2E-Debug] Diagnostic switches:
 chat.ae2enhanced.debug.unknown=[AE2E-Debug] Unknown switch: %s (available: %s)

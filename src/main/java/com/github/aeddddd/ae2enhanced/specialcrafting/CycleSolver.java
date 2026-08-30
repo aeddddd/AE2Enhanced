@@ -5,6 +5,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import net.minecraft.world.World;
+
 import appeng.api.config.Actionable;
 import appeng.api.networking.crafting.ICraftingGrid;
 import appeng.api.networking.crafting.ICraftingPatternDetails;
@@ -18,11 +20,11 @@ import appeng.crafting.MECraftingInventory;
 
 /**
  * 跨样板增殖环求解器（阶段 2,泛化版,移植自 1.20.1）.
- * <p>对 {@link CycleAnalyzer.Analysis} 判定为增殖环的环键集求闭式解:
+ * 对 {@link CycleAnalyzer.Analysis} 判定为增殖环的环键集求闭式解:
  * 各环内物品按前缀分析得出的种子保留 + 贷款法整批模拟——沿环执行顺序依次以
- * 原生 {@code CraftingTreeProcess.request} 整批执行各样板,环内物品的消耗/产出
- * 在模拟库存内闭合（非 root 键每超轮净变化为零）,仅请求物有净增益.
- * 环外输入（辅材等）由子节点原生解析（库存/外部子合成）.</p>
+ * {@link BatchSubcraft} 整批执行各样板(复刻原生语义但消除逐单位循环爆炸),
+ * 环内物品的消耗/产出在模拟库存内闭合（非 root 键每超轮净变化为零）,仅请求物有净增益.
+ * 环外输入（辅材等）由子节点批量解析（库存/外部子合成,不足即分支失败回落）.</p>
  */
 public final class CycleSolver {
 
@@ -39,6 +41,44 @@ public final class CycleSolver {
     }
 
     private CycleSolver() {
+    }
+
+    /**
+     * 蛛网子树预检的 SCC 规模阈值:环外输入属于巨型 SCC(整合包整张 progression
+     * 网,实测 5077 键)时,树模型在该子树上的构建<b>无节点共享、广度与需求量
+     * 无关</b>(实测 3 个单位的需求也烧 1.5s+ 看门狗)——批量化只能消除逐单位
+     * 循环,消除不了蛛网扇出的指数膨胀.这类子树一律转环盲降级,由 DAG 引擎
+     * (有节点共享与预算封顶)批量展开;局部小规模 SCC 不受影响.
+     */
+    private static final int GUARD_WEB_SCC_SIZE = 256;
+
+    /**
+     * 蛛网子树预检:任一环步的环外输入属于巨型 SCC 即命中(与需求量无关,
+     * 故不计算缺口).非蛛网输入由 {@link BatchSubcraft} 批量处理,无需预检.
+     *
+     * @param excludedKeys 环键与交付键(由贷款/交付语义覆盖,不参与子合成)
+     * @return 触发蛛网风险的环外输入键;无风险返回 null
+     */
+    @javax.annotation.Nullable
+    static IAEItemStack subcraftWebRisk(ICraftingGrid cc, ICraftingPatternDetails pattern,
+            Set<IAEItemStack> excludedKeys) {
+        NetworkPatternIndex patternIndex = NetworkPatternIndex.of(cc);
+        if (patternIndex == null) {
+            return null;
+        }
+        for (IAEItemStack input : pattern.getCondensedInputs()) {
+            if (input == null || input.getStackSize() <= 0) {
+                continue;
+            }
+            IAEItemStack key = RecursiveCraftingHelper.canon(input);
+            if (excludedKeys.contains(key)) {
+                continue;
+            }
+            if (patternIndex.sccSizeOf(key) >= GUARD_WEB_SCC_SIZE) {
+                return key;
+            }
+        }
+        return null;
     }
 
     /**
@@ -59,8 +99,8 @@ public final class CycleSolver {
      */
     public static SolveResult trySolve(ICraftingGrid cc, CraftingJob job, CycleAnalyzer.Analysis analysis,
             MECraftingInventory inv, IAEItemStack what, long target, CraftingTreeNode rootNode,
-            IActionSource src) throws InterruptedException {
-        return solveCore(cc, job, analysis, inv, what, target, rootNode, src, analysis.netGain(),
+            IActionSource src, World world) throws InterruptedException {
+        return solveCore(cc, job, analysis, inv, what, target, rootNode, src, world, analysis.netGain(),
                 analysis.seedsPerKey()[0]);
     }
 
@@ -71,11 +111,12 @@ public final class CycleSolver {
      */
     public static SolveResult trySolveCatalytic(ICraftingGrid cc, CraftingJob job,
             CycleAnalyzer.Analysis analysis, long xPerRound, MECraftingInventory inv, IAEItemStack what,
-            long target, CraftingTreeNode rootNode, IActionSource src) throws InterruptedException {
+            long target, CraftingTreeNode rootNode, IActionSource src, World world)
+            throws InterruptedException {
         if (xPerRound <= 0) {
             return SolveResult.FALLBACK;
         }
-        return solveCore(cc, job, analysis, inv, what, target, rootNode, src, xPerRound, 0);
+        return solveCore(cc, job, analysis, inv, what, target, rootNode, src, world, xPerRound, 0);
     }
 
     /**
@@ -86,7 +127,8 @@ public final class CycleSolver {
      */
     private static SolveResult solveCore(ICraftingGrid cc, CraftingJob job, CycleAnalyzer.Analysis analysis,
             MECraftingInventory inv, IAEItemStack what, long target, CraftingTreeNode rootNode,
-            IActionSource src, long gainPerRound, long deliverSeed) throws InterruptedException {
+            IActionSource src, World world, long gainPerRound, long deliverSeed)
+            throws InterruptedException {
         List<IAEItemStack> keys = analysis.keys();
         long[] seeds = analysis.seedsPerKey();
         long[] batchSeeds = analysis.batchSeedPerKey();
@@ -136,6 +178,23 @@ public final class CycleSolver {
                 if (io != null && io.getStackSize() > 0 && totalTimes[i] > Long.MAX_VALUE / io.getStackSize()) {
                     return SolveResult.OVERFLOW;
                 }
+            }
+        }
+
+        // 蛛网子树预检:任一环步的环外输入属于巨型 SCC 时,树模型在该子树
+        // 无节点共享、广度与需求量无关(批量化无法消除),直接判不适用,
+        // 由上层(DAG 环盲重编译/根路径原生回落)接管
+        Set<IAEItemStack> guardExcluded = new HashSet<>();
+        for (IAEItemStack key : keys) {
+            guardExcluded.add(RecursiveCraftingHelper.canon(key));
+        }
+        guardExcluded.add(RecursiveCraftingHelper.canon(what));
+        for (int i = 0; i < stepsForCheck.size(); i++) {
+            IAEItemStack risk = subcraftWebRisk(cc, stepsForCheck.get(i).pattern(), guardExcluded);
+            if (risk != null) {
+                SpecialLog.info("[特殊配方] 环求解预检拦截: {} 属巨型 SCC,树模型广度爆炸转降级({}×{})",
+                        risk, what, target);
+                return SolveResult.FALLBACK;
             }
         }
 
@@ -210,7 +269,14 @@ public final class CycleSolver {
                 }
                 CraftingTreeProcess pro = new CraftingTreeProcess(cc, job, steps.get(i).pattern(), rootNode, 1);
                 Ae2CraftingReflect.addProcessToNode(rootNode, pro);
-                Ae2CraftingReflect.treeProcessRequest(pro, inv, totalTimes[i], src);
+                // 慢步骤埋点(>500ms):定位病态环批量模拟中的重子树
+                long stepStart = System.nanoTime();
+                BatchSubcraft.requestStep(pro, cc, job, inv, totalTimes[i], src);
+                long stepElapsed = System.nanoTime() - stepStart;
+                if (stepElapsed > 500_000_000L) {
+                    SpecialLog.info("[特殊配方] 慢环步模拟: {} 耗时 {}ms(次数 {})",
+                            steps.get(i).pattern(), stepElapsed / 1_000_000L, totalTimes[i]);
+                }
                 pros.add(pro);
                 proSteps.add(steps.get(i));
             }

@@ -31,6 +31,7 @@ import com.github.aeddddd.ae2enhanced.specialcrafting.AnalysisBudget;
 import com.github.aeddddd.ae2enhanced.specialcrafting.CycleBoundarySolver;
 import com.github.aeddddd.ae2enhanced.specialcrafting.RecipeRemainingResolver;
 import com.github.aeddddd.ae2enhanced.specialcrafting.RecursiveCraftingHelper;
+import com.github.aeddddd.ae2enhanced.specialcrafting.SpecialLog;
 
 /**
  * DAG 拓扑执行器（1.12.2 移植）:两阶段——先物化树结构,再单趟扫描记账.
@@ -164,6 +165,7 @@ public final class DagExecutor {
         Map<IAEItemStack, Long> fundedByCredit = new LinkedHashMap<>(); // 合成侧抵扣量(按 key)
         Map<IAEItemStack, Long> networkSourced = new LinkedHashMap<>(); // 网络实取量(按 key)
         Set<IAEItemStack> containerKeys = new LinkedHashSet<>(); // 收到容器返还的 key
+        Set<IAEItemStack> blindCandidates = new LinkedHashSet<>(); // 不可解边界(环盲重编译候选)
         boolean hasCycleBoundary = false;
         long totalExtracted = 0;
         // 单趟内所有循环边界共享的分析预算(O(n³) 大整数求解总开销封顶,
@@ -180,10 +182,36 @@ public final class DagExecutor {
                 hasCycleBoundary = true;
                 CraftingTreeNode subtreeRoot = node == graph.root ? rootNode
                         : new CraftingTreeNode(cc, job, node.key.copy(), null, -1, 0);
-                CycleBoundarySolver.BoundaryResult boundary = CycleBoundarySolver.solveInto(cc, job, node.key,
-                        need, inv, subtreeRoot, src, world, analysisBudget);
+                long boundaryStart = System.nanoTime();
+                CycleBoundarySolver.BoundaryResult boundary;
+                try {
+                    boundary = CycleBoundarySolver.solveInto(cc, job, node.key,
+                            need, inv, subtreeRoot, src, world, analysisBudget);
+                } finally {
+                    long boundaryElapsed = System.nanoTime() - boundaryStart;
+                    com.github.aeddddd.ae2enhanced.diag.metrics.MetricsRegistry
+                            .timer("plan.phase.dag.boundaryMs").record(boundaryElapsed);
+                    // 慢求解埋点(>500ms):定位病态环的批量模拟热点
+                    if (boundaryElapsed > 500_000_000L) {
+                        SpecialLog.info("[DAG] 慢边界求解: {}@{}×{} 耗时 {}ms", node.key,
+                                node.key.getItemDamage(), need, boundaryElapsed / 1_000_000L);
+                    }
+                }
                 if (boundary == CycleBoundarySolver.BoundaryResult.FALLBACK) {
-                    throw new DagFallback("cycle_boundary_unsolvable:" + node.key);
+                    // 不可解边界(伪环/耗散环/种子不足):收集为环盲重编译候选,
+                    // 本趟按"纯库存提取 + 缺料记账"内联降级保持账目一致后丢弃,
+                    // 扫描末尾携全部候选回落,由 DagCraftingJob 批量环盲重编译
+                    blindCandidates.add(node.key);
+                    SpecialLog.info("[DAG] 边界不可解,转环盲候选: {}@{}×{}", node.key,
+                            node.key.getItemDamage(), need);
+                    ExtractOutcome outcome = extractCredited(node.key, need, inv, synthetic,
+                            fundedByCredit, networkSourced, rootNode, src, true);
+                    totalExtracted = SaturatedMath.add(totalExtracted, outcome.fromNetwork);
+                    long unsolved = need - outcome.extracted;
+                    if (unsolved > 0) {
+                        missingByNode.merge(node, unsolved, Long::sum);
+                    }
+                    continue;
                 }
                 if (boundary == CycleBoundarySolver.BoundaryResult.MISSING) {
                     // 天文数字边界需求:O(1) 缺料记账(对齐根路径 missingRoot 语义),
@@ -212,13 +240,14 @@ public final class DagExecutor {
             long extracted = 0;
             if (preciseNeed > 0) {
                 ExtractOutcome outcome = extractCredited(node.key, preciseNeed, inv, synthetic,
-                        fundedByCredit, networkSourced, rootNode, src);
+                        fundedByCredit, networkSourced, rootNode, src, node.cycleBlindAlias);
                 extracted += outcome.extracted;
                 totalExtracted = SaturatedMath.add(totalExtracted, outcome.fromNetwork);
             }
             if (subNeed > 0 && extracted < need) {
                 ExtractOutcome outcome = extractCredited(node.key, Math.min(subNeed, need - extracted),
-                        inv, synthetic, fundedByCredit, networkSourced, rootNode, src);
+                        inv, synthetic, fundedByCredit, networkSourced, rootNode, src,
+                        node.cycleBlindAlias);
                 extracted += outcome.extracted;
                 totalExtracted = SaturatedMath.add(totalExtracted, outcome.fromNetwork);
                 long subRemaining = subNeed - outcome.extracted;
@@ -230,7 +259,8 @@ public final class DagExecutor {
                         }
                         ExtractOutcome oc = extractCredited(candidate,
                                 Math.min(subRemaining, need - extracted), inv, synthetic,
-                                fundedByCredit, networkSourced, rootNode, src);
+                                fundedByCredit, networkSourced, rootNode, src,
+                                node.cycleBlindAlias);
                         extracted += oc.extracted;
                         totalExtracted = SaturatedMath.add(totalExtracted, oc.fromNetwork);
                         subRemaining -= oc.extracted;
@@ -328,6 +358,11 @@ public final class DagExecutor {
                 Ae2CraftingReflect.setNodeMissing(slot, amount);
             }
         }
+        // 存在不可解边界:本趟结果作废,携全部候选回落(调用方批量环盲重编译)
+        if (!blindCandidates.isEmpty()) {
+            throw new DagFallback("cycle_boundary_unsolvable:" + blindCandidates.iterator().next(),
+                    blindCandidates);
+        }
         return new Result(missingItems, hasCycleBoundary);
     }
 
@@ -420,13 +455,16 @@ public final class DagExecutor {
     /**
      * 提取记账(网络优先):物理实取记 used;实取超过网络真实可用的部分由合成侧
      * 余额抵扣(credited/funded).编码物与替代候选共用本助手.
+     * {@code networkOnly} 为 true 时(环盲别名叶子/边界不可解内联降级)只取
+     * 网络真实库存,不吃合成侧余额——对齐原生 notRecursive"纯库存"语义.
      */
     private static ExtractOutcome extractCredited(IAEItemStack key, long amount, MECraftingInventory inv,
             Map<IAEItemStack, Long> synthetic, Map<IAEItemStack, Long> fundedByCredit,
-            Map<IAEItemStack, Long> networkSourced, CraftingTreeNode rootNode, IActionSource src) {
+            Map<IAEItemStack, Long> networkSourced, CraftingTreeNode rootNode, IActionSource src,
+            boolean networkOnly) {
         long credited = synthetic.getOrDefault(key, 0L);
         long realAvailable = Math.max(0L, invAmount(inv, key) - credited);
-        long extracted = extract(inv, key, amount, src);
+        long extracted = extract(inv, key, networkOnly ? Math.min(amount, realAvailable) : amount, src);
         long fromNetwork = 0;
         if (extracted > 0) {
             fromNetwork = Math.min(extracted, realAvailable);
