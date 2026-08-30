@@ -2,6 +2,7 @@ package com.github.aeddddd.ae2enhanced.craftingplan.dag;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import javax.annotation.Nullable;
 
@@ -23,7 +24,12 @@ import com.github.aeddddd.ae2enhanced.AE2Enhanced;
 import com.github.aeddddd.ae2enhanced.diag.metrics.MetricsRegistry;
 import com.github.aeddddd.ae2enhanced.diag.plan.PlanTracker;
 import com.github.aeddddd.ae2enhanced.specialcrafting.Ae2CraftingReflect;
+import com.github.aeddddd.ae2enhanced.specialcrafting.CondensationPlanner;
+import com.github.aeddddd.ae2enhanced.specialcrafting.FlowReconciler;
+import com.github.aeddddd.ae2enhanced.specialcrafting.LpPlanMaterializer;
 import com.github.aeddddd.ae2enhanced.specialcrafting.NativeCalcBudget;
+import com.github.aeddddd.ae2enhanced.specialcrafting.NetworkPatternIndex;
+import com.github.aeddddd.ae2enhanced.specialcrafting.RecursiveCraftingHelper;
 import com.github.aeddddd.ae2enhanced.specialcrafting.SpecialLog;
 import com.github.aeddddd.ae2enhanced.specialcrafting.SpecialPlanDisplayHook;
 import com.github.aeddddd.ae2enhanced.specialcrafting.SpecialPlanMarker;
@@ -149,6 +155,22 @@ public class DagCraftingJob extends CraftingJob
         ICraftingGrid cc = Ae2CraftingReflect.getCc(this);
         IAEItemStack output = this.getOutput();
 
+        // 开发期 LP 路径影子开关(-Dae2e.lpPlannerShadow=true):完整求解并对照日志,
+        // 不产物化,实际计划仍由 DAG 旧路径产出——任何影子异常不影响主路径
+        if (Boolean.getBoolean("ae2e.lpPlannerShadow")) {
+            this.runLpPlannerShadow(cc, output);
+        }
+
+        // LP 计划器真实路由(-Dae2e.lpPlanner=true,开发期):冷凝分层求解 → 整数化
+        // 对账重演 → 物化原生树;任何失败返回 null 继续 DAG 旧路径(开发期双保险)
+        if (Boolean.getBoolean("ae2e.lpPlanner")) {
+            CraftingTreeNode lpRoot = this.computeLpPlan(cc, src, output);
+            if (lpRoot != null) {
+                return lpRoot;
+            }
+            SpecialLog.info("[LP计划] 求解失败,继续 DAG 旧路径: {}", output);
+        }
+
         DagGraph graph = null;
         CraftingTreeNode root = null;
         DagExecutor.Result result = null;
@@ -255,6 +277,90 @@ public class DagCraftingJob extends CraftingJob
         SpecialLog.info("[DAG] 计划完成: {}×{},节点 {},循环边界 {}", output, output.getStackSize(),
                 graph.topoOrder.size(), this.hasCycleBoundary);
         return root;
+    }
+
+    /**
+     * LP 计划路径(M5):CondensationPlanner 冷凝求解 → FlowReconciler 整数化重演对账
+     * → LpPlanMaterializer 物化原生树.失败/异常返回 null(调用方继续 DAG 旧路径).
+     */
+    @Nullable
+    private CraftingTreeNode computeLpPlan(ICraftingGrid cc, IActionSource src, IAEItemStack output) {
+        try {
+            NetworkPatternIndex index = NetworkPatternIndex.of(cc);
+            if (index == null) {
+                return null;
+            }
+            MECraftingInventory inv = new MECraftingInventory(Ae2CraftingReflect.getOriginal(this), true, false,
+                    true);
+            Ae2CraftingReflect.setAvailableCheck(this,
+                    new MECraftingInventory(Ae2CraftingReflect.getOriginal(this), false, false, false));
+            Map<IAEItemStack, Long> stock = new java.util.HashMap<>();
+            for (IAEItemStack stack : inv.getItemList()) {
+                if (stack.getStackSize() > 0) {
+                    stock.merge(RecursiveCraftingHelper.canon(stack), stack.getStackSize(), Long::sum);
+                }
+            }
+            CondensationPlanner.LpPlanOutcome outcome = CondensationPlanner.solve(cc, index, output,
+                    output.getStackSize(), stock);
+            // 降级埋点(D4 库存直通/截断;验收口径要求恒 0)
+            for (int i = 0; i < outcome.degradedUnits; i++) {
+                MetricsRegistry.counter("plan.lp.degradedUnit").increment();
+            }
+            CraftingTreeNode root = new CraftingTreeNode(cc, this, output.copy(), null, -1, 0);
+            FlowReconciler.Reconciled reconciled = FlowReconciler.reconcile(cc, output,
+                    output.getStackSize(), outcome, inv, root, src);
+            LpPlanMaterializer.attach(cc, this, root, output, outcome, reconciled.times, reconciled.missing,
+                    reconciled.totalExtracted);
+            if (!reconciled.missing.isEmpty()) {
+                // 与 DAG 路径同口径:缺料计划显式置模拟标志(原生失败重试同语义)
+                Ae2CraftingReflect.setSimulate(this, true);
+            }
+            // 含成环样板执行的 LP 计划:执行层走特殊 CPU 门控(与循环边界计划同待遇)
+            for (com.github.aeddddd.ae2enhanced.specialcrafting.lp.SccLpSolve.Execution exec : outcome.executions) {
+                if (reconciled.times.getOrDefault(exec, 0L) > 0 && index.isCycleStep(exec.pattern)) {
+                    this.hasCycleBoundary = true;
+                    break;
+                }
+            }
+            SpecialLog.info(
+                    "[LP计划] 完成: {}×{},单元 {}(LP {},降级 {}),执行记录 {},缺料 {} 种,迭代 {},求解 {}ms",
+                    output, output.getStackSize(), outcome.units, outcome.lpUnits, outcome.degradedUnits,
+                    outcome.executions.size(), reconciled.missing.size(), outcome.iterations, outcome.wallMs);
+            return root;
+        } catch (Throwable t) {
+            AE2Enhanced.LOGGER.warn("[LP计划] 异常,回落 DAG 旧路径: {}", t.toString());
+            return null;
+        }
+    }
+
+    /**
+     * LP 路径影子求解(开发期对照):冷凝分层驱动器完整求解,日志输出
+     * 单元数/迭代数/赤字规模,结果不物化、不影响 DAG 主路径.
+     */
+    private void runLpPlannerShadow(ICraftingGrid cc, IAEItemStack output) {
+        try {
+            com.github.aeddddd.ae2enhanced.specialcrafting.NetworkPatternIndex index =
+                    com.github.aeddddd.ae2enhanced.specialcrafting.NetworkPatternIndex.of(cc);
+            if (index == null) {
+                return;
+            }
+            Map<IAEItemStack, Long> stock = new java.util.HashMap<>();
+            for (IAEItemStack stack : Ae2CraftingReflect.getOriginal(this).getItemList()) {
+                if (stack.getStackSize() > 0) {
+                    stock.merge(com.github.aeddddd.ae2enhanced.specialcrafting.RecursiveCraftingHelper
+                            .canon(stack), stack.getStackSize(), Long::sum);
+                }
+            }
+            com.github.aeddddd.ae2enhanced.specialcrafting.CondensationPlanner.LpPlanOutcome outcome =
+                    com.github.aeddddd.ae2enhanced.specialcrafting.CondensationPlanner.solve(
+                            cc, index, output, output.getStackSize(), stock);
+            SpecialLog.info(
+                    "[LP影子] {}×{}: 单元 {}(LP {}),执行记录 {},赤字 {} 种,迭代 {},降级 {},耗时 {}ms",
+                    output, output.getStackSize(), outcome.units, outcome.lpUnits, outcome.executions.size(),
+                    outcome.deficits.size(), outcome.iterations, outcome.degradedUnits, outcome.wallMs);
+        } catch (Throwable t) {
+            AE2Enhanced.LOGGER.warn("[LP影子] 求解异常(不影响主路径): {}", t.toString());
+        }
     }
 
     /** 单趟执行结果暂存(供 computeDagPlan 读取,避免包装类). */

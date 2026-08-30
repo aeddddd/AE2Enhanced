@@ -121,6 +121,23 @@ public class ModpackReplayTest {
     public void testNetworkCensus() throws Exception {
         Assumptions.assumeTrue("1".equals(System.getenv("AE2E_CENSUS")),
                 "普查默认跳过(AE2E_CENSUS=1 开启)");
+        census("census", false);
+    }
+
+    /** LP 路径全网普查(M6 验收:失败率/降级率 0).同 AE2E_CENSUS=1 门控. */
+    @Test
+    public void testNetworkCensusLp() throws Exception {
+        Assumptions.assumeTrue("1".equals(System.getenv("AE2E_CENSUS")),
+                "普查默认跳过(AE2E_CENSUS=1 开启)");
+        System.setProperty("ae2e.lpPlanner", "true");
+        try {
+            census("census-lp", true);
+        } finally {
+            System.clearProperty("ae2e.lpPlanner");
+        }
+    }
+
+    private static void census(String tag, boolean lpPath) throws Exception {
         List<IAEItemStack> keys = new ArrayList<>(
                 ((com.github.aeddddd.ae2enhanced.mixin.bridge.ICraftingGridCacheAccess) loaded.env.craftingGrid())
                         .ae2enhanced$craftableKeys());
@@ -133,6 +150,7 @@ public class ModpackReplayTest {
             IAEItemStack what = key.copy();
             what.setStackSize(1);
             long fallbacksBefore = fallbackCount();
+            long degradedBefore = lpDegradedCount();
             long t0 = System.nanoTime();
             CraftingJob job = null;
             try {
@@ -157,6 +175,11 @@ public class ModpackReplayTest {
                 failures.add("FALLBACK " + key);
                 continue;
             }
+            if (lpPath && lpDegradedCount() > degradedBefore) {
+                error++;
+                failures.add("LP-DEGRADED " + key);
+                continue;
+            }
             if (PlanView.of(job).simulation()) {
                 missing++;
                 failures.add("MISSING " + key + " : " + PlanView.of(job).missingItems().size() + " 种");
@@ -170,7 +193,7 @@ public class ModpackReplayTest {
                 keys.size(), ok, missing, fallback, timeout, error, totalMs, worstMs, worstKey);
         System.out.println("[MODPACK] " + summary);
         File report = new File(ModpackFixture.SNAPSHOT_DIR,
-                "census-" + new SimpleDateFormat("yyyyMMdd-HHmmss").format(new Date()) + ".txt");
+                tag + "-" + new SimpleDateFormat("yyyyMMdd-HHmmss").format(new Date()) + ".txt");
         try (PrintWriter w = new PrintWriter(new java.io.OutputStreamWriter(
                 new java.io.FileOutputStream(report), StandardCharsets.UTF_8))) {
             w.println(summary);
@@ -178,6 +201,72 @@ public class ModpackReplayTest {
                 w.println(failure);
             }
         }
+    }
+
+    /**
+     * LP 路径对照（方案 L M6）:tardis 四单 + cosmic_balance 走 LP 计划器
+     * （{@code -Dae2e.lpPlanner} 内部开关经 System property 仿真）.
+     * <p>断言:计时有界(60s)、无 DAG→原生回落、无 LP 降级(库存直通/截断)、
+     * missing 种数 ≤ 1.7.6.5 基线;打印与理论下限(RAW 341 + 种子键)的差距.</p>
+     */
+    @Test
+    public void testLpPathSuite() {
+        // [订单 id, 数量, 1.7.6.5 基线 missing 种数]
+        String[][] suite = {
+                { "avaritiaitem:cosmic_balance", "1000", "0" },
+                { "contenttweaker:tardis_polyp", "100", "811" },
+                { "contenttweaker:tardis_branch", "100", "737" },
+                { "contenttweaker:tardis_stem", "100", "717" },
+                { "contenttweaker:tardis_casing", "100", "659" },
+        };
+        System.setProperty("ae2e.lpPlanner", "true");
+        try {
+            for (String[] entry : suite) {
+                try {
+                    replayLp(entry[0], Long.parseLong(entry[1]), Integer.parseInt(entry[2]));
+                } catch (org.opentest4j.TestAbortedException skip) {
+                    System.out.printf("[MODPACK-LP] 跳过 %s: %s%n", entry[0], skip.getMessage());
+                }
+            }
+        } finally {
+            System.clearProperty("ae2e.lpPlanner");
+        }
+    }
+
+    private static void replayLp(String id, long count, int baselineMissing) {
+        IAEItemStack what = loaded.item(id);
+        Assumptions.assumeTrue(what != null, id + " 不存在于快照,跳过");
+        Assumptions.assumeTrue(hasProducer(what), id + " 无产出样板,跳过");
+        what = what.copy();
+        what.setStackSize(count);
+        long fallbacksBefore = fallbackCount();
+        long degradedBefore = lpDegradedCount();
+
+        long t0 = System.nanoTime();
+        CraftingJob job = loaded.env.runJobTimed(loaded.env.newDagJob(what),
+                ORDER_TIMEOUT_MS, TimeUnit.MILLISECONDS);
+        long elapsedMs = (System.nanoTime() - t0) / 1_000_000;
+
+        assertThat(job).as("LP 路径 %s×%d 计算超时(%dms)", id, count, ORDER_TIMEOUT_MS).isNotNull();
+        PlanView view = PlanView.of(job);
+        int missing = view.missingItems().size();
+        System.out.printf("[MODPACK-LP] 回放 %s×%d: %d ms, simulation=%s, missing=%d 种(基线 %d,差距 %+d)%n",
+                id, count, elapsedMs, view.simulation(), missing, baselineMissing, missing - baselineMissing);
+        assertThat(fallbackCount()).as("LP 路径 %s×%d 发生回落", id, count).isEqualTo(fallbacksBefore);
+        assertThat(lpDegradedCount()).as("LP 路径 %s×%d 发生单元降级(库存直通/截断)", id, count)
+                .isEqualTo(degradedBefore);
+        assertThat(missing).as("LP 路径 %s×%d missing 种数应不劣于 1.7.6.5 基线 %d", id, count,
+                baselineMissing).isLessThanOrEqualTo(baselineMissing);
+    }
+
+    /** 全局 plan.lp.degradedUnit 计数(LP 单元降级事件数). */
+    private static long lpDegradedCount() {
+        for (Counter counter : MetricsRegistry.counters()) {
+            if (counter.name().equals("plan.lp.degradedUnit")) {
+                return counter.get();
+            }
+        }
+        return 0;
     }
 
     /** 全局 plan.fallback.* 计数总和(DAG→原生回落事件数). */

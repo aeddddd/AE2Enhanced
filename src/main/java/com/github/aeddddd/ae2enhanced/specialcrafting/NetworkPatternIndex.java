@@ -43,6 +43,8 @@ public final class NetworkPatternIndex {
     private final Map<IAEItemStack, Integer> sccId;
     /** SCC 编号 → 键数(巨型分量识别:预检用其判定"蛛网子树"爆炸风险). */
     private final Map<Integer, Integer> sccSizes;
+    /** SCC 编号 → 分量键集(只读;LP 模型构建器按分量收集键). */
+    private final Map<Integer, List<IAEItemStack>> sccKeys;
     private final Map<IAEItemStack, Boolean> detectorMemo = new ConcurrentHashMap<>();
     private final Map<ICraftingPatternDetails, Boolean> cycleStepMemo = new ConcurrentHashMap<>();
     /** 环分析 memo:环签名 → 分析结果(含 null=已确认不可解);随样板集一并失效. */
@@ -59,10 +61,13 @@ public final class NetworkPatternIndex {
         this.byproduct = byproduct;
         this.sccId = sccId;
         Map<Integer, Integer> sizes = new HashMap<>();
-        for (Integer id : sccId.values()) {
-            sizes.merge(id, 1, Integer::sum);
+        Map<Integer, List<IAEItemStack>> keys = new HashMap<>();
+        for (Map.Entry<IAEItemStack, Integer> entry : sccId.entrySet()) {
+            sizes.merge(entry.getValue(), 1, Integer::sum);
+            keys.computeIfAbsent(entry.getValue(), k -> new ArrayList<>()).add(entry.getKey());
         }
         this.sccSizes = sizes;
+        this.sccKeys = keys;
     }
 
     /**
@@ -135,6 +140,17 @@ public final class NetworkPatternIndex {
     @Nullable
     public Integer sccIdOf(IAEItemStack canonKey) {
         return this.sccId.get(canonKey);
+    }
+
+    /** SCC 分量的全部键（只读;不存在返回空表）;供 LP 模型构建器按分量收集键. */
+    public List<IAEItemStack> keysOfScc(int id) {
+        List<IAEItemStack> keys = this.sccKeys.get(id);
+        return keys == null ? Collections.emptyList() : Collections.unmodifiableList(keys);
+    }
+
+    /** 键图全部键（只读视图;冷凝分层驱动器构建求解单元时枚举）. */
+    public Set<IAEItemStack> keyGraphKeys() {
+        return Collections.unmodifiableSet(this.sccId.keySet());
     }
 
     /** 键所属 SCC 的规模(键数;不在键图中返回 0);供"蛛网子树"爆炸预检. */

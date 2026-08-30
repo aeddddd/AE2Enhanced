@@ -457,8 +457,9 @@ public final class DagExecutor {
      * 余额抵扣(credited/funded).编码物与替代候选共用本助手.
      * {@code networkOnly} 为 true 时(环盲别名叶子/边界不可解内联降级)只取
      * 网络真实库存,不吃合成侧余额——对齐原生 notRecursive"纯库存"语义.
+     * <p>public:LP 对账层({@code FlowReconciler})按同一口径批量重演.</p>
      */
-    private static ExtractOutcome extractCredited(IAEItemStack key, long amount, MECraftingInventory inv,
+    public static ExtractOutcome extractCredited(IAEItemStack key, long amount, MECraftingInventory inv,
             Map<IAEItemStack, Long> synthetic, Map<IAEItemStack, Long> fundedByCredit,
             Map<IAEItemStack, Long> networkSourced, CraftingTreeNode rootNode, IActionSource src,
             boolean networkOnly) {
@@ -483,10 +484,10 @@ public final class DagExecutor {
         return new ExtractOutcome(extracted, fromNetwork);
     }
 
-    /** 单次提取的结果:总提取量 + 其中来自网络实取的量. */
-    private static final class ExtractOutcome {
-        final long extracted;
-        final long fromNetwork;
+    /** 单次提取的结果:总提取量 + 其中来自网络实取的量(public:LP 对账层复用). */
+    public static final class ExtractOutcome {
+        public final long extracted;
+        public final long fromNetwork;
 
         ExtractOutcome(long extracted, long fromNetwork) {
             this.extracted = extracted;
@@ -501,8 +502,9 @@ public final class DagExecutor {
      * 高水位修正补记 missing=1(对齐原生).
      * 可合成样板以配方 getRemainingItems 为准(覆盖 CrT reuse 等不消耗实现);
      * 其余回退 Item 容器 API.单分支与多样板逐分支路径共用.
+     * <p>public:LP 对账层({@code FlowReconciler})按同一口径回记.</p>
      */
-    private static void creditReturns(ICraftingPatternDetails pattern, long times,
+    public static void creditReturns(ICraftingPatternDetails pattern, long times,
             MECraftingInventory inv, Map<IAEItemStack, Long> synthetic, Set<IAEItemStack> containerKeys,
             IActionSource src) {
         Map<IAEItemStack, Long> remainingTable = RecipeRemainingResolver.remainingPerCraft(pattern);
@@ -627,8 +629,8 @@ public final class DagExecutor {
         nodes.put(newChild, value);
     }
 
-    /** 模拟库存中某 key 的当前总量（含网络余量与已注入的合成侧余额）. */
-    private static long invAmount(MECraftingInventory inv, IAEItemStack key) {
+    /** 模拟库存中某 key 的当前总量（含网络余量与已注入的合成侧余额）(public:LP 对账层复用). */
+    public static long invAmount(MECraftingInventory inv, IAEItemStack key) {
         IAEItemStack entry = inv.getItemList().findPrecise(key);
         return entry == null ? 0L : entry.getStackSize();
     }

@@ -129,6 +129,18 @@ public class SimulationEnv {
         return this.runJob(this.newDagJob(what));
     }
 
+    /**
+     * 以 LP 计划器路由（{@code -Dae2e.lpPlanner} 内部开关）运行模拟.
+     */
+    public CraftingJob runLp(IAEItemStack what) {
+        System.setProperty("ae2e.lpPlanner", "true");
+        try {
+            return this.runJob(this.newDagJob(what));
+        } finally {
+            System.clearProperty("ae2e.lpPlanner");
+        }
+    }
+
     /** 构造原生 {@link CraftingJob}（不执行,供基准测试自行计时）. */
     public CraftingJob newNativeJob(IAEItemStack what) {
         return new CraftingJob(this.world, this.grid, this.actionSource, what, null);
