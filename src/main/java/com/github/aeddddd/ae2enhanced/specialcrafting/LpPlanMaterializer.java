@@ -21,7 +21,7 @@ import com.github.aeddddd.ae2enhanced.specialcrafting.lp.SccLpSolve.Execution;
 
 /**
  * LP 计划物化器（方案 L §10.3.5,M5）:整数化计数 → 原生合成树.
- * <p>挂载语义与 {@code DagExecutor} 阶段 1 完全一致:</p>
+ * <p>挂载语义与 LP 重演对账口径完全一致:</p>
  * <ul>
  * <li>BFS 从根展开:每个被生产的键挂载其全部 LP 生产者 process
  * （crafts = 整数化次数;构造后 {@code processAddProcess} 立即展开输入子节点）;</li>
@@ -29,10 +29,10 @@ import com.github.aeddddd.ae2enhanced.specialcrafting.lp.SccLpSolve.Execution;
  * dive/setJob 不重复计数,执行层经 CPU 库存池自然衔接;</li>
  * <li>无生产者的键(库存/发射台/缺料)= 空叶子,与原生树同构;</li>
  * <li>缺料回填到该键首个父槽位子节点(根请求键回填根节点)——
- * {@code DagCraftingJob.populatePlan} 的 missing 收集通道直接复用.</li>
+ * {@code LpCraftingJob.populatePlan} 的 missing 收集通道直接复用.</li>
  * </ul>
  * 层级合法性由构造保证:子树节点 what 恒等于某输入键,而输入键就是父样板的产出
- * 需求——与 DAG 物化相同的 dive/getAmountCrafted 不变量.
+ * 需求——与 LP 物化相同的 dive/getAmountCrafted 不变量.
  */
 public final class LpPlanMaterializer {
 
@@ -111,10 +111,16 @@ public final class LpPlanMaterializer {
             if (slot != null) {
                 Ae2CraftingReflect.setNodeMissing(slot,
                         Ae2CraftingReflect.getNodeMissing(slot) + entry.getValue());
+            } else {
+                // 无挂载节点的缺料键(降级/截断单元):计划已置模拟态(不可提交),
+                // 此处告警以便诊断,绝不静默丢弃
+                com.github.aeddddd.ae2enhanced.AE2Enhanced.LOGGER
+                        .warn("[LP计划] 缺料键无挂载节点,计划显示不完整: {}×{}",
+                                entry.getValue(), entry.getKey());
             }
         }
 
-        // bytes 近似(同 DagExecutor 口径:初始提取总量)
+        // bytes 近似(初始提取总量口径)
         Ae2CraftingReflect.setNodeBytes(rootNode, totalExtracted);
     }
 }

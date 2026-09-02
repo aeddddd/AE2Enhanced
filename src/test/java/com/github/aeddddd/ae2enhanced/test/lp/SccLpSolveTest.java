@@ -187,8 +187,9 @@ public class SccLpSolveTest {
 
     /**
      * ⑦ 矿词替代变体展开(D1):1A→2A 可替代(候选 {A, A2}).
-     * 种子 A2=5 在环外(无样板产出),变体路径 x_var=5(消耗 5×A2 → 10 A),赤字 0,
-     * 环外折算 A2=5 传播给上游.
+     * 候选 A2=5 库存(纯原料,无样板产出 → 内化为守恒行计价),零 A 种子,需求 A=10:
+     * 阶段③ 执行数最少 → 变体路径 x_var=5(消耗 5×A2 → 10 A),赤字 0;
+     * 内化键不再走环外折算(externalDemands 不含 A2).
      */
     @Test
     public void oreDictVariantExpansion() {
@@ -197,12 +198,14 @@ public class SccLpSolveTest {
         IAEItemStack a2 = block(Blocks.COBBLESTONE);
         ICraftingPatternDetails subst = env.addPattern(
                 substitutePattern(a, new IAEItemStack[] { mult(a, 2) }, a2));
-        SccSolution sol = solve(env, a, stockOf(), demandsOf(a, 10));
+        SccSolution sol = solve(env, a, stockOf(a2, 5), demandsOf(a, 10));
         assertEquals(LpResult.Status.OPTIMAL, sol.status);
         assertTrue(sol.deficits.isEmpty(), "变体路径应满足全部需求: " + sol.deficits);
-        // 阶段②:变体 5 次(环外 A2 不计入本分量约束)优于编码自举 10 次
+        // 阶段③:变体 5 次(吃内化 A2 库存)优于编码自举 10 次(执行数更少)
         assertEquals(5.0, variantExecOf(sol, subst, a2), EPS);
-        assertEquals(5.0, sol.externalDemands.get(RecursiveCraftingHelper.canon(a2)), EPS);
+        assertEquals(5.0, totalExec(sol), EPS);
+        assertTrue(!sol.externalDemands.containsKey(RecursiveCraftingHelper.canon(a2)),
+                "内化原料键不再环外折算: " + sol.externalDemands);
     }
 
     // ===== 工具 =====

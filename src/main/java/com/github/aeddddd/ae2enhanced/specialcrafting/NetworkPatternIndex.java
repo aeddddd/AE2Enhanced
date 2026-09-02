@@ -27,10 +27,8 @@ import com.github.aeddddd.ae2enhanced.mixin.bridge.ICraftingGridCacheAccess;
  * <li>键图 SCC（迭代 Tarjan）:{@link #isCycleStep} 的 O(输入×输出) 查表，
  * 取代原先逐节点 budget=512 的 DFS（旧实现 O(节点数×512×样板扫描),
  * 是数千节点计划编译的主瓶颈）;</li>
- * <li>副产物生产者倒排：全样板扫描一次建成，供 {@link CycleAnalyzer.ProducerIndex} 共享
- * （旧实现每个请求/每个候选样板各建一次）;</li>
- * <li>detector 判定 memo:{@code mayInvolveSpecialRecipes} 结果按请求键记忆——
- * 判定只依赖样板集（与库存无关）,样板集不变即可复用.</li>
+ * <li>副产物生产者倒排：全样板扫描一次建成，LP 模型构建器按分量收集时复用;</li>
+ * <li>SCC 键图是 LP 计划器(M7 起默认路径)求解单元划分与成环判定的基础.</li>
  * </ul>
  * 计算在线程池线程上并发执行：构建由 MixinCraftingGridCache 同步惰性触发,
  * memo 使用并发容器；键图数据构建后不可变.
@@ -39,6 +37,8 @@ public final class NetworkPatternIndex {
 
     /** canon 输出键 → 以它为非主索引输出的样板（与旧 ProducerIndex.byproductIndex 同语义）. */
     private final Map<IAEItemStack, List<ICraftingPatternDetails>> byproduct;
+    /** canon 输入键 → 消费它的全部样板（单元独占原料判定:消费者是否同属一个求解单元）. */
+    private final Map<IAEItemStack, List<ICraftingPatternDetails>> consumers;
     /** canon 键 → SCC 编号（边：样板输出键 → 样板输入键）. */
     private final Map<IAEItemStack, Integer> sccId;
     /** SCC 编号 → 键数(巨型分量识别:预检用其判定"蛛网子树"爆炸风险). */
@@ -47,19 +47,22 @@ public final class NetworkPatternIndex {
     private final Map<Integer, List<IAEItemStack>> sccKeys;
     private final Map<IAEItemStack, Boolean> detectorMemo = new ConcurrentHashMap<>();
     private final Map<ICraftingPatternDetails, Boolean> cycleStepMemo = new ConcurrentHashMap<>();
-    /** 环分析 memo:环签名 → 分析结果(含 null=已确认不可解);随样板集一并失效. */
-    private final Map<CycleAnalyzer.CycleSignature, java.util.Optional<CycleAnalyzer.Analysis>> analysisMemo = new ConcurrentHashMap<>();
-    /**
-     * 环枚举 memo:canon 请求键 → 过该键的全部简单环(只读共享,调用方不得修改).
-     * 枚举只依赖样板集(与库存无关),随索引一并失效;复杂订单中同一环键会被多个
-     * CYCLE 边界节点/催化环兜底反复枚举(budget=512 的 DFS),memo 消除重复枚举.
-     */
-    private final Map<IAEItemStack, List<List<CycleAnalyzer.CycleStep>>> cyclesMemo = new ConcurrentHashMap<>();
+
+    /** 构建时的一致性样板快照(canon 键 → 主索引样板表),求解期 patternsFor 用. */
+    private final Map<IAEItemStack, List<ICraftingPatternDetails>> patternSnapshot;
+    /** 发射台判定回调(快照口径,不受 recalc 重建空窗影响). */
+    private final ICraftingGridCacheAccess access;
 
     private NetworkPatternIndex(Map<IAEItemStack, List<ICraftingPatternDetails>> byproduct,
-            Map<IAEItemStack, Integer> sccId) {
+            Map<IAEItemStack, List<ICraftingPatternDetails>> consumers,
+            Map<IAEItemStack, Integer> sccId,
+            Map<IAEItemStack, List<ICraftingPatternDetails>> patternSnapshot,
+            ICraftingGridCacheAccess access) {
         this.byproduct = byproduct;
+        this.consumers = consumers;
         this.sccId = sccId;
+        this.patternSnapshot = patternSnapshot;
+        this.access = access;
         Map<Integer, Integer> sizes = new HashMap<>();
         Map<Integer, List<IAEItemStack>> keys = new HashMap<>();
         for (Map.Entry<IAEItemStack, Integer> entry : sccId.entrySet()) {
@@ -84,16 +87,30 @@ public final class NetworkPatternIndex {
 
     /**
      * 全量构建（由 MixinCraftingGridCache 在同步块内调用）.
-     * 注：CraftingGridCache.getCraftingFor 实现为纯 map 查询，不使用 world 参数，故传 null.
+     * <p><b>并发</b>：AE2-UEL 的 craftableItems 是就地 clear+重建的 fastutil map（无锁，
+     * 服务器线程持有），重建空窗期 map 稳定为空且无并发修改——计算线程任何活读
+     * （含"快照+复核"式校验）都无法区分空窗与真空网络.故数据源只能是
+     * recalc TAIL（服务器线程、重建刚完成）固化的一致性快照，见
+     * {@link ICraftingGridCacheAccess#ae2enhanced$craftableSnapshot()}.</p>
      */
     public static NetworkPatternIndex build(ICraftingGrid cc) {
         ICraftingGridCacheAccess access = (ICraftingGridCacheAccess) cc;
+        // 快照由 recalc TAIL(服务器线程、重建刚完成)固化,无竞态;空窗期活读
+        // 得到的部分/空视图在此被彻底排除(此前"快照+复核"无法识别稳定空窗,
+        // 会在重建期建出空索引 → LP 误判缺料仅根键缺失,重试自愈)
+        return buildFromSnapshot(access.ae2enhanced$craftableSnapshot(), access);
+    }
+
+    /** 由一致性快照构建索引(快照:canon 键 → 该键主索引样板表). */
+    private static NetworkPatternIndex buildFromSnapshot(
+            Map<IAEItemStack, List<ICraftingPatternDetails>> snapshot, ICraftingGridCacheAccess access) {
         Map<IAEItemStack, Set<ICraftingPatternDetails>> byproductSets = new HashMap<>();
+        Map<IAEItemStack, Set<ICraftingPatternDetails>> consumerSets = new HashMap<>();
         Map<IAEItemStack, Set<IAEItemStack>> adj = new HashMap<>();
         Set<ICraftingPatternDetails> seen = Collections.newSetFromMap(new IdentityHashMap<>());
-        for (IAEItemStack craftable : access.ae2enhanced$craftableKeys()) {
-            IAEItemStack craftableKey = RecursiveCraftingHelper.canon(craftable);
-            for (ICraftingPatternDetails pattern : cc.getCraftingFor(craftable, null, -1, null)) {
+        for (Map.Entry<IAEItemStack, List<ICraftingPatternDetails>> snapshotEntry : snapshot.entrySet()) {
+            IAEItemStack craftableKey = snapshotEntry.getKey();
+            for (ICraftingPatternDetails pattern : snapshotEntry.getValue()) {
                 if (seen.add(pattern)) {
                     // 键图边：输出键 → 输入键（"被产生"回溯关系）
                     for (IAEItemStack output : pattern.getCondensedOutputs()) {
@@ -108,6 +125,14 @@ public final class NetworkPatternIndex {
                             }
                             targets.add(RecursiveCraftingHelper.canon(input));
                         }
+                    }
+                    // 消费者倒排（输入键 → 样板,身份去重）
+                    for (IAEItemStack input : pattern.getCondensedInputs()) {
+                        if (input == null || input.getStackSize() <= 0) {
+                            continue;
+                        }
+                        consumerSets.computeIfAbsent(RecursiveCraftingHelper.canon(input),
+                                k -> Collections.newSetFromMap(new IdentityHashMap<>())).add(pattern);
                     }
                 }
                 // 副产物倒排（与旧实现一致：跳过该样板的主索引键）
@@ -126,14 +151,48 @@ public final class NetworkPatternIndex {
         }
         Map<IAEItemStack, List<ICraftingPatternDetails>> byproduct = new HashMap<>();
         for (Map.Entry<IAEItemStack, Set<ICraftingPatternDetails>> entry : byproductSets.entrySet()) {
-            byproduct.put(entry.getKey(), Collections.unmodifiableList(new ArrayList<>(entry.getValue())));
+            List<ICraftingPatternDetails> list = new ArrayList<>(entry.getValue());
+            list.sort(PATTERN_CONTENT_ORDER); // 确定性序:身份桶序随重建漂移会传导到 LP 秩/种子校验访问序
+            byproduct.put(entry.getKey(), Collections.unmodifiableList(list));
         }
-        return new NetworkPatternIndex(byproduct, tarjanScc(adj));
+        Map<IAEItemStack, List<ICraftingPatternDetails>> consumers = new HashMap<>();
+        for (Map.Entry<IAEItemStack, Set<ICraftingPatternDetails>> entry : consumerSets.entrySet()) {
+            List<ICraftingPatternDetails> list = new ArrayList<>(entry.getValue());
+            list.sort(PATTERN_CONTENT_ORDER);
+            consumers.put(entry.getKey(), Collections.unmodifiableList(list));
+        }
+        return new NetworkPatternIndex(byproduct, consumers, tarjanScc(adj), snapshot, access);
     }
+
+    /** 按内容(凝聚输出+输入)排序:同网络状态下跨索引重建保持稳定. */
+    private static final java.util.Comparator<ICraftingPatternDetails> PATTERN_CONTENT_ORDER =
+            java.util.Comparator.comparing(p -> java.util.Arrays.toString(p.getCondensedOutputs())
+                    + "|" + java.util.Arrays.toString(p.getCondensedInputs()));
 
     /** 副产物生产者倒排（只读）. */
     public Map<IAEItemStack, List<ICraftingPatternDetails>> byproductMap() {
         return this.byproduct;
+    }
+
+    /**
+     * canon 键的主索引样板表(构建时一致性快照,与 getCraftingFor 同语义).
+     * 求解期读取一律走此方法——禁止回调 cc.getCraftingFor(recalc 重建空窗竞态).
+     */
+    public List<ICraftingPatternDetails> patternsFor(IAEItemStack canonKey) {
+        return this.patternSnapshot.getOrDefault(canonKey, Collections.emptyList());
+    }
+
+    /**
+     * 发射台判定快照(与 canEmitFor 同语义,不受 recalc 重建空窗影响).
+     * 委托 access 的 volatile 快照:setEmitable 动态增量即时生效.
+     */
+    public boolean canEmit(IAEItemStack canonKey) {
+        return this.access.ae2enhanced$canEmit(canonKey);
+    }
+
+    /** 消费某 canon 输入键的全部样板（只读;无消费者返回空表）. */
+    public List<ICraftingPatternDetails> consumersOf(IAEItemStack canonKey) {
+        return this.consumers.getOrDefault(canonKey, Collections.emptyList());
     }
 
     /** 键所属 SCC 编号（不在键图中返回 null）;供环枚举的同 SCC 剪枝. */
@@ -196,7 +255,8 @@ public final class NetworkPatternIndex {
         return false;
     }
 
-    /** detector 判定 memo:键为 canon(请求物);结果仅依赖样板集,随索引一并失效. */
+    /** detector 判定 memo:键为 canon(请求物);结果仅依赖样板集,随索引一并失效.
+     * (M7 起 detector 已随旧特殊路由删除,memo 保留供未来路由层复用) */
     @Nullable
     public Boolean detectorVerdict(IAEItemStack canonKey) {
         return this.detectorMemo.get(canonKey);
@@ -204,34 +264,6 @@ public final class NetworkPatternIndex {
 
     public void memoDetectorVerdict(IAEItemStack canonKey, boolean verdict) {
         this.detectorMemo.put(canonKey, verdict);
-    }
-
-    /**
-     * 环枚举 memo:命中即返回(只读共享);未命中由调用方计算后 {@link #memoCyclesThrough} 记忆.
-     */
-    @Nullable
-    public List<List<CycleAnalyzer.CycleStep>> cyclesThrough(IAEItemStack canonKey) {
-        return this.cyclesMemo.get(canonKey);
-    }
-
-    public void memoCyclesThrough(IAEItemStack canonKey, List<List<CycleAnalyzer.CycleStep>> cycles) {
-        this.cyclesMemo.putIfAbsent(canonKey, cycles);
-    }
-
-    /**
-     * 环分析 memo:签名命中即复用(含"已确认不可解"的空结果),未命中调用 solver
-     * 计算并记忆.Analysis 内部数组调用方只读,可安全共享.
-     */
-    @Nullable
-    CycleAnalyzer.Analysis analysisMemo(CycleAnalyzer.CycleSignature signature,
-            java.util.function.Supplier<CycleAnalyzer.Analysis> solver) {
-        java.util.Optional<CycleAnalyzer.Analysis> cached = this.analysisMemo.get(signature);
-        if (cached != null) {
-            return cached.orElse(null);
-        }
-        CycleAnalyzer.Analysis solved = solver.get();
-        this.analysisMemo.putIfAbsent(signature, java.util.Optional.ofNullable(solved));
-        return solved;
     }
 
     /**

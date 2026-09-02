@@ -30,14 +30,14 @@ public class RoundQuotaSchedulerTest {
         final IAEItemStack stone;
 
         ThetaPatterns() {
-            this.stone = CycleAnalyzerTest.block(Blocks.STONE);
-            IAEItemStack cobble = CycleAnalyzerTest.block(Blocks.COBBLESTONE);
-            IAEItemStack sand = CycleAnalyzerTest.block(Blocks.SAND);
-            IAEItemStack dirt = CycleAnalyzerTest.block(Blocks.DIRT);
-            IAEItemStack stick = CycleAnalyzerTest.item(Items.STICK);
+            this.stone = SimulationEnv.block(Blocks.STONE);
+            IAEItemStack cobble = SimulationEnv.block(Blocks.COBBLESTONE);
+            IAEItemStack sand = SimulationEnv.block(Blocks.SAND);
+            IAEItemStack dirt = SimulationEnv.block(Blocks.DIRT);
+            IAEItemStack stick = SimulationEnv.item(Items.STICK);
             this.crush = new ProcessingPatternBuilder(cobble).addPreciseInput(1, this.stone).build();
             this.charge = new ProcessingPatternBuilder(sand).addPreciseInput(1, this.stone).build();
-            this.back = new ProcessingPatternBuilder(CycleAnalyzerTest.mult(this.stone, 4))
+            this.back = new ProcessingPatternBuilder(SimulationEnv.mult(this.stone, 4))
                     .addPreciseInput(1, cobble)
                     .addPreciseInput(1, sand)
                     .build();
@@ -64,9 +64,9 @@ public class RoundQuotaSchedulerTest {
     /** T2:非自消耗 job(普通链)→ 不调度. */
     @Test
     public void testDeriveQuotaRejectsNormalPlan() {
-        IAEItemStack stone = CycleAnalyzerTest.block(Blocks.STONE);
-        IAEItemStack cobble = CycleAnalyzerTest.block(Blocks.COBBLESTONE);
-        IAEItemStack dirt = CycleAnalyzerTest.block(Blocks.DIRT);
+        IAEItemStack stone = SimulationEnv.block(Blocks.STONE);
+        IAEItemStack cobble = SimulationEnv.block(Blocks.COBBLESTONE);
+        IAEItemStack dirt = SimulationEnv.block(Blocks.DIRT);
         ICraftingPatternDetails p0 = new ProcessingPatternBuilder(cobble).addPreciseInput(1, stone).build();
         ICraftingPatternDetails p1 = new ProcessingPatternBuilder(dirt).addPreciseInput(1, cobble).build();
 

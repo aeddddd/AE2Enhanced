@@ -26,7 +26,7 @@ import com.github.aeddddd.ae2enhanced.mixin.bridge.IPatternHelperAccess;
  * CraftTweaker {@code .reuse()}/自定义 {@code getRemainingItems} 实现
  * （容器语义只走 Item API，而 CrT 通过配方级剩余物钩子返回物品）.</p>
  * <p>结果按样板实例缓存（弱键，样板随网络缓存重建而更换即自动失效）;
- * 计划层(DagExecutor/DagCompiler)与执行层(分子装配室/CPU 集群)共用同一张表,
+ * 计划层(LP 物化/对账)与执行层(分子装配室/CPU 集群)共用同一张表,
  * 保证"计划按返还记账、执行按返还交付"的端到端一致.</p>
  */
 public final class RecipeRemainingResolver {

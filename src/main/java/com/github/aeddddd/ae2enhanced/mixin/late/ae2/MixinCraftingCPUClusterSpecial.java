@@ -2,8 +2,10 @@ package com.github.aeddddd.ae2enhanced.mixin.late.ae2;
 
 import appeng.api.networking.IGrid;
 import appeng.api.networking.crafting.ICraftingPatternDetails;
+import appeng.api.networking.energy.IEnergyGrid;
 import appeng.api.storage.data.IAEItemStack;
 import appeng.api.storage.data.IItemList;
+import appeng.me.cache.CraftingGridCache;
 import appeng.me.cluster.implementations.CraftingCPUCluster;
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
 import com.github.aeddddd.ae2enhanced.mixin.bridge.IComputationCoreAccess;
@@ -24,6 +26,10 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 import java.util.Map;
+
+import net.minecraft.item.ItemStack;
+import net.minecraft.nbt.NBTTagCompound;
+import net.minecraft.nbt.NBTTagList;
 
 /**
  * 特殊合成执行层（自消耗/循环链计划）.
@@ -166,6 +172,80 @@ public abstract class MixinCraftingCPUClusterSpecial implements ISpecialCpuAcces
     }
 
     /**
+     * 特殊标记随集群 NBT 持久化:重启/集群重组(done→readFromNBT)后门控与配额
+     * 调度自愈.快照以 pattern ItemStack + 总次数存储——重建后的
+     * ICraftingPatternDetails 是新实例,按键对象身份无法跨重启复用.
+     */
+    @Inject(method = "writeToNBT", at = @At("RETURN"), require = 0)
+    private void ae2enhanced$writeSpecialState(NBTTagCompound data, CallbackInfo ci) {
+        CraftingCPUCluster self = (CraftingCPUCluster) (Object) this;
+        if (!SpecialCraftingRuntime.isSpecialCluster(self)) {
+            return;
+        }
+        data.setBoolean("ae2eSpecial", true);
+        Map<ICraftingPatternDetails, Long> totals = RoundQuotaScheduler.totalsOf(self);
+        if (totals == null || totals.isEmpty()) {
+            return;
+        }
+        NBTTagList list = new NBTTagList();
+        for (Map.Entry<ICraftingPatternDetails, Long> entry : totals.entrySet()) {
+            ItemStack pattern = entry.getKey().getPattern();
+            if (pattern == null || pattern.isEmpty()) {
+                continue;
+            }
+            NBTTagCompound item = new NBTTagCompound();
+            pattern.writeToNBT(item);
+            item.setLong("total", entry.getValue());
+            list.appendTag(item);
+        }
+        if (!list.isEmpty()) {
+            data.setTag("ae2eSpecialTotals", list);
+        }
+    }
+
+    /**
+     * NBT 恢复:重建特殊标记 + 配额快照(按 pattern ItemStack 匹配重建后的 tasks 键;
+     * 原生 readFromNBT 在本钩子之前已重建 tasks/finalOutput/waitingFor).
+     */
+    @Inject(method = "readFromNBT", at = @At("RETURN"), require = 0)
+    private void ae2enhanced$readSpecialState(NBTTagCompound data, CallbackInfo ci) {
+        if (!data.getBoolean("ae2eSpecial")) {
+            return;
+        }
+        CraftingCPUCluster self = (CraftingCPUCluster) (Object) this;
+        SpecialCraftingRuntime.tagCluster(self);
+        NBTTagList list = data.getTagList("ae2eSpecialTotals", 10);
+        if (list.isEmpty()) {
+            AE2Enhanced.LOGGER.info("[特殊配方] NBT 恢复特殊集群(无配额快照,退化为原生推送): {}",
+                    this.finalOutput);
+            return;
+        }
+        Map<ICraftingPatternDetails, Long> totals = new java.util.LinkedHashMap<>();
+        for (int i = 0; i < list.tagCount(); i++) {
+            NBTTagCompound item = list.getCompoundTagAt(i);
+            ItemStack patternStack = new ItemStack(item);
+            long total = item.getLong("total");
+            if (patternStack.isEmpty() || total <= 0) {
+                continue;
+            }
+            for (ICraftingPatternDetails details : this.tasks.keySet()) {
+                if (ItemStack.areItemStacksEqual(details.getPattern(), patternStack)) {
+                    totals.put(details, total);
+                    break;
+                }
+            }
+        }
+        if (totals.isEmpty()) {
+            AE2Enhanced.LOGGER.warn("[特殊配方] NBT 恢复特殊集群:配额快照匹配失败(样板已变更?),退化为原生推送: {}",
+                    this.finalOutput);
+            return;
+        }
+        RoundQuotaScheduler.snapshot(self, totals);
+        AE2Enhanced.LOGGER.info("[特殊配方] NBT 恢复特殊集群:标记 + 配额快照({} 样板)已重建: {}",
+                totals.size(), this.finalOutput);
+    }
+
+    /**
      * 自消耗 job（自引用/循环链计划,最终产出仍是任务输入）的交付门控:
      * 最终产出先入 CPU 库存,全部任务收官后一次性交付,防止边产边交付饿死合成链.
      * 仅对被标记的集群生效;普通 job 判定为不接管时零影响.
@@ -178,6 +258,36 @@ public abstract class MixinCraftingCPUClusterSpecial implements ISpecialCpuAcces
         if (result.handled) {
             cir.setReturnValue(result.leftover);
         }
+    }
+
+    /**
+     * executeCrafting 单趟内有效的 remaining 快照.
+     * <p>旧实现逐次 canCraft 调用前都从 tasks 重建整张 LinkedHashMap——N 个
+     * pattern 的计划每 tick 产生 O(N²) 次 HashMap.put(spark 采样:占服务器线程
+     * 91%,其中 HashMap.put/hash/resize ≈74%),是大计划下单后执行卡顿的主因.
+     * 快照口径只会比逐次重建更保守(同趟内已推送量不可见 → 闸门最多多拒一次,
+     * 下一趟快照刷新后放行),不会超额推送.</p>
+     */
+    private Map<ICraftingPatternDetails, Long> ae2e$remainingSnapshot;
+
+    /** executeCrafting 入口:特殊集群构建本趟 remaining 快照(非特殊集群零开销). */
+    @Inject(method = "executeCrafting", at = @At("HEAD"), require = 0)
+    private void ae2enhanced$snapshotRemaining(IEnergyGrid energy, CraftingGridCache cache, CallbackInfo ci) {
+        CraftingCPUCluster self = (CraftingCPUCluster) (Object) this;
+        if (!SpecialCraftingRuntime.isSpecialCluster(self)) {
+            return;
+        }
+        Map<ICraftingPatternDetails, Long> snapshot = new java.util.LinkedHashMap<>();
+        for (Map.Entry<ICraftingPatternDetails, Object> entry : this.tasks.entrySet()) {
+            snapshot.put(entry.getKey(), ((ITaskProgressAccessor) entry.getValue()).ae2e$getValue());
+        }
+        this.ae2e$remainingSnapshot = snapshot;
+    }
+
+    /** executeCrafting 出口:丢弃快照(防滞留引用 + 下一趟重建). */
+    @Inject(method = "executeCrafting", at = @At("RETURN"), require = 0)
+    private void ae2enhanced$dropRemainingSnapshot(IEnergyGrid energy, CraftingGridCache cache, CallbackInfo ci) {
+        this.ae2e$remainingSnapshot = null;
     }
 
     /**
@@ -196,9 +306,13 @@ public abstract class MixinCraftingCPUClusterSpecial implements ISpecialCpuAcces
     private boolean ae2enhanced$vetoPushOverQuota(CraftingCPUCluster self, ICraftingPatternDetails details,
             IAEItemStack[] condensedInputs, Operation<Boolean> original) {
         if (SpecialCraftingRuntime.isSpecialCluster(self)) {
-            Map<ICraftingPatternDetails, Long> remaining = new java.util.LinkedHashMap<>();
-            for (Map.Entry<ICraftingPatternDetails, Object> entry : this.tasks.entrySet()) {
-                remaining.put(entry.getKey(), ((ITaskProgressAccessor) entry.getValue()).ae2e$getValue());
+            Map<ICraftingPatternDetails, Long> remaining = this.ae2e$remainingSnapshot;
+            if (remaining == null) {
+                // 防御:HEAD 快照注入未生效时退化为逐次重建(保语义)
+                remaining = new java.util.LinkedHashMap<>();
+                for (Map.Entry<ICraftingPatternDetails, Object> entry : this.tasks.entrySet()) {
+                    remaining.put(entry.getKey(), ((ITaskProgressAccessor) entry.getValue()).ae2e$getValue());
+                }
             }
             if (RoundQuotaScheduler.shouldVetoPush(self, details, remaining, this.finalOutput)) {
                 return false; // 超配额:视同输入不足,本拍跳过该 pattern

@@ -20,7 +20,7 @@ import com.github.aeddddd.ae2enhanced.specialcrafting.SpecialPlanInfo;
 
 /**
  * 服务端 → 客户端的特殊计划显示信息同步包.
- * 由 SpecialCraftingJob 求解成功后发送,客户端缓存供合成确认界面 tooltip 使用.
+ * 由 LP 计划 job 求解成功后发送,客户端缓存供合成确认界面 tooltip 使用.
  */
 public class PacketSpecialPlanInfo implements IMessage {
 

@@ -4,13 +4,10 @@ import appeng.crafting.CraftingJob;
 import appeng.crafting.CraftingTreeNode;
 import appeng.crafting.CraftingTreeProcess;
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
-import com.github.aeddddd.ae2enhanced.craftingplan.dag.DagCraftingJob;
-import com.github.aeddddd.ae2enhanced.craftingplan.dag.FallbackDagCraftingJob;
 import com.github.aeddddd.ae2enhanced.diag.DiagEvents;
 import com.github.aeddddd.ae2enhanced.diag.DiagSwitch;
 import com.github.aeddddd.ae2enhanced.diag.metrics.MetricsRegistry;
 import com.github.aeddddd.ae2enhanced.specialcrafting.Ae2CraftingReflect;
-import com.github.aeddddd.ae2enhanced.specialcrafting.SpecialCraftingJob;
 
 /**
  * 合成计划执行验证与效果评估.
@@ -53,24 +50,21 @@ public final class PlanTracker {
         }
     }
 
-    /** 计划路径分类（与 MixinCraftingGridCache 的路由规则一致）。 */
+    /** 计划路径分类（与 MixinCraftingGridCache 的路由规则一致,M7 起 LP 计划器）. */
     private static String classify(CraftingJob job) {
-        if (job instanceof SpecialCraftingJob) {
-            return "special";
+        if (job instanceof com.github.aeddddd.ae2enhanced.specialcrafting.FallbackLpCraftingJob) {
+            return "lpFallback";
         }
-        if (job instanceof FallbackDagCraftingJob) {
-            return "dagFallback";
-        }
-        if (job instanceof DagCraftingJob) {
-            // DAG 回落原生(super.run())的耗时由 MixinCraftingJob RETURN 钩子计时——
-            // 已挂原生预算(deadline 非 0)即处于回落段,归入 dagToNative,
-            // 否则 dag 尾部样本会把"DAG 快速失败 + 原生烧预算"误记成 DAG 慢
+        if (job instanceof com.github.aeddddd.ae2enhanced.specialcrafting.LpCraftingJob) {
+            // LP 回落原生(super.run())的耗时由 MixinCraftingJob RETURN 钩子计时——
+            // 已挂原生预算(deadline 非 0)即处于回落段,归入 lpToNative,
+            // 否则 lp 尾部样本会把"LP 快速失败 + 原生烧预算"误记成 LP 慢
             if (job instanceof com.github.aeddddd.ae2enhanced.mixin.bridge.ICraftingJobBudgetAccess
                     && ((com.github.aeddddd.ae2enhanced.mixin.bridge.ICraftingJobBudgetAccess) job)
                             .ae2enhanced$nativeCalcDeadlineNanos() != 0L) {
-                return "dagToNative";
+                return "lpToNative";
             }
-            return "dag";
+            return "lp";
         }
         return "native";
     }

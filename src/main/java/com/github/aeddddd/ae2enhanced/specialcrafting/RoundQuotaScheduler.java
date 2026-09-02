@@ -20,10 +20,12 @@ import appeng.me.cluster.implementations.CraftingCPUCluster;
  * <p><b>方案</b>:对被标记为特殊 job 的 CPU 集群,限制每个闭包 pattern 的推送
  * 不超过"最慢闭包 pattern 进度 + 1 个超轮"的配额——先行消费者最多领先一轮,
  * 多消费者键的并发消耗被闸在每轮总消耗以内,库存要求降回每轮种子.</p>
- * <p><b>配额自恢复</b>:计划 tasks 总次数 = 轮次 × 超轮比（求解器构造上
- * 已约分）,对闭包内总次数求 GCD 即恢复轮次;闭包 = 任务集中
- * "既消耗又产出"的键所触及的 pattern（外部子合成 pattern 自动豁免）.</p>
- * <p><b>已知限制</b>:NBT 恢复的 job 无配额快照,退化为原生推送.</p>
+ * <p><b>配额自恢复</b>:计划 tasks 总次数 = 轮次 × 超轮比,对闭包内总次数求 GCD
+ * 即恢复轮次;GCD=1(LP 最小执行计数互质)时退化为闭包最小总次数作轮数
+ * (超轮比 ≈1,锁步推进);闭包 = 任务集中"既消耗又产出"的键所触及的
+ * pattern（外部子合成 pattern 自动豁免）.</p>
+ * <p><b>NBT 恢复</b>:配额快照随集群 NBT 持久化(见 MixinCraftingCPUClusterSpecial),
+ * 重启/集群重组后按 pattern ItemStack 匹配重建;快照缺失时退化为原生推送.</p>
  */
 public final class RoundQuotaScheduler {
 
@@ -72,6 +74,14 @@ public final class RoundQuotaScheduler {
         }
         TOTALS.put(cluster, Collections.unmodifiableMap(cleaned));
         QUOTAS.remove(cluster);
+    }
+
+    /**
+     * 提交时的 tasks 总次数快照（NBT 持久化用;无快照返回 null）.
+     */
+    @Nullable
+    public static Map<ICraftingPatternDetails, Long> totalsOf(CraftingCPUCluster cluster) {
+        return TOTALS.get(cluster);
     }
 
     /**
@@ -176,9 +186,19 @@ public final class RoundQuotaScheduler {
         if (closureTotals.isEmpty() || gcd <= 0) {
             return null;
         }
+        // 轮数恢复:GCD>1 时按 GCD 约分;GCD=1(LP 最小执行计数常互质,如 49/49/48)
+        // 退化为闭包最小总次数——超轮比 ≈1,锁步推进(±1 次)防先行消费者吃光
+        // 共享种子;若沿用 GCD=1 则超轮 = 整个任务,闸门形同虚设
+        long rounds = gcd;
+        if (rounds == 1) {
+            rounds = Long.MAX_VALUE;
+            for (long total : closureTotals.values()) {
+                rounds = Math.min(rounds, total);
+            }
+        }
         Map<ICraftingPatternDetails, Long> perRound = new LinkedHashMap<>();
         for (Map.Entry<ICraftingPatternDetails, Long> entry : closureTotals.entrySet()) {
-            perRound.put(entry.getKey(), entry.getValue() / gcd);
+            perRound.put(entry.getKey(), Math.max(1L, entry.getValue() / rounds));
         }
         return new Quota(perRound);
     }

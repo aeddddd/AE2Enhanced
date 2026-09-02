@@ -1,4 +1,4 @@
-package com.github.aeddddd.ae2enhanced.craftingplan.dag;
+package com.github.aeddddd.ae2enhanced.specialcrafting;
 
 import net.minecraft.world.World;
 
@@ -11,22 +11,16 @@ import appeng.crafting.CraftingTreeNode;
 import appeng.crafting.MECraftingInventory;
 import appeng.hooks.TickHandler;
 
-import com.github.aeddddd.ae2enhanced.specialcrafting.Ae2CraftingReflect;
-import com.github.aeddddd.ae2enhanced.specialcrafting.NativeCalcBudget;
-import com.github.aeddddd.ae2enhanced.specialcrafting.SpecialLog;
-import com.github.aeddddd.ae2enhanced.specialcrafting.SpecialPlanDisplayHook;
-import com.github.aeddddd.ae2enhanced.specialcrafting.SpecialPlanMarker;
-
 /**
- * FALLBACK 模式合成计算器：原生先算,得出缺料（模拟）计划时 DAG 重算,
+ * FALLBACK 模式合成计算器：原生先算,得出缺料（模拟）计划时 LP 重算,
  * 更优（非模拟）则采用,否则保留原生缺料报告.
  * <p>复制原生 {@code CraftingJob.run()} 骨架（去 finish）以实现"先原生后决策":
- * 原生成功 → 直接 dive 收尾;原生失败 → DAG 重算;DAG 也失败 →
+ * 原生成功 → 直接 dive 收尾;原生失败 → LP 重算;LP 也失败 →
  * 按原生失败路径产出缺料计划（玩家请求时模拟模式重跑收集 missing）.</p>
  */
-public class FallbackDagCraftingJob extends DagCraftingJob {
+public class FallbackLpCraftingJob extends LpCraftingJob {
 
-    public FallbackDagCraftingJob(World w, IGrid grid, IActionSource actionSrc, IAEItemStack what,
+    public FallbackLpCraftingJob(World w, IGrid grid, IActionSource actionSrc, IAEItemStack what,
             ICraftingCallback callback) {
         super(w, grid, actionSrc, what, callback);
     }
@@ -54,22 +48,22 @@ public class FallbackDagCraftingJob extends DagCraftingJob {
                 Ae2CraftingReflect.nodeRequest(this.getTree(), inv, this.getOutput().getStackSize(), src);
                 nativeOk = true;
             } catch (CraftBranchFailure failure) {
-                SpecialLog.info("[DAG] FALLBACK:原生缺料({}),DAG 重算", failure.toString());
+                SpecialLog.info("[LP计划] FALLBACK:原生缺料({}),LP 重算", failure.toString());
             }
 
             if (nativeOk) {
                 Ae2CraftingReflect.nodeDive(this.getTree(), this);
             } else {
-                CraftingTreeNode dagRoot = null;
+                CraftingTreeNode lpRoot = null;
                 try {
-                    dagRoot = this.computeDagPlan();
+                    lpRoot = this.computeLpPlan();
                 } catch (Throwable t) {
-                    SpecialLog.warn("[DAG] FALLBACK:DAG 重算异常({}),保留原生缺料报告", t.toString());
+                    SpecialLog.warn("[LP计划] FALLBACK:LP 重算异常({}),保留原生缺料报告", t.toString());
                 }
-                if (dagRoot != null && !this.isSimulation()) {
-                    // 仅当 DAG 真正解出(非模拟)才替换
-                    Ae2CraftingReflect.setTree(this, dagRoot);
-                    Ae2CraftingReflect.nodeDive(dagRoot, this);
+                if (lpRoot != null && !this.isSimulation()) {
+                    // 仅当 LP 真正解出(非模拟)才替换
+                    Ae2CraftingReflect.setTree(this, lpRoot);
+                    Ae2CraftingReflect.nodeDive(lpRoot, this);
                     if (this.hasCycleBoundary) {
                         SpecialPlanMarker.mark(this);
                     }
@@ -97,12 +91,12 @@ public class FallbackDagCraftingJob extends DagCraftingJob {
             SpecialPlanDisplayHook.sendPlanInfo(this);
             Ae2CraftingReflect.finish(this);
         } catch (InterruptedException e) {
-            SpecialLog.info("[DAG] FALLBACK:计算被取消");
+            SpecialLog.info("[LP计划] FALLBACK:计算被取消");
             NativeCalcBudget.warnIfAborted(this);
             Ae2CraftingReflect.finish(this);
         } catch (Throwable t) {
             com.github.aeddddd.ae2enhanced.AE2Enhanced.LOGGER
-                    .warn("DAG FALLBACK 异常,回落原生计算: {}", t.toString());
+                    .warn("LP FALLBACK 异常,回落原生计算: {}", t.toString());
             Ae2CraftingReflect.setAvailableCheck(this, null);
             NativeCalcBudget.arm(this);
             delegatedToNative = true;

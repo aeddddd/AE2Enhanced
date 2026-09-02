@@ -89,8 +89,8 @@ public class DagEmitterTest {
         PlanView view = PlanView.of(job);
         assertThat(view.simulation()).as("发射根计划可提交").isFalse();
         assertThat(view.missingItems()).isEmpty();
-        // 根请求对请求物本身 invIgnore(原生语义:目标物不计入可用库存)
-        // → 库存 3 不提取,10 份全部由发射满足
+        // 原生 CraftingJob.ignore(output) 语义:请求物自身库存不参与计划,
+        // 10 份全部由发射满足,库存 3 不动
         assertThat(view.usedItems().getOrDefault(e, 0L)).isEqualTo(0L);
         assertThat(view.patternTimes()).as("发射根无任何合成任务").isEmpty();
     }

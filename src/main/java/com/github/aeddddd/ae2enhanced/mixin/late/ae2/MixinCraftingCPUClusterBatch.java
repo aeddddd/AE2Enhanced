@@ -171,6 +171,12 @@ public abstract class MixinCraftingCPUClusterBatch {
         // 的深层 NBT 比较,是合成 CPU 每 tick 的主要开销之一(spark 采样确认).
         if (!((ICraftingGridCacheAccess) cache).ae2enhanced$hasAssemblyHub()) return;
 
+        // 特殊集群(超因果计算核心上的自消耗 job)豁免批量结算:批量分支直写
+        // itemList 会绕过 SelfRefOutputGate 门控记账(remainingItemCount/脏标记
+        // 口径不一),与 MixinCraftingCPUClusterAggregate 的特殊集群守卫同口径
+        if (com.github.aeddddd.ae2enhanced.specialcrafting.SpecialCraftingRuntime
+                .isSpecialCluster((CraftingCPUCluster) (Object) this)) return;
+
         CraftingCPUCluster cpu;
         boolean anyOurTask = false;
         int virtualTasksFound = 0;

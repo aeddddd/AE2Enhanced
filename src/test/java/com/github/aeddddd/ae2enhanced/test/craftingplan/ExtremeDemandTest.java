@@ -23,10 +23,10 @@ import com.github.aeddddd.ae2enhanced.test.specialcrafting.SimulationEnv;
  * E 组:天文数字需求（接近 {@link Long#MAX_VALUE}）回归.
  * <p>历史病灶:各求解器的 ceilDiv 写作 (a + b - 1) / b,需求近 Long.MAX 时加法回绕成
  * 负数,被误判为"循环边界不可解"而<b>整单回落原生递归树</b>——在大网络上即用户观测到
- * 的"高请求计算速度很慢".修复后:数值不可表示的边界需求 O(1) 就地记缺料（对齐根路径
- * missingRoot 语义）,其余分支照常规划.</p>
- * <p>区分"O(1) 缺料"与"回落原生"的判据:原生模拟路径中环样板会记录 crafts &gt; 0
- * （子请求发出后才失败）,而 O(1) 缺料路径环样板零调用.</p>
+ * 的"高请求计算速度很慢".</p>
+ * <p>LP 语义:需求按求解器上界封顶执行(999999991776627712),超出封顶的部分
+ * (8223372045078148096)在<b>根键</b> O(1) 记缺,环样板按封顶需求照常规划(不再零调用),
+ * 原料赤字按库存扣减后如实上报.</p>
  */
 public class ExtremeDemandTest {
 
@@ -40,7 +40,7 @@ public class ExtremeDemandTest {
         return copy;
     }
 
-    /** E1:θ 边界需求 Long.MAX → 贷款水位不可表示 → O(1) 缺料,环样板零调用,其余分支照常. */
+    /** E1:θ 边界需求 Long.MAX → 需求封顶执行,超出部分根键记缺,环样板按封顶需求照常规划. */
     @Test
     public void testThetaBoundaryAstronomicalDemandMissing() {
         SimulationEnv env = new SimulationEnv();
@@ -67,19 +67,20 @@ public class ExtremeDemandTest {
         PlanView plan = PlanView.of(env.runDag(mult(e, Long.MAX_VALUE)));
 
         assertThat(plan.simulation()).as("缺料计划").isTrue();
-        assertThat(plan.missingItems().get(RecursiveCraftingHelper.canon(c)))
-                .as("边界需求全额记缺").isEqualTo(Long.MAX_VALUE);
+        // LP 语义:超出封顶(999999991776627712)的部分在根键记缺
+        assertThat(plan.missingItems().get(RecursiveCraftingHelper.canon(e)))
+                .as("超出封顶部分根键记缺").isEqualTo(8223372045078148096L);
         Map<ICraftingPatternDetails, Long> times = plan.patternTimes();
-        // 非原生回落的证据:环样板零调用(原生模拟路径会记录 crafts > 0)
-        assertThat(times.getOrDefault(pX, 0L)).isEqualTo(0L);
-        assertThat(times.getOrDefault(pY, 0L)).isEqualTo(0L);
-        assertThat(times.getOrDefault(pC, 0L)).isEqualTo(0L);
-        // 环外分支照常规划
-        assertThat(times.get(pE)).isEqualTo(Long.MAX_VALUE);
-        assertThat(times.get(pD)).isEqualTo(Long.MAX_VALUE);
+        // θ 环按封顶需求正常规划(种子库存计入交付)
+        assertThat(times.get(pX)).isEqualTo(499999995888313792L);
+        assertThat(times.get(pY)).isEqualTo(499999995888313792L);
+        assertThat(times.get(pC)).isEqualTo(499999995888313792L);
+        // 环外分支按封顶需求规划
+        assertThat(times.get(pE)).isEqualTo(999999991776627712L);
+        assertThat(times.get(pD)).isEqualTo(999999991776627712L);
     }
 
-    /** E2:自增殖边界 2X→3X 需求 Long.MAX → 贷款 crafts > Long.MAX/inPer → O(1) 缺料. */
+    /** E2:自增殖边界 2X→3X 需求 Long.MAX → 需求封顶执行,超出部分根键记缺. */
     @Test
     public void testSelfDupBoundaryAstronomicalDemandMissing() {
         SimulationEnv env = new SimulationEnv();
@@ -94,17 +95,18 @@ public class ExtremeDemandTest {
         PlanView plan = PlanView.of(env.runDag(mult(d, Long.MAX_VALUE)));
 
         assertThat(plan.simulation()).as("缺料计划").isTrue();
-        assertThat(plan.missingItems().get(RecursiveCraftingHelper.canon(x)))
-                .isEqualTo(Long.MAX_VALUE);
+        // LP 语义:超出封顶的部分在根键记缺
+        assertThat(plan.missingItems().get(RecursiveCraftingHelper.canon(d)))
+                .isEqualTo(8223372045078148096L);
         Map<ICraftingPatternDetails, Long> times = plan.patternTimes();
-        assertThat(times.getOrDefault(pDup, 0L)).as("dup 样板零调用").isEqualTo(0L);
-        assertThat(times.get(pD)).isEqualTo(Long.MAX_VALUE);
+        assertThat(times.get(pDup)).as("dup 样板按封顶需求规划").isEqualTo(999999991776627712L);
+        assertThat(times.get(pD)).isEqualTo(999999991776627712L);
     }
 
     /**
      * E3:普通路径批量产出样的 ceilDiv 饱和——请求 Long.MAX、每次产 4:
-     * 旧实现 (a+b-1)/b 回绕成负数导致子需求被钳为 0(错误地"无缺料"),
-     * 修复后 times = ceil(Long.MAX/4),缺料如实上报.
+     * 旧实现 (a+b-1)/b 回绕成负数导致子需求被钳为 0(错误地"无缺料").
+     * LP 语义:需求封顶执行,原料赤字与超出封顶部分(根键)如实上报.
      */
     @Test
     public void testNormalPathCeilDivSaturation() {
@@ -119,17 +121,21 @@ public class ExtremeDemandTest {
 
         PlanView plan = PlanView.of(env.runDag(mult(c, Long.MAX_VALUE)));
 
-        long expectedTimes = Long.MAX_VALUE / 4 + 1; // 2305843009213693952
-        assertThat(plan.patternTimes().get(pB)).isEqualTo(expectedTimes);
+        long cappedTimes = 249999997944156928L; // 封顶需求 ÷ 4 批量
+        assertThat(plan.patternTimes().get(pB)).isEqualTo(cappedTimes);
         assertThat(plan.simulation()).as("原料不足须报缺料").isTrue();
+        // 原料赤字 + 超出封顶部分(根键)同时上报
         assertThat(plan.missingItems().get(RecursiveCraftingHelper.canon(a)))
-                .isEqualTo(expectedTimes - 1000);
+                .isEqualTo(249999997944155936L);
+        assertThat(plan.missingItems().get(RecursiveCraftingHelper.canon(c)))
+                .isEqualTo(8223372045078148096L);
     }
 
     /**
-     * E5:自增殖边界 1X→2X(inPer=1)需求 exact Long.MAX → 产出 2×crafts 超 long 不可表示
-     * → O(1) 缺料.(旧的贷款守卫用 inPer 判定,inPer=1 时恰好漏过 exact Long.MAX:
+     * E5:自增殖边界 1X→2X(inPer=1)需求 exact Long.MAX → 产出 2×crafts 超 long 不可表示.
+     * (旧的贷款守卫用 inPer 判定,inPer=1 时恰好漏过 exact Long.MAX:
      * 产出回绕成负数 → 结算失败 → 整单回落原生)
+     * LP 语义:需求封顶执行,超出部分根键记缺,dup 样板按封顶需求规划.
      */
     @Test
     public void testSelfDupUnitInputAstronomicalDemandMissing() {
@@ -145,11 +151,12 @@ public class ExtremeDemandTest {
         PlanView plan = PlanView.of(env.runDag(mult(d, Long.MAX_VALUE)));
 
         assertThat(plan.simulation()).as("缺料计划").isTrue();
-        assertThat(plan.missingItems().get(RecursiveCraftingHelper.canon(x)))
-                .isEqualTo(Long.MAX_VALUE);
+        // LP 语义:超出封顶的部分在根键记缺
+        assertThat(plan.missingItems().get(RecursiveCraftingHelper.canon(d)))
+                .isEqualTo(8223372045078148096L);
         Map<ICraftingPatternDetails, Long> times = plan.patternTimes();
-        assertThat(times.getOrDefault(pDup, 0L)).as("dup 样板零调用").isEqualTo(0L);
-        assertThat(times.get(pD)).isEqualTo(Long.MAX_VALUE);
+        assertThat(times.get(pDup)).as("dup 样板按封顶需求规划").isEqualTo(999999991776627712L);
+        assertThat(times.get(pD)).isEqualTo(999999991776627712L);
     }
 
     /** E4:根级 θ 环请求 exact Long.MAX → 特殊路径 O(1) 缺料(不回落原生,环样板零调用). */
@@ -170,7 +177,7 @@ public class ExtremeDemandTest {
         env.addStoredItem(mult(c, 8));
         env.addStoredItem(y);
 
-        PlanView plan = PlanView.of(env.runSpecial(mult(c, Long.MAX_VALUE)));
+        PlanView plan = PlanView.of(env.runDag(mult(c, Long.MAX_VALUE)));
 
         assertThat(plan.simulation()).as("缺料计划").isTrue();
         assertThat(SpecialPlanMarker.isSpecial(plan.job())).as("缺料计划不标记特殊").isFalse();

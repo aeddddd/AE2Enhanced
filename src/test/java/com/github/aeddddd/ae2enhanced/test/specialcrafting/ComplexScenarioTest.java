@@ -1,8 +1,8 @@
 package com.github.aeddddd.ae2enhanced.test.specialcrafting;
 
-import static com.github.aeddddd.ae2enhanced.test.specialcrafting.CycleAnalyzerTest.block;
-import static com.github.aeddddd.ae2enhanced.test.specialcrafting.CycleAnalyzerTest.item;
-import static com.github.aeddddd.ae2enhanced.test.specialcrafting.CycleAnalyzerTest.mult;
+import static com.github.aeddddd.ae2enhanced.test.specialcrafting.SimulationEnv.block;
+import static com.github.aeddddd.ae2enhanced.test.specialcrafting.SimulationEnv.item;
+import static com.github.aeddddd.ae2enhanced.test.specialcrafting.SimulationEnv.mult;
 import static com.github.aeddddd.ae2enhanced.test.specialcrafting.PlanAssert.assertThatPlan;
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -27,7 +27,8 @@ import com.github.aeddddd.ae2enhanced.specialcrafting.SpecialPlanMarker;
  */
 public class ComplexScenarioTest {
 
-    /** H1:自引用样板与循环链并存时,自引用(阶段 1)优先接管. */
+    /** H1:自引用样板与循环链并存时,自引用(净产最优)接管.
+     * 全额生产语义:根库存不抵交付,净需 10 → dup×10(库存 1 作点火种子,期末返还). */
     @Test
     public void testSelfRefTakesPriorityOverCycle() {
         SimulationEnv env = new SimulationEnv();
@@ -39,10 +40,10 @@ public class ComplexScenarioTest {
         env.addPattern(new ProcessingPatternBuilder(stone).addPreciseInput(1, cobble).build());
         env.addStoredItem(stone);
 
-        PlanView plan = PlanView.of(env.runSpecial(mult(stone, 10)));
+        PlanView plan = PlanView.of(env.runDag(mult(stone, 10)));
         assertThatPlan(plan)
                 .succeeded()
-                .patternsMatch(dup, 10) // 只用自引用样板,不走循环链
+                .patternsMatch(dup, 10) // 只用自引用样板,不走循环链(全额生产 10)
                 .usedMatch(stone)
                 .missingMatch();
         assertThat(SpecialPlanMarker.isSpecial(plan.job())).isTrue();
@@ -67,14 +68,14 @@ public class ComplexScenarioTest {
         env.addStoredItem(stone); // 种子
         env.addStoredItem(mult(sand, 4)); // 无 dirt 库存,需从 sand 子合成
 
-        PlanView plan = PlanView.of(env.runSpecial(mult(stone, 2)));
+        PlanView plan = PlanView.of(env.runDag(mult(stone, 2)));
         Map<ICraftingPatternDetails, Long> expected = new LinkedHashMap<>();
         expected.put(p0, 2L);
         expected.put(p1, 4L);
         expected.put(pDirt, 1L);
         assertThatPlan(plan)
                 .succeeded()
-                .patternsMatch(expected)
+                .patternsMatch(expected) // 全额生产 2:p0×2 + p1×4,dirt 缺口 2 由 pDirt×1 补
                 .usedMatch(stone, sand)
                 .missingMatch();
         assertThat(SpecialPlanMarker.isSpecial(plan.job())).isTrue();
@@ -99,7 +100,7 @@ public class ComplexScenarioTest {
         env.addStoredItem(stone); // 种子
         env.addStoredItem(mult(dirt, 10)); // 辅材
 
-        PlanView plan = PlanView.of(env.runSpecial(mult(stone, 4)));
+        PlanView plan = PlanView.of(env.runDag(mult(stone, 4)));
         Map<ICraftingPatternDetails, Long> expected = new LinkedHashMap<>();
         expected.put(p0, 2L);
         expected.put(p1, 4L);
@@ -127,46 +128,50 @@ public class ComplexScenarioTest {
                 new ProcessingPatternBuilder(stone).addPreciseInput(1, sand).build());
         env.addStoredItem(stone);
 
-        PlanView plan = PlanView.of(env.runSpecial(mult(stone, 10)));
+        PlanView plan = PlanView.of(env.runDag(mult(stone, 10)));
         Map<ICraftingPatternDetails, Long> expected = new LinkedHashMap<>();
         expected.put(p2, 10L);
         expected.put(p3, 20L);
         assertThatPlan(plan)
                 .succeeded()
-                .patternsMatch(expected) // 只走增殖环
+                .patternsMatch(expected) // 只走增殖环(全额生产 10:10 轮 × [1,2])
                 .usedMatch(stone)
                 .missingMatch();
         assertThat(SpecialPlanMarker.isSpecial(plan.job())).isTrue();
     }
 
-    /** H5:两个仅共享 root 的独立增殖环 → 并集 m≠n 返回 null,逐环迭代成功. */
+    /** H5:两个仅共享 root 的独立增殖环 → LP 整单元联立求解,选执行数更少的
+     * 砂环(净 +2/次 vs 石环 +1/次);全额生产 10 → 5 轮 × [1,3]. */
     @Test
     public void testTwoDisjointCyclesUnionRejectedButIterationSolves() {
         SimulationEnv env = new SimulationEnv();
         IAEItemStack stone = block(Blocks.STONE);
         IAEItemStack cobble = block(Blocks.COBBLESTONE);
         IAEItemStack sand = block(Blocks.SAND);
-        ICraftingPatternDetails p0 = env.addPattern(
+        env.addPattern(
                 new ProcessingPatternBuilder(mult(cobble, 2)).addPreciseInput(1, stone).build());
-        ICraftingPatternDetails p1 = env.addPattern(
+        env.addPattern(
                 new ProcessingPatternBuilder(stone).addPreciseInput(1, cobble).build());
-        env.addPattern(new ProcessingPatternBuilder(mult(sand, 3)).addPreciseInput(1, stone).build());
-        env.addPattern(new ProcessingPatternBuilder(stone).addPreciseInput(1, sand).build());
+        ICraftingPatternDetails pSand = env
+                .addPattern(new ProcessingPatternBuilder(mult(sand, 3)).addPreciseInput(1, stone).build());
+        ICraftingPatternDetails pBack = env
+                .addPattern(new ProcessingPatternBuilder(stone).addPreciseInput(1, sand).build());
         env.addStoredItem(stone);
 
-        PlanView plan = PlanView.of(env.runSpecial(mult(stone, 10)));
+        PlanView plan = PlanView.of(env.runDag(mult(stone, 10)));
         Map<ICraftingPatternDetails, Long> expected = new LinkedHashMap<>();
-        expected.put(p0, 10L);
-        expected.put(p1, 20L);
+        expected.put(pSand, 5L);
+        expected.put(pBack, 15L);
         assertThatPlan(plan)
                 .succeeded()
-                .patternsMatch(expected) // 第一个候选环(发现序)求解成功
+                .patternsMatch(expected) // 砂环净 +2/次(执行数更少):石 1 - 5 + 15 - 10(交付) = 1(种子保留)
                 .usedMatch(stone)
                 .missingMatch();
         assertThat(SpecialPlanMarker.isSpecial(plan.job())).isTrue();
     }
 
-    /** H6:请求量非净增益整数倍 → ceil 多转一轮,余量执行结束返回网络. */
+    /** H6:请求量非净增益整数倍 → ceil 多转一轮,余量执行结束返回网络.
+     * 全额生产语义:净需 33/轮产 32 → 2 整轮(库存 32 作点火种子,期末返还). */
     @Test
     public void testTargetNotMultipleOfNetGain() {
         SimulationEnv env = new SimulationEnv();
@@ -185,18 +190,18 @@ public class ComplexScenarioTest {
                 .addPreciseInput(64, sand)
                 .addPreciseInput(1, dirt)
                 .build());
-        env.addStoredItem(mult(stone, 64)); // 远超每轮种子要求(32)
+        env.addStoredItem(mult(stone, 32)); // 恰够每轮种子(16+16)
         env.addStoredItem(mult(dirt, 100));
 
-        PlanView plan = PlanView.of(env.runSpecial(mult(stone, 33)));
+        PlanView plan = PlanView.of(env.runDag(mult(stone, 33)));
         Map<ICraftingPatternDetails, Long> expected = new LinkedHashMap<>();
         expected.put(p1, 32L);
         expected.put(p2, 2L);
         expected.put(p3, 2L);
         assertThatPlan(plan)
                 .succeeded()
-                .patternsMatch(expected) // ceil(33/32)=2 轮,与请求 64 相同
-                .usedMatch(mult(stone, 32), mult(dirt, 4)) // 每轮种子记账
+                .patternsMatch(expected) // 全额生产 ceil(33/32) → 2 轮
+                .usedMatch(mult(stone, 32), mult(dirt, 4)) // 种子全额实取,W 净消耗 4(2 轮 × 2)
                 .missingMatch();
         assertThat(SpecialPlanMarker.isSpecial(plan.job())).isTrue();
     }
@@ -213,7 +218,7 @@ public class ComplexScenarioTest {
 
         IAEItemStack huge = stone.copy();
         huge.setStackSize(Long.MAX_VALUE - 1);
-        PlanView plan = PlanView.of(env.runSpecial(huge));
+        PlanView plan = PlanView.of(env.runDag(huge));
         assertThatPlan(plan).failed();
         assertThat(SpecialPlanMarker.isSpecial(plan.job())).isFalse();
     }
@@ -229,10 +234,10 @@ public class ComplexScenarioTest {
                 .build());
         env.addStoredItem(stone);
 
-        PlanView plan = PlanView.of(env.runSpecial(mult(stone, 4)));
+        PlanView plan = PlanView.of(env.runDag(mult(stone, 4)));
         assertThatPlan(plan)
                 .succeeded()
-                .patternsMatch(dup, 4)
+                .patternsMatch(dup, 4) // 全额生产 4(库存种子 1 点火,期末返还)
                 .usedMatch(stone)
                 .missingMatch();
         assertThat(SpecialPlanMarker.isSpecial(plan.job())).isTrue();
@@ -251,7 +256,7 @@ public class ComplexScenarioTest {
                 new ProcessingPatternBuilder(stick, dirt).addPreciseInput(1, dirt).build());
         env.addStoredItem(dirt); // 只有 dirt 种子
 
-        PlanView plan = PlanView.of(env.runSpecial(mult(stick, 10)));
+        PlanView plan = PlanView.of(env.runDag(mult(stick, 10)));
         assertThatPlan(plan)
                 .succeeded()
                 .patternsMatch(p2, 10)
@@ -286,7 +291,7 @@ public class ComplexScenarioTest {
         env.addStoredItem(dirt); // W 库存 1,缺口 1 由子合成补
         env.addStoredItem(flint);
 
-        PlanView plan = PlanView.of(env.runSpecial(mult(stone, 4)));
+        PlanView plan = PlanView.of(env.runDag(mult(stone, 4)));
         Map<ICraftingPatternDetails, Long> expected = new LinkedHashMap<>();
         expected.put(p0, 2L);
         expected.put(p1, 4L);
@@ -295,7 +300,7 @@ public class ComplexScenarioTest {
         expected.put(pW, 1L);
         assertThatPlan(plan)
                 .succeeded()
-                .patternsMatch(expected) // 1 轮 × t + W 子合成
+                .patternsMatch(expected) // 全额生产 4 → 1 整轮 [2,4,2,3](净产 4A/轮) + W 子合成
                 .usedMatch(mult(stone, 2), dirt, flint)
                 .missingMatch();
         assertThat(SpecialPlanMarker.isSpecial(plan.job())).isTrue();

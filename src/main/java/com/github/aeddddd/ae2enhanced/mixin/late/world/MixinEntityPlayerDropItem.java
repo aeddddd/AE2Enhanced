@@ -18,8 +18,9 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 @Mixin(value = EntityPlayer.class, remap = true)
 public class MixinEntityPlayerDropItem {
 
-    @Inject(method = "dropItem", at = @At("HEAD"), cancellable = true)
-    private void ae2e$onDropItem(ItemStack droppedItem, boolean dropAround, CallbackInfoReturnable<EntityItem> cir) {
+    // 带完整描述符,避免构建期 refmap 将同名重载 dropItem(boolean) 错误映射到 func_71040_bB
+    @Inject(method = "dropItem(Lnet/minecraft/item/ItemStack;ZZ)Lnet/minecraft/entity/item/EntityItem;", at = @At("HEAD"), cancellable = true)
+    private void ae2e$onDropItem(ItemStack droppedItem, boolean dropAround, boolean traceItem, CallbackInfoReturnable<EntityItem> cir) {
         EntityPlayer player = (EntityPlayer) (Object) this;
         if (player.world.isRemote || droppedItem.isEmpty()) return;
         if (!CollectorRegistry.hasCollectors(player.world)) return;

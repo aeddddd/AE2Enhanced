@@ -2,6 +2,7 @@ package com.github.aeddddd.ae2enhanced.specialcrafting.lp;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
@@ -14,6 +15,7 @@ import appeng.api.networking.crafting.ICraftingGrid;
 import appeng.api.networking.crafting.ICraftingPatternDetails;
 import appeng.api.storage.data.IAEItemStack;
 
+import com.github.aeddddd.ae2enhanced.specialcrafting.FlowReconciler;
 import com.github.aeddddd.ae2enhanced.specialcrafting.NetworkPatternIndex;
 import com.github.aeddddd.ae2enhanced.specialcrafting.RecursiveCraftingHelper;
 
@@ -34,7 +36,11 @@ import com.github.aeddddd.ae2enhanced.specialcrafting.RecursiveCraftingHelper;
  * 等于净增量本身,不得以 outMin 折算）。界值不进入约束矩阵,不影响条件数;</li>
  * <li><b>发射台键</b>（canEmitFor）按 D_max 计库存（零成本有界供给,与原生语义一致）;</li>
  * <li><b>环外输入</b>（输入键 ∉ SCC）不参与约束,按变量记录系数,求解后折算为
- * 对上游分量的需求（冷凝序向后传播,见 {@link SccLpSolve.SccSolution#externalDemands}）;</li>
+ * 对上游分量的需求（冷凝序向后传播,见 {@link SccLpSolve.SccSolution#externalDemands}）——
+ * 但纯原料键（无生产者、非发射台）在两类场景内化为守恒行（库存计价、赤字入
+ * 阶段①目标）:① 替代参与的键（否则阶段①对变体选择"失明"）;② 单元独占的
+ * 原料键（否则阶段③对多分支选择"失明",稀缺容量无法封顶）。跨单元共享的
+ * 原料键仍折算传播,在叶子单元统一结算,避免跨单元重复计库存;</li>
  * <li><b>多变体耦合</b>:同样板全部变体共享执行数上界(Σ x_variants ≤ U_p,松弛变量化等式).</li>
  * </ul>
  * 目标系数由 {@link SccLpSolve} 按字典序两阶段设置,本类产出的模型默认阶段①
@@ -93,17 +99,20 @@ public final class SccLpModelBuilder {
         public final int[] surplusCol;
         /** 需求闭包上界 D_max(诊断埋点). */
         public final double dMax;
+        /** 内化原料行数(本次构建实际内化的纯原料键;不可行两趟回退判定用). */
+        public final int rawRows;
         /** CSC 列数据(含耦合松弛/盈余/赤字列;阶段②追加禁行时按此行号空间扩展重建). */
         final List<Map<Integer, Double>> columns;
 
         Built(LpModel lp, List<VarInfo> vars, List<IAEItemStack> keys, int[] deficitCol, int[] surplusCol,
-                double dMax, List<Map<Integer, Double>> columns) {
+                double dMax, int rawRows, List<Map<Integer, Double>> columns) {
             this.lp = lp;
             this.vars = vars;
             this.keys = keys;
             this.deficitCol = deficitCol;
             this.surplusCol = surplusCol;
             this.dMax = dMax;
+            this.rawRows = rawRows;
             this.columns = columns;
         }
 
@@ -129,11 +138,14 @@ public final class SccLpModelBuilder {
      * @param committed 已在下游单元承诺的跨单元样板及其执行数(冷凝序先解下游):
      *                  不再作为本单元变量,其单元内产出折算为库存调整(输入消费已由
      *                  下游单元的环外折算传播为 demand,不得重复计)
+     * @param internalizeRaw 是否内化纯原料键(库存计价);不可行两趟回退的第二趟
+     *                  传 false——缺料场景原生退化为"分支序贪心幻影生产"显示语义,
+     *                  去掉内化行让阶段③秩贪心复刻该口径
      */
     public static Built build(ICraftingGrid cc, NetworkPatternIndex index, List<IAEItemStack> keys,
             Map<IAEItemStack, Long> stock, Map<IAEItemStack, Double> demands,
             Map<ICraftingPatternDetails, Double> upperCaps,
-            Map<ICraftingPatternDetails, Double> committed) {
+            Map<ICraftingPatternDetails, Double> committed, boolean internalizeRaw) {
         Map<IAEItemStack, Integer> rowOf = new LinkedHashMap<>();
         for (int i = 0; i < keys.size(); i++) {
             rowOf.put(keys.get(i), i);
@@ -144,7 +156,7 @@ public final class SccLpModelBuilder {
         Set<ICraftingPatternDetails> patternSet = Collections.newSetFromMap(new IdentityHashMap<>());
         List<ICraftingPatternDetails> patterns = new ArrayList<>();
         for (IAEItemStack key : keys) {
-            for (ICraftingPatternDetails p : cc.getCraftingFor(key, null, -1, null)) {
+            for (ICraftingPatternDetails p : index.patternsFor(key)) {
                 if (!committed.containsKey(p) && patternSet.add(p)) {
                     patterns.add(p);
                 }
@@ -190,6 +202,51 @@ public final class SccLpModelBuilder {
         List<double[]> bounds = new ArrayList<>(); // [lower, upper](与 columns 对齐)
         List<int[]> coupling = new ArrayList<>(); // 多变体耦合:变体列号组
 
+        // 预扫描:逐样板展开变体(缓存),并收集内化的纯原料键(无生产者、非发射台):
+        // ① 替代参与的键(变体 override 涉及)——否则阶段①对变体选择"失明"
+        //   (基准变量吃稀缺编码物与变体变量吃充足候选同为零成本,候选库存形同虚设);
+        // ② 单元独占的原料键(全部消费者均属本单元)——否则阶段③对多分支选择"失明"
+        //   (分支 1 吃稀缺原料与分支 2 吃充足原料同为零成本,稀缺容量无法封顶).
+        // 跨单元共享的原料键仍折算传播,在叶子单元统一结算,避免跨单元重复计库存.
+        Map<ICraftingPatternDetails, List<Map<IAEItemStack, Long>>> patternVariants = new IdentityHashMap<>();
+        Set<IAEItemStack> internalRaw = new java.util.LinkedHashSet<>();
+        for (ICraftingPatternDetails pattern : patterns) {
+            List<Map<IAEItemStack, Long>> variants = expandVariants(pattern);
+            patternVariants.put(pattern, variants);
+            if (!internalizeRaw) {
+                continue;
+            }
+            for (Map<IAEItemStack, Long> override : variants) {
+                for (IAEItemStack k : override.keySet()) {
+                    if (!rowOf.containsKey(k) && !index.canEmit(k) && !hasProducer(index, k)) {
+                        internalRaw.add(k);
+                    }
+                }
+                for (IAEItemStack k : condensedInputs(pattern, override).keySet()) {
+                    if (!rowOf.containsKey(k) && !index.canEmit(k) && !hasProducer(index, k)
+                            && consumersAllInUnit(index, k, patternSet)) {
+                        internalRaw.add(k);
+                    }
+                }
+            }
+        }
+        // 多分支判定:同单元内与其他样板共享输出键(原生逐分支批量分配语义——
+        // 自返还输入按库存批量容量封顶,区别于单样板催化链的逐次种子复用)
+        Map<IAEItemStack, Integer> outputCounts = new HashMap<>();
+        for (ICraftingPatternDetails pattern : patterns) {
+            for (IAEItemStack out : pattern.getCondensedOutputs()) {
+                if (out != null) {
+                    outputCounts.merge(RecursiveCraftingHelper.canon(out), 1, Integer::sum);
+                }
+            }
+        }
+        // 行号空间扩展:单元键(0..K-1) + 内化原料行(K..K+R-1),demand 恒 0
+        List<IAEItemStack> allKeys = new ArrayList<>(keys);
+        for (IAEItemStack raw : internalRaw) {
+            rowOf.put(raw, allKeys.size());
+            allKeys.add(raw);
+        }
+
         // 执行数上界:U_p = ⌈min(DMAX_CAP, D_max·K)⌉(见类注释)
         double baseUpper = Math.min(DMAX_CAP, dMax * Math.max(1, keys.size()));
         for (int rank = 0; rank < patterns.size(); rank++) {
@@ -206,7 +263,7 @@ public final class SccLpModelBuilder {
             }
             double upper = Math.min(Math.ceil(baseUpper),
                     upperCaps.getOrDefault(pattern, Double.MAX_VALUE));
-            List<Map<IAEItemStack, Long>> variants = expandVariants(pattern);
+            List<Map<IAEItemStack, Long>> variants = patternVariants.get(pattern);
             int[] varCols = new int[variants.size()];
             for (int v = 0; v < variants.size(); v++) {
                 Map<IAEItemStack, Long> variantOverride = variants.get(v);
@@ -231,8 +288,30 @@ public final class SccLpModelBuilder {
                         col.merge(row, (double) out.getStackSize(), Double::sum);
                     }
                 }
+                // 容器/配方返还(三层同口径,见 FlowReconciler.returnsPerCraft):
+                // 行键 +perCraft 入守恒行;环外键记负系数(返还供给折算,可抵消
+                // 其他单元对同键的需求传播).自返还(返还键同为输入)净系数归零——
+                // 其一次性种子需求由 SccLpSolve 按活跃变量扁平记账(seedDemands).
+                // 例外:多分支样板的自返还内化原料键不回记(保留 −perCraft 毛输入
+                // 系数作批量容量行)——原生逐分支批量分配按库存容量封顶后溢出到
+                // 次优分支,净零系数会让阶段③对该容量"失明"(区别于单样板
+                // 催化链的逐次种子复用语义,后者保持净零)
+                for (Map.Entry<IAEItemStack, Long> ret : FlowReconciler.returnsPerCraft(pattern).entrySet()) {
+                    if (internalRaw.contains(ret.getKey())
+                            && FlowReconciler.containsInput(pattern, ret.getKey())
+                            && isMultiBranch(pattern, outputCounts)) {
+                        continue;
+                    }
+                    Integer row = rowOf.get(ret.getKey());
+                    if (row != null) {
+                        col.merge(row, (double) ret.getValue(), Double::sum);
+                    } else {
+                        external.merge(ret.getKey(), -(double) ret.getValue(), Double::sum);
+                    }
+                }
                 // 净系数为 0 的行移出(自平衡样板,如 1A→1A)
                 col.values().removeIf(val -> val == 0.0);
+                external.values().removeIf(val -> val == 0.0);
                 varCols[v] = columns.size();
                 vars.add(new VarInfo(pattern, variantOverride, upper, external, rank, -1));
                 columns.add(col);
@@ -243,13 +322,13 @@ public final class SccLpModelBuilder {
             }
         }
 
-        // 行布局:0..K-1 键守恒;K..K+C-1 多变体耦合(Σ变体 + slack = U_p)
-        int keyRows = keys.size();
+        // 行布局:0..K+R-1 键守恒(单元键 + 内化原料行);其后为多变体耦合(Σ变体 + slack = U_p)
+        int keyRows = allKeys.size();
         double[] b = new double[keyRows + coupling.size()];
         for (int i = 0; i < keyRows; i++) {
-            IAEItemStack key = keys.get(i);
+            IAEItemStack key = allKeys.get(i);
             double demand = demands.getOrDefault(key, 0.0);
-            double stockK = cc.canEmitFor(key) ? dMax : stock.getOrDefault(key, 0L);
+            double stockK = index.canEmit(key) ? dMax : stock.getOrDefault(key, 0L);
             b[i] = demand - stockK;
         }
         // 已承诺跨分量样板:其 SCC 内产出已实物存在,折算为库存(b = demand − stock 故减去);
@@ -316,7 +395,36 @@ public final class SccLpModelBuilder {
         }
 
         LpModel lp = new LpModel(SparseMatrix.fromColumns(b.length, columns), b, cost, lower, upperArr);
-        return new Built(lp, vars, keys, deficitCol, surplusCol, dMax, columns);
+        return new Built(lp, vars, allKeys, deficitCol, surplusCol, dMax, internalRaw.size(), columns);
+    }
+
+    /** 键是否有生产者样板(主输出命中或副产物倒排命中)——内化原料行判定用. */
+    private static boolean hasProducer(NetworkPatternIndex index, IAEItemStack key) {
+        return !index.patternsFor(key).isEmpty()
+                || index.byproductMap().containsKey(key);
+    }
+
+    /** 键的全部消费者样板是否都属于本单元(单元独占原料判定;已承诺的跨单元
+     * 样板不在 unitPatterns 中,其消费会正确阻止内化,避免跨单元重复计库存). */
+    private static boolean consumersAllInUnit(NetworkPatternIndex index, IAEItemStack key,
+            Set<ICraftingPatternDetails> unitPatterns) {
+        for (ICraftingPatternDetails consumer : index.consumersOf(key)) {
+            if (!unitPatterns.contains(consumer)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** 样板是否与同单元其他样板共享输出键(多分支;原生逐分支批量分配语义适用). */
+    private static boolean isMultiBranch(ICraftingPatternDetails pattern,
+            Map<IAEItemStack, Integer> outputCounts) {
+        for (IAEItemStack out : pattern.getCondensedOutputs()) {
+            if (out != null && outputCounts.getOrDefault(RecursiveCraftingHelper.canon(out), 0) >= 2) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

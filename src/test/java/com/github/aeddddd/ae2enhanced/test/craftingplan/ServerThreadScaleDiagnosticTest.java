@@ -13,7 +13,6 @@ import appeng.api.storage.data.IItemList;
 import appeng.util.item.AEItemStack;
 
 import com.github.aeddddd.ae2enhanced.specialcrafting.NetworkPatternIndex;
-import com.github.aeddddd.ae2enhanced.specialcrafting.SpecialRecipeDetector;
 import com.github.aeddddd.ae2enhanced.test.specialcrafting.SimulationEnv;
 
 /**
@@ -22,9 +21,8 @@ import com.github.aeddddd.ae2enhanced.test.specialcrafting.SimulationEnv;
  * "计算中"阶段.计算本身在线程池线程(实测 5w 节点 ×1000 ≈ 0.5s),故瓶颈必在
  * 服务器线程的同步片段.本基准逐一量化这些片段在大规模下的耗时:</p>
  * <ul>
- * <li>① 样板索引冷构建(beginCraftingJob → detector → 首次访问全量构建);</li>
- * <li>② detector 冷判定(索引失效后的完整探测,含 1s 预算上限);</li>
- * <li>③ job 构造器的网络库存快照拷贝(O(全网物品种类),CraftingJob 构造器固有);</li>
+ * <li>① 样板索引冷构建(beginCraftingJob → 首次访问全量构建);</li>
+ * <li>② job 构造器的网络库存快照拷贝(O(全网物品种类),CraftingJob 构造器固有);</li>
  * </ul>
  */
 public class ServerThreadScaleDiagnosticTest {
@@ -62,7 +60,7 @@ public class ServerThreadScaleDiagnosticTest {
         long snapshotNanos = System.nanoTime() - t0;
         System.out.printf("[BENCH] ① 库存快照拷贝(%,d 种): %,.1f ms%n", typeCount, snapshotNanos / 1e6);
 
-        // ② 大样板网络(5w 样板)的索引冷构建 + detector 冷判定(beginCraftingJob 同步段)
+        // ② 大样板网络(5w 样板)的索引冷构建(beginCraftingJob 同步段)
         SimulationEnv env = new SimulationEnv();
         java.util.Random rng = new java.util.Random(7);
         int patterns = 50_000;
@@ -83,12 +81,5 @@ public class ServerThreadScaleDiagnosticTest {
         NetworkPatternIndex index = NetworkPatternIndex.build(env.craftingGrid());
         long buildNanos = System.nanoTime() - t0;
         System.out.printf("[BENCH] ② 样板索引冷构建(%,d 样板): %,.1f ms%n", patterns, buildNanos / 1e6);
-
-        t0 = System.nanoTime();
-        boolean verdict = SpecialRecipeDetector.mayInvolveSpecialRecipes(env.craftingGrid(),
-                key(patterns - 1), null);
-        long detectNanos = System.nanoTime() - t0;
-        System.out.printf("[BENCH] ③ detector 冷判定(含索引已构建): %,.1f ms (verdict=%s)%n",
-                detectNanos / 1e6, verdict);
     }
 }

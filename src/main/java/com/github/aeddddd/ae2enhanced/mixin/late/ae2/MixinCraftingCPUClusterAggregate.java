@@ -301,21 +301,28 @@ public abstract class MixinCraftingCPUClusterAggregate {
             return true;
         }
         // ME 接口/二合一接口：非阻挡允许；阻挡仅 RandomComplement 智能阻挡开启时允许。
+        // 注意：原生接口经 provideCrafting 以 DualityInterface 本体注册为 medium
+        // （DualityInterface 不实现 IInterfaceHost），必须直接判定 DualityInterface；
+        // IInterfaceHost 分支仅兜底第三方以 host 本体注册 medium 的实现。
         // 容量安全由 pushPattern 的 acceptsItems 保证（不完整容纳则失败 → 回滚 + AIMD 收敛）
-        if (medium instanceof IInterfaceHost) {
-            DualityInterface duality = ((IInterfaceHost) medium).getInterfaceDuality();
-            if (duality == null) {
-                ae2e$debug(medium, "duality-null");
-                return false;
-            }
-            boolean allowed = duality.getConfigManager().getSetting(Settings.BLOCK) != YesNo.YES
-                    || RCIntelligentBlockingReflect.isIntelligentBlockingOpen(duality);
-            if (!allowed) {
-                ae2e$debug(medium, "blocking-on-without-intelligent-blocking");
-            }
-            return allowed;
+        DualityInterface duality;
+        if (medium instanceof DualityInterface) {
+            duality = (DualityInterface) medium;
+        } else if (medium instanceof IInterfaceHost) {
+            duality = ((IInterfaceHost) medium).getInterfaceDuality();
+        } else {
+            return false;
         }
-        return false;
+        if (duality == null) {
+            ae2e$debug(medium, "duality-null");
+            return false;
+        }
+        boolean allowed = duality.getConfigManager().getSetting(Settings.BLOCK) != YesNo.YES
+                || RCIntelligentBlockingReflect.isIntelligentBlockingOpen(duality);
+        if (!allowed) {
+            ae2e$debug(medium, "blocking-on-without-intelligent-blocking");
+        }
+        return allowed;
     }
 
     /**

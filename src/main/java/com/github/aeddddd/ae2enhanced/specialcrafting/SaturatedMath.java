@@ -1,4 +1,4 @@
-package com.github.aeddddd.ae2enhanced.craftingplan.dag;
+package com.github.aeddddd.ae2enhanced.specialcrafting;
 
 /**
  * 饱和长整数运算:溢出时钳制到 {@link Long#MAX_VALUE} 而非抛异常,

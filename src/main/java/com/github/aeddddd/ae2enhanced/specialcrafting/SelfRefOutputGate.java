@@ -44,6 +44,13 @@ public final class SelfRefOutputGate {
 
     private static final GateResult NOT_HANDLED = new GateResult(false, null);
 
+    /** 收官受阻告警限频间隔(ms). */
+    private static final long STUCK_WARN_INTERVAL_MS = 30_000L;
+
+    /** cluster → 上次收官受阻告警时间(弱键,集群回收自动清理). */
+    private static final java.util.Map<CraftingCPUCluster, Long> LAST_STUCK_WARN = java.util.Collections
+            .synchronizedMap(new java.util.WeakHashMap<>());
+
     private SelfRefOutputGate() {
     }
 
@@ -153,8 +160,15 @@ public final class SelfRefOutputGate {
         long held = heldStack == null ? 0 : heldStack.getStackSize();
         long deliver = Math.min(remaining, held);
         if (deliver <= 0) {
-            AE2Enhanced.LOGGER.warn("[特殊配方] 门控收官受阻: {} 待交付 {} 但 CPU 库存 {}",
-                    finalOutput, remaining, held);
+            // 异常终态(产出丢失:机器 void/样板被破坏等)——与原生 stuck-craft 一致
+            // 保持等待由玩家手动取消;告警限频 30s,避免 tickSettle 每 tick 刷屏
+            long now = System.currentTimeMillis();
+            Long lastWarn = LAST_STUCK_WARN.get(cluster);
+            if (lastWarn == null || now - lastWarn >= STUCK_WARN_INTERVAL_MS) {
+                LAST_STUCK_WARN.put(cluster, now);
+                AE2Enhanced.LOGGER.warn("[特殊配方] 门控收官受阻: {} 待交付 {} 但 CPU 库存 {}(每 30s 重报,可手动取消任务)",
+                        finalOutput, remaining, held);
+            }
             return;
         }
         IAEItemStack deliverStack = finalOutput.copy();

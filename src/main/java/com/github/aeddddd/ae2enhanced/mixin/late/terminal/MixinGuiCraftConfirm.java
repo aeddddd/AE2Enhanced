@@ -3,6 +3,8 @@ package com.github.aeddddd.ae2enhanced.mixin.late.terminal;
 import appeng.api.storage.data.IAEItemStack;
 import appeng.api.storage.data.IItemList;
 import appeng.client.gui.implementations.GuiCraftConfirm;
+import appeng.core.localization.GuiText;
+import appeng.util.ReadableNumberConverter;
 import com.github.aeddddd.ae2enhanced.client.gui.planview.IPlanViewHost;
 import com.github.aeddddd.ae2enhanced.client.gui.planview.PlanViewHelper;
 import com.github.aeddddd.ae2enhanced.client.specialcrafting.SpecialPlanClientCache;
@@ -66,6 +68,10 @@ public abstract class MixinGuiCraftConfirm implements IPlanViewHost {
 
     @Unique
     private final PlanViewHelper.ViewStats ae2enhanced$stats = new PlanViewHelper.ViewStats();
+
+    /** drawFG 循环中当前绘制的格子(由 visual.get 包装跟踪), 供计数行重格式化取真实数量. */
+    @Unique
+    private IAEItemStack ae2enhanced$cellStack;
 
     // ==================== 列表重建(排序 + 搜索过滤) ====================
 
@@ -189,20 +195,81 @@ public abstract class MixinGuiCraftConfirm implements IPlanViewHost {
         }
     }
 
-    // ==================== 标题截断(为搜索框留位) ====================
+    // ==================== 标题截断 + 计数行完整格式化(统一 drawString 包装) ====================
+
+    @Inject(method = "drawFG", at = @At("HEAD"), require = 0)
+    private void ae2enhanced$resetCellTracking(int offsetX, int offsetY, int mouseX, int mouseY,
+            CallbackInfo ci) {
+        this.ae2enhanced$cellStack = null;
+    }
+
+    /** 跟踪 drawFG 循环当前格子(visual.get 是循环体内唯一的 List.get 调用). */
+    @WrapOperation(
+        method = "drawFG",
+        at = @At(value = "INVOKE", target = "Ljava/util/List;get(I)Ljava/lang/Object;"),
+        require = 0
+    )
+    private Object ae2enhanced$trackCell(List<IAEItemStack> list, int index, Operation<Object> original) {
+        Object result = original.call(list, index);
+        if (result instanceof IAEItemStack) {
+            this.ae2enhanced$cellStack = (IAEItemStack) result;
+        }
+        return result;
+    }
 
     @WrapOperation(
         method = "drawFG",
         at = @At(
             value = "INVOKE",
-            target = "Lnet/minecraft/client/gui/FontRenderer;func_78276_b(Ljava/lang/String;III)I",
-            ordinal = 0
+            target = "Lnet/minecraft/client/gui/FontRenderer;func_78276_b(Ljava/lang/String;III)I"
         ),
         require = 0
     )
-    private int ae2enhanced$truncateTitle(FontRenderer fr, String title, int x, int y, int color,
+    private int ae2enhanced$wrapDrawString(FontRenderer fr, String text, int x, int y, int color,
             Operation<Integer> original) {
-        return original.call(fr, PlanViewHelper.truncateTitle(title, 140), x, y, color);
+        return original.call(fr, ae2enhanced$rewriteText(text), x, y, color);
+    }
+
+    /** 计数行居中宽度同步用重写后的文本计算(重写幂等). */
+    @WrapOperation(
+        method = "drawFG",
+        at = @At(
+            value = "INVOKE",
+            target = "Lnet/minecraft/client/gui/FontRenderer;func_78256_a(Ljava/lang/String;)I"
+        ),
+        require = 0
+    )
+    private int ae2enhanced$wrapStringWidth(FontRenderer fr, String text, Operation<Integer> original) {
+        return original.call(fr, ae2enhanced$rewriteText(text));
+    }
+
+    @Unique
+    private String ae2enhanced$rewriteText(String text) {
+        // 标题行: 截断为搜索框留位
+        if (text.startsWith(GuiText.CraftingPlan.getLocal() + " - ")) {
+            return PlanViewHelper.truncateTitle(text, 140);
+        }
+        // 计数行(库存/缺料/待合成): 原生 >= 10M 封顶为 m, 扩展为完整 K/M/G/T/P/E 缩写
+        String prefix;
+        IItemList<IAEItemStack> list;
+        if (text.startsWith(prefix = GuiText.FromStorage.getLocal() + ": ")) {
+            list = this.storage;
+        } else if (text.startsWith(prefix = GuiText.Missing.getLocal() + ": ")) {
+            list = this.missing;
+        } else if (text.startsWith(prefix = GuiText.ToCraft.getLocal() + ": ")) {
+            list = this.pending;
+        } else {
+            return text;
+        }
+        IAEItemStack cell = this.ae2enhanced$cellStack;
+        if (cell == null || list == null) {
+            return text;
+        }
+        IAEItemStack stack = list.findPrecise(cell);
+        if (stack == null || stack.getStackSize() < 10_000_000L) {
+            return text; // 原生格式未封顶, 保持原样
+        }
+        return prefix + ReadableNumberConverter.INSTANCE.toWideReadableForm(stack.getStackSize());
     }
 
     // ==================== 汇总统计块(左侧纹理外区域) ====================

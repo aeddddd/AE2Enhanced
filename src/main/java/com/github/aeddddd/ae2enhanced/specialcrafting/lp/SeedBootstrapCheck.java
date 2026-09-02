@@ -10,6 +10,7 @@ import appeng.api.networking.crafting.ICraftingGrid;
 import appeng.api.networking.crafting.ICraftingPatternDetails;
 import appeng.api.storage.data.IAEItemStack;
 
+import com.github.aeddddd.ae2enhanced.specialcrafting.FlowReconciler;
 import com.github.aeddddd.ae2enhanced.specialcrafting.RecursiveCraftingHelper;
 import com.github.aeddddd.ae2enhanced.specialcrafting.lp.SccLpSolve.Execution;
 
@@ -80,9 +81,12 @@ public final class SeedBootstrapCheck {
      * @param unitKeys 单元键集(canon;库存种子取自 stock)
      * @param stock 网络库存(canon 键 → 数量)
      * @param executions LP 执行记录(实数计数)
+     * @param seedSupply 自返还种子供给(canon 键 → 一次性种子量;催化剂型容器
+     *                   净消耗为零,折算供给不含它,但首次点火需要实物种子)
      */
-    public static Verdict check(ICraftingGrid cc, List<IAEItemStack> unitKeys,
-            Map<IAEItemStack, Long> stock, List<Execution> executions) {
+    public static Verdict check(ICraftingGrid cc, com.github.aeddddd.ae2enhanced.specialcrafting.NetworkPatternIndex index,
+            List<IAEItemStack> unitKeys, Map<IAEItemStack, Long> stock, List<Execution> executions,
+            Map<IAEItemStack, Double> seedSupply) {
         int n = executions.size();
         // 变量输入/输出表(变体按 builder 同口径还原)
         List<Map<IAEItemStack, Double>> inputs = new ArrayList<>(n);
@@ -103,6 +107,11 @@ public final class SeedBootstrapCheck {
                     out.merge(RecursiveCraftingHelper.canon(o), (double) o.getStackSize(), Double::sum);
                 }
             }
+            // 容器/配方返还同为产出(三层同口径):催化环/桶复用的自举可行性
+            // 取决于返还回记(如蛋糕返还空桶供给奶桶合成)
+            for (Map.Entry<IAEItemStack, Long> ret : FlowReconciler.returnsPerCraft(exec.pattern).entrySet()) {
+                out.merge(ret.getKey(), (double) ret.getValue(), Double::sum);
+            }
             inputs.add(in);
             outputs.add(out);
         }
@@ -114,7 +123,7 @@ public final class SeedBootstrapCheck {
             double count = executions.get(j).count;
             for (Map.Entry<IAEItemStack, Double> e : inputs.get(j).entrySet()) {
                 IAEItemStack key = e.getKey();
-                if (cc.canEmitFor(key)) {
+                if (index.canEmit(key)) {
                     infinite.put(key, Boolean.TRUE);
                 } else if (!unitMembership.containsKey(key)) {
                     avail.merge(key, e.getValue() * count, Double::sum);
@@ -122,10 +131,16 @@ public final class SeedBootstrapCheck {
             }
         }
         for (IAEItemStack key : unitKeys) {
-            if (cc.canEmitFor(key)) {
+            if (index.canEmit(key)) {
                 infinite.put(key, Boolean.TRUE);
             } else {
                 avail.put(key, (double) stock.getOrDefault(key, 0L));
+            }
+        }
+        // 自返还种子供给:催化剂型容器净零消耗,折算供给不含,但点火需要实物种子
+        for (Map.Entry<IAEItemStack, Double> seed : seedSupply.entrySet()) {
+            if (!infinite.containsKey(seed.getKey())) {
+                avail.merge(seed.getKey(), seed.getValue(), Double::sum);
             }
         }
 
@@ -164,6 +179,7 @@ public final class SeedBootstrapCheck {
         java.util.Arrays.sort(order, (u, v) -> Double.compare(netGain[v], netGain[u]));
 
         int rounds = 0;
+        boolean reserveForGain = true; // 卡死防御:保留过激致整轮零进展时退化为无保留贪心
         while (rounds++ < MAX_ROUNDS) {
             boolean anyRemaining = false;
             for (int j = 0; j < n; j++) {
@@ -200,24 +216,79 @@ public final class SeedBootstrapCheck {
                     apply(j, cap, remaining, executed, inputs, outputs, avail, infinite);
                 }
             }
-            // 中性相:其余变量按增益降序执行一趟
-            for (int oi = 0; oi < n; oi++) {
-                int j = order[oi];
-                if (netGain[j] > 0 || remaining[j] <= tol[j]) {
-                    continue;
+            // 中性相:其余变量按增益降序执行至收敛.竞争键(多个可启动变量的共同
+            // 输入)按各变量剩余需求比例快照分配——贪心全量访问会让先访问变量吃光
+            // 共享种子、饿死增益源的上游(θ 环 crush/charge 争同一原料的假阴性);
+            // 另对每个仍可启动的增益变量保留"一次批量"所需(增益相已先跑,
+            // 未点火即等待中性产物)——否则中性变量会吃光共享种子饿死尚未点火的
+            // 增益源(X4:中性 p1 吃光 32 石,增益 p2 无法启动;分母计入全部剩余
+            // 需求的比例式会几何衰减,同样到不了点火水位)
+            boolean neutralProgress = true;
+            int neutralPasses = 0;
+            while (neutralProgress && neutralPasses++ < MAX_ROUNDS) {
+                neutralProgress = false;
+                // 快照:竞争键总需求(仅中性变量)+ 增益变量一次批量保留
+                Map<IAEItemStack, Double> contested = new HashMap<>();
+                Map<IAEItemStack, Double> reserved = new HashMap<>();
+                for (int j = 0; j < n; j++) {
+                    if (remaining[j] <= tol[j]) {
+                        continue;
+                    }
+                    for (Map.Entry<IAEItemStack, Double> e : inputs.get(j).entrySet()) {
+                        if (infinite.containsKey(e.getKey())) {
+                            continue;
+                        }
+                        if (netGain[j] > 0) {
+                            if (reserveForGain) {
+                                reserved.merge(e.getKey(), e.getValue(), Double::sum);
+                            }
+                        } else {
+                            contested.merge(e.getKey(), e.getValue() * remaining[j], Double::sum);
+                        }
+                    }
                 }
-                double cap = capacity(j, remaining, inputs, avail, infinite);
-                if (cap >= remaining[j] - tol[j]) {
-                    cap = remaining[j]; // 尘埃内收齐
+                // 快照式分配:先按快照算出全部变量的本趟可行量,再统一入账
+                // (中性总需求 ≤ 保留后可用量时退化为全量贪心;否则按需求比例分配)
+                double[] caps = new double[n];
+                for (int oi = 0; oi < n; oi++) {
+                    int j = order[oi];
+                    if (netGain[j] > 0 || remaining[j] <= tol[j]) {
+                        continue;
+                    }
+                    double cap = remaining[j];
+                    for (Map.Entry<IAEItemStack, Double> e : inputs.get(j).entrySet()) {
+                        if (infinite.containsKey(e.getKey())) {
+                            continue;
+                        }
+                        double available = Math.max(0.0, avail.getOrDefault(e.getKey(), 0.0)
+                                - reserved.getOrDefault(e.getKey(), 0.0));
+                        double totalDemand = contested.getOrDefault(e.getKey(), 0.0);
+                        double share = totalDemand > available
+                                ? available * (e.getValue() * remaining[j]) / totalDemand
+                                : available;
+                        cap = Math.min(cap, share / e.getValue());
+                    }
+                    if (cap >= remaining[j] - tol[j]) {
+                        cap = remaining[j]; // 尘埃内收齐
+                    }
+                    caps[j] = cap;
                 }
-                if (cap <= 1e-9) {
-                    continue;
+                for (int oi = 0; oi < n; oi++) {
+                    int j = order[oi];
+                    if (caps[j] <= 1e-9) {
+                        continue;
+                    }
+                    neutralProgress = progressed = true;
+                    roundExec[j] += caps[j];
+                    apply(j, caps[j], remaining, executed, inputs, outputs, avail, infinite);
                 }
-                progressed = true;
-                roundExec[j] += cap;
-                apply(j, cap, remaining, executed, inputs, outputs, avail, infinite);
             }
             if (!progressed) {
+                if (reserveForGain) {
+                    // 保留过激致整轮零进展:退化为无保留贪心重试(总比误判卡死强)
+                    reserveForGain = false;
+                    continue;
+                }
                 return new Verdict(false, executed, avail, rounds, "stuck"); // 种子不足:无任何执行可启动
             }
             // 稳态外推:所有键可用量净非减 → 本轮执行向量可无限重复(归纳)

@@ -129,7 +129,7 @@ public class CondensationPlannerTest {
         assertEquals(0.0, execOf(out, dup), EPS);
     }
 
-    /** M4:有种子自增环(stock 1)——校验通过,dup=9,无赤字. */
+    /** M4:有种子自增环(stock 1)——校验通过,全额生产 dup=10(根库存不抵交付),无赤字. */
     @Test
     public void seededDupAccepted() {
         SimulationEnv env = new SimulationEnv();
@@ -139,7 +139,7 @@ public class CondensationPlannerTest {
         LpPlanOutcome out = solve(env, a, 10, stockOf(a, 1));
         assertTrue(out.allOptimal);
         assertTrue(out.deficits.isEmpty(), "有种子应满足: " + out.deficits);
-        assertEquals(9.0, execOf(out, dup), EPS);
+        assertEquals(10.0, execOf(out, dup), EPS);
     }
 
     /** M4:双键增殖环(1A→2B, 1B→1A)零库存不可启动 → 赤字;种子 B=1 可启动 → 无赤字. */
@@ -188,17 +188,19 @@ public class CondensationPlannerTest {
         assertEquals(6.0, out.deficits.get(canon(r)), EPS);
     }
 
-    /** 库存直接交付:需求 ≤ 库存时零执行、零赤字. */
+    /** 全额生产(原生 ignore(output) 语义):请求物自身库存不抵交付,
+     * 需求 ≤ 库存也照常生产,零赤字. */
     @Test
     public void stockCoversDemand() {
         SimulationEnv env = new SimulationEnv();
         IAEItemStack x = block(Blocks.STONE);
         IAEItemStack a = block(Blocks.COBBLESTONE);
-        env.addPattern(new ProcessingPatternBuilder(x).addPreciseInput(1, a).build());
+        ICraftingPatternDetails p = env.addPattern(
+                new ProcessingPatternBuilder(x).addPreciseInput(1, a).build());
         LpPlanOutcome out = solve(env, x, 10, stockOf(x, 64, a, 64));
         assertTrue(out.allOptimal);
         assertTrue(out.deficits.isEmpty());
-        assertTrue(out.executions.isEmpty(), "库存覆盖不应有执行: " + out.executions);
+        assertEquals(10.0, execOf(out, p), EPS, "库存不抵交付,全额生产: " + out.executions);
     }
 
     // ===== 工具 =====

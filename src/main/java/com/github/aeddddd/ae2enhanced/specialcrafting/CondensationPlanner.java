@@ -154,7 +154,12 @@ public final class CondensationPlanner {
 
         // 4) 逐单元求解:需求累加 → LP/快速路径 → 环外折算向后传播
         Map<IAEItemStack, Map<IAEItemStack, Double>> demands = new HashMap<>();
-        demands.computeIfAbsent(rootUnit, k -> new HashMap<>()).put(rootKey, (double) target);
+        // 根需求口径 = 全额生产(原生 CraftingJob.ignore(output) 同语义):请求物自身
+        // 库存不抵扣交付——需求端加回库存量,行约束 production ≥ target+库存+消耗−库存
+        // = target+消耗,赤字/截断短差随库存项对消保持正确;种子点火仍可用根库存
+        // (SeedBootstrapCheck 的 stock 口径不变),期末由 FlowReconciler 偿还
+        demands.computeIfAbsent(rootUnit, k -> new HashMap<>())
+                .put(rootKey, (double) target + (double) stock.getOrDefault(rootKey, 0L));
         List<Execution> executions = new ArrayList<>();
         Map<IAEItemStack, Double> deficits = new LinkedHashMap<>();
         List<UnitSolution> unitSolutions = new ArrayList<>();
@@ -168,7 +173,7 @@ public final class CondensationPlanner {
             if (patterns.isEmpty()) {
                 // 快速路径:无样板单元(原料/发射台)——赤字 = 需求 − 库存
                 for (Map.Entry<IAEItemStack, Double> d : unitDemand.entrySet()) {
-                    if (d.getValue() <= 0 || cc.canEmitFor(d.getKey())) {
+                    if (d.getValue() <= 0 || index.canEmit(d.getKey())) {
                         continue;
                     }
                     double deficit = d.getValue() - stock.getOrDefault(d.getKey(), 0L);
@@ -185,7 +190,13 @@ public final class CondensationPlanner {
                 degradedUnits++;
                 degradedReasons.add(result.degradedReason);
             }
-            executions.addAll(result.executions);
+            // 扁平列表只收活跃执行(公共契约:库存覆盖时为空);零计数记录保留在
+            // UnitSolution 中,供对账层整数化守恒修复回补激活后由 FlowReconciler 补入
+            for (Execution exec : result.executions) {
+                if (exec.count > 1e-6) {
+                    executions.add(exec);
+                }
+            }
             for (Map.Entry<IAEItemStack, Double> deficit : result.deficits.entrySet()) {
                 deficits.merge(deficit.getKey(), deficit.getValue(), Double::sum);
             }
@@ -193,6 +204,12 @@ public final class CondensationPlanner {
                 IAEItemStack up = units.find(ext.getKey());
                 demands.computeIfAbsent(up, k -> new HashMap<>())
                         .merge(ext.getKey(), ext.getValue(), Double::sum);
+            }
+            // 自返还种子需求:与环外折算同路传播(一次性种子量,首点点火实物要求)
+            for (Map.Entry<IAEItemStack, Double> seed : result.seedDemands.entrySet()) {
+                IAEItemStack up = units.find(seed.getKey());
+                demands.computeIfAbsent(up, k -> new HashMap<>())
+                        .merge(seed.getKey(), seed.getValue(), Double::sum);
             }
             unitSolutions.add(new UnitSolution(unitKeys.get(unit), result.executions, result.deficits));
         }
@@ -218,17 +235,19 @@ public final class CondensationPlanner {
         final List<Execution> executions;
         final Map<IAEItemStack, Double> deficits;
         final Map<IAEItemStack, Double> externalDemands;
+        final Map<IAEItemStack, Double> seedDemands;
         final boolean degraded;
         @Nullable
         final String degradedReason;
         final int iterations;
 
         UnitResult(List<Execution> executions, Map<IAEItemStack, Double> deficits,
-                Map<IAEItemStack, Double> externalDemands, boolean degraded, String degradedReason,
-                int iterations) {
+                Map<IAEItemStack, Double> externalDemands, Map<IAEItemStack, Double> seedDemands,
+                boolean degraded, String degradedReason, int iterations) {
             this.executions = executions;
             this.deficits = deficits;
             this.externalDemands = externalDemands;
+            this.seedDemands = seedDemands;
             this.degraded = degraded;
             this.degradedReason = degradedReason;
             this.iterations = iterations;
@@ -254,20 +273,23 @@ public final class CondensationPlanner {
                 Map<IAEItemStack, Double> deficits = new LinkedHashMap<>();
                 for (Map.Entry<IAEItemStack, Double> d : unitDemand.entrySet()) {
                     double deficit = d.getValue() - stock.getOrDefault(d.getKey(), 0L);
-                    if (deficit > 0 && !cc.canEmitFor(d.getKey())) {
+                    if (deficit > 0 && !index.canEmit(d.getKey())) {
                         deficits.merge(d.getKey(), deficit, Double::sum);
                     }
                 }
                 String reason = "LP非最优(" + sol.status + "/" + sol.reason + ") 键数=" + keys.size()
                         + " 代表键=" + (keys.isEmpty() ? "-" : keys.get(0));
                 SpecialLog.info("[LP计划] 单元降级库存直通: {}", reason);
-                return new UnitResult(Collections.emptyList(), deficits, Collections.emptyMap(), true,
-                        reason, iterations);
+                return new UnitResult(Collections.emptyList(), deficits, Collections.emptyMap(),
+                        Collections.emptyMap(), true, reason, iterations);
             }
-            SeedBootstrapCheck.Verdict verdict = SeedBootstrapCheck.check(cc, keys, stock, sol.executions);
+            Set<IAEItemStack> rowKeys = new java.util.HashSet<>(keys);
+            Map<IAEItemStack, Double> seedDemands = SccLpSolve.seedDemandsOf(sol.executions, rowKeys);
+            SeedBootstrapCheck.Verdict verdict = SeedBootstrapCheck.check(cc, index, keys, stock,
+                    sol.executions, seedDemands);
             if (verdict.feasible) {
-                return new UnitResult(sol.executions, sol.deficits, sol.externalDemands, false, null,
-                        iterations);
+                return new UnitResult(sol.executions, sol.deficits, sol.externalDemands, seedDemands,
+                        false, null, iterations);
             }
             if (DEBUG) {
                 System.out.println("[LP-DEBUG] 种子校验失败 round=" + round + "/" + maxRounds + " 键数="
@@ -286,7 +308,7 @@ public final class CondensationPlanner {
             }
             if (round >= maxRounds - 1) {
                 // 重解预算耗尽:按可行水位截断——交付缺口(demand − 终态可用量)如实转赤字
-                return truncateToFeasibleLevel(cc, keys, unitDemand, sol, verdict, iterations,
+                return truncateToFeasibleLevel(cc, index, keys, unitDemand, sol, verdict, iterations,
                         "种子自举重解超" + maxRounds + "轮 键数=" + keys.size()
                                 + " 代表键=" + (keys.isEmpty() ? "-" : keys.get(0)));
             }
@@ -346,9 +368,9 @@ public final class CondensationPlanner {
     }
 
     /** 截断接受:执行数取可行水位,环外折算按水位重算,交付缺口转赤字. */
-    private static UnitResult truncateToFeasibleLevel(ICraftingGrid cc, List<IAEItemStack> keys,
-            Map<IAEItemStack, Double> unitDemand, SccSolution sol, SeedBootstrapCheck.Verdict verdict,
-            int iterations, String reason) {
+    private static UnitResult truncateToFeasibleLevel(ICraftingGrid cc, NetworkPatternIndex index,
+            List<IAEItemStack> keys, Map<IAEItemStack, Double> unitDemand, SccSolution sol,
+            SeedBootstrapCheck.Verdict verdict, int iterations, String reason) {
         List<Execution> executions = new ArrayList<>();
         Map<IAEItemStack, Double> externalDemands = new LinkedHashMap<>();
         Set<IAEItemStack> keySet = new java.util.HashSet<>(keys);
@@ -368,7 +390,7 @@ public final class CondensationPlanner {
         }
         Map<IAEItemStack, Double> deficits = new LinkedHashMap<>();
         for (Map.Entry<IAEItemStack, Double> d : unitDemand.entrySet()) {
-            if (cc.canEmitFor(d.getKey())) {
+            if (index.canEmit(d.getKey())) {
                 continue;
             }
             double shortfall = d.getValue() - verdict.finalAvail.getOrDefault(d.getKey(), 0.0);
@@ -377,7 +399,9 @@ public final class CondensationPlanner {
             }
         }
         SpecialLog.info("[LP计划] 单元截断: {},赤字 {} 种", reason, deficits.size());
-        return new UnitResult(executions, deficits, externalDemands, true, reason, iterations);
+        Map<IAEItemStack, Double> seedDemands = SccLpSolve.seedDemandsOf(executions, keySet);
+        return new UnitResult(executions, deficits, externalDemands, seedDemands, true, reason,
+                iterations);
     }
 
     // ===== 求解单元划分(SCC × 输出共享并查集) =====
@@ -403,7 +427,7 @@ public final class CondensationPlanner {
         // 再按"同样板输出共享"合并:跨 SCC 输出的样板归并为一个单元
         Set<ICraftingPatternDetails> seen = Collections.newSetFromMap(new IdentityHashMap<>());
         for (IAEItemStack key : index.keyGraphKeys()) {
-            List<ICraftingPatternDetails> producers = new ArrayList<>(cc.getCraftingFor(key, null, -1, null));
+            List<ICraftingPatternDetails> producers = new ArrayList<>(index.patternsFor(key));
             producers.addAll(index.byproductMap().getOrDefault(key, Collections.emptyList()));
             for (ICraftingPatternDetails p : producers) {
                 if (!seen.add(p)) {
@@ -432,7 +456,7 @@ public final class CondensationPlanner {
         Set<ICraftingPatternDetails> seen = Collections.newSetFromMap(new IdentityHashMap<>());
         List<ICraftingPatternDetails> patterns = new ArrayList<>();
         for (IAEItemStack key : keys) {
-            for (ICraftingPatternDetails p : cc.getCraftingFor(key, null, -1, null)) {
+            for (ICraftingPatternDetails p : index.patternsFor(key)) {
                 if (seen.add(p)) {
                     patterns.add(p);
                 }

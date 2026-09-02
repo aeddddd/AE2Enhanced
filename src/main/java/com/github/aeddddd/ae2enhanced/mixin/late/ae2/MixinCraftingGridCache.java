@@ -39,12 +39,10 @@ import appeng.api.storage.data.IAEItemStack;
 
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
 import com.github.aeddddd.ae2enhanced.config.AE2EnhancedConfig;
+import com.github.aeddddd.ae2enhanced.specialcrafting.FallbackLpCraftingJob;
+import com.github.aeddddd.ae2enhanced.specialcrafting.LpCraftingJob;
 import com.github.aeddddd.ae2enhanced.specialcrafting.NetworkPatternIndex;
-import com.github.aeddddd.ae2enhanced.specialcrafting.SpecialCraftingJob;
-import com.github.aeddddd.ae2enhanced.specialcrafting.SpecialCraftingRuntime;
-import com.github.aeddddd.ae2enhanced.specialcrafting.SpecialLog;
 import com.github.aeddddd.ae2enhanced.specialcrafting.SpecialPlanMarker;
-import com.github.aeddddd.ae2enhanced.specialcrafting.SpecialRecipeDetector;
 
 /**
  * Mixin into {@link CraftingGridCache} to recognise {@link TileComputationCore} virtual CraftingCPUClusters.
@@ -67,6 +65,10 @@ public class MixinCraftingGridCache implements com.github.aeddddd.ae2enhanced.mi
     @Shadow
     @Final
     private it.unimi.dsi.fastutil.objects.Object2ObjectMap<IAEItemStack, com.google.common.collect.ImmutableList<appeng.api.networking.crafting.ICraftingPatternDetails>> craftableItems;
+
+    @Shadow
+    @Final
+    private Set<IAEItemStack> emitableItems;
 
     @Shadow
     @Final
@@ -121,7 +123,62 @@ public class MixinCraftingGridCache implements com.github.aeddddd.ae2enhanced.mi
 
     @Override
     public Set<IAEItemStack> ae2enhanced$craftableKeys() {
-        return new HashSet<>(this.craftableItems.keySet());
+        // craftableItems 由服务器线程就地 clear+重建(fastutil 无锁),计算线程
+        // 读取遭遇重建会得到 CME 或静默部分键集——短暂自旋重试取一致快照
+        for (int attempt = 0; attempt < 16; attempt++) {
+            try {
+                return new HashSet<>(this.craftableItems.keySet());
+            } catch (java.util.ConcurrentModificationException ignored) {
+                Thread.yield();
+            }
+        }
+        return new HashSet<>(this.craftableItems.keySet()); // 兜底:异常照常抛
+    }
+
+    /**
+     * 一致性样板快照(canon 键 → 样板表),recalc TAIL(服务器线程、重建刚完成)
+     * 固化;volatile 发布.计算线程求解期一律走此快照,禁止活读 craftableItems
+     * (重建空窗期 map 稳定为空且无并发修改,CME/复核均无法识别).
+     */
+    @Unique
+    private volatile java.util.Map<IAEItemStack, List<ICraftingPatternDetails>> ae2enhanced$craftableSnapshot;
+
+    /** 发射台键快照(canon),与最近一次 recalc 同代;setEmitable 动态增量 copy-on-write. */
+    @Unique
+    private volatile Set<IAEItemStack> ae2enhanced$emitterSnapshot;
+
+    @Override
+    public java.util.Map<IAEItemStack, List<ICraftingPatternDetails>> ae2enhanced$craftableSnapshot() {
+        java.util.Map<IAEItemStack, List<ICraftingPatternDetails>> snap = this.ae2enhanced$craftableSnapshot;
+        if (snap != null) {
+            return snap;
+        }
+        // 引导路径(首次 recalc 完成前):活读 + CME 自旋重试
+        for (int attempt = 0; attempt < 16; attempt++) {
+            try {
+                java.util.Map<IAEItemStack, List<ICraftingPatternDetails>> live = new java.util.HashMap<>();
+                for (java.util.Map.Entry<IAEItemStack, com.google.common.collect.ImmutableList<ICraftingPatternDetails>> e : this.craftableItems
+                        .entrySet()) {
+                    live.computeIfAbsent(
+                            com.github.aeddddd.ae2enhanced.specialcrafting.RecursiveCraftingHelper.canon(
+                                    e.getKey()),
+                            k -> new java.util.ArrayList<>()).addAll(e.getValue());
+                }
+                return live;
+            } catch (java.util.ConcurrentModificationException ignored) {
+                Thread.yield();
+            }
+        }
+        return java.util.Collections.emptyMap(); // 兜底:空快照(索引随 recalc 自愈)
+    }
+
+    @Override
+    public boolean ae2enhanced$canEmit(IAEItemStack canonKey) {
+        Set<IAEItemStack> snap = this.ae2enhanced$emitterSnapshot;
+        if (snap != null) {
+            return snap.contains(canonKey);
+        }
+        return this.emitableItems.contains(canonKey); // 引导路径:活读(contains 无迭代,相对安全)
     }
 
     @Override
@@ -139,12 +196,40 @@ public class MixinCraftingGridCache implements com.github.aeddddd.ae2enhanced.mi
         return idx;
     }
 
-    /** 样板集重建后索引失效(下一次访问惰性重建). */
+    /** 样板集重建后:先固化一致性快照(此刻服务器线程、数据完整),再失效索引
+     * (下一次访问惰性重建);置空与惰性构建同监视器,防计算线程把竞态期间构建的
+     * 陈旧索引回种到缓存(陈旧索引缺样板 → LP 误判缺料仅根键缺失). */
     @Inject(method = "recalculateCraftingPatterns", at = @At("TAIL"), require = 0)
     private void ae2enhanced$invalidatePatternIndex(CallbackInfo ci) {
-        this.ae2enhanced$patternIndex = null;
+        java.util.Map<IAEItemStack, List<ICraftingPatternDetails>> snap = new java.util.HashMap<>();
+        for (java.util.Map.Entry<IAEItemStack, com.google.common.collect.ImmutableList<ICraftingPatternDetails>> e : this.craftableItems
+                .entrySet()) {
+            snap.computeIfAbsent(
+                    com.github.aeddddd.ae2enhanced.specialcrafting.RecursiveCraftingHelper.canon(e.getKey()),
+                    k -> new java.util.ArrayList<>()).addAll(e.getValue());
+        }
+        Set<IAEItemStack> emit = new HashSet<>();
+        for (IAEItemStack e : this.emitableItems) {
+            emit.add(com.github.aeddddd.ae2enhanced.specialcrafting.RecursiveCraftingHelper.canon(e));
+        }
+        this.ae2enhanced$craftableSnapshot = snap;
+        this.ae2enhanced$emitterSnapshot = emit;
+        synchronized (this) {
+            this.ae2enhanced$patternIndex = null;
+        }
         // craftingMethods 已重建,mediums memo 同步失效
         this.ae2enhanced$mediumsMemo.clear();
+    }
+
+    /** setEmitable 动态增量(recalc 外由发射台元件调用):copy-on-write 并入快照. */
+    @Inject(method = "setEmitable", at = @At("RETURN"), require = 0)
+    private void ae2enhanced$onSetEmitable(IAEItemStack someItem, CallbackInfo ci) {
+        Set<IAEItemStack> snap = this.ae2enhanced$emitterSnapshot;
+        if (snap != null) {
+            Set<IAEItemStack> copy = new HashSet<>(snap);
+            copy.add(com.github.aeddddd.ae2enhanced.specialcrafting.RecursiveCraftingHelper.canon(someItem));
+            this.ae2enhanced$emitterSnapshot = copy;
+        }
     }
 
     /**
@@ -167,8 +252,9 @@ public class MixinCraftingGridCache implements com.github.aeddddd.ae2enhanced.mi
     // ==================== Special Crafting Routing (Point A: Calculation) ====================
 
     /**
-     * 特殊配方路由（计算请求分流）:detector 命中才提交 {@link SpecialCraftingJob}
-     * 并复用原生 CRAFTING_POOL 线程池;未命中/异常时直接放行,原生行为零改动.
+     * 计划器路由（计算请求分流）:按配置模式提交 {@link LpCraftingJob}
+     * 并复用原生 CRAFTING_POOL 线程池;OFF/异常时直接放行,原生行为零改动.
+     * <p>M7 起 LP 计划器为唯一增强路径（冷凝分层 + 单纯形）,原生仅作兜底.</p>
      */
     @Inject(method = "beginCraftingJob", at = @At("HEAD"), cancellable = true, require = 0)
     private void ae2enhanced$routeSpecialCalculation(World world, IGrid grid, IActionSource actionSrc,
@@ -177,35 +263,25 @@ public class MixinCraftingGridCache implements com.github.aeddddd.ae2enhanced.mi
             if (world == null || grid == null || actionSrc == null || slotItem == null) {
                 return;
             }
-            ICraftingGrid cc = grid.getCache(ICraftingGrid.class);
-            // 特殊配方路由:detector 命中才提交专用求解器(O(1) 闭式)
-            if (SpecialCraftingRuntime.isEnabled()
-                    && SpecialRecipeDetector.mayInvolveSpecialRecipes(cc, slotItem, world)) {
-                SpecialLog.info("[特殊配方] 路由命中,提交专用求解器: {}", slotItem);
-                SpecialCraftingJob job = new SpecialCraftingJob(world, grid, actionSrc, slotItem, cb);
-                cir.setReturnValue(CRAFTING_POOL.submit(job, job));
+            // 功能开关关闭:计算/提交/执行零干预,完全放行原生(类注释承诺口径)
+            if (!com.github.aeddddd.ae2enhanced.specialcrafting.SpecialCraftingRuntime.isEnabled()) {
                 return;
             }
-            // DAG 引擎路由(阶段 4):其余非特殊请求按配置模式接线——
-            // OFF 放行;DEFAULT 直接 DAG;FALLBACK 原生先算、缺料时 DAG 重算.
+            // OFF 放行;DEFAULT 直接 LP;FALLBACK 原生先算、缺料时 LP 重算.
             AE2EnhancedConfig.DagPlannerMode mode = AE2EnhancedConfig.crafting.dagPlannerMode;
             if (mode == null || mode == AE2EnhancedConfig.DagPlannerMode.OFF) {
                 return;
             }
             if (mode == AE2EnhancedConfig.DagPlannerMode.DEFAULT) {
-                com.github.aeddddd.ae2enhanced.craftingplan.dag.DagCraftingJob job =
-                        new com.github.aeddddd.ae2enhanced.craftingplan.dag.DagCraftingJob(world, grid,
-                                actionSrc, slotItem, cb);
+                LpCraftingJob job = new LpCraftingJob(world, grid, actionSrc, slotItem, cb);
                 cir.setReturnValue(CRAFTING_POOL.submit(job, job));
                 return;
             }
-            com.github.aeddddd.ae2enhanced.craftingplan.dag.FallbackDagCraftingJob job =
-                    new com.github.aeddddd.ae2enhanced.craftingplan.dag.FallbackDagCraftingJob(world, grid,
-                            actionSrc, slotItem, cb);
+            FallbackLpCraftingJob job = new FallbackLpCraftingJob(world, grid, actionSrc, slotItem, cb);
             cir.setReturnValue(CRAFTING_POOL.submit(job, job));
         } catch (Throwable t) {
             // 宁可漏判不可误判:路由层任何异常都放行原生
-            AE2Enhanced.LOGGER.warn("[特殊配方] 路由判定异常,放行原生计算: {}", t.toString());
+            AE2Enhanced.LOGGER.warn("[LP计划] 路由判定异常,放行原生计算: {}", t.toString());
         }
     }
 
@@ -220,6 +296,9 @@ public class MixinCraftingGridCache implements com.github.aeddddd.ae2enhanced.mi
     private void ae2enhanced$routeSpecialJob(ICraftingJob job, ICraftingRequester requestingMachine,
             ICraftingCPU target, boolean prioritizePower, IActionSource src,
             CallbackInfoReturnable<ICraftingLink> cir) {
+        if (!com.github.aeddddd.ae2enhanced.specialcrafting.SpecialCraftingRuntime.isEnabled()) {
+            return; // 功能开关关闭:提交零干预
+        }
         if (!SpecialPlanMarker.isSpecial(job)) {
             return;
         }

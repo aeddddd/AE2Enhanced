@@ -20,6 +20,21 @@ public interface ICraftingGridCacheAccess {
     Set<IAEItemStack> ae2enhanced$craftableKeys();
 
     /**
+     * 一致性样板快照（canon 键 → 该键主索引样板表）.
+     * <p>AE2-UEL 的 craftableItems 由服务器线程在 recalculateCraftingPatterns 中
+     * 就地 clear+重建（fastutil 无锁）;计算线程活读会得到 CME 或<b>静默空窗</b>
+     * （重建期 map 稳定为空,复核无法区分）.本快照在 recalc TAIL（服务器线程、
+     * 重建刚完成、数据一致）固化,求解期读取一律走快照,禁止回调活 map.</p>
+     */
+    java.util.Map<IAEItemStack, java.util.List<ICraftingPatternDetails>> ae2enhanced$craftableSnapshot();
+
+    /**
+     * 发射台判定快照（canon 键,与最近一次 recalc 同代;setEmitable 动态增量 copy-on-write）.
+     * 与 {@code canEmitFor} 同语义,但不受 recalc 重建空窗影响.
+     */
+    boolean ae2enhanced$canEmit(IAEItemStack canonKey);
+
+    /**
      * 网络样板缓存索引（SCC 环检测 + 副产物倒排 + detector memo）.
      * 惰性构建,recalculateCraftingPatterns 后失效重建;计算线程并发安全.
      */

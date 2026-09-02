@@ -44,7 +44,6 @@ import appeng.me.cache.GridStorageCache;
 import appeng.me.helpers.PlayerSource;
 
 import com.github.aeddddd.ae2enhanced.specialcrafting.RecursiveCraftingHelper;
-import com.github.aeddddd.ae2enhanced.specialcrafting.SpecialCraftingJob;
 import com.github.aeddddd.ae2enhanced.test.util.AE2TestBootstrap;
 
 /**
@@ -54,11 +53,27 @@ import com.github.aeddddd.ae2enhanced.test.util.AE2TestBootstrap;
  * <li>匿名 {@link ICraftingGrid}:样板索引 + canEmitFor;</li>
  * <li>Mockito mock 的 {@link IGrid}/{@link GridStorageCache}/{@link IMEMonitor}:
  * 网络库存快照(每次 getStorageList 返回新副本);</li>
- * <li>{@link #runSpecial}/{@link #runNative}:提交 job::run 到单线程执行器后立即
+ * <li>{@link #runDag}/{@link #runNative}:提交 job::run 到单线程执行器后立即
  * simulateFor(模拟 TickHandler 的唤醒),等待完成.</li>
  * </ul>
  */
 public class SimulationEnv {
+
+    // ===== 共享键构造助手(原 CycleAnalyzerTest 静态助手,M7 起由本类承载) =====
+
+    public static IAEItemStack item(net.minecraft.item.Item item) {
+        return appeng.util.item.AEItemStack.fromItemStack(new net.minecraft.item.ItemStack(item));
+    }
+
+    public static IAEItemStack block(net.minecraft.block.Block block) {
+        return appeng.util.item.AEItemStack.fromItemStack(new net.minecraft.item.ItemStack(block));
+    }
+
+    public static IAEItemStack mult(IAEItemStack template, long multiplier) {
+        IAEItemStack copy = template.copy();
+        copy.setStackSize(template.getStackSize() * multiplier);
+        return copy;
+    }
 
     private final Map<IAEItemStack, List<ICraftingPatternDetails>> patterns = new LinkedHashMap<>();
     private final IItemList<IAEItemStack> networkStorage;
@@ -108,13 +123,6 @@ public class SimulationEnv {
     }
 
     /**
-     * 以 {@link SpecialCraftingJob} 运行模拟（路由命中后的实际执行路径）.
-     */
-    public CraftingJob runSpecial(IAEItemStack what) {
-        return this.runJob(this.newSpecialJob(what));
-    }
-
-    /**
      * 以原生 {@link CraftingJob} 运行模拟（回归基线）.
      */
     public CraftingJob runNative(IAEItemStack what) {
@@ -122,23 +130,11 @@ public class SimulationEnv {
     }
 
     /**
-     * 以 {@link com.github.aeddddd.ae2enhanced.craftingplan.dag.DagCraftingJob} 运行模拟
-     * （DAG 计划引擎默认路径）.
+     * 以 {@link com.github.aeddddd.ae2enhanced.specialcrafting.LpCraftingJob} 运行模拟
+     * （M7 起默认计划路径：LP 冷凝分层求解）.
      */
     public CraftingJob runDag(IAEItemStack what) {
         return this.runJob(this.newDagJob(what));
-    }
-
-    /**
-     * 以 LP 计划器路由（{@code -Dae2e.lpPlanner} 内部开关）运行模拟.
-     */
-    public CraftingJob runLp(IAEItemStack what) {
-        System.setProperty("ae2e.lpPlanner", "true");
-        try {
-            return this.runJob(this.newDagJob(what));
-        } finally {
-            System.clearProperty("ae2e.lpPlanner");
-        }
     }
 
     /** 构造原生 {@link CraftingJob}（不执行,供基准测试自行计时）. */
@@ -146,14 +142,9 @@ public class SimulationEnv {
         return new CraftingJob(this.world, this.grid, this.actionSource, what, null);
     }
 
-    /** 构造 {@link SpecialCraftingJob}（不执行,供基准测试自行计时）. */
-    public CraftingJob newSpecialJob(IAEItemStack what) {
-        return new SpecialCraftingJob(this.world, this.grid, this.actionSource, what, null);
-    }
-
-    /** 构造 {@link com.github.aeddddd.ae2enhanced.craftingplan.dag.DagCraftingJob}（不执行）. */
+    /** 构造 {@link com.github.aeddddd.ae2enhanced.specialcrafting.LpCraftingJob}（不执行）. */
     public CraftingJob newDagJob(IAEItemStack what) {
-        return new com.github.aeddddd.ae2enhanced.craftingplan.dag.DagCraftingJob(this.world, this.grid,
+        return new com.github.aeddddd.ae2enhanced.specialcrafting.LpCraftingJob(this.world, this.grid,
                 this.actionSource, what, null);
     }
 
@@ -222,6 +213,21 @@ public class SimulationEnv {
         @Override
         public java.util.Set<IAEItemStack> ae2enhanced$craftableKeys() {
             return new java.util.HashSet<>(patterns.keySet());
+        }
+
+        @Override
+        public java.util.Map<IAEItemStack, java.util.List<ICraftingPatternDetails>> ae2enhanced$craftableSnapshot() {
+            // 测试环境单线程,直接深拷贝(键已 canon)
+            java.util.Map<IAEItemStack, java.util.List<ICraftingPatternDetails>> snap = new java.util.HashMap<>();
+            for (Map.Entry<IAEItemStack, java.util.List<ICraftingPatternDetails>> e : patterns.entrySet()) {
+                snap.put(e.getKey(), new ArrayList<>(e.getValue()));
+            }
+            return snap;
+        }
+
+        @Override
+        public boolean ae2enhanced$canEmit(IAEItemStack canonKey) {
+            return emitables.contains(canonKey);
         }
 
         @Override
