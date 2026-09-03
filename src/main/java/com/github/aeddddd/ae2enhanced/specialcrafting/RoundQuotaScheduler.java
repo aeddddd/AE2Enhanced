@@ -234,6 +234,86 @@ public final class RoundQuotaScheduler {
     }
 
     /**
+     * 该集群当前是否有生效的配额门控（推导结果 memo;执行层据此跳过无谓的
+     * remaining 快照构建——特殊但非自消耗 job 占多数）.
+     */
+    public static boolean hasQuota(CraftingCPUCluster cluster, IAEItemStack finalOutput) {
+        if (finalOutput == null) {
+            return false;
+        }
+        Map<ICraftingPatternDetails, Long> totals = TOTALS.get(cluster);
+        if (totals == null) {
+            return false;
+        }
+        Quota quota = QUOTAS.get(cluster);
+        if (quota == null) {
+            quota = deriveQuota(totals, finalOutput);
+            QUOTAS.put(cluster, quota == null ? NO_QUOTA : quota);
+        }
+        return quota != NO_QUOTA;
+    }
+
+    /**
+     * 单趟否决集合（执行层每 tick 一次性计算,O(闭包大小) 一次,趟内逐次查询 O(1)).
+     * <p>趟内 totals/remaining 快照/quota 均不变,"最慢闭包进度"对全 pattern 共享,
+     * 逐次判定结果趟内稳定——与逐次调用 {@link #shouldVetoPush} 逐字节等价.</p>
+     * 仅闭包内 pattern 可能被否决;totals 之外的 pattern(NBT 恢复任务)恒不否决.
+     *
+     * @return 本趟应否决的 pattern 集;无快照/非自消耗 job/无配额时返回空集.
+     */
+    public static Set<ICraftingPatternDetails> vetoedSetForTick(CraftingCPUCluster cluster,
+            Map<ICraftingPatternDetails, Long> remaining, IAEItemStack finalOutput) {
+        if (finalOutput == null) {
+            return Collections.emptySet();
+        }
+        Map<ICraftingPatternDetails, Long> totals = TOTALS.get(cluster);
+        if (totals == null) {
+            return Collections.emptySet();
+        }
+        Quota quota = QUOTAS.get(cluster);
+        if (quota == null) {
+            quota = deriveQuota(totals, finalOutput);
+            QUOTAS.put(cluster, quota == null ? NO_QUOTA : quota);
+            quota = quota == null ? NO_QUOTA : quota;
+        }
+        if (quota == NO_QUOTA) {
+            return Collections.emptySet();
+        }
+        return vetoedSet(quota, totals, remaining);
+    }
+
+    /**
+     * 否决集合纯函数（趟内 totals/remaining 固定）:最慢闭包进度 round 全 pattern
+     * 共享,逐 pattern 的否决判定与 {@link #isPushAllowed} 逐字节等价.
+     */
+    public static Set<ICraftingPatternDetails> vetoedSet(Quota quota,
+            Map<ICraftingPatternDetails, Long> totals, Map<ICraftingPatternDetails, Long> remaining) {
+        // 最慢闭包进度(趟内恒定):round = min(pushed / perRound)
+        long round = Long.MAX_VALUE;
+        for (Map.Entry<ICraftingPatternDetails, Long> entry : quota.perRound.entrySet()) {
+            long pushed = totals.getOrDefault(entry.getKey(), 0L) - remaining.getOrDefault(entry.getKey(), 0L);
+            round = Math.min(round, pushed / entry.getValue());
+        }
+        if (round == Long.MAX_VALUE) {
+            round = 0; // 闭包已全部完成,剩余任务自由推送
+        }
+        Set<ICraftingPatternDetails> vetoed = new HashSet<>();
+        for (Map.Entry<ICraftingPatternDetails, Long> entry : quota.perRound.entrySet()) {
+            ICraftingPatternDetails pattern = entry.getKey();
+            if (!totals.containsKey(pattern)) {
+                continue; // 幽灵条目防御
+            }
+            long pushed = totals.get(pattern) - remaining.getOrDefault(pattern, 0L);
+            long t = entry.getValue();
+            long cap = t > Long.MAX_VALUE / (round + 1) ? Long.MAX_VALUE : t * (round + 1);
+            if (pushed >= cap) {
+                vetoed.add(pattern);
+            }
+        }
+        return vetoed;
+    }
+
+    /**
      * 单次推送配额判定（纯函数）:闭包 pattern 的已推送量不得超过
      * （最慢闭包进度 + 1 超轮）;闭包外 pattern 不受限.
      */

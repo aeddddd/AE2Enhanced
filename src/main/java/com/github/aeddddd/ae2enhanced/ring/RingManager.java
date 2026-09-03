@@ -59,6 +59,8 @@ public final class RingManager {
     private static final Map<UUID, Boolean> NOCLIP_APPLIED = new HashMap<>();
     /** 上一 tick 位置(飞升异常位移回滚用) */
     private static final Map<UUID, double[]> LAST_POS = new HashMap<>();
+    /** 上次位移检查的真实时间(卡顿期间按真实耗时放宽回滚阈值用) */
+    private static final Map<UUID, Long> LAST_POS_CHECK_NANOS = new HashMap<>();
     /** 飞升指环的饱食功能能量状态(供 exhaustion mixin 快速判定) */
     private static final Map<UUID, Boolean> SATURATION_ACTIVE = new HashMap<>();
     /** III 阶段免死冷却到期时间(世界时间) */
@@ -74,6 +76,7 @@ public final class RingManager {
         SNAPSHOTS.remove(playerId);
         NOCLIP_APPLIED.remove(playerId);
         LAST_POS.remove(playerId);
+        LAST_POS_CHECK_NANOS.remove(playerId);
         SATURATION_ACTIVE.remove(playerId);
         DEATH_BLOCK_CD.remove(playerId);
         PREV_FLYING.remove(playerId);
@@ -88,6 +91,7 @@ public final class RingManager {
         SNAPSHOTS.remove(player.getUniqueID());
         NOCLIP_APPLIED.remove(player.getUniqueID());
         LAST_POS.remove(player.getUniqueID());
+        LAST_POS_CHECK_NANOS.remove(player.getUniqueID());
     }
 
     public static boolean isSaturationActive(EntityPlayer player) {
@@ -382,13 +386,24 @@ public final class RingManager {
         double[] last = LAST_POS.get(id);
         double[] now = {player.posX, player.posY, player.posZ};
         LAST_POS.put(id, now);
-        if (last == null) return;
+        long nowNanos = System.nanoTime();
+        Long lastNanos = LAST_POS_CHECK_NANOS.put(id, nowNanos);
+        if (last == null || lastNanos == null) return;
         if (RingProtection.isTeleportAllowed(player)) return;
         if (player.capabilities.isFlying) return; // 高速飞行产生的位移不视为异常
+        // 阈值按两次检查间的真实耗时缩放:服务器卡顿(tick 拉长)期间客户端移动包
+        // 积压成批处理,单 tick 表观位移可达数格——若按固定 3 格判定会把卡顿玩家
+        // 全部误判为异常位移并主动回弹(下单卡顿期位置回弹的根因).
+        // 正常 50ms/tick → 阈值 3 格;500ms 卡顿 → 30 格.超过 1s 的停顿数据过旧,跳过.
+        double elapsedTicks = (nowNanos - lastNanos) / 50_000_000.0;
+        if (elapsedTicks > 20.0) {
+            return;
+        }
+        double limit = 3.0 * Math.max(1.0, elapsedTicks);
         double dx = now[0] - last[0];
         double dy = now[1] - last[1];
         double dz = now[2] - last[2];
-        if (dx * dx + dy * dy + dz * dz > 9.0) { // 单 tick 位移超过 3 格(非自愿)
+        if (dx * dx + dy * dy + dz * dz > limit * limit) { // 单位时间位移超 3 格/tick(非自愿)
             RingProtection.allowTeleport(id, player.world.getTotalWorldTime() + 2);
             player.setPositionAndUpdate(last[0], last[1], last[2]);
             player.motionX = 0.0;

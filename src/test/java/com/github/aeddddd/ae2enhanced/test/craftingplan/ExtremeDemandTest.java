@@ -71,13 +71,16 @@ public class ExtremeDemandTest {
         assertThat(plan.missingItems().get(RecursiveCraftingHelper.canon(e)))
                 .as("超出封顶部分根键记缺").isEqualTo(8223372045078148096L);
         Map<ICraftingPatternDetails, Long> times = plan.patternTimes();
+        // 5e17 量级下 double ULP=64,求解器内部数值路径差异(重分解/终抛)会
+        // 产生 ±数个 ULP 的等价顶点——断言容差取 4096(≫ULP,≪量级)
+        org.assertj.core.data.Offset<Long> ulp = org.assertj.core.data.Offset.offset(4096L);
         // θ 环按封顶需求正常规划(种子库存计入交付)
-        assertThat(times.get(pX)).isEqualTo(499999995888313792L);
-        assertThat(times.get(pY)).isEqualTo(499999995888313792L);
-        assertThat(times.get(pC)).isEqualTo(499999995888313792L);
+        assertThat(times.get(pX)).isCloseTo(499999995888313792L, ulp);
+        assertThat(times.get(pY)).isCloseTo(499999995888313792L, ulp);
+        assertThat(times.get(pC)).isCloseTo(499999995888313792L, ulp);
         // 环外分支按封顶需求规划
-        assertThat(times.get(pE)).isEqualTo(999999991776627712L);
-        assertThat(times.get(pD)).isEqualTo(999999991776627712L);
+        assertThat(times.get(pE)).isCloseTo(999999991776627712L, ulp);
+        assertThat(times.get(pD)).isCloseTo(999999991776627712L, ulp);
     }
 
     /** E2:自增殖边界 2X→3X 需求 Long.MAX → 需求封顶执行,超出部分根键记缺. */

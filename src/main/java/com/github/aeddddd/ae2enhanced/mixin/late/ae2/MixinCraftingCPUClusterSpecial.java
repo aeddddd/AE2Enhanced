@@ -38,7 +38,22 @@ import net.minecraft.nbt.NBTTagList;
  * 并注入 job 提交/完成/取消钩子与超轮配额否决逻辑。</p>
  */
 @Mixin(value = CraftingCPUCluster.class, remap = false, priority = 1000)
-public abstract class MixinCraftingCPUClusterSpecial implements ISpecialCpuAccess {
+public abstract class MixinCraftingCPUClusterSpecial
+        implements ISpecialCpuAccess, com.github.aeddddd.ae2enhanced.mixin.bridge.ISpecialClusterMarkAccess {
+
+    /** 特殊标记字段级缓存(由 SpecialCraftingRuntime.tag/untag 同步写入,查询零锁). */
+    @org.spongepowered.asm.mixin.Unique
+    private boolean ae2e$specialMarked;
+
+    @Override
+    public boolean ae2e$isSpecialMarked() {
+        return this.ae2e$specialMarked;
+    }
+
+    @Override
+    public void ae2e$setSpecialMarked(boolean marked) {
+        this.ae2e$specialMarked = marked;
+    }
 
     @Shadow
     private Map<ICraftingPatternDetails, Object> tasks;
@@ -270,24 +285,27 @@ public abstract class MixinCraftingCPUClusterSpecial implements ISpecialCpuAcces
      */
     private Map<ICraftingPatternDetails, Long> ae2e$remainingSnapshot;
 
-    /** executeCrafting 入口:特殊集群构建本趟 remaining 快照(非特殊集群零开销). */
+    /**
+     * 本趟否决集合(惰性,首次否决判定时计算,趟内复用).
+     * <p>趟内 remaining 快照/totals/quota 均不变,逐次否决判定结果趟内稳定;
+     * 大单(千级 pattern)下逐次重算 round 扫描闭包是 O(N·闭包)/tick 的热点
+     * (spark 采样占 tick ~41%),整趟缓存后降为 O(N+闭包).</p>
+     */
+    private java.util.Set<ICraftingPatternDetails> ae2e$vetoedThisTick;
+
+    /** executeCrafting 入口:趟首复位趟缓存(快照本体改在首次否决判定时惰性构建,
+     * 无配额门控的特殊 job——占多数——整趟零开销). */
     @Inject(method = "executeCrafting", at = @At("HEAD"), require = 0)
     private void ae2enhanced$snapshotRemaining(IEnergyGrid energy, CraftingGridCache cache, CallbackInfo ci) {
-        CraftingCPUCluster self = (CraftingCPUCluster) (Object) this;
-        if (!SpecialCraftingRuntime.isSpecialCluster(self)) {
-            return;
-        }
-        Map<ICraftingPatternDetails, Long> snapshot = new java.util.LinkedHashMap<>();
-        for (Map.Entry<ICraftingPatternDetails, Object> entry : this.tasks.entrySet()) {
-            snapshot.put(entry.getKey(), ((ITaskProgressAccessor) entry.getValue()).ae2e$getValue());
-        }
-        this.ae2e$remainingSnapshot = snapshot;
+        this.ae2e$vetoedThisTick = null;
+        this.ae2e$remainingSnapshot = null;
     }
 
     /** executeCrafting 出口:丢弃快照(防滞留引用 + 下一趟重建). */
     @Inject(method = "executeCrafting", at = @At("RETURN"), require = 0)
     private void ae2enhanced$dropRemainingSnapshot(IEnergyGrid energy, CraftingGridCache cache, CallbackInfo ci) {
         this.ae2e$remainingSnapshot = null;
+        this.ae2e$vetoedThisTick = null;
     }
 
     /**
@@ -306,15 +324,27 @@ public abstract class MixinCraftingCPUClusterSpecial implements ISpecialCpuAcces
     private boolean ae2enhanced$vetoPushOverQuota(CraftingCPUCluster self, ICraftingPatternDetails details,
             IAEItemStack[] condensedInputs, Operation<Boolean> original) {
         if (SpecialCraftingRuntime.isSpecialCluster(self)) {
-            Map<ICraftingPatternDetails, Long> remaining = this.ae2e$remainingSnapshot;
-            if (remaining == null) {
-                // 防御:HEAD 快照注入未生效时退化为逐次重建(保语义)
-                remaining = new java.util.LinkedHashMap<>();
-                for (Map.Entry<ICraftingPatternDetails, Object> entry : this.tasks.entrySet()) {
-                    remaining.put(entry.getKey(), ((ITaskProgressAccessor) entry.getValue()).ae2e$getValue());
+            java.util.Set<ICraftingPatternDetails> vetoed = this.ae2e$vetoedThisTick;
+            if (vetoed == null) {
+                // 趟内首次判定:无配额门控(非自消耗 job,占多数)直接空集短路,
+                // 不构建 remaining 快照;有配额才惰性构建快照并算全闭包否决集
+                if (!RoundQuotaScheduler.hasQuota(self, this.finalOutput)) {
+                    vetoed = java.util.Collections.emptySet();
+                } else {
+                    Map<ICraftingPatternDetails, Long> remaining = this.ae2e$remainingSnapshot;
+                    if (remaining == null) {
+                        remaining = new java.util.LinkedHashMap<>();
+                        for (Map.Entry<ICraftingPatternDetails, Object> entry : this.tasks.entrySet()) {
+                            remaining.put(entry.getKey(),
+                                    ((ITaskProgressAccessor) entry.getValue()).ae2e$getValue());
+                        }
+                        this.ae2e$remainingSnapshot = remaining;
+                    }
+                    vetoed = RoundQuotaScheduler.vetoedSetForTick(self, remaining, this.finalOutput);
                 }
+                this.ae2e$vetoedThisTick = vetoed;
             }
-            if (RoundQuotaScheduler.shouldVetoPush(self, details, remaining, this.finalOutput)) {
+            if (vetoed.contains(details)) {
                 return false; // 超配额:视同输入不足,本拍跳过该 pattern
             }
         }

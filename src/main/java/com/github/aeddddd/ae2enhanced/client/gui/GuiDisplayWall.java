@@ -1,5 +1,9 @@
 package com.github.aeddddd.ae2enhanced.client.gui;
 
+import appeng.container.slot.SlotFake;
+import appeng.core.sync.network.NetworkHandler;
+import appeng.core.sync.packets.PacketInventoryAction;
+import appeng.helpers.InventoryAction;
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
 import com.github.aeddddd.ae2enhanced.container.ContainerDisplayWall;
 import com.github.aeddddd.ae2enhanced.display.ChartType;
@@ -12,6 +16,8 @@ import net.minecraft.client.gui.inventory.GuiContainer;
 import net.minecraft.client.resources.I18n;
 import net.minecraft.entity.player.InventoryPlayer;
 import net.minecraft.init.SoundEvents;
+import net.minecraft.inventory.ClickType;
+import net.minecraft.inventory.Slot;
 import net.minecraft.item.ItemStack;
 import net.minecraft.util.ResourceLocation;
 
@@ -246,6 +252,23 @@ public class GuiDisplayWall extends GuiContainer {
             return;
         }
         super.mouseClicked(mouseX, mouseY, mouseButton);
+    }
+
+    /**
+     * 假槽位点击走 AE2 的 PacketInventoryAction 通道(参照 AEBaseGui),
+     * 否则原版 windowClick 会被 SlotFake 的 isItemValid/canTakeStack 拒绝,
+     * 导致手持物品(含流体容器)无法标记、已标记目标无法删除.
+     */
+    @Override
+    protected void handleMouseClick(Slot slotIn, int slotId, int mouseButton, ClickType type) {
+        if (slotIn instanceof SlotFake) {
+            InventoryAction action = mouseButton == 1
+                    ? InventoryAction.SPLIT_OR_PLACE_SINGLE : InventoryAction.PICKUP_OR_SET_DOWN;
+            NetworkHandler.instance().sendToServer(new PacketInventoryAction(action, slotId, 0L));
+            playClick();
+            return;
+        }
+        super.handleMouseClick(slotIn, slotId, mouseButton, type);
     }
 
     @Override

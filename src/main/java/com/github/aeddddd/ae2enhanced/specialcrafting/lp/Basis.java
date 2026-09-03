@@ -21,13 +21,27 @@ final class Basis {
 
     /** 主元模的下限(低于即判基奇异/病态). */
     static final double PIVOT_MIN = 1e-11;
-    /** eta 向量数上限(超限重分解,控制 FTRAN/BTRAN 成本与误差累积). */
-    static final int MAX_ETA = 100;
+    /** eta 向量数上限(超限重分解,控制 FTRAN/BTRAN 成本与误差累积).
+     * 取 30 而非经典 100:eta 链漂移 ∝ 链长,链越长导航用 xb 与真实顶点偏差越大,
+     * 出口越界误判风险越高;m ≲ 数百时重分解廉价,短链更稳. */
+    static final int MAX_ETA = 30;
 
-    /** 数值失败异常(基奇异/病态),由 RevisedSimplex 转为 NUMERIC_FAILURE. */
+    /** 数值失败异常(基奇异/病态),由 RevisedSimplex 转为 NUMERIC_FAILURE.
+     * 携带失败位置与最佳候选行,供调用方做"单位列修补"恢复. */
     static final class NumericException extends Exception {
+        /** 失败的列位置(factorize 中第几列).-1 = 无定位信息. */
+        final int failPos;
+        /** 剩余位置中 |work| 最大的矩阵行(修补单位列的候选行).-1 = 无. */
+        final int bestRow;
+
         NumericException(String message) {
+            this(message, -1, -1);
+        }
+
+        NumericException(String message, int failPos, int bestRow) {
             super(message);
+            this.failPos = failPos;
+            this.bestRow = bestRow;
         }
     }
 
@@ -107,15 +121,24 @@ final class Basis {
             // 选主元:位置 >= k 中最大模
             int pivotPos = -1;
             double pivotAbs = PIVOT_MIN;
+            int bestPos = k;
+            double bestAbs = 0;
             for (int pos = k; pos < this.m; pos++) {
                 double abs = Math.abs(work[pos]);
+                if (abs > bestAbs) {
+                    bestAbs = abs;
+                    bestPos = pos;
+                }
                 if (abs > pivotAbs) {
                     pivotAbs = abs;
                     pivotPos = pos;
                 }
             }
             if (pivotPos < 0) {
-                throw new NumericException("基奇异:列 " + k + " 无主元候选");
+                // 携带失败列位置与最大剩余行,供 RevisedSimplex 单位列修补
+                throw new NumericException(
+                        "基奇异:列 " + k + " 无主元候选(最大剩余模 " + bestAbs + ")", k,
+                        this.rowOfPos[bestPos]);
             }
             if (pivotPos != k) {
                 // 交换位置映射、工作向量元素,以及先前 L 列在位置 k/pivotPos 的值

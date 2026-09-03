@@ -93,6 +93,11 @@ public class AE2EnhancedJEIPlugin implements IModPlugin {
                 com.github.aeddddd.ae2enhanced.client.gui.GuiSmartPatternInterface.class,
                 new com.github.aeddddd.ae2enhanced.integration.jei.SmartPatternInterfaceGhostHandler());
 
+        // 趋势幕墙 ghost ingredient 拖放标记(物品/流体 → 监控槽位)
+        registry.addGhostIngredientHandler(
+                com.github.aeddddd.ae2enhanced.client.gui.GuiDisplayWall.class,
+                new com.github.aeddddd.ae2enhanced.integration.jei.DisplayWallGhostHandler());
+
         // Smart Pattern Interface 一键转移：将 JEI 配方填充到锁定的配方
         registry.getRecipeTransferRegistry().addUniversalRecipeTransferHandler(
                 new com.github.aeddddd.ae2enhanced.integration.jei.SmartPatternRecipeTransferHandler(

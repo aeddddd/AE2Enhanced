@@ -172,6 +172,9 @@ public final class CondensationPlanner {
             List<ICraftingPatternDetails> patterns = unitPatterns.getOrDefault(unit, Collections.emptyList());
             if (patterns.isEmpty()) {
                 // 快速路径:无样板单元(原料/发射台)——赤字 = 需求 − 库存
+                if (unit.equals(rootUnit)) {
+                    dumpFastPathRoot(index, unitKeys.get(unit), stock, unitDemand);
+                }
                 for (Map.Entry<IAEItemStack, Double> d : unitDemand.entrySet()) {
                     if (d.getValue() <= 0 || index.canEmit(d.getKey())) {
                         continue;
@@ -185,6 +188,9 @@ public final class CondensationPlanner {
             }
             lpUnits++;
             UnitResult result = solveUnitWithBootstrap(cc, index, unitKeys.get(unit), stock, unitDemand);
+            if (unit.equals(rootUnit)) {
+                dumpUnitDetail(index, unitKeys.get(unit), patterns, stock, unitDemand, result);
+            }
             iterations += result.iterations;
             if (result.degraded) {
                 degradedUnits++;
@@ -365,6 +371,68 @@ public final class CondensationPlanner {
             }
         }
         return out > in;
+    }
+
+    /**
+     * 根单元求解诊断（{@code /ae2e debug specialcrafting on} 时生效）:
+     * 键集/库存/发射台/样板输入输出/LP 解全量 dump——定位"根单元 LP 判不可行"
+     * 类问题（0 执行 + 根行赤字,截断与降级路径均不经过,常规日志不可见）.
+     */
+    private static void dumpUnitDetail(NetworkPatternIndex index, List<IAEItemStack> keys,
+            List<ICraftingPatternDetails> patterns, Map<IAEItemStack, Long> stock,
+            Map<IAEItemStack, Double> unitDemand, UnitResult result) {
+        if (!SpecialLog.isEnabled()) {
+            return;
+        }
+        StringBuilder sb = new StringBuilder();
+        sb.append("[LP计划] 根单元诊断: 键数=").append(keys.size())
+                .append(" 样板数=").append(patterns.size()).append(" 需求=").append(unitDemand);
+        int maxKeys = Math.min(keys.size(), 64);
+        for (int i = 0; i < maxKeys; i++) {
+            IAEItemStack key = keys.get(i);
+            sb.append("\n  键: ").append(key)
+                    .append(" 库存=").append(stock.getOrDefault(key, 0L))
+                    .append(" 发射台=").append(index.canEmit(key));
+        }
+        if (keys.size() > maxKeys) {
+            sb.append("\n  ...略 ").append(keys.size() - maxKeys).append(" 键");
+        }
+        int maxPatterns = Math.min(patterns.size(), 128);
+        for (int i = 0; i < maxPatterns; i++) {
+            ICraftingPatternDetails p = patterns.get(i);
+            sb.append("\n  样板: in=").append(java.util.Arrays.toString(p.getCondensedInputs()))
+                    .append(" out=").append(java.util.Arrays.toString(p.getCondensedOutputs()))
+                    .append(" 可合成=").append(p.isCraftable());
+        }
+        if (patterns.size() > maxPatterns) {
+            sb.append("\n  ...略 ").append(patterns.size() - maxPatterns).append(" 样板");
+        }
+        sb.append("\n  解: 执行=").append(result.executions.size())
+                .append(" 赤字=").append(result.deficits)
+                .append(" 环外折算=").append(result.externalDemands)
+                .append(" 种子需求=").append(result.seedDemands);
+        SpecialLog.info(sb.toString());
+    }
+
+    /**
+     * 根单元快速路径诊断（无样板时）:根键索引无生产者会直接落此路径
+     * （如流体根键与样板输出键不匹配）,键的完整 toString 可供比对 NBT 差异.
+     */
+    private static void dumpFastPathRoot(NetworkPatternIndex index, List<IAEItemStack> keys,
+            Map<IAEItemStack, Long> stock, Map<IAEItemStack, Double> unitDemand) {
+        if (!SpecialLog.isEnabled()) {
+            return;
+        }
+        StringBuilder sb = new StringBuilder();
+        sb.append("[LP计划] 根单元诊断(快速路径-无样板): 键数=").append(keys.size())
+                .append(" 需求=").append(unitDemand);
+        for (IAEItemStack key : keys) {
+            sb.append("\n  键: ").append(key)
+                    .append(" 库存=").append(stock.getOrDefault(key, 0L))
+                    .append(" 发射台=").append(index.canEmit(key))
+                    .append(" 索引生产者数=").append(index.patternsFor(key).size());
+        }
+        SpecialLog.info(sb.toString());
     }
 
     /** 截断接受:执行数取可行水位,环外折算按水位重算,交付缺口转赤字. */

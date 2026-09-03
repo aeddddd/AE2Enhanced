@@ -43,6 +43,7 @@
     "ae2.MixinToolMatterCannon",
     "ae2.MixinContainerInterfaceTerminal",
     "ae2.MixinContainerMEMonitorable",
+    "ae2.MixinContainerCraftingCPUThrottle",
     "upgrade.MixinUpgradeInvFilter",
     "upgrade.MixinUpgradeInventory",
     "upgrade.MixinUpgradeSlots",

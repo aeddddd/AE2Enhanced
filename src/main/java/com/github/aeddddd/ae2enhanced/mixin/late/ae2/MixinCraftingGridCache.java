@@ -153,8 +153,10 @@ public class MixinCraftingGridCache implements com.github.aeddddd.ae2enhanced.mi
         if (snap != null) {
             return snap;
         }
-        // 引导路径(首次 recalc 完成前):活读 + CME 自旋重试
-        for (int attempt = 0; attempt < 16; attempt++) {
+        // 引导路径(首次 recalc 完成前):活读 + CME/空窗等待重试。
+        // 重建空窗是毫秒~秒级,yield 自旋必然全落空窗;下单线程是异步线程,
+        // 可以真等待——能发起下单说明网络必有样板,空读几乎必然等于"撞上重建"
+        for (int attempt = 0; attempt < 40; attempt++) {
             try {
                 java.util.Map<IAEItemStack, List<ICraftingPatternDetails>> live = new java.util.HashMap<>();
                 for (java.util.Map.Entry<IAEItemStack, com.google.common.collect.ImmutableList<ICraftingPatternDetails>> e : this.craftableItems
@@ -164,12 +166,27 @@ public class MixinCraftingGridCache implements com.github.aeddddd.ae2enhanced.mi
                                     e.getKey()),
                             k -> new java.util.ArrayList<>()).addAll(e.getValue());
                 }
-                return live;
+                if (!live.isEmpty()) {
+                    return live;
+                }
+                // 空读:可能撞上重建空窗(clear 后 put 前的瞬间),也可能真空网络——
+                // 先看 TAIL 是否已在等待期间发布了快照,都没有则等待重试;
+                // 真空网络的代价是每次调用最多空等 ~2s,但能发起下单即说明必有样板,
+                // 该路径实际不会走到
+                snap = this.ae2enhanced$craftableSnapshot;
+                if (snap != null) {
+                    return snap;
+                }
             } catch (java.util.ConcurrentModificationException ignored) {
-                Thread.yield();
+            }
+            try {
+                Thread.sleep(50L);
+            } catch (InterruptedException ie) {
+                Thread.currentThread().interrupt();
+                break;
             }
         }
-        return java.util.Collections.emptyMap(); // 兜底:空快照(索引随 recalc 自愈)
+        return java.util.Collections.emptyMap(); // 兜底:空快照(不缓存,下次调用重试)
     }
 
     @Override
@@ -188,8 +205,15 @@ public class MixinCraftingGridCache implements com.github.aeddddd.ae2enhanced.mi
             synchronized (this) {
                 idx = this.ae2enhanced$patternIndex;
                 if (idx == null) {
+                    // 构建前先钉住代数:引导期(首次 recalc TAIL 前)构建的索引可能
+                    // 来自重建空窗的空快照,缓存它会把"空索引"钉死到下一次 recalc——
+                    // 期间所有下单误判根键缺料(概率性下单失败的残留机制).
+                    // 引导代索引返回临时实例不缓存,下次调用随快照固化自愈
+                    boolean bootstrap = this.ae2enhanced$craftableSnapshot == null;
                     idx = NetworkPatternIndex.build((ICraftingGrid) (Object) this);
-                    this.ae2enhanced$patternIndex = idx;
+                    if (!bootstrap) {
+                        this.ae2enhanced$patternIndex = idx;
+                    }
                 }
             }
         }

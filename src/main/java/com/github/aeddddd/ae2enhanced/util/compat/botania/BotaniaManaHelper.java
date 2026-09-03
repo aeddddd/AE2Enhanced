@@ -46,6 +46,36 @@ public final class BotaniaManaHelper {
     private static boolean initialized = false;
     private static boolean available = false;
 
+    /**
+     * 反射解析结果缓存（类 → 字段/方法,含"不存在"负缓存).
+     * <p>ChunkManaNode 每 tick 对每个目标调用;旧实现每次调用都沿类层次
+     * getDeclaredField 逐级抛 NoSuchFieldException——异常控制流的开销在
+     * spark 采样中可见(BotaniaManaHelper.getIntField/getManaCapacity).
+     * Field/Method 绑定到类而非实例,可安全跨实例缓存.</p>
+     */
+    private static final java.util.concurrent.ConcurrentHashMap<Class<?>, java.util.concurrent.ConcurrentHashMap<String, Field>> INT_FIELD_CACHE =
+            new java.util.concurrent.ConcurrentHashMap<>();
+    private static final java.util.concurrent.ConcurrentHashMap<Class<?>, Method> CURRENT_MANA_CACHE =
+            new java.util.concurrent.ConcurrentHashMap<>();
+    private static final java.util.concurrent.ConcurrentHashMap<Class<?>, Method> MAX_MANA_CACHE =
+            new java.util.concurrent.ConcurrentHashMap<>();
+    /** 负缓存哨兵(ConcurrentHashMap 不允许 null 值). */
+    private static final Field NO_FIELD;
+    private static final Method NO_METHOD;
+
+    static {
+        try {
+            NO_FIELD = BotaniaManaHelper.class.getDeclaredField("NO_FIELD");
+            NO_METHOD = BotaniaManaHelper.class.getDeclaredMethod("nop");
+        } catch (NoSuchFieldException | NoSuchMethodException e) {
+            throw new ExceptionInInitializerError(e);
+        }
+    }
+
+    @SuppressWarnings("unused")
+    private static void nop() {
+    }
+
     private BotaniaManaHelper() {}
 
     public static boolean isAvailable() {
@@ -176,12 +206,13 @@ public final class BotaniaManaHelper {
     public static int getCurrentMana(TileEntity te) {
         if (!available || !isManaReceiver(te)) return 0;
         Class<?> clazz = te.getClass();
-        try {
-            Method m = clazz.getMethod("getCurrentMana");
-            Object result = m.invoke(te);
-            if (result instanceof Number) return ((Number) result).intValue();
-        } catch (NoSuchMethodException ignored) {
-        } catch (Throwable ignored) {
+        Method m = CURRENT_MANA_CACHE.computeIfAbsent(clazz, BotaniaManaHelper::findMethod);
+        if (m != NO_METHOD) {
+            try {
+                Object result = m.invoke(te);
+                if (result instanceof Number) return ((Number) result).intValue();
+            } catch (Throwable ignored) {
+            }
         }
         Integer teMana = getIntField(te, "mana");
         if (teMana != null) return teMana;
@@ -198,21 +229,45 @@ public final class BotaniaManaHelper {
         return 0;
     }
 
+    /** 按类缓存解析 public getCurrentMana(负缓存返回哨兵). */
+    private static Method findMethod(Class<?> clazz) {
+        try {
+            return clazz.getMethod("getCurrentMana");
+        } catch (NoSuchMethodException e) {
+            return NO_METHOD;
+        } catch (Throwable t) {
+            return NO_METHOD;
+        }
+    }
+
     private static Integer getIntField(Object obj, String fieldName) {
         if (obj == null) return null;
         Class<?> clazz = obj.getClass();
-        while (clazz != null && clazz != Object.class) {
+        Field f = INT_FIELD_CACHE.computeIfAbsent(clazz, c -> new java.util.concurrent.ConcurrentHashMap<>())
+                .computeIfAbsent(fieldName, name -> findField(clazz, name));
+        if (f == NO_FIELD) return null;
+        try {
+            Object result = f.get(obj);
+            if (result instanceof Number) return ((Number) result).intValue();
+        } catch (Throwable ignored) {
+        }
+        return null;
+    }
+
+    /** 沿类层次解析字段一次(负缓存返回哨兵),结果跨实例复用. */
+    private static Field findField(Class<?> clazz, String fieldName) {
+        Class<?> c = clazz;
+        while (c != null && c != Object.class) {
             try {
-                Field f = clazz.getDeclaredField(fieldName);
+                Field f = c.getDeclaredField(fieldName);
                 f.setAccessible(true);
-                Object result = f.get(obj);
-                if (result instanceof Number) return ((Number) result).intValue();
+                return f;
             } catch (NoSuchFieldException ignored) {
             } catch (Throwable ignored) {
             }
-            clazz = clazz.getSuperclass();
+            c = c.getSuperclass();
         }
-        return null;
+        return NO_FIELD;
     }
 
     /**
@@ -236,11 +291,18 @@ public final class BotaniaManaHelper {
             try {
                 Object subTile = subTileField.get(te);
                 if (subTile != null) {
-                    Method maxManaMethod = subTile.getClass().getMethod("getMaxMana");
-                    Object result = maxManaMethod.invoke(subTile);
-                    if (result instanceof Number) return ((Number) result).intValue();
+                    Method maxManaMethod = MAX_MANA_CACHE.computeIfAbsent(subTile.getClass(), c -> {
+                        try {
+                            return c.getMethod("getMaxMana");
+                        } catch (Throwable t) {
+                            return NO_METHOD;
+                        }
+                    });
+                    if (maxManaMethod != NO_METHOD) {
+                        Object result = maxManaMethod.invoke(subTile);
+                        if (result instanceof Number) return ((Number) result).intValue();
+                    }
                 }
-            } catch (NoSuchMethodException ignored) {
             } catch (Throwable ignored) {
             }
         }

@@ -47,7 +47,8 @@ public class ContainerDisplayWall extends AEBaseContainer {
             Slot s = this.inventorySlots.get(slot);
             if (s instanceof SlotFake) {
                 ItemStack held = player.inventory.getItemStack();
-                if (!held.isEmpty() && action == InventoryAction.PICKUP_OR_SET_DOWN) {
+                if (!held.isEmpty() && (action == InventoryAction.PICKUP_OR_SET_DOWN
+                        || action == InventoryAction.SPLIT_OR_PLACE_SINGLE)) {
                     ItemStack fake = tryConvertFluidToFake(held);
                     if (fake != null && !fake.isEmpty()) {
                         s.putStack(fake);

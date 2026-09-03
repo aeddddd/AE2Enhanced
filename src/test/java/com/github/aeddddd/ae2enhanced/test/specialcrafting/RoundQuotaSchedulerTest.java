@@ -143,4 +143,34 @@ public class RoundQuotaSchedulerTest {
         assertThat(allowed).contains(p.external);
         assertThat(allowed).doesNotContain(p.crush);
     }
+
+    /** T6:单趟否决集合与逐次 isPushAllowed 判定逐字节等价(执行层趟内缓存的语义保证). */
+    @Test
+    public void testVetoedSetMatchesIsPushAllowed() {
+        ThetaPatterns p = new ThetaPatterns();
+        Map<ICraftingPatternDetails, Long> totals = new LinkedHashMap<>();
+        totals.put(p.crush, 4L);
+        totals.put(p.charge, 4L);
+        totals.put(p.back, 4L);
+        totals.put(p.external, 7L);
+        RoundQuotaScheduler.Quota quota = RoundQuotaScheduler.deriveQuota(totals, p.stone);
+        assertThat(quota).isNotNull();
+
+        // 四种推进状态下逐 pattern 对比否决集与逐次判定
+        long[][] progresses = { { 4, 4, 4, 7 }, { 4, 3, 2, 5 }, { 0, 3, 4, 0 }, { 0, 0, 0, 0 } };
+        ICraftingPatternDetails[] all = { p.crush, p.charge, p.back, p.external };
+        for (long[] prog : progresses) {
+            Map<ICraftingPatternDetails, Long> remaining = new LinkedHashMap<>();
+            for (int i = 0; i < all.length; i++) {
+                remaining.put(all[i], prog[i]);
+            }
+            java.util.Set<ICraftingPatternDetails> vetoed =
+                    RoundQuotaScheduler.vetoedSet(quota, totals, remaining);
+            for (ICraftingPatternDetails pattern : all) {
+                assertThat(vetoed.contains(pattern))
+                        .as("remaining=%s pattern=%s", remaining, pattern)
+                        .isEqualTo(!RoundQuotaScheduler.isPushAllowed(quota, totals, remaining, pattern));
+            }
+        }
+    }
 }

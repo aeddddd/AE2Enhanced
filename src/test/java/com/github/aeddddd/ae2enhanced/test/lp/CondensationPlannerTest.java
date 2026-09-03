@@ -203,6 +203,85 @@ public class CondensationPlannerTest {
         assertEquals(10.0, execOf(out, p), EPS, "库存不抵交付,全额生产: " + out.executions);
     }
 
+    /**
+     * 理序素复现(多来源 + 成环,根在环内):L⇄C 1:1000 互转,L 另有第二来源 X→L,
+     * 板 P 与 L 互压(同在 SCC).下单 L×100000,库存 C=900/L=414:
+     * 应选 融化 C→L×100(种子 C 库存充足),无赤字.
+     */
+    @Test
+    public void multiSourceCycleRootIntermediate() {
+        SimulationEnv env = new SimulationEnv();
+        IAEItemStack l = block(Blocks.STONE);       // 理序素
+        IAEItemStack c = block(Blocks.COBBLESTONE); // 水晶
+        IAEItemStack p = block(Blocks.DIRT);        // 板
+        IAEItemStack x = block(Blocks.SAND);        // L 的第二来源原料
+        ICraftingPatternDetails melt = env.addPattern(new ProcessingPatternBuilder(mult(l, 1000))
+                .addPreciseInput(1, c).build());
+        env.addPattern(new ProcessingPatternBuilder(c).addPreciseInput(1, mult(l, 1000)).build());
+        env.addPattern(new ProcessingPatternBuilder(p).addPreciseInput(1, l).build());
+        env.addPattern(new ProcessingPatternBuilder(l).addPreciseInput(1, p).build());
+        env.addPattern(new ProcessingPatternBuilder(mult(l, 500)).addPreciseInput(1, x).build());
+        LpPlanOutcome out = solve(env, l, 100000, stockOf(c, 900, l, 414));
+        assertTrue(out.deficits.isEmpty(), "融化种子充足应满足: " + out.deficits);
+        assertEquals(100.0, execOf(out, melt), EPS, "应选融化×100: " + out.executions);
+    }
+
+    /**
+     * 理序素复现(根为板):同上网路,下单 P×1,库存 C=900/L=414:
+     * 应选 压制 L→P×1(L 库存直供),无赤字、零额外生产.
+     */
+    @Test
+    public void multiSourceCycleRootPlate() {
+        SimulationEnv env = new SimulationEnv();
+        IAEItemStack l = block(Blocks.STONE);
+        IAEItemStack c = block(Blocks.COBBLESTONE);
+        IAEItemStack p = block(Blocks.DIRT);
+        IAEItemStack x = block(Blocks.SAND);
+        env.addPattern(new ProcessingPatternBuilder(mult(l, 1000)).addPreciseInput(1, c).build());
+        env.addPattern(new ProcessingPatternBuilder(c).addPreciseInput(1, mult(l, 1000)).build());
+        ICraftingPatternDetails press = env.addPattern(new ProcessingPatternBuilder(p)
+                .addPreciseInput(1, l).build());
+        env.addPattern(new ProcessingPatternBuilder(l).addPreciseInput(1, p).build());
+        env.addPattern(new ProcessingPatternBuilder(mult(l, 500)).addPreciseInput(1, x).build());
+        LpPlanOutcome out = solve(env, p, 1, stockOf(c, 900, l, 414));
+        assertTrue(out.deficits.isEmpty(), "压板应满足: " + out.deficits);
+        assertEquals(1.0, execOf(out, press), EPS, "应选压制×1: " + out.executions);
+    }
+
+    /**
+     * 理序素复现加强版(互转球):5 键两两 1:1 互转构成大 SCC,其一与 L 1:1 互转,
+     * L⇄C 1:1000,P⇄L 互压.下单 P×1,库存 C=900:大 SCC + 多来源下仍应选 压制×1.
+     */
+    @Test
+    public void multiSourceCycleTransmutationBall() {
+        SimulationEnv env = new SimulationEnv();
+        IAEItemStack l = block(Blocks.STONE);
+        IAEItemStack c = block(Blocks.COBBLESTONE);
+        IAEItemStack p = block(Blocks.DIRT);
+        Block[] palette = { Blocks.SAND, Blocks.GRAVEL, Blocks.LOG, Blocks.GLASS, Blocks.CLAY };
+        IAEItemStack[] ball = new IAEItemStack[palette.length];
+        for (int i = 0; i < ball.length; i++) {
+            ball[i] = block(palette[i]);
+        }
+        for (int i = 0; i < ball.length; i++) {
+            for (int j = 0; j < ball.length; j++) {
+                if (i != j) {
+                    env.addPattern(new ProcessingPatternBuilder(ball[j]).addPreciseInput(1, ball[i]).build());
+                }
+            }
+        }
+        env.addPattern(new ProcessingPatternBuilder(ball[0]).addPreciseInput(1, l).build());
+        env.addPattern(new ProcessingPatternBuilder(l).addPreciseInput(1, ball[0]).build());
+        env.addPattern(new ProcessingPatternBuilder(mult(l, 1000)).addPreciseInput(1, c).build());
+        env.addPattern(new ProcessingPatternBuilder(c).addPreciseInput(1, mult(l, 1000)).build());
+        ICraftingPatternDetails press = env.addPattern(new ProcessingPatternBuilder(p)
+                .addPreciseInput(1, l).build());
+        env.addPattern(new ProcessingPatternBuilder(l).addPreciseInput(1, p).build());
+        LpPlanOutcome out = solve(env, p, 1, stockOf(c, 900));
+        assertTrue(out.deficits.isEmpty(), "互转球中压板应满足: " + out.deficits);
+        assertEquals(1.0, execOf(out, press), EPS, "应选压制×1: " + out.executions);
+    }
+
     // ===== 工具 =====
 
     private static LpPlanOutcome solve(SimulationEnv env, IAEItemStack what, long target,

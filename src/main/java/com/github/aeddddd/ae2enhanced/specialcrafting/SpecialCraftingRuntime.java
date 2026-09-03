@@ -41,13 +41,31 @@ public final class SpecialCraftingRuntime {
 
     public static void tagCluster(CraftingCPUCluster cluster) {
         SPECIAL_CLUSTERS.put(cluster, Boolean.TRUE);
+        // CraftingCPUCluster 是 final:instanceof/强转必须经 Object 绕开编译期不可能性判定
+        // (mixin 运行时织入接口,测试环境未织入则跳过字段写入)
+        if ((Object) cluster instanceof com.github.aeddddd.ae2enhanced.mixin.bridge.ISpecialClusterMarkAccess) {
+            ((com.github.aeddddd.ae2enhanced.mixin.bridge.ISpecialClusterMarkAccess) (Object) cluster)
+                    .ae2e$setSpecialMarked(true);
+        }
     }
 
     public static void untagCluster(CraftingCPUCluster cluster) {
         SPECIAL_CLUSTERS.remove(cluster);
+        if ((Object) cluster instanceof com.github.aeddddd.ae2enhanced.mixin.bridge.ISpecialClusterMarkAccess) {
+            ((com.github.aeddddd.ae2enhanced.mixin.bridge.ISpecialClusterMarkAccess) (Object) cluster)
+                    .ae2e$setSpecialMarked(false);
+        }
     }
 
     public static boolean isSpecialCluster(CraftingCPUCluster cluster) {
-        return cluster != null && SPECIAL_CLUSTERS.containsKey(cluster);
+        if (cluster == null) {
+            return false;
+        }
+        // 字段级快路径(mixin 生效时零锁零哈希);测试环境回落 WeakHashMap
+        if ((Object) cluster instanceof com.github.aeddddd.ae2enhanced.mixin.bridge.ISpecialClusterMarkAccess) {
+            return ((com.github.aeddddd.ae2enhanced.mixin.bridge.ISpecialClusterMarkAccess) (Object) cluster)
+                    .ae2e$isSpecialMarked();
+        }
+        return SPECIAL_CLUSTERS.containsKey(cluster);
     }
 }

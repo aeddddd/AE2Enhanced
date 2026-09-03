@@ -635,6 +635,27 @@ public class AE2EnhancedConfig {
         })
         @Config.RangeInt(min = 0, max = Integer.MAX_VALUE)
         public int modSearchFuzzyThreshold = 5000;
+
+        @Config.Comment({
+            "GUI sync flood control: when a terminal / crafting-CPU status GUI has",
+            "more than this many pending changed item types, the per-tick inventory",
+            "update packet flush is throttled to once every guiSyncFloodIntervalTicks",
+            "ticks. During huge crafting orders thousands of item types change per",
+            "tick and the vanilla per-tick flush floods the network connection,",
+            "starving movement packets (player position rubber-banding).",
+            "Marks accumulate while throttled so no data is lost.",
+            "Set to 0 to disable throttling (vanilla behavior).",
+            "Range: 0 ~ 2147483647, Default: 512"
+        })
+        @Config.RangeInt(min = 0, max = Integer.MAX_VALUE)
+        public int guiSyncFloodThreshold = 512;
+
+        @Config.Comment({
+            "Flush interval (in ticks) used while GUI sync flood control is active.",
+            "Range: 2 ~ 100, Default: 5"
+        })
+        @Config.RangeInt(min = 2, max = 100)
+        public int guiSyncFloodIntervalTicks = 5;
     }
 
     public static class OmniTool {

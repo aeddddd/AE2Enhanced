@@ -29,6 +29,13 @@ public final class SparseMatrix {
         this.values = values;
     }
 
+    /** 直接以既有 CSC 数组构建(colPtr/rowIdx 结构共享、不拷贝;供行列均衡等
+     * 保结构变换使用——调用方必须保证传入数组不被后续修改). */
+    public static SparseMatrix of(int rows, int cols, int[] colPtr, int[] rowIdx,
+            double[] values) {
+        return new SparseMatrix(rows, cols, colPtr, rowIdx, values);
+    }
+
     /**
      * 从逐列(行号 → 值)映射列表构建;丢弃 |v| &lt; 1e-15 的零元,列内按行号升序.
      */

@@ -40,6 +40,42 @@ public class MixinContainerMEMonitorable {
 
     private int ae2enhanced$cleanupCooldown = 0;
 
+    /** 洪流节流计数(待冲刷条目超阈值时启用). */
+    private int ae2enhanced$floodSkip = 0;
+
+    /**
+     * 终端库存增量冲刷节流(大单发包洪峰治理).
+     * <p>大单执行期间每 tick 有数千物品类型变动,原生实现每 tick 向每个打开终端的
+     * 玩家发送全量变动包(PacketMEInventoryUpdate,逐条带 NBT)——带宽洪峰把
+     * 位置纠正包挤在 Netty 出站队列里,表现为玩家位置回弹.</p>
+     * <p>实现:包装 {@code items.isEmpty()} 判定——节流 tick 视同"空"跳过整个冲刷块
+     * (含 resetStatus),变动标记继续累积,允许 tick 一次性全发,数据不丢.</p>
+     */
+    @com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation(
+        method = "func_75142_b",
+        at = @At(
+            value = "INVOKE",
+            target = "Lappeng/api/storage/data/IItemList;isEmpty()Z"
+        ),
+        require = 0
+    )
+    private boolean ae2enhanced$throttleFloodFlush(IItemList<?> list,
+            com.llamalad7.mixinextras.injector.wrapoperation.Operation<Boolean> original) {
+        int threshold = com.github.aeddddd.ae2enhanced.config.AE2EnhancedConfig.terminal.guiSyncFloodThreshold;
+        if (!Platform.isServer() || threshold <= 0 || list.size() <= threshold) {
+            this.ae2enhanced$floodSkip = 0;
+            return original.call(list);
+        }
+        // 洪流态:每 interval tick 放行 1 次真实冲刷,其余视同空表跳过
+        this.ae2enhanced$floodSkip++;
+        if (this.ae2enhanced$floodSkip
+                >= com.github.aeddddd.ae2enhanced.config.AE2EnhancedConfig.terminal.guiSyncFloodIntervalTicks) {
+            this.ae2enhanced$floodSkip = 0;
+            return original.call(list);
+        }
+        return true;
+    }
+
     @Inject(method = "func_75142_b", at = @At("TAIL"))
     private void ae2enhanced$cleanupItemList(CallbackInfo ci) {
         if (!Platform.isServer()) {

@@ -53,6 +53,21 @@ public final class SccLpSolve {
     private SccLpSolve() {
     }
 
+    /**
+     * 求解失败时把完整模型转储到 {@code lp-dumps/}(门控 = /ae2e debug
+     * specialcrafting),供 LpModelReplayTest 离线逐字节回放定位数值缺陷.
+     */
+    private static void dumpOnFailure(LpResult result, LpModel model, String phase) {
+        if (!com.github.aeddddd.ae2enhanced.specialcrafting.SpecialLog.isEnabled()) {
+            return;
+        }
+        java.io.File file = LpModelDump.dump(model, phase + " " + result.status + ": " + result.reason);
+        if (file != null) {
+            com.github.aeddddd.ae2enhanced.specialcrafting.SpecialLog
+                    .info("[LP计划] 失败模型已转储: {}", file.getPath());
+        }
+    }
+
     /** 单条执行记录(变体变量独立成行,M5 物化时按 pattern+variantInputs 还原输入). */
     public static final class Execution {
         public final ICraftingPatternDetails pattern;
@@ -128,6 +143,7 @@ public final class SccLpSolve {
         // 阶段①:赤字和最小化
         LpResult phase1 = RevisedSimplex.solve(built.lp);
         if (phase1.status != LpResult.Status.OPTIMAL) {
+            dumpOnFailure(phase1, built.lp, "阶段1");
             return SccSolution.failure(phase1, phase1.iterations);
         }
         double obj1 = phase1.objective;
@@ -140,6 +156,7 @@ public final class SccLpSolve {
             built = SccLpModelBuilder.build(cc, index, keys, stock, demands, upperCaps, committed, false);
             phase1 = RevisedSimplex.solve(built.lp);
             if (phase1.status != LpResult.Status.OPTIMAL) {
+                dumpOnFailure(phase1, built.lp, "阶段1-去内化");
                 return SccSolution.failure(phase1, phase1.iterations);
             }
             obj1 = phase1.objective;
@@ -188,6 +205,8 @@ public final class SccLpSolve {
                     new LpModel(SparseMatrix.fromColumns(rows2, columns2), b2, cost2, lower2, upper2));
             iterations += phase2.iterations;
             if (phase2.status != LpResult.Status.OPTIMAL) {
+                dumpOnFailure(phase2, new LpModel(
+                        SparseMatrix.fromColumns(rows2, columns2), b2, cost2, lower2, upper2), "阶段2");
                 return SccSolution.failure(phase2, iterations);
             }
             obj2 = phase2.objective;
@@ -231,6 +250,7 @@ public final class SccLpSolve {
         LpResult phase3 = RevisedSimplex.solve(phase3Model);
         iterations += phase3.iterations;
         if (phase3.status != LpResult.Status.OPTIMAL) {
+            dumpOnFailure(phase3, phase3Model, "阶段3");
             return SccSolution.failure(phase3, iterations);
         }
 
