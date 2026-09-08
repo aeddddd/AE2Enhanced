@@ -5,6 +5,7 @@ import appeng.client.gui.implementations.GuiCraftAmount;
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
 import com.github.aeddddd.ae2enhanced.item.ItemFluidDrop;
 import com.github.aeddddd.ae2enhanced.network.packet.PacketCraftRequestLong;
+import com.github.aeddddd.ae2enhanced.util.AmountParser;
 import com.github.aeddddd.ae2enhanced.util.fakeitem.FakeEssentiaSafe;
 import com.github.aeddddd.ae2enhanced.util.fakeitem.GasFakeItemChecks;
 import net.minecraft.client.gui.GuiButton;
@@ -77,7 +78,7 @@ public class MixinGuiCraftAmount {
         if (btn == this.next) {
             try {
                 String out = this.amountToCraft.getText();
-                double resultD = MathExpressionParser.parse(out);
+                double resultD = AmountParser.parse(out);
                 long result = resultD <= 0.0 || Double.isNaN(resultD) ? 1L : (long) MathExpressionParser.round(resultD, 0);
                 AE2Enhanced.network.sendToServer(new PacketCraftRequestLong(result, net.minecraft.client.gui.GuiScreen.isShiftKeyDown()));
                 ci.cancel();
@@ -95,7 +96,7 @@ public class MixinGuiCraftAmount {
     private void ae2enhanced$onAddQty(int i, CallbackInfo ci) {
         try {
             String out = this.amountToCraft.getText();
-            double resultD = MathExpressionParser.parse(out);
+            double resultD = AmountParser.parse(out);
             long result = resultD <= 0.0 || Double.isNaN(resultD) ? 0L : (long) MathExpressionParser.round(resultD, 0);
             if (result == 1 && i > 1) {
                 result = 0;

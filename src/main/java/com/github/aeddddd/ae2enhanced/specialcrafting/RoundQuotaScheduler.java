@@ -314,6 +314,55 @@ public final class RoundQuotaScheduler {
     }
 
     /**
+     * 单 pattern 本拍推送余量（配额语义内聚合用）:cap − pushed,与
+     * {@link #vetoedSet} 同一快照口径;趟内已批量推送量由调用方另行扣减.
+     *
+     * @param remaining 本趟 remaining 快照（ veto 判定的同一份）
+     * @return 余量（执行次数）;{@code Long.MAX_VALUE} = 不受限（无快照/无配额/
+     *         闭包外 pattern/NBT 恢复任务/闭包已全部完成）
+     */
+    public static long pushAllowance(CraftingCPUCluster cluster, ICraftingPatternDetails details,
+            IAEItemStack finalOutput, Map<ICraftingPatternDetails, Long> remaining) {
+        if (finalOutput == null) {
+            return Long.MAX_VALUE;
+        }
+        Map<ICraftingPatternDetails, Long> totals = TOTALS.get(cluster);
+        if (totals == null || !totals.containsKey(details)) {
+            return Long.MAX_VALUE;
+        }
+        Quota quota = QUOTAS.get(cluster);
+        if (quota == null) {
+            quota = deriveQuota(totals, finalOutput);
+            QUOTAS.put(cluster, quota == null ? NO_QUOTA : quota);
+            quota = quota == null ? NO_QUOTA : quota;
+        }
+        if (quota == NO_QUOTA) {
+            return Long.MAX_VALUE;
+        }
+        return allowance(quota, totals, remaining, details);
+    }
+
+    /** 余量纯函数（测试入口）:cap − pushed;闭包外/已完成 = {@code Long.MAX_VALUE}. */
+    public static long allowance(Quota quota, Map<ICraftingPatternDetails, Long> totals,
+            Map<ICraftingPatternDetails, Long> remaining, ICraftingPatternDetails details) {
+        Long t = quota.perRound.get(details);
+        if (t == null) {
+            return Long.MAX_VALUE; // 闭包外:不限推
+        }
+        long round = Long.MAX_VALUE;
+        for (Map.Entry<ICraftingPatternDetails, Long> entry : quota.perRound.entrySet()) {
+            long pushed = totals.getOrDefault(entry.getKey(), 0L) - remaining.getOrDefault(entry.getKey(), 0L);
+            round = Math.min(round, pushed / entry.getValue());
+        }
+        if (round == Long.MAX_VALUE) {
+            return Long.MAX_VALUE; // 闭包已全部完成,剩余任务自由推送
+        }
+        long pushed = totals.getOrDefault(details, 0L) - remaining.getOrDefault(details, 0L);
+        long cap = t > Long.MAX_VALUE / (round + 1) ? Long.MAX_VALUE : t * (round + 1);
+        return Math.max(0L, cap - pushed);
+    }
+
+    /**
      * 单次推送配额判定（纯函数）:闭包 pattern 的已推送量不得超过
      * （最慢闭包进度 + 1 超轮）;闭包外 pattern 不受限.
      */

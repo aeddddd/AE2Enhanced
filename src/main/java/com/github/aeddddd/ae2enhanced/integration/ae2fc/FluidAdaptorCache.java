@@ -112,8 +112,16 @@ public final class FluidAdaptorCache {
         e.onmi = computeOnmi(inter);
         e.fluidPacket = computeFluidPacket(inter, face);
         e.adaptor = adaptor;
-        CACHE.computeIfAbsent(world, w -> new Long2ObjectOpenHashMap<>())
-                .computeIfAbsent(cap.getPos().toLong(), k -> new Entry[6])[face.ordinal()] = e;
+        // 注意:不得使用 fastutil 8.x 新增的 Long2ObjectOpenHashMap.computeIfAbsent,
+        // 运行时环境存在 fastutil 7.x(无此方法),会抛 NoSuchMethodError
+        Long2ObjectOpenHashMap<Entry[]> worldMap = CACHE.computeIfAbsent(world, w -> new Long2ObjectOpenHashMap<>());
+        long posLong = cap.getPos().toLong();
+        Entry[] byFace = worldMap.get(posLong);
+        if (byFace == null) {
+            byFace = new Entry[6];
+            worldMap.put(posLong, byFace);
+        }
+        byFace[face.ordinal()] = e;
         sweep();
     }
 

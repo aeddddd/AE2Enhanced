@@ -20,6 +20,7 @@ import com.github.aeddddd.ae2enhanced.specialcrafting.lp.LpResult;
 import com.github.aeddddd.ae2enhanced.specialcrafting.lp.SccLpModelBuilder;
 import com.github.aeddddd.ae2enhanced.specialcrafting.lp.SccLpSolve;
 import com.github.aeddddd.ae2enhanced.specialcrafting.lp.SeedBootstrapCheck;
+import com.github.aeddddd.ae2enhanced.specialcrafting.lp.UnitTraceDump;
 import com.github.aeddddd.ae2enhanced.specialcrafting.lp.SccLpSolve.Execution;
 import com.github.aeddddd.ae2enhanced.specialcrafting.lp.SccLpSolve.SccSolution;
 
@@ -228,11 +229,18 @@ public final class CondensationPlanner {
                 lpUnits, iterations, degradedUnits, degradedReasons, wallMs);
     }
 
-    /** 种子不足禁约束重解上限(M4,§4.4)的底数;实际上限 = min(2×单元键数, 64) 取大底数——
+    /** 种子不足禁约束重解上限(M4,§4.4)的底数;实际上限 = min(2×单元键数, 256) 取大底数——
      * 每轮至少压掉一个卡住增益方向且上界单调不收,多层压缩链(8 键 4+ 层)需要
-     * 超过底数 4 的轮数;上限封顶保证病态单元终止(超限截断转赤字). */
+     * 超过底数 4 的轮数,大单元(126 键)级联深度可超 64;另设墙钟预算兜底终止. */
     private static final int MIN_BOOTSTRAP_RESOLVE = 4;
-    private static final int MAX_BOOTSTRAP_RESOLVE = 64;
+    private static final int MAX_BOOTSTRAP_RESOLVE = 256;
+    /** 单单元自举重解墙钟预算(ns):大单元 64 轮实测 ≈1.5s,预算给级联深度留余量,
+     * 超时按截断处理(等价于轮数耗尽,终止性由轮数上限+墙钟双重保证). */
+    private static final long BOOTSTRAP_TIME_BUDGET_NS = 3_000_000_000L;
+    /** 三振禁路由阈值:同一样板被压界 {@value} 次后仍被模拟判卡住——继续按水位压界
+     * 只会棘轮空转(微步收敛或校验假阴性),直接禁该路由逼 LP 换路;误禁的交付
+     * 损失由历代最优水位截断兜底(禁前轮的交付已留存). */
+    private static final int CAP_STRIKE_LIMIT = 3;
     /** 逐轮诊断输出(-Dae2e.lpDebug=true,开发期). */
     private static final boolean DEBUG = Boolean.getBoolean("ae2e.lpDebug");
 
@@ -268,8 +276,22 @@ public final class CondensationPlanner {
     private static UnitResult solveUnitWithBootstrap(ICraftingGrid cc, NetworkPatternIndex index,
             List<IAEItemStack> keys, Map<IAEItemStack, Long> stock, Map<IAEItemStack, Double> unitDemand) {
         Map<ICraftingPatternDetails, Double> upperCaps = new HashMap<>();
+        // 逐样板压界次数(身份键;三振禁路由用)
+        Map<ICraftingPatternDetails, Integer> pressCounts = new IdentityHashMap<>();
         int maxRounds = Math.max(MIN_BOOTSTRAP_RESOLVE, Math.min(2 * keys.size(), MAX_BOOTSTRAP_RESOLVE));
+        long unitStartNanos = System.nanoTime();
         int iterations = 0;
+        // 截断诊断轨迹(SpecialLog 门控):逐轮卡住集/可行水位/禁约束变化,截断时落盘
+        // ——离线区分"棘轮微步/级联深度/校验假阴性"三类不收敛根因
+        StringBuilder trace = SpecialLog.isEnabled() ? new StringBuilder() : null;
+        Map<ICraftingPatternDetails, Integer> traceIds =
+                trace != null ? new IdentityHashMap<>() : null;
+        StringBuilder tracePatterns = trace != null ? new StringBuilder() : null;
+        // 历代最优可行水位:截断计划恒物理可行(模拟实证),但各轮禁约束改路由、交付量
+        // 非单调——保留赤字和最小的一届用于截断,严格不劣于只用末轮
+        double bestDeficitSum = Double.MAX_VALUE;
+        SccSolution bestSol = null;
+        SeedBootstrapCheck.Verdict bestVerdict = null;
         for (int round = 0;; round++) {
             SccSolution sol = SccLpSolve.solve(cc, index, keys, stock, unitDemand, upperCaps,
                     Collections.emptyMap());
@@ -312,11 +334,35 @@ public final class CondensationPlanner {
                             + " cap=" + upperCaps.getOrDefault(exec.pattern, Double.MAX_VALUE));
                 }
             }
-            if (round >= maxRounds - 1) {
-                // 重解预算耗尽:按可行水位截断——交付缺口(demand − 终态可用量)如实转赤字
-                return truncateToFeasibleLevel(cc, index, keys, unitDemand, sol, verdict, iterations,
-                        "种子自举重解超" + maxRounds + "轮 键数=" + keys.size()
-                                + " 代表键=" + (keys.isEmpty() ? "-" : keys.get(0)));
+            Set<IAEItemStack> keySet = new java.util.HashSet<>(keys);
+            // 历代最优水位评选(与截断同口径的赤字和)
+            double deficitSum = deficitSumOf(index, unitDemand, verdict);
+            if (deficitSum < bestDeficitSum) {
+                bestDeficitSum = deficitSum;
+                bestSol = sol;
+                bestVerdict = verdict;
+            }
+            if (trace != null) {
+                appendRoundTrace(trace, traceIds, tracePatterns, round, sol, verdict, keySet,
+                        upperCaps, pressCounts, deficitSum);
+            }
+            boolean timeUp = System.nanoTime() - unitStartNanos > BOOTSTRAP_TIME_BUDGET_NS;
+            if (round >= maxRounds - 1 || timeUp) {
+                // 重解预算(轮数/墙钟)耗尽:按历代最优可行水位截断——交付缺口
+                // (demand − 终态可用量)如实转赤字;截断计划恒物理可行(模拟实证),
+                // 取最优届严格不劣于末轮
+                String reason = timeUp && round < maxRounds - 1
+                        ? "种子自举重解超时(>" + BOOTSTRAP_TIME_BUDGET_NS / 1_000_000 + "ms) round="
+                                + round + " 键数=" + keys.size()
+                                + " 代表键=" + (keys.isEmpty() ? "-" : keys.get(0))
+                        : "种子自举重解超" + maxRounds + "轮 键数=" + keys.size()
+                                + " 代表键=" + (keys.isEmpty() ? "-" : keys.get(0));
+                UnitResult r = truncateToFeasibleLevel(cc, index, keys, unitDemand, bestSol,
+                        bestVerdict, iterations, reason);
+                if (trace != null) {
+                    dumpTrace(trace, tracePatterns, reason, keys, stock, unitDemand, index, r);
+                }
+                return r;
             }
             // 禁约束(两级,§4.4 细化):
             // ① 有卡住的净增益源(Σ单元产出 > Σ单元投入)时只压增益源——守恒决定
@@ -324,9 +370,10 @@ public final class CondensationPlanner {
             //    样板(只是上游未产出,如蛛网环流)不压界,否则误杀合法交付路径;
             // ② 无卡住增益源 = "批量量子"死锁(质量守恒环但种子 < 单次点火批量,
             //    如 2A→B+C 而库存只有 1A)——压全部卡住样板到可行水位;
+            // ③ 三振禁路由:同一样板压界 CAP_STRIKE_LIMIT 次后仍卡住 → 上界压 0
+            //    (棘轮微步/校验假阴性下按水位压界只空转,禁路由逼 LP 换路);
             // 每轮至少一个样板的上界被压到低于本次解值且单调不收 → 解空间严格
             // 收缩,有限步内必收敛(可行或截断),保证终止.
-            Set<IAEItemStack> keySet = new java.util.HashSet<>(keys);
             Map<ICraftingPatternDetails, Double> levels = verdict.levelByPattern(sol.executions);
             boolean anyStuckGain = false;
             for (int j = 0; j < sol.executions.size(); j++) {
@@ -353,6 +400,76 @@ public final class CondensationPlanner {
      * 浮点尘埃(≈1e-8 相对)不视为卡住. */
     private static boolean isStuck(double level, double count) {
         return level < count - Math.max(1e-4, 1e-6 * count);
+    }
+
+    /** 截断口径赤字和(与 truncateToFeasibleLevel 同口径;历代最优水位评选用). */
+    private static double deficitSumOf(NetworkPatternIndex index,
+            Map<IAEItemStack, Double> unitDemand, SeedBootstrapCheck.Verdict verdict) {
+        double sum = 0;
+        for (Map.Entry<IAEItemStack, Double> d : unitDemand.entrySet()) {
+            if (index.canEmit(d.getKey())) {
+                continue;
+            }
+            double shortfall = d.getValue() - verdict.finalAvail.getOrDefault(d.getKey(), 0.0);
+            if (shortfall > 1e-6) {
+                sum += shortfall;
+            }
+        }
+        return sum;
+    }
+
+    /** 追加一轮轨迹(仅列卡住执行;样板表按首见编号登记,输入/输出/返还一并留档). */
+    private static void appendRoundTrace(StringBuilder trace,
+            Map<ICraftingPatternDetails, Integer> ids, StringBuilder patternTable, int round,
+            SccSolution sol, SeedBootstrapCheck.Verdict verdict, Set<IAEItemStack> keySet,
+            Map<ICraftingPatternDetails, Double> upperCaps,
+            Map<ICraftingPatternDetails, Integer> pressCounts, double deficitSum) {
+        trace.append("== round ").append(round).append(" 模拟轮=").append(verdict.roundsUsed)
+                .append(" 原因=").append(verdict.failReason).append(" 赤字和=").append(deficitSum)
+                .append(" 执行数=").append(sol.executions.size()).append('\n');
+        for (int j = 0; j < sol.executions.size(); j++) {
+            Execution exec = sol.executions.get(j);
+            if (!isStuck(verdict.levels[j], exec.count)) {
+                continue;
+            }
+            Integer id = ids.get(exec.pattern);
+            if (id == null) {
+                id = ids.size();
+                ids.put(exec.pattern, id);
+                patternTable.append('#').append(id).append(" in=")
+                        .append(SccLpModelBuilder.condensedInputs(exec.pattern, exec.variantInputs))
+                        .append(" out=")
+                        .append(java.util.Arrays.toString(exec.pattern.getCondensedOutputs()))
+                        .append(" returns=")
+                        .append(FlowReconciler.returnsPerCraft(exec.pattern)).append('\n');
+            }
+            trace.append("  #").append(id).append(" count=").append(exec.count)
+                    .append(" level=").append(verdict.levels[j])
+                    .append(isUnitGainSource(exec, keySet) ? " 增益" : "")
+                    .append(" cap=")
+                    .append(upperCaps.getOrDefault(exec.pattern, Double.MAX_VALUE))
+                    .append('\n');
+        }
+    }
+
+    /** 截断轨迹落盘(lp-dumps/unit-bootstrap-*.txt):键/库存/需求 + 样板表 + 逐轮轨迹. */
+    private static void dumpTrace(StringBuilder trace, StringBuilder patternTable, String reason,
+            List<IAEItemStack> keys, Map<IAEItemStack, Long> stock,
+            Map<IAEItemStack, Double> unitDemand, NetworkPatternIndex index, UnitResult result) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("[单元截断转储] ").append(reason).append('\n');
+        sb.append("赤字: ").append(result.deficits).append('\n');
+        for (IAEItemStack key : keys) {
+            sb.append("键: ").append(key).append(" 库存=").append(stock.getOrDefault(key, 0L))
+                    .append(" 需求=").append(unitDemand.getOrDefault(key, 0.0))
+                    .append(" 发射台=").append(index.canEmit(key)).append('\n');
+        }
+        sb.append("== 样板表 ==\n").append(patternTable);
+        sb.append("== 逐轮轨迹 ==\n").append(trace);
+        java.io.File f = UnitTraceDump.dump("bootstrap", sb);
+        if (f != null) {
+            SpecialLog.info("[LP计划] 单元截断轨迹已转储: {}", f.getAbsolutePath());
+        }
     }
 
     /** 变量是否单元净增益源(Σ单元键产出 > Σ单元键投入). */

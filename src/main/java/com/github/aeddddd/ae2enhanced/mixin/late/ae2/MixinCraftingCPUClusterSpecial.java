@@ -95,6 +95,11 @@ public abstract class MixinCraftingCPUClusterSpecial
     }
 
     @Override
+    public Map<ICraftingPatternDetails, Long> ae2e$remainingSnapshot() {
+        return this.ae2e$remainingSnapshot;
+    }
+
+    @Override
     public IItemList<IAEItemStack> ae2e$waitingFor() {
         return this.waitingFor;
     }

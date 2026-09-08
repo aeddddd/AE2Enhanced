@@ -22,7 +22,9 @@ import com.github.aeddddd.ae2enhanced.integration.mmce.MMCEAdditionReflect;
 import com.github.aeddddd.ae2enhanced.integration.randomcomplement.RCIntelligentBlockingReflect;
 import com.github.aeddddd.ae2enhanced.mixin.bridge.IComputationCoreAccess;
 import com.github.aeddddd.ae2enhanced.mixin.bridge.ICreativeEnergyAccess;
+import com.github.aeddddd.ae2enhanced.mixin.bridge.ISpecialCpuAccess;
 import com.github.aeddddd.ae2enhanced.mixin.late.accessor.ITaskProgressAccessor;
+import com.github.aeddddd.ae2enhanced.specialcrafting.RoundQuotaScheduler;
 import com.github.aeddddd.ae2enhanced.specialcrafting.SpecialCraftingRuntime;
 import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
 import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
@@ -124,6 +126,9 @@ public abstract class MixinCraftingCPUClusterAggregate {
     private IItemList<IAEItemStack> waitingFor;
 
     @Shadow
+    private IAEItemStack finalOutput;
+
+    @Shadow
     private MachineSource machineSrc;
 
     @Shadow
@@ -144,8 +149,15 @@ public abstract class MixinCraftingCPUClusterAggregate {
     @Unique
     private long ae2e$ecStartNanos = -1L;
 
+    /** 特殊集群本趟已批量推送量（配额余量逐 push 递减核算用）,趟首清零. */
+    @Unique
+    private IdentityHashMap<ICraftingPatternDetails, Long> ae2e$quotaPushedThisTick;
+
     @Inject(method = "executeCrafting", at = @At("HEAD"), require = 0)
     private void ae2e$ecHead(IEnergyGrid eg, appeng.me.cache.CraftingGridCache cc, CallbackInfo ci) {
+        if (this.ae2e$quotaPushedThisTick != null) {
+            this.ae2e$quotaPushedThisTick.clear();
+        }
         if (DiagSwitch.isEnabled(DiagSwitch.PERF)) {
             com.github.aeddddd.ae2enhanced.diag.metrics.Timer timer =
                     MetricsRegistry.timer("ae2.craftingcpu.executeCrafting");
@@ -173,9 +185,27 @@ public abstract class MixinCraftingCPUClusterAggregate {
             target = "Lappeng/api/networking/crafting/ICraftingMedium;pushPattern(Lappeng/api/networking/crafting/ICraftingPatternDetails;Lnet/minecraft/inventory/InventoryCrafting;)Z"))
     private boolean ae2e$aggregateDispatch(ICraftingMedium medium, ICraftingPatternDetails details,
             InventoryCrafting table, Operation<Boolean> original, @Local IEnergyGrid eg) {
-        // 特殊合成（自消耗/循环链）集群：轮配额调度依赖逐次推送节奏，聚合会破坏其语义，跳过
-        if (SpecialCraftingRuntime.isSpecialCluster((CraftingCPUCluster) (Object) this)) {
-            return original.call(medium, details, table);
+        CraftingCPUCluster self = (CraftingCPUCluster) (Object) this;
+        // 特殊合成（自消耗/循环链）集群：配额语义内聚合——批量不超过本拍配额余量
+        // （cap − pushed快照 − 趟内已批量推送），与逐次推送的锁步语义逐字节等价；
+        // 无配额（非自消耗 job，占多数）时不受限。快照由 MixinCraftingCPUClusterSpecial
+        // 的否决判定在本 pattern 的 canCraft 处先行构建（executeCrafting 调用序保证），
+        // 为空即本趟无配额门控。
+        long quotaAllowance = Long.MAX_VALUE;
+        boolean quotaTracked = false;
+        if (SpecialCraftingRuntime.isSpecialCluster(self)) {
+            Map<ICraftingPatternDetails, Long> snapshot =
+                    ((ISpecialCpuAccess) this).ae2e$remainingSnapshot();
+            if (snapshot != null) {
+                long allowance = RoundQuotaScheduler.pushAllowance(self, details,
+                        this.finalOutput, snapshot);
+                if (allowance != Long.MAX_VALUE) {
+                    quotaTracked = true;
+                    long pushedThisTick = this.ae2e$quotaPushedThisTick == null ? 0L
+                            : this.ae2e$quotaPushedThisTick.getOrDefault(details, 0L);
+                    quotaAllowance = allowance - pushedThisTick;
+                }
+            }
         }
         long batch = 1;
         boolean coreCluster = ((IComputationCoreAccess) this).ae2enhanced$getComputationCore() != null;
@@ -198,6 +228,10 @@ public abstract class MixinCraftingCPUClusterAggregate {
             Long ceiling = this.ae2e$batchCeilings.get(medium);
             if (ceiling != null) {
                 batch = Math.min(batch, ceiling);
+            }
+            // 配额封顶（特殊集群闭包 pattern;余量 ≤0 时退为 1 份原生推送,±1 锁步容差内）
+            if (quotaAllowance != Long.MAX_VALUE) {
+                batch = Math.min(batch, Math.max(1L, quotaAllowance));
             }
         }
 
@@ -282,6 +316,13 @@ public abstract class MixinCraftingCPUClusterAggregate {
         Long ceiling = this.ae2e$batchCeilings.get(medium);
         if (ceiling != null && batch >= ceiling && ceiling < (1L << 60)) {
             this.ae2e$batchCeilings.put(medium, Math.min(ceiling * 2, 1L << 60));
+        }
+        // 特殊集群配额：趟内已推送量记账（同一 pattern 本趟后续 push 的余量递减）
+        if (quotaTracked) {
+            if (this.ae2e$quotaPushedThisTick == null) {
+                this.ae2e$quotaPushedThisTick = new IdentityHashMap<>();
+            }
+            this.ae2e$quotaPushedThisTick.merge(details, batch, Long::sum);
         }
         ae2e$correctCounts(details, batch - 1);
         return true;

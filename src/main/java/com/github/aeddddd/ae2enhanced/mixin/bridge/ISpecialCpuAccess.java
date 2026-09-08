@@ -16,6 +16,14 @@ public interface ISpecialCpuAccess {
 
     Map<ICraftingPatternDetails, Object> ae2e$tasks();
 
+    /**
+     * 本趟 executeCrafting 的 remaining 快照（nullable）.
+     * 仅在有配额门控且本趟首次否决判定后非空;供聚合发配的配额余量核算复用,
+     * 避免同一趟内重复构建.
+     */
+    @javax.annotation.Nullable
+    Map<ICraftingPatternDetails, Long> ae2e$remainingSnapshot();
+
     IItemList<IAEItemStack> ae2e$waitingFor();
 
     IAEItemStack ae2e$finalOutput();

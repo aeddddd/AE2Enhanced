@@ -173,4 +173,61 @@ public class RoundQuotaSchedulerTest {
             }
         }
     }
+
+    /** T7:推送余量(配额语义内聚合)——符号与 isPushAllowed 一致,数值 = cap − pushed;
+     * 闭包外恒不受限(MAX). */
+    @Test
+    public void testPushAllowanceMatchesQuotaSemantics() {
+        ThetaPatterns p = new ThetaPatterns();
+        Map<ICraftingPatternDetails, Long> totals = new LinkedHashMap<>();
+        totals.put(p.crush, 4L);
+        totals.put(p.charge, 4L);
+        totals.put(p.back, 4L);
+        totals.put(p.external, 7L);
+        RoundQuotaScheduler.Quota quota = RoundQuotaScheduler.deriveQuota(totals, p.stone);
+        assertThat(quota).isNotNull();
+
+        // 四种推进状态下:符号一致性 + 闭包外不受限
+        long[][] progresses = { { 4, 4, 4, 7 }, { 3, 4, 4, 7 }, { 0, 3, 4, 0 }, { 0, 0, 0, 0 } };
+        ICraftingPatternDetails[] all = { p.crush, p.charge, p.back, p.external };
+        for (long[] prog : progresses) {
+            Map<ICraftingPatternDetails, Long> remaining = new LinkedHashMap<>();
+            for (int i = 0; i < all.length; i++) {
+                remaining.put(all[i], prog[i]);
+            }
+            for (ICraftingPatternDetails pattern : all) {
+                long allowance = RoundQuotaScheduler.allowance(quota, totals, remaining, pattern);
+                boolean allowed = RoundQuotaScheduler.isPushAllowed(quota, totals, remaining, pattern);
+                assertThat(allowance > 0).as("remaining=%s pattern=%s allowance=%s", remaining, pattern, allowance)
+                        .isEqualTo(allowed);
+            }
+            assertThat(RoundQuotaScheduler.allowance(quota, totals, remaining, p.external))
+                    .as("闭包外恒不受限 remaining=%s", remaining)
+                    .isEqualTo(Long.MAX_VALUE);
+        }
+
+        // 数值精确性:totals {4,4,4},perRound {1,1,1}
+        Map<ICraftingPatternDetails, Long> remaining = new LinkedHashMap<>(totals);
+        assertThat(RoundQuotaScheduler.allowance(quota, totals, remaining, p.crush)).isEqualTo(1L); // round 0
+        remaining.put(p.crush, 3L); // crush 推 1 轮 → 用尽 round 0 配额
+        assertThat(RoundQuotaScheduler.allowance(quota, totals, remaining, p.crush)).isEqualTo(0L);
+        assertThat(RoundQuotaScheduler.allowance(quota, totals, remaining, p.charge)).isEqualTo(1L);
+        remaining.put(p.charge, 3L);
+        remaining.put(p.back, 3L); // 全体进 1 轮 → round=1 → 配额放宽到 2 轮
+        assertThat(RoundQuotaScheduler.allowance(quota, totals, remaining, p.crush)).isEqualTo(1L);
+
+        // GCD 恢复后的大超轮比:totals {512,512,8} → perRound {64,64,1}
+        Map<ICraftingPatternDetails, Long> big = new LinkedHashMap<>();
+        big.put(p.crush, 512L);
+        big.put(p.charge, 512L);
+        big.put(p.back, 8L);
+        RoundQuotaScheduler.Quota bigQuota = RoundQuotaScheduler.deriveQuota(big, p.stone);
+        assertThat(bigQuota).isNotNull();
+        Map<ICraftingPatternDetails, Long> bigRemaining = new LinkedHashMap<>(big);
+        assertThat(RoundQuotaScheduler.allowance(bigQuota, big, bigRemaining, p.crush)).isEqualTo(64L);
+        assertThat(RoundQuotaScheduler.allowance(bigQuota, big, bigRemaining, p.back)).isEqualTo(1L);
+        bigRemaining.put(p.crush, 448L); // crush 推满 round 0 的 64 → 余量 0
+        assertThat(RoundQuotaScheduler.allowance(bigQuota, big, bigRemaining, p.crush)).isEqualTo(0L);
+        assertThat(RoundQuotaScheduler.allowance(bigQuota, big, bigRemaining, p.charge)).isEqualTo(64L);
+    }
 }
