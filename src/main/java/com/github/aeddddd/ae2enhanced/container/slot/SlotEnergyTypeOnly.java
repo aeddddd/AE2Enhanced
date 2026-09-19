@@ -6,7 +6,7 @@ import net.minecraft.item.ItemStack;
 import net.minecraftforge.items.IItemHandler;
 
 /**
- * 能源存储总线过滤槽:仅接受 RF 假物品(ItemEnergyDrop)作为白名单模板.
+ * 能源存储总线过滤槽, 仅接受 RF 假物品 ItemEnergyDrop 作为白名单模板.
  */
 public class SlotEnergyTypeOnly extends SlotFakeTypeOnly {
 

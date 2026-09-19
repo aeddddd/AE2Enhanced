@@ -66,7 +66,7 @@ public final class ChamberRecipeIndex {
 
     /**
      * 按输入 key 查询候选配方（含磨粉机惰性查询）.
-     * 返回顺序即处理优先级：黑洞 > 合并链 > 单步压印 > 硬编码（充能/聚合/种子）> 磨粉 > CT 自定义.
+     * 返回顺序即处理优先级：黑洞 > 合并链 > 单步压制 > 单步压印 > 硬编码（充能/聚合/种子）> 磨粉 > CT 自定义.
      */
     public static List<ChamberRecipe> recipesForInput(String key, ItemStack template) {
         ensureBuilt();
@@ -92,6 +92,32 @@ public final class ChamberRecipeIndex {
         }
         String key = LongItemStore.keyOf(stack);
         return !recipesForInput(key, stack).isEmpty();
+    }
+
+    /**
+     * 配方全局优先级：黑洞 > 合并链（一步到位） > 单步压制 > 单步压印（电路板） > 硬编码 > 磨粉 > CT 自定义.
+     * 索引顺序与调度排序均以此为依据.
+     */
+    public static int recipePriorityRank(String id) {
+        if (id.startsWith("blackhole:")) {
+            return 0;
+        }
+        if (id.startsWith("chain:")) {
+            return 1;
+        }
+        if (id.startsWith("press:")) {
+            return 2;
+        }
+        if (id.startsWith("inscribe:")) {
+            return 3;
+        }
+        if (id.startsWith("charger:") || id.startsWith("aggregate:") || id.startsWith("seed:")) {
+            return 4;
+        }
+        if (id.startsWith("grinder:")) {
+            return 5;
+        }
+        return 6;
     }
 
     public static List<ChamberRecipe> allRecipes() {
@@ -130,6 +156,12 @@ public final class ChamberRecipeIndex {
         buildBlackHole();
         buildInscriberChains();
         buildHardcoded();
+
+        // 稳定排序显式固定全局优先级：黑洞 > 合并链 > 单步压制 > 单步压印 > 硬编码.
+        // 排序在索引前进行,不影响配方 ID 分配（存档任务懒恢复兼容）.
+        generated.sort((a, b) -> Integer.compare(
+                recipePriorityRank(a.getId()),
+                recipePriorityRank(b.getId())));
 
         for (ChamberRecipe r : generated) {
             index(r);
@@ -270,7 +302,8 @@ public final class ChamberRecipeIndex {
             }
         }
 
-        // 3) 生成：优先级 合并链 > 单步 PRESS > 单步 INSCRIBE（同一原料进入最深加工链）
+        // 3) 生成配方（生成顺序即 链 > 压制 > 压印 的优先级;rebuild() 索引前
+        //    再按 recipePriorityRank 稳定排序显式固定,合并链完全优先于单步压印）
         int n = 0;
         for (Map.Entry<String, ItemStack> entry : chainOut.entrySet()) {
             String outKey = entry.getKey();

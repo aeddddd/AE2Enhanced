@@ -53,10 +53,6 @@ public final class DiagEvents {
         }
     }
 
-    public static void info(String system, String message) {
-        record(Level.INFO, system, message);
-    }
-
     public static void warn(String system, String message) {
         record(Level.WARN, system, message);
     }
@@ -76,12 +72,6 @@ public final class DiagEvents {
                 result.add(tail.get(i));
             }
             return result;
-        }
-    }
-
-    public static int size() {
-        synchronized (EVENTS) {
-            return EVENTS.size();
         }
     }
 }

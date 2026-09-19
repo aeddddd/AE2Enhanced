@@ -13,8 +13,8 @@ import net.minecraft.world.World;
 import net.minecraftforge.registries.IForgeRegistryEntry;
 
 /**
- * 指环飞升配方：指环 + 1 个无限时间被约束微型奇点 → 飞升进度 +1.
- * 重复 16 次后指环飞升.必须逐个合成,每次消耗一个永久奇点.
+ * 指环飞升配方: 指环与 1 个永久受约束微型奇点合成, 飞升进度加 1.
+ * 重复 16 次后指环飞升, 必须逐个合成, 每次消耗一个永久奇点.
  */
 public class RecipeRingAscend extends IForgeRegistryEntry.Impl<IRecipe> implements IRecipe {
 
@@ -47,7 +47,7 @@ public class RecipeRingAscend extends IForgeRegistryEntry.Impl<IRecipe> implemen
         if (nonEmpty != 2 || ring.isEmpty() || singularity.isEmpty()) {
             return false;
         }
-        // 已飞升的指环不可继续合成；飞升仪式要求指环已达到阶段 III
+        // 已飞升的指环不可继续合成; 飞升仪式要求指环已达到阶段 III
         return !RingNBT.isAscended(ring) && RingNBT.getTier(ring) >= 2;
     }
 

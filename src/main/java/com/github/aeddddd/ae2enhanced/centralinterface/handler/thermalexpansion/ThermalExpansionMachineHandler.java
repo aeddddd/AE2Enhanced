@@ -1,13 +1,13 @@
 package com.github.aeddddd.ae2enhanced.centralinterface.handler.thermalexpansion;
 
-import com.github.aeddddd.ae2enhanced.centralinterface.TargetSession;
-
 import appeng.api.networking.security.IActionSource;
 import appeng.api.storage.data.IAEItemStack;
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
+import com.github.aeddddd.ae2enhanced.centralinterface.FluidTransferHelper;
+import com.github.aeddddd.ae2enhanced.centralinterface.HandlerCapabilities;
 import com.github.aeddddd.ae2enhanced.centralinterface.IRemoteHandler;
+import com.github.aeddddd.ae2enhanced.centralinterface.TargetSession;
 import net.minecraft.inventory.IInventory;
-import net.minecraft.inventory.ISidedInventory;
 import net.minecraft.inventory.InventoryCrafting;
 import net.minecraft.item.ItemStack;
 import net.minecraft.tileentity.TileEntity;
@@ -18,8 +18,6 @@ import net.minecraftforge.fluids.capability.CapabilityFluidHandler;
 import net.minecraftforge.fluids.capability.IFluidHandler;
 import net.minecraftforge.fluids.capability.IFluidTankProperties;
 import net.minecraftforge.fml.common.Loader;
-
-import com.github.aeddddd.ae2enhanced.centralinterface.HandlerCapabilities;
 
 import java.lang.reflect.Field;
 import java.util.ArrayList;
@@ -180,6 +178,13 @@ public class ThermalExpansionMachineHandler implements IRemoteHandler {
         }
         markDirty(te);
         return cleared;
+    }
+
+    @Override
+    public List<FluidStack> clearOutputFluids(World world, BlockPos pos, IActionSource source, TargetSession session, List<FluidStack> batchFluids) {
+        // 按 TE 自身声明的罐模式抽取：输出罐(canDrain == true)会被回收，
+        // 输入罐(如植物催生器的水罐、岩浆挤出机的岩浆罐)不会被碰。
+        return FluidTransferHelper.drainExtractableFluids(world, pos, batchFluids);
     }
 
     @Override

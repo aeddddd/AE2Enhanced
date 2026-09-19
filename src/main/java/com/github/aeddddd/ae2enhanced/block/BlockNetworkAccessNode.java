@@ -17,7 +17,7 @@ import javax.annotation.Nullable;
 
 /**
  * 通用网络访问节点方块.
- * 同时桥接 RF / Mana / Starlight,根据相邻方块类型自动工作.
+ * 同时桥接 RF / Mana / Starlight, 根据相邻方块类型自动工作.
  */
 public class BlockNetworkAccessNode extends Block {
 

@@ -10,9 +10,9 @@ import stanhebben.zenscript.annotations.ZenClass;
 import stanhebben.zenscript.annotations.ZenMethod;
 
 /**
- * CraftTweaker 集成：允许通过 ZenScript 添加/移除奇点处理仓自定义配方.
+ * CraftTweaker 集成: 允许通过 ZenScript 添加/移除奇点处理仓自定义配方.
  *
- * 用法示例：
+ * 用法示例:
  * <pre>
  *   mods.ae2enhanced.SingularityChamber.addRecipe(&lt;minecraft:diamond&gt; * 2, [&lt;minecraft:coal&gt; * 64], 100);
  *   mods.ae2enhanced.SingularityChamber.removeRecipe("ct_minecraft:diamond");

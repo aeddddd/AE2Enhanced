@@ -15,16 +15,8 @@ import net.minecraftforge.items.SlotItemHandler;
 /**
  * 智能样板接口的 Container.
  *
- * <p>槽位布局(v4 - 81 输入 + 滚动条)：</p>
- * <ul>
- *   <li>0~44:   配方显示槽位 (9列 x 5行, SlotFake)</li>
- *   <li>45:     空白样板输入槽 (116, 20)</li>
- *   <li>46:     编码样板输出槽 (152, 20)</li>
- *   <li>47~82:  玩家背包 (3行, Y=141/159/177)</li>
- *   <li>83~163: MiniGUI 输入槽 (9组 x 3x3, SlotFake, 仅当前组可见)</li>
- *   <li>164~172: MiniGUI 输出槽 (3x3, SlotFake, 始终可见)</li>
- *   <li>173~174: 替换槽位 (176/212, 162, SlotItemHandler)</li>
- * </ul>
+ * <p>槽位布局: 0-44 配方显示槽, 45 空白样板输入, 46 编码样板输出, 47-82 玩家背包, 83-163 MiniGUI 输入,
+ * 164-172 MiniGUI 输出, 173-174 替换槽位. 配方显示槽与 MiniGUI 槽均为 SlotFake.</p>
  */
 public class ContainerSmartPatternInterface extends Container {
 
@@ -49,12 +41,11 @@ public class ContainerSmartPatternInterface extends Container {
 
     private final TileSmartPatternInterface tile;
     private final Slot[][] miniGuiInputSlots = new Slot[9][9];
-    private final Slot[] miniGuiOutputSlots = new Slot[9];
 
     public ContainerSmartPatternInterface(InventoryPlayer playerInv, TileSmartPatternInterface tile) {
         this.tile = tile;
 
-        // 配方显示槽位 (45个 SlotFake)
+        // 配方显示槽位, 45 个 SlotFake
         int slotIndex = 0;
         for (int row = 0; row < RECIPE_ROW_Y.length; row++) {
             for (int col = 0; col < RECIPE_COL_X.length; col++) {
@@ -116,9 +107,7 @@ public class ContainerSmartPatternInterface extends Container {
             int idx = 81 + s;
             int x = MINIGUI_COL_X[col];
             int y = MINIGUI_OUTPUT_ROW_Y[row];
-            Slot slot = new SlotFake(tile.getMiniGuiInventory(), idx, x, y);
-            this.miniGuiOutputSlots[s] = slot;
-            this.addSlotToContainer(slot);
+            this.addSlotToContainer(new SlotFake(tile.getMiniGuiInventory(), idx, x, y));
         }
 
         // 底部替换槽位 (2个 SlotItemHandler)
@@ -146,6 +135,10 @@ public class ContainerSmartPatternInterface extends Container {
     @Override
     public boolean canInteractWith(EntityPlayer player) {
         return !tile.isInvalid() && player.getDistanceSq(tile.getPos()) <= 64.0;
+    }
+
+    public TileSmartPatternInterface getTile() {
+        return tile;
     }
 
     @Override
@@ -235,7 +228,4 @@ public class ContainerSmartPatternInterface extends Container {
         return itemstack;
     }
 
-    public TileSmartPatternInterface getTile() {
-        return tile;
-    }
 }

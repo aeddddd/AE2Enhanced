@@ -4,7 +4,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.function.DoubleSupplier;
 
 /**
  * 指标注册中心：按名称统一管理 Counter / Gauge / Timer.
@@ -29,11 +28,6 @@ public final class MetricsRegistry {
         return TIMERS.computeIfAbsent(name, Timer::new);
     }
 
-    /** 重复注册同名 Gauge 会替换数据源。 */
-    public static void registerGauge(String name, DoubleSupplier supplier) {
-        GAUGES.put(name, new Gauge(name, supplier));
-    }
-
     public static Collection<Counter> counters() {
         return Collections.unmodifiableCollection(COUNTERS.values());
     }
@@ -44,10 +38,5 @@ public final class MetricsRegistry {
 
     public static Collection<Timer> timers() {
         return Collections.unmodifiableCollection(TIMERS.values());
-    }
-
-    public static void resetAll() {
-        COUNTERS.values().forEach(Counter::reset);
-        TIMERS.values().forEach(Timer::reset);
     }
 }

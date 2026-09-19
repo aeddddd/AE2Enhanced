@@ -12,7 +12,6 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 /**
  * 在元件终端的存储总线分区编辑入口记录当前操作玩家,
  * 供 {@code EMCInterfaceFilterHost} 执行 EMC 接口的 canManage 权限校验.
- *
  * cellterminal 自有方法名不参与重映射, remap=false.
  */
 @Mixin(value = ContainerCellTerminalBase.class, remap = false)

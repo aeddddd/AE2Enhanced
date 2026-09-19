@@ -100,7 +100,8 @@ public abstract class MixinGuiCraftConfirm implements IPlanViewHost {
         // 底部按钮行空位(Cancel 与 Start 之间)
         this.ae2enhanced$sortButton = new GuiButton(3090, guiLeft + 60, guiTop + 181, 100, 20, "");
         ((IGuiScreenAccessor) self).ae2enhanced$getButtonList().add(this.ae2enhanced$sortButton);
-        this.ae2enhanced$searchField = new GuiTextField(3091, fr, guiLeft + 154, guiTop + 4, 78, 12);
+        // 宽度收窄至右缘 208: 与 GuiCraftingStatus 一致, 避开右上角(滚动条列 218/窗口右缘 238)
+        this.ae2enhanced$searchField = new GuiTextField(3091, fr, guiLeft + 154, guiTop + 4, 54, 12);
         this.ae2enhanced$searchField.setMaxStringLength(64);
         this.ae2enhanced$searchField.setText(this.ae2enhanced$searchText);
         ae2enhanced$updateSortButtonText();

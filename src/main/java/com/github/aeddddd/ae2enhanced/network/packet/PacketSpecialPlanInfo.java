@@ -89,7 +89,7 @@ public class PacketSpecialPlanInfo implements IMessage {
         private void scheduleUpdate(PacketSpecialPlanInfo message) {
             net.minecraft.client.Minecraft.getMinecraft().addScheduledTask(() ->
                     com.github.aeddddd.ae2enhanced.client.specialcrafting.SpecialPlanClientCache
-                            .update(message.output, message.info));
+                            .update(message.info));
         }
     }
 }

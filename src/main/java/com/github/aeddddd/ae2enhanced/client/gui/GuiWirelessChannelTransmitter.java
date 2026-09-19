@@ -8,7 +8,7 @@ import net.minecraft.entity.player.InventoryPlayer;
 import net.minecraft.util.ResourceLocation;
 
 /**
- * F1a：无线频道发生器 GUI.
+ * F1a: 无线频道发生器 GUI.
  */
 public class GuiWirelessChannelTransmitter extends GuiContainer {
 

@@ -12,8 +12,8 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
- * Mixin CELLS AbstractCombinedInterfaceTile，在任意 inventory 变化后尝试重建无线连接。
- * AbstractCombinedInterfaceTile 覆盖了 onChangeInventory，因此需要单独 Mixin。
+ * Mixin CELLS AbstractCombinedInterfaceTile, 在任意 inventory 变化后尝试重建无线连接.
+ * 它覆盖了 onChangeInventory, 因此需要单独 Mixin.
  */
 @Mixin(targets = "com.cells.blocks.combinedinterface.AbstractCombinedInterfaceTile", remap = false)
 public class MixinAbstractCombinedInterfaceTile {

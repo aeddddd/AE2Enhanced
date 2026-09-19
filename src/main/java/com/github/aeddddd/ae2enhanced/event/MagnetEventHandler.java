@@ -28,8 +28,8 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * 磁引卡 tick 处理器：每 5 tick 直接将周围掉落物移入背包或 AE 网络.
- * 若目标已满,则在玩家旁边生成物品实体.
+ * 磁引卡 tick 处理器: 每 5 tick 将周围掉落物直接移入背包或 AE 网络.
+ * 若目标已满, 剩余物品在玩家旁边生成实体.
  */
 @Mod.EventBusSubscriber(modid = AE2Enhanced.MOD_ID)
 public class MagnetEventHandler {

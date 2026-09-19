@@ -84,7 +84,6 @@ public class SelectionBoxRenderer {
     }
 
     private static void drawBoxEdges(BufferBuilder buffer, AxisAlignedBB bb) {
-        // 底面
         buffer.pos(bb.minX, bb.minY, bb.minZ).color(R, G, B, A).endVertex();
         buffer.pos(bb.maxX, bb.minY, bb.minZ).color(R, G, B, A).endVertex();
         buffer.pos(bb.maxX, bb.minY, bb.minZ).color(R, G, B, A).endVertex();

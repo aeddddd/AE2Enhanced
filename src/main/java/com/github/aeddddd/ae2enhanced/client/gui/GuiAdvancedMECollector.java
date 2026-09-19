@@ -14,7 +14,6 @@ import net.minecraft.entity.player.InventoryPlayer;
 import net.minecraft.inventory.Slot;
 import net.minecraft.item.ItemStack;
 import net.minecraftforge.fluids.FluidStack;
-import org.lwjgl.input.Mouse;
 
 import java.io.IOException;
 import java.util.ArrayList;

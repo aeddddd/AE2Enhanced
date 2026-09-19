@@ -1,16 +1,15 @@
 package com.github.aeddddd.ae2enhanced.integration.jei;
 
-import com.github.aeddddd.ae2enhanced.registry.content.BlockRegistry;
-import com.github.aeddddd.ae2enhanced.registry.content.ItemRegistry;
-import com.github.aeddddd.ae2enhanced.registry.content.PartRegistry;
+import com.github.aeddddd.ae2enhanced.client.JEISearchKeyHandler;
 import com.github.aeddddd.ae2enhanced.crafting.BlackHoleRecipe;
 import com.github.aeddddd.ae2enhanced.crafting.BlackHoleRecipeRegistry;
 import com.github.aeddddd.ae2enhanced.item.ItemEssentiaDrop;
-import com.github.aeddddd.ae2enhanced.client.JEISearchKeyHandler;
+import com.github.aeddddd.ae2enhanced.registry.content.BlockRegistry;
+import com.github.aeddddd.ae2enhanced.registry.content.ItemRegistry;
 import com.github.aeddddd.ae2enhanced.util.compat.HeiCompat;
+import mezz.jei.api.IJeiRuntime;
 import mezz.jei.api.IModPlugin;
 import mezz.jei.api.IModRegistry;
-import mezz.jei.api.IJeiRuntime;
 import mezz.jei.api.JEIPlugin;
 import mezz.jei.api.ingredients.IIngredientBlacklist;
 import mezz.jei.api.ingredients.IIngredientRegistry;
@@ -47,7 +46,7 @@ public class AE2EnhancedJEIPlugin implements IModPlugin {
         IIngredientRegistry ingredientRegistry = registry.getIngredientRegistry();
         IIngredientBlacklist blacklist = registry.getJeiHelpers().getIngredientBlacklist();
 
-        // E2a：将假物品加入 JEI 黑名单,避免在物品列表中显示
+        // E2a, 将假物品加入 JEI 黑名单, 避免在物品列表中显示
         if (ItemRegistry.ESSENTIA_DROP != null) {
             for (ItemStack stack : ItemEssentiaDrop.getAllAspectStacks()) {
                 blacklist.addIngredientToBlacklist(stack);

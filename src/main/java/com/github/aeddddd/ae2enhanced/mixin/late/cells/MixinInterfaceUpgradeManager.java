@@ -11,9 +11,9 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 /**
- * Mixin CELLS 的 InterfaceUpgradeManager，让频道接收卡能够放入其升级槽。
- * InterfaceUpgradeManager 使用 AppEngInternalInventory 并覆盖 isItemValid，
- * 因此 MixinAppEngInternalInventory 的 filter 包装无法生效，需要单独处理。
+ * Mixin CELLS 的 InterfaceUpgradeManager, 让频道接收卡能够放入其升级槽.
+ * 它用 AppEngInternalInventory 并覆盖 isItemValid, MixinAppEngInternalInventory 的
+ * filter 包装无法生效, 需要单独处理.
  */
 @Mixin(targets = "com.cells.blocks.interfacebase.managers.InterfaceUpgradeManager", remap = false)
 public class MixinInterfaceUpgradeManager {

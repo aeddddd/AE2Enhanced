@@ -1,7 +1,6 @@
 package com.github.aeddddd.ae2enhanced.recycler;
 
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
-import com.github.aeddddd.ae2enhanced.recycler.MachineOutputRedirector;
 import net.minecraft.item.ItemStack;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.NonNullList;

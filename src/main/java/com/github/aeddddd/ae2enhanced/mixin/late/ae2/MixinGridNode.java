@@ -1,9 +1,12 @@
 package com.github.aeddddd.ae2enhanced.mixin.late.ae2;
 
-import java.util.List;
-
-import javax.annotation.Nullable;
-
+import appeng.api.networking.GridFlags;
+import appeng.api.networking.IGridConnection;
+import appeng.me.GridNode;
+import appeng.me.pathfinding.IPathItem;
+import appeng.tile.networking.TileController;
+import com.github.aeddddd.ae2enhanced.pathing.GridValidationBatcher;
+import com.github.aeddddd.ae2enhanced.pathing.IEnhancedPathItem;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
@@ -11,17 +14,11 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-import appeng.api.networking.GridFlags;
-import appeng.api.networking.IGridConnection;
-import appeng.me.GridConnection;
-import appeng.me.GridNode;
-import appeng.me.pathfinding.IPathItem;
-import appeng.tile.networking.TileController;
-import com.github.aeddddd.ae2enhanced.pathing.GridValidationBatcher;
-import com.github.aeddddd.ae2enhanced.pathing.IEnhancedPathItem;
+import javax.annotation.Nullable;
+import java.util.List;
 
 /**
- * 为 GridNode 添加 PR #8285 快速频道路径算法所需的额外状态与方法。
+ * 为 GridNode 添加 PR #8285 快速频道路径算法所需的额外状态与方法.
  */
 @Mixin(value = GridNode.class, remap = false)
 public abstract class MixinGridNode implements IEnhancedPathItem {

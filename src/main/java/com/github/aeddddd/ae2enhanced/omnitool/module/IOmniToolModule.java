@@ -2,7 +2,6 @@ package com.github.aeddddd.ae2enhanced.omnitool.module;
 
 import net.minecraft.client.util.ITooltipFlag;
 import net.minecraft.entity.Entity;
-import net.minecraft.entity.EntityLivingBase;
 import net.minecraft.entity.ai.attributes.AttributeModifier;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.entity.player.EntityPlayer;
@@ -53,10 +52,6 @@ public interface IOmniToolModule {
 
     default int getHarvestLevel(ItemStack stack, String toolClass, EntityPlayer player, @Nullable IBlockState blockState) {
         return -1;
-    }
-
-    default boolean hitEntity(ItemStack stack, EntityLivingBase target, EntityLivingBase attacker) {
-        return false;
     }
 
     default boolean onLeftClickEntity(ItemStack stack, EntityPlayer player, Entity entity) {

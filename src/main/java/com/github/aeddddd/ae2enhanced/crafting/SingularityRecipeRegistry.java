@@ -16,19 +16,17 @@ public class SingularityRecipeRegistry {
 
     private static final List<SingularityRecipe> RECIPES = new CopyOnWriteArrayList<>();
 
-    /** 延迟移除队列：CraftTweaker 脚本可能在配方注册前执行 */
+    /** 延迟移除队列: CraftTweaker 脚本可能在配方注册前执行. */
     private static final Set<String> PENDING_REMOVALS = ConcurrentHashMap.newKeySet();
 
     public static void register(SingularityRecipe recipe) {
-        // 同 id 覆盖语义：先移除已有同 id 条目,保证 id 唯一,
-        // 与 AssemblyHubUpgradeRegistry(Map 型)的覆盖语义一致
+        // 同 id 覆盖语义: 先移除已有同 id 条目, 保证 id 唯一,
+        // 与 AssemblyHubUpgradeRegistry 的覆盖语义一致
         RECIPES.removeIf(r -> r.getId().equals(recipe.getId()));
         RECIPES.add(recipe);
     }
 
-    /**
-     * 在以 center 为中心,玩家手持 heldItem 的情况下寻找第一个匹配的配方.
-     */
+    /** 在以 center 为中心且玩家手持 heldItem 的情况下, 寻找第一个匹配的配方. */
     public static SingularityRecipe findMatching(World world, BlockPos center, ItemStack heldItem) {
         for (SingularityRecipe recipe : RECIPES) {
             if (recipe.matches(world, center, heldItem)) {

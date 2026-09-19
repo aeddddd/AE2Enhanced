@@ -56,7 +56,4 @@ public class ContainerHyperdimensionalUnformed extends Container {
         return itemstack;
     }
 
-    public TileHyperdimensionalController getTile() {
-        return tile;
-    }
 }

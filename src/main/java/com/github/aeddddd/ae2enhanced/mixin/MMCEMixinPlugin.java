@@ -7,7 +7,7 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * Modular Machinery: Community Edition 智能样板适配 Mixin 配置插件。
+ * Modular Machinery: Community Edition 智能样板适配 Mixin 配置插件.
  */
 public class MMCEMixinPlugin implements IMixinConfigPlugin {
 

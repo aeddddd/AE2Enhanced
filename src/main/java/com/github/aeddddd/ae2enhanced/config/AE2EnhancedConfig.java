@@ -44,6 +44,18 @@ public class AE2EnhancedConfig {
     })
     public static Chamber chamber = new Chamber();
 
+    @Config.Name("AssemblyHub")
+    @Config.Comment({
+        "Supercausal Assembly Hub settings.",
+        "Every settled crafting operation is billed in FE: per-tick demand = crafts x",
+        "energyPerCraft, capped at energyCapPerTick (2.1G FE by default). Crafts beyond",
+        "the cap are not charged extra, so a maxed parallel card cannot drain an",
+        "unbounded amount of energy per tick. Each Energy Optimization Module halves",
+        "the price, and a full stack (5) makes crafting completely free.",
+        "Short power throttles the hub proportionally (fewer crafts that tick)."
+    })
+    public static AssemblyHub assemblyHub = new AssemblyHub();
+
     @Config.Name("Crafting")
     @Config.Comment({
         "Supercausal Computation Core crafting engine settings.",
@@ -162,6 +174,13 @@ public class AE2EnhancedConfig {
         "Central ME Interface settings."
     })
     public static CentralInterface centralInterface = new CentralInterface();
+
+    @Config.Name("MemoryCard")
+    @Config.Comment({
+        "Universal Memory Card settings.",
+        "Controls network binding behavior and vanilla container support."
+    })
+    public static MemoryCard memoryCard = new MemoryCard();
 
     @Config.Name("Thaumcraft")
     @Config.Comment({
@@ -443,6 +462,36 @@ public class AE2EnhancedConfig {
         })
         @Config.RangeInt(min = 0, max = 72000)
         public int monitorFullScanIntervalTicks = 200;
+
+        @Config.Comment({
+            "Idle time (seconds) before a dirty storage section is checkpointed into its",
+            "base snapshot file. Changes are always written to the WAL immediately (every",
+            "tick); the checkpoint only compacts the WAL into the base snapshot when the",
+            "section has been quiet for this long.",
+            "Range: 1 ~ 86400, Default: 5"
+        })
+        @Config.RangeInt(min = 1, max = 86400)
+        public int checkpointIdleSeconds = 5;
+
+        @Config.Comment({
+            "WAL size threshold (bytes) that forces a checkpoint even while the section",
+            "is busy. Prevents unbounded WAL growth under continuous automation load.",
+            "Range: 1048576 ~ 1073741824, Default: 33554432 (32 MB)"
+        })
+        @Config.RangeInt(min = 1048576, max = 1073741824)
+        public int walCheckpointThresholdBytes = 33554432;
+
+        @Config.Comment({
+            "How long (seconds) an idle Hyperdimensional Storage session (file + adapters",
+            "+ search indexes) stays resident after its chunk unloads. Resident sessions make",
+            "re-entering the area free (no disk reload, no index rebuild); idle sessions past",
+            "this timeout are flushed to disk and closed to free memory.",
+            "NOTE: On HDD installs, frequent close/reopen cycles cause noticeable stalls;",
+            "a larger value (e.g. 1800) keeps sessions resident longer and avoids reloads.",
+            "Range: 10 ~ 86400, Default: 1800"
+        })
+        @Config.RangeInt(min = 10, max = 86400)
+        public int sessionIdleCloseSeconds = 1800;
     }
 
     public static class Render {
@@ -505,6 +554,29 @@ public class AE2EnhancedConfig {
             "Default: true"
         })
         public boolean requireChannel = true;
+    }
+
+    public static class AssemblyHub {
+
+        @Config.Comment({
+            "FE billed per settled crafting operation (one craft).",
+            "Per-tick demand = crafts settled that tick x energyPerCraft.",
+            "Each Energy Optimization Module halves it; a full stack (5) makes it free.",
+            "Payments come from the FE stored in the ME network (energy channel) first,",
+            "then from the AE energy grid at 1 AE = 2 FE.",
+            "Range: 1 ~ 2147483647, Default: 1"
+        })
+        @Config.RangeInt(min = 1, max = Integer.MAX_VALUE)
+        public int energyPerCraft = 1;
+
+        @Config.Comment({
+            "Rated power ceiling of the hub (FE per tick, 2.1G = 2147483647).",
+            "Demand never exceeds this: crafts beyond the ceiling are not charged extra,",
+            "so infinite parallel cards cannot drain unbounded energy per tick.",
+            "Range: 1 ~ 2147483647, Default: 2147483647"
+        })
+        @Config.RangeInt(min = 1, max = Integer.MAX_VALUE)
+        public int energyCapPerTick = Integer.MAX_VALUE;
     }
 
     public static class Crafting {
@@ -656,6 +728,18 @@ public class AE2EnhancedConfig {
         })
         @Config.RangeInt(min = 2, max = 100)
         public int guiSyncFloodIntervalTicks = 5;
+
+        @Config.Comment({
+            "Debounce (milliseconds) for full rebuilds of the server-side sorted item",
+            "list used by the Omni Terminal. Under heavy automation the list is marked",
+            "dirty every tick; without debounce every page flip triggers a full O(N log N)",
+            "rebuild on the server thread. Within the window the previous list is reused",
+            "(display-only staleness; counts are always read live).",
+            "Set to 0 to disable debounce (always rebuild).",
+            "Range: 0 ~ 60000, Default: 200"
+        })
+        @Config.RangeInt(min = 0, max = 60000)
+        public int terminalRebuildDebounceMs = 200;
     }
 
     public static class OmniTool {
@@ -1033,6 +1117,16 @@ public class AE2EnhancedConfig {
         })
         @Config.RangeDouble(min = 0.0, max = 1000000.0)
         public double idlePower = 16.0;
+    }
+
+    public static class MemoryCard {
+        @Config.Comment({
+            "Allow copying/pasting vanilla container (chest, hopper, furnace, etc.) contents",
+            "with the Universal Memory Card. Paste pulls missing items from the bound AE network",
+            "(via a bound Security Terminal) into the container, topping up to the snapshot.",
+            "Default: true"
+        })
+        public boolean vanillaContainerCopy = true;
     }
 
     public static class Recycler {

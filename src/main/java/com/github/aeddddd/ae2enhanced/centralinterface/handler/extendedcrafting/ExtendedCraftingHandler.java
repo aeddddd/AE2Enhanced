@@ -1,20 +1,18 @@
 package com.github.aeddddd.ae2enhanced.centralinterface.handler.extendedcrafting;
 
-import com.github.aeddddd.ae2enhanced.centralinterface.TargetSession;
-
 import appeng.api.networking.security.IActionSource;
 import appeng.api.storage.data.IAEItemStack;
 import appeng.api.storage.data.IAEStack;
 import appeng.util.item.AEItemStack;
 import com.github.aeddddd.ae2enhanced.centralinterface.IRemoteHandler;
 import com.github.aeddddd.ae2enhanced.centralinterface.IVirtualBatchCraftingHandler;
+import com.github.aeddddd.ae2enhanced.centralinterface.TargetSession;
 import com.github.aeddddd.ae2enhanced.storage.energy.AEEnergyStack;
 import net.minecraft.inventory.InventoryCrafting;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.crafting.Ingredient;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.EnumParticleTypes;
-import net.minecraft.util.NonNullList;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
 import net.minecraftforge.items.CapabilityItemHandler;
@@ -353,10 +351,6 @@ public class ExtendedCraftingHandler implements IRemoteHandler, IVirtualBatchCra
         if (recipe == null) return false;
 
         return ingredientsMatchCombination(recipe, ingredients);
-    }
-
-    public List<ItemStack> virtualCraft(World world, BlockPos pos, InventoryCrafting ingredients, IAEItemStack[] outputs, IActionSource source) {
-        return virtualCraftBatch(world, pos, ingredients, outputs, 1, source);
     }
 
     @Override

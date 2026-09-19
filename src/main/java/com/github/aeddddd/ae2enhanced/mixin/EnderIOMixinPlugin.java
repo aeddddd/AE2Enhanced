@@ -1,14 +1,14 @@
 package com.github.aeddddd.ae2enhanced.mixin;
 
+import org.objectweb.asm.tree.ClassNode;
 import org.spongepowered.asm.mixin.extensibility.IMixinConfigPlugin;
 import org.spongepowered.asm.mixin.extensibility.IMixinInfo;
-import org.objectweb.asm.tree.ClassNode;
 
 import java.util.List;
 import java.util.Set;
 
 /**
- * Ender IO 机器产物直注 Mixin 配置插件。
+ * Ender IO 机器产物直注 Mixin 配置插件.
  */
 public class EnderIOMixinPlugin implements IMixinConfigPlugin {
 

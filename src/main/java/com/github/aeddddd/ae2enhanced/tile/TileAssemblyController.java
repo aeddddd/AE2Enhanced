@@ -7,6 +7,7 @@ import appeng.api.networking.IGridNode;
 import appeng.api.networking.crafting.ICraftingPatternDetails;
 import appeng.api.networking.crafting.ICraftingProvider;
 import appeng.api.networking.crafting.ICraftingProviderHelper;
+import appeng.api.networking.security.IActionHost;
 import appeng.api.networking.security.IActionSource;
 import appeng.api.networking.storage.IStorageGrid;
 import appeng.api.storage.IMEMonitor;
@@ -16,22 +17,20 @@ import appeng.api.util.AECableType;
 import appeng.api.util.AEPartLocation;
 import appeng.me.helpers.AENetworkProxy;
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
-import com.github.aeddddd.ae2enhanced.registry.content.BlockRegistry;
-import com.github.aeddddd.ae2enhanced.util.ForceKillHelper;
-import com.github.aeddddd.ae2enhanced.config.AE2EnhancedConfig;
 import com.github.aeddddd.ae2enhanced.block.BlockAssemblyController;
-import com.github.aeddddd.ae2enhanced.crafting.BlackHoleRecipe;
-import com.github.aeddddd.ae2enhanced.crafting.BlackHoleRecipeRegistry;
-import com.github.aeddddd.ae2enhanced.crafting.AssemblyHubUpgradeRegistry;
+import com.github.aeddddd.ae2enhanced.config.AE2EnhancedConfig;
+import com.github.aeddddd.ae2enhanced.crafting.*;
 import com.github.aeddddd.ae2enhanced.item.ItemUpgradeCard;
+import com.github.aeddddd.ae2enhanced.registry.content.BlockRegistry;
 import com.github.aeddddd.ae2enhanced.storage.ItemDescriptor;
 import com.github.aeddddd.ae2enhanced.structure.AssemblyStructure;
+import com.github.aeddddd.ae2enhanced.util.FeEnergyPayment;
+import com.github.aeddddd.ae2enhanced.util.ForceKillHelper;
 import com.github.aeddddd.ae2enhanced.util.compat.Ae2fcFluidPatternHelper;
 import net.minecraft.entity.EntityLivingBase;
 import net.minecraft.entity.item.EntityItem;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.init.SoundEvents;
-import net.minecraft.util.SoundCategory;
 import net.minecraft.inventory.InventoryCrafting;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
@@ -42,18 +41,11 @@ import net.minecraft.nbt.NBTTagList;
 import net.minecraft.network.NetworkManager;
 import net.minecraft.network.play.server.SPacketUpdateTileEntity;
 import net.minecraft.tileentity.TileEntity;
-import net.minecraft.util.DamageSource;
-
-import net.minecraft.util.EnumFacing;
-import net.minecraft.util.EnumParticleTypes;
-import net.minecraft.util.ITickable;
-import net.minecraft.util.NonNullList;
+import net.minecraft.util.*;
 import net.minecraft.util.math.AxisAlignedBB;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.text.ITextComponent;
 import net.minecraft.util.text.TextComponentTranslation;
-
-
 import net.minecraftforge.common.capabilities.Capability;
 import net.minecraftforge.common.util.Constants;
 import net.minecraftforge.items.CapabilityItemHandler;
@@ -63,7 +55,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.*;
 
-public class TileAssemblyController extends TileAENetworkBase implements ICraftingProvider, ITickable {
+public class TileAssemblyController extends TileAENetworkBase implements ICraftingProvider, ITickable, IActionHost {
 
     public static final int UPGRADE_SLOTS = 6;
     public static final int PATTERN_SLOTS_PER_PAGE = 102; // 17×6
@@ -73,6 +65,9 @@ public class TileAssemblyController extends TileAENetworkBase implements ICrafti
     public static final int PATTERN_SLOTS_MAX = PATTERN_SLOTS_PER_PAGE * PATTERN_PAGES_MAX; // 2880
     public static final int TOTAL_SLOTS_MAX = UPGRADE_SLOTS + PATTERN_SLOTS_MAX;            // 2886
     public static final int TOTAL_SLOTS_BASE = UPGRADE_SLOTS + PATTERN_SLOTS_PER_PAGE * PATTERN_PAGES_BASE; // 486
+
+    /** 单 tick 内可同时推进的配方数上限（跨配方并行模块满级 = 不限）. */
+    public static final int CONCURRENT_RECIPES_LIMIT_MAX = Integer.MAX_VALUE;
 
     private static final IActionSource MACHINE_SOURCE = new IActionSource() {
         @Override public Optional<EntityPlayer> player() { return Optional.empty(); }
@@ -86,7 +81,16 @@ public class TileAssemblyController extends TileAENetworkBase implements ICrafti
 
     private boolean networkActive = false;
     private boolean networkPowered = false;
-    private int batchCooldown = 0;
+    /**
+     * 跨配方并行预算：并行上限被拆成多份「在途占用」，同一结算周期内由多个样板共享，
+     * 而不是被单个样板吃满后整枢纽空等（见 {@link AssemblyParallelBudget}）.
+     */
+    private final AssemblyParallelBudget parallelBudget = new AssemblyParallelBudget();
+    /** world 不可用时的兜底时钟（正常路径恒为 world.getTotalWorldTime()）. */
+    private long parallelFallbackTick = 0;
+    /** 能耗计时：{@code energyTick} 为当前计费 tick，换 tick 时清零 {@code energyUsedThisTick}. */
+    private long energyTick = Long.MIN_VALUE;
+    private long energyUsedThisTick = 0;
     private boolean batchBusy = false;
 
     /** 黑洞合成缓存：事件视界内的物品被吸入到这里,每 20 ticks 尝试匹配配方 */
@@ -95,133 +99,18 @@ public class TileAssemblyController extends TileAENetworkBase implements ICrafti
 
     private final PatternItemHandler itemHandler = new PatternItemHandler(TOTAL_SLOTS_BASE);
 
-    /** 自定义 ItemStackHandler,支持动态容量扩展 + 扩容升级取出限制 */
-    public class PatternItemHandler extends ItemStackHandler {
-        PatternItemHandler(int size) { super(size); }
-
-        @Override
-        protected void onContentsChanged(int slot) {
-            TileAssemblyController.this.markDirty();
-            // 标记客户端同步脏,由 update() 每 tick 合并通知一次,
-            // 避免批量写入时每个槽位变化都触发一次全量 NBT 网络包
-            if (world != null && !world.isRemote) {
-                clientSyncDirty = true;
-            }
-            if (slot >= UPGRADE_SLOTS && world != null && !world.isRemote) {
-                patternsDirty = true;
-            }
-            // 并行升级槽内容变化时并行上限缓存失效
-            if (slot == ItemUpgradeCard.META_PARALLEL) {
-                cachedParallelCap = -1;
-            }
-            // 扩容升级增加时自动扩展容量
-            if (slot == ItemUpgradeCard.META_CAPACITY && world != null && !world.isRemote) {
-                ensurePatternCapacity();
-            }
-        }
-
-        @Override
-        public boolean isItemValid(int slot, @Nonnull ItemStack stack) {
-            if (slot < UPGRADE_SLOTS) {
-                // 原生升级卡：metadata 与槽位一一对应
-                if (stack.getItem() instanceof ItemUpgradeCard && stack.getMetadata() == slot) {
-                    return true;
-                }
-                // 注册表中的自定义升级卡
-                AssemblyHubUpgradeRegistry.UpgradeDefinition def = AssemblyHubUpgradeRegistry.findFor(stack);
-                if (def != null) {
-                    if (slot == 0 && def.type == AssemblyHubUpgradeRegistry.UpgradeType.PARALLEL) return true;
-                    if (slot == 1 && def.type == AssemblyHubUpgradeRegistry.UpgradeType.SPEED) return true;
-                }
-                return false;
-            }
-            // 样板槽仅接受 crafting=1 的合成样板
-            return isValidPattern(stack);
-        }
-
-        /**
-         * 插入过滤：先越界保护,再校验 isItemValid.
-         * ItemStackHandler 原 insertItem 也会调用 isItemValid,但此处显式校验可防御
-         * 未来 Forge 版本行为变动,同时保证与 setStackInSlot 一致.
-         */
-        @Override
-        @Nonnull
-        public ItemStack insertItem(int slot, @Nonnull ItemStack stack, boolean simulate) {
-            if (slot < 0 || slot >= stacks.size()) return stack;
-            if (!isItemValid(slot, stack)) {
-                return stack;
-            }
-            return super.insertItem(slot, stack, simulate);
-        }
-
-        /** 扩容升级取出限制：如果扩展页面留有样板,禁止提取 */
-        @Override
-        @Nonnull
-        public ItemStack extractItem(int slot, int amount, boolean simulate) {
-            if (slot < 0 || slot >= stacks.size()) return ItemStack.EMPTY;
-            if (slot == ItemUpgradeCard.META_CAPACITY && !simulate) {
-                ItemStack current = getStackInSlot(slot);
-                int newCount = Math.max(0, current.getCount() - amount);
-                if (!canReduceCapacity(newCount)) {
-                    return ItemStack.EMPTY;
-                }
-            }
-            return super.extractItem(slot, amount, simulate);
-        }
-
-        public void setCapacity(int newSize) {
-            if (newSize == stacks.size()) return;
-            NonNullList<ItemStack> newStacks = NonNullList.withSize(newSize, ItemStack.EMPTY);
-            for (int i = 0; i < Math.min(stacks.size(), newSize); i++) {
-                newStacks.set(i, stacks.get(i));
-            }
-            stacks = newStacks;
-        }
-
-        /** 越界保护：客户端 itemHandler 容量可能尚未同步,避免 ArrayIndexOutOfBoundsException */
-        @Override
-        @Nonnull
-        public ItemStack getStackInSlot(int slot) {
-            if (slot < 0 || slot >= stacks.size()) return ItemStack.EMPTY;
-            return super.getStackInSlot(slot);
-        }
-
-        @Override
-        public int getSlotLimit(int slot) {
-            if (slot < 0 || slot >= stacks.size()) return 0;
-            if (slot < UPGRADE_SLOTS) {
-                ItemStack current = getStackInSlot(slot);
-                if (!current.isEmpty()) {
-                    // 注册表中的自定义堆叠上限
-                    int custom = AssemblyHubUpgradeRegistry.getCustomMaxStack(current);
-                    if (custom > 0) return custom;
-                }
-                // 原生升级卡堆叠上限
-                if (slot == ItemUpgradeCard.META_PARALLEL || slot == ItemUpgradeCard.META_SPEED) {
-                    return 5;
-                }
-                if (slot == ItemUpgradeCard.META_RESERVED1) {
-                    return 1;
-                }
-                return 10;
-            }
-            return super.getSlotLimit(slot);
-        }
-
-        /**
-         * setStackInSlot 校验：防止 GUI 直接调用 IItemHandlerModifiable.setStackInSlot
-         * 绕过 insertItem 的 isItemValid 检查.
-         */
-        @Override
-        public void setStackInSlot(int slot, @Nonnull ItemStack stack) {
-            if (slot < 0 || slot >= stacks.size()) return;
-            if (!stack.isEmpty() && !isItemValid(slot, stack)) return;
-            super.setStackInSlot(slot, stack);
-        }
+    private static long saturatedAddEnergy(long a, long b) {
+        long sum = a + b;
+        return sum < 0L ? Long.MAX_VALUE : sum;
     }
 
     /** 缓存样板是否为纯虚拟合成(getRemainingItems 全空),String key 避免 hash 碰撞 */
     private final Map<ICraftingPatternDetails, Boolean> patternVirtualCache = new HashMap<>();
+    /** 虚拟轨道输出模板缓存: PatternHelper.getOutput 的返回值为构造期快照(outputs[0]),与输入栏位无关,
+     *  其 9 槽校验循环对固定样板恒得同一结果——按 pattern 实例缓存可整体跳过(spark 热点 ~5%).
+     *  /ct reload 不改变已有 PatternHelper 实例的行为(standardRecipe 为构造期 final),缓存与原生等价;
+     *  失效随实例生命周期(样板重新解码 = 新实例). */
+    private final Map<ICraftingPatternDetails, ItemStack> patternOutputCache = new HashMap<>();
     /** getParallelCap 缓存:槽位 0 内容变化或升级注册表修订时失效(-1 = 未缓存).
      *  isBusy() 每 tick 调用,未缓存时 keyOf 的字符串拼接是 spark 采样热点之一. */
     private long cachedParallelCap = -1;
@@ -478,10 +367,6 @@ public class TileAssemblyController extends TileAENetworkBase implements ICrafti
         return true;
     }
 
-    public BlockPos getActiveMeInterfacePos() {
-        return activeMeInterfacePos;
-    }
-
     @Override
     protected String getProxyName() {
         return "assembly_controller";
@@ -520,7 +405,9 @@ public class TileAssemblyController extends TileAENetworkBase implements ICrafti
             markDirty();
             pendingOutputs.clear();
             jobTimers.clear();
+            parallelBudget.clear();
             patternVirtualCache.clear();
+            patternOutputCache.clear();
             if (world != null && !world.isRemote) {
                 world.notifyBlockUpdate(pos, world.getBlockState(pos), world.getBlockState(pos), 2);
             }
@@ -676,10 +563,8 @@ public class TileAssemblyController extends TileAENetworkBase implements ICrafti
             tryInjectPendingOutputs();
         }
 
-        // 递减 batch 冷却
-        if (batchCooldown > 0) {
-            batchCooldown--;
-        }
+        // 回收到期的并行在途占用（CPU 侧每趟也会清理一次,此处保证空闲时也能回收）
+        parallelBudget.sweep(parallelClock());
 
         // 递减所有 job timer
         List<Integer> nextTimers = new ArrayList<>();
@@ -770,14 +655,6 @@ public class TileAssemblyController extends TileAENetworkBase implements ICrafti
         }
     }
 
-    /**
-     * 使用 ItemDescriptor 作为 key,避免 NBTTagCompound.toString() 产生长字符串导致 GC 压力.
-     * ItemDescriptor.equals() 已包含 NBT 比较,hashCode() 基于 item+meta(碰撞由 equals 解决).
-     */
-    private ItemDescriptor getStackDescriptor(ItemStack stack) {
-        return new ItemDescriptor(stack);
-    }
-
     // ---------- ICraftingMedium ----------
 
     @Override
@@ -827,8 +704,13 @@ public class TileAssemblyController extends TileAENetworkBase implements ICrafti
      * 会因找不到预期而落入网络存储，预期永不消解——任务残留"合成中"无法完成。</p>
      */
     private boolean executeVirtualCrafting(ICraftingPatternDetails patternDetails, InventoryCrafting table) {
-        ItemStack output = patternDetails.getOutput(table, world);
-        if (output.isEmpty()) return false;
+        // 输出为构造期快照,9 槽校验结果对固定样板不变:命中缓存时整体跳过 getOutput
+        ItemStack output = patternOutputCache.get(patternDetails);
+        if (output == null) {
+            output = patternDetails.getOutput(table, world);
+            if (output.isEmpty()) return false;
+            patternOutputCache.put(patternDetails, output.copy());
+        }
 
         // 网络未就绪：拒绝,让 AE2 稍后重试
         AENetworkProxy proxy = getProxy();
@@ -986,17 +868,262 @@ public class TileAssemblyController extends TileAENetworkBase implements ICrafti
     }
 
     /**
-     * 供 Mixin 调用：检查当前 batch 冷却是否已结束.
+     * 供 Mixin 调用：开始一趟并行预算分配（每趟 executeCrafting 前调用一次）.
+     *
+     * <p>预算是「可变现的并行额度」：没有在途占用的样板拿 1/N 份额，已有在途的样板
+     * 让位给首轮竞争者，首轮分配完毕后才消化剩余额度。这样同一周期内可服务多个配方，
+     * 且额度不会被某个剩余量很小的样板浪费。</p>
+     *
+     * @param pending 本趟该控制器将尝试服务的样板集合（同一趟内仅用于统计竞争者数量）
      */
-    public boolean canBatch() {
-        return batchCooldown <= 0;
+    public void beginParallelPass(java.util.Collection<ICraftingPatternDetails> pending) {
+        parallelBudget.beginPass(parallelClock(), getParallelCap(), getCraftingTicks(),
+                getConcurrentRecipeLimit(), pending);
     }
 
     /**
-     * 供 Mixin 调用：batch 执行成功后重置冷却.
+     * 供 Mixin 调用：本趟该样板可结算的最大份数，0 表示本趟不结算（预算耗尽 / 并发槽位已满 / 仍需让位）.
      */
-    public void resetBatchCooldown() {
-        this.batchCooldown = getCraftingTicks();
+    public long allowanceFor(ICraftingPatternDetails pattern) {
+        return parallelBudget.allowance(pattern);
+    }
+
+    /**
+     * 供 Mixin 调用：结算成功后登记实际在途份数，占用在 {@link #getCraftingTicks()} 后释放.
+     */
+    public void claimParallel(ICraftingPatternDetails pattern, long ops) {
+        parallelBudget.claim(pattern, ops);
+    }
+
+    /**
+     * 同时持有在途占用的配方数上限（跨配方并行模块，槽位 5）.
+     * 未安装 = 1（等价「一次只处理一种配方」）；每张 ×2；满级不限（{@link #CONCURRENT_RECIPES_LIMIT_MAX}）.
+     */
+    public int getConcurrentRecipeLimit() {
+        ItemStack stack = itemHandler.getStackInSlot(ItemUpgradeCard.META_RESERVED2);
+        if (stack.isEmpty() || !(stack.getItem() instanceof ItemUpgradeCard)
+                || stack.getMetadata() != ItemUpgradeCard.META_RESERVED2) {
+            return 1;
+        }
+        int cards = stack.getCount();
+        if (cards >= ItemUpgradeCard.getMaxStackForMeta(ItemUpgradeCard.META_RESERVED2)) {
+            return CONCURRENT_RECIPES_LIMIT_MAX;
+        }
+        int limit = 1;
+        for (int i = 0; i < cards && limit < CONCURRENT_RECIPES_LIMIT_MAX / 2; i++) {
+            limit *= 2;
+        }
+        return limit;
+    }
+
+    // ---------- 能耗（能量优化模块，槽位 2） ----------
+
+    /** 已安装的能量优化模块数量. */
+    public int getEfficiencyCards() {
+        ItemStack stack = itemHandler.getStackInSlot(ItemUpgradeCard.META_EFFICIENCY);
+        if (stack.isEmpty() || !(stack.getItem() instanceof ItemUpgradeCard)
+                || stack.getMetadata() != ItemUpgradeCard.META_EFFICIENCY) {
+            return 0;
+        }
+        return stack.getCount();
+    }
+
+    /** 单份合成能耗（FE）：基础单价每级减半，满级不耗能（{@link AssemblyHubEnergy}）. */
+    public long getEnergyPerCraft() {
+        return AssemblyHubEnergy.perCraftCost(AE2EnhancedConfig.assemblyHub.energyPerCraft, getEfficiencyCards());
+    }
+
+    /** 单 tick 额定功耗上限（FE，默认 2.1G）. */
+    public long getEnergyCapPerTick() {
+        return AE2EnhancedConfig.assemblyHub.energyCapPerTick;
+    }
+
+    /**
+     * 供 Mixin 调用：为本次结算索取能量，返回网络实际可支付的份数（0 = 无电,调用方放弃该样板）.
+     *
+     * <p>计费口径：单价按能量优化模块递减，单 tick 总额不超过额定上限（2.1G），
+     * 超出上限的合成不再额外计费。欠电时按实付比例降载（不会出现付了电却一份不做），
+     * 支付路径为 ME 网络 FE 存量 → AE 能源网（见 {@link FeEnergyPayment}）.</p>
+     */
+    public long chargeCraftEnergy(long ops) {
+        if (ops <= 0L) {
+            return 0L;
+        }
+        long perCraft = getEnergyPerCraft();
+        if (perCraft <= 0L) {
+            return ops; // 满级能量优化模块：不耗能
+        }
+        long now = parallelClock();
+        if (now != energyTick) {
+            energyTick = now;
+            energyUsedThisTick = 0L;
+        }
+        long room = Math.max(0L, getEnergyCapPerTick() - energyUsedThisTick);
+        if (room <= 0L) {
+            return ops; // 本 tick 已达额定功耗上限：超出部分不计费
+        }
+        long demand = AssemblyHubEnergy.demand(ops, perCraft, room);
+        if (demand <= 0L) {
+            return ops;
+        }
+        long affordable = FeEnergyPayment.pay(this, demand, true);
+        if (affordable <= 0L) {
+            return 0L;
+        }
+        long granted = AssemblyHubEnergy.grantedOps(ops, demand, affordable);
+        if (granted <= 0L) {
+            return 0L;
+        }
+        // 确认可付后再实际扣费：按获准份数计费（含上限截断），避免付了电却一份不做
+        long charge = AssemblyHubEnergy.demand(granted, perCraft, room);
+        long paid = charge <= 0L ? 0L : FeEnergyPayment.pay(this, charge, false);
+        energyUsedThisTick = saturatedAddEnergy(energyUsedThisTick, paid);
+        if (paid < charge) {
+            return AssemblyHubEnergy.grantedOps(ops, charge, paid);
+        }
+        return granted;
+    }
+
+    private long parallelClock() {
+        if (world != null) {
+            return world.getTotalWorldTime();
+        }
+        return ++parallelFallbackTick;
+    }
+
+    @Override
+    @Nonnull
+    public IGridNode getActionableNode() {
+        return getProxy().getNode();
+    }
+
+    /** 自定义 ItemStackHandler,支持动态容量扩展 + 扩容升级取出限制 */
+    public class PatternItemHandler extends ItemStackHandler {
+        PatternItemHandler(int size) { super(size); }
+
+        @Override
+        protected void onContentsChanged(int slot) {
+            TileAssemblyController.this.markDirty();
+            // 标记客户端同步脏,由 update() 每 tick 合并通知一次,
+            // 避免批量写入时每个槽位变化都触发一次全量 NBT 网络包
+            if (world != null && !world.isRemote) {
+                clientSyncDirty = true;
+            }
+            if (slot >= UPGRADE_SLOTS && world != null && !world.isRemote) {
+                patternsDirty = true;
+            }
+            // 并行升级槽内容变化时并行上限缓存失效
+            if (slot == ItemUpgradeCard.META_PARALLEL) {
+                cachedParallelCap = -1;
+            }
+            // 扩容升级增加时自动扩展容量
+            if (slot == ItemUpgradeCard.META_CAPACITY && world != null && !world.isRemote) {
+                ensurePatternCapacity();
+            }
+        }
+
+        @Override
+        public boolean isItemValid(int slot, @Nonnull ItemStack stack) {
+            if (slot < UPGRADE_SLOTS) {
+                // 原生升级卡：metadata 与槽位一一对应
+                if (stack.getItem() instanceof ItemUpgradeCard && stack.getMetadata() == slot) {
+                    return true;
+                }
+                // 注册表中的自定义升级卡
+                AssemblyHubUpgradeRegistry.UpgradeDefinition def = AssemblyHubUpgradeRegistry.findFor(stack);
+                if (def != null) {
+                    if (slot == 0 && def.type == AssemblyHubUpgradeRegistry.UpgradeType.PARALLEL) return true;
+                    if (slot == 1 && def.type == AssemblyHubUpgradeRegistry.UpgradeType.SPEED) return true;
+                }
+                return false;
+            }
+            // 样板槽仅接受 crafting=1 的合成样板
+            return isValidPattern(stack);
+        }
+
+        /**
+         * 插入过滤：先越界保护,再校验 isItemValid.
+         * ItemStackHandler 原 insertItem 也会调用 isItemValid,但此处显式校验可防御
+         * 未来 Forge 版本行为变动,同时保证与 setStackInSlot 一致.
+         */
+        @Override
+        @Nonnull
+        public ItemStack insertItem(int slot, @Nonnull ItemStack stack, boolean simulate) {
+            if (slot < 0 || slot >= stacks.size()) return stack;
+            if (!isItemValid(slot, stack)) {
+                return stack;
+            }
+            return super.insertItem(slot, stack, simulate);
+        }
+
+        /** 扩容升级取出限制：如果扩展页面留有样板,禁止提取 */
+        @Override
+        @Nonnull
+        public ItemStack extractItem(int slot, int amount, boolean simulate) {
+            if (slot < 0 || slot >= stacks.size()) return ItemStack.EMPTY;
+            if (slot == ItemUpgradeCard.META_CAPACITY && !simulate) {
+                ItemStack current = getStackInSlot(slot);
+                int newCount = Math.max(0, current.getCount() - amount);
+                if (!canReduceCapacity(newCount)) {
+                    return ItemStack.EMPTY;
+                }
+            }
+            return super.extractItem(slot, amount, simulate);
+        }
+
+        public void setCapacity(int newSize) {
+            if (newSize == stacks.size()) return;
+            NonNullList<ItemStack> newStacks = NonNullList.withSize(newSize, ItemStack.EMPTY);
+            for (int i = 0; i < Math.min(stacks.size(), newSize); i++) {
+                newStacks.set(i, stacks.get(i));
+            }
+            stacks = newStacks;
+        }
+
+        /** 越界保护：客户端 itemHandler 容量可能尚未同步,避免 ArrayIndexOutOfBoundsException */
+        @Override
+        @Nonnull
+        public ItemStack getStackInSlot(int slot) {
+            if (slot < 0 || slot >= stacks.size()) return ItemStack.EMPTY;
+            return super.getStackInSlot(slot);
+        }
+
+        @Override
+        public int getSlotLimit(int slot) {
+            if (slot < 0 || slot >= stacks.size()) return 0;
+            if (slot < UPGRADE_SLOTS) {
+                ItemStack current = getStackInSlot(slot);
+                if (!current.isEmpty()) {
+                    // 注册表中的自定义堆叠上限
+                    int custom = AssemblyHubUpgradeRegistry.getCustomMaxStack(current);
+                    if (custom > 0) return custom;
+                }
+                // 原生升级卡堆叠上限
+                if (slot == ItemUpgradeCard.META_PARALLEL || slot == ItemUpgradeCard.META_SPEED) {
+                    return 5;
+                }
+                // 能量优化模块 / 跨配方并行模块同样以 5 张为满级
+                if (slot == ItemUpgradeCard.META_EFFICIENCY || slot == ItemUpgradeCard.META_RESERVED2) {
+                    return ItemUpgradeCard.getMaxStackForMeta(slot);
+                }
+                if (slot == ItemUpgradeCard.META_RESERVED1) {
+                    return 1;
+                }
+                return 10;
+            }
+            return super.getSlotLimit(slot);
+        }
+
+        /**
+         * setStackInSlot 校验：防止 GUI 直接调用 IItemHandlerModifiable.setStackInSlot
+         * 绕过 insertItem 的 isItemValid 检查.
+         */
+        @Override
+        public void setStackInSlot(int slot, @Nonnull ItemStack stack) {
+            if (slot < 0 || slot >= stacks.size()) return;
+            if (!stack.isEmpty() && !isItemValid(slot, stack)) return;
+            super.setStackInSlot(slot, stack);
+        }
     }
 
     /**

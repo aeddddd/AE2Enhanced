@@ -29,7 +29,19 @@ public class UMCPasteService {
         }
 
         NBTTagCompound config = ItemUniversalMemoryCard.getConfig(stack);
-        NBTTagCompound data = config.getCompoundTag("data");
+        // 按复制内容模式与粘贴选项过滤数据(来源 handler 声明的键分类优先)
+        String sourceHandlerId = null;
+        if (config.hasKey("meta")) {
+            sourceHandlerId = config.getCompoundTag("meta").getString("handlerId");
+        }
+        if (sourceHandlerId == null || sourceHandlerId.isEmpty()) {
+            sourceHandlerId = config.getString("handler"); // 旧版粗粒度 ID,findById 内含兼容映射
+        }
+        NBTTagCompound data = UMCDataFilter.filterForPaste(
+                config.getCompoundTag("data"),
+                ItemUniversalMemoryCard.getCopyMode(stack),
+                ItemUniversalMemoryCard.getOptions(stack),
+                sourceHandlerId);
 
         World world = player.world;
         Object target = findTarget(world, pos, face);
@@ -57,7 +69,7 @@ public class UMCPasteService {
                 IMemoryCardHandler handler = MemoryCardHandlerRegistry.findHandler(bulkTarget);
                 if (handler == null) continue;
                 PasteResult result = handler.paste(bulkTarget, data, player);
-                if (result == PasteResult.SUCCESS) success++;
+                if (result == PasteResult.SUCCESS || result == PasteResult.SUCCESS_CUSTOM) success++;
                 else failed++;
             }
             player.sendMessage(new TextComponentTranslation("gui.ae2enhanced.umc.msg.bulk_success", success, failed));

@@ -54,14 +54,12 @@ public class OmniItemRepo extends ItemRepo {
     private long lastRefreshTime = 0;
 
     // ==================== 原有字段 ====================
-    private final IScrollSource scrollSrc;
     private final OmniItemRegistry registry = new OmniItemRegistry();
     private List<CraftingStatus> activeCrafting = Collections.emptyList();
     private List<IAEItemStack> normalView = Collections.emptyList();
 
     public OmniItemRepo(IScrollSource src, ISortSource sortSrc) {
         super(src, sortSrc);
-        this.scrollSrc = src;
     }
 
     // ==================== 公共访问器 ====================
@@ -71,14 +69,6 @@ public class OmniItemRepo extends ItemRepo {
         if (this.cacheOffset >= 0) {
             updateNormalView();
         }
-    }
-
-    public List<CraftingStatus> getActiveCrafting() {
-        return this.activeCrafting;
-    }
-
-    public int getTotalCount() {
-        return this.totalCount;
     }
 
     public boolean hasPendingRefresh() {
@@ -330,48 +320,10 @@ public class OmniItemRepo extends ItemRepo {
         ((IItemRepoAccessor) this).ae2e$setChanged(value);
     }
 
-    // ==================== 旧协议兼容（废弃）====================
-
-    public void handleFullInit(List<com.github.aeddddd.ae2enhanced.network.packet.PacketOmniInventoryUpdate.Entry> entries) {
-        // R3: 旧全量同步协议已废弃，不再处理
-    }
-
-    public void handleFullContinue(List<com.github.aeddddd.ae2enhanced.network.packet.PacketOmniInventoryUpdate.Entry> entries) {
-        // R3: 旧差量同步协议已废弃，改用 UPDATE_NOTIFY + PAGE_REQUEST
-    }
-
-    public void handleDeltaCount(List<com.github.aeddddd.ae2enhanced.network.packet.PacketOmniInventoryUpdate.Entry> entries) {
-        // R3: 旧差量同步协议已废弃，改用 UPDATE_NOTIFY + PAGE_REQUEST
-    }
-
-    public void handleItemRegister(int id, IAEItemStack stack) {
-        this.registry.register(id, stack, 0);
-    }
-
-    public void handleSearchResult(List<com.github.aeddddd.ae2enhanced.network.packet.PacketOmniSearchResult.Entry> entries) {
-        // R3: 旧搜索协议已废弃，搜索功能合并到分页查询
-    }
-
-    public void syncFlatList() {
-        // R3: 已删除
-    }
-
     // ==================== 向后兼容存根 ====================
-
-    public void setServerSearchActive(boolean active) {
-        // R3: 所有搜索都通过分页查询在服务端处理，此方法不再需要
-    }
 
     public long getRenderViewVersion() {
         // R3: 不再使用 renderView 双缓冲
         return this.cacheOffset;
-    }
-
-    public void setBulkLoading(boolean loading) {
-        // R3: 不再需要批量加载标志
-    }
-
-    public boolean isBulkLoading() {
-        return false;
     }
 }

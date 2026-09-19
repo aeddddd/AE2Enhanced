@@ -124,11 +124,4 @@ public final class Ae2fcFluidCompat {
         }
         return null;
     }
-
-    /**
-     * 判断 ItemStack 是否为流体假物品(兼容 ae2fc 与 AE2E 自己的 drop).
-     */
-    public static boolean isFluidDrop(ItemStack stack) {
-        return isAnyFluidFakeItem(stack);
-    }
 }

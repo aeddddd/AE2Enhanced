@@ -1,19 +1,18 @@
 package com.github.aeddddd.ae2enhanced.client.handler;
 
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
+import com.github.aeddddd.ae2enhanced.network.packet.PacketOmniToolDropMode;
 import com.github.aeddddd.ae2enhanced.network.packet.PacketOmniToolMode;
 import com.github.aeddddd.ae2enhanced.network.packet.PacketOmniToolSilkTouch;
-import com.github.aeddddd.ae2enhanced.network.packet.PacketOmniToolDropMode;
 import net.minecraft.client.settings.KeyBinding;
 import net.minecraft.item.ItemStack;
+import net.minecraftforge.client.event.MouseEvent;
 import net.minecraftforge.client.settings.KeyConflictContext;
 import net.minecraftforge.client.settings.KeyModifier;
 import net.minecraftforge.fml.client.registry.ClientRegistry;
-import net.minecraftforge.client.event.MouseEvent;
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
 import net.minecraftforge.fml.common.gameevent.InputEvent;
 import org.lwjgl.input.Keyboard;
-import org.lwjgl.input.Mouse;
 
 /**
  * 先进ME工具客户端按键处理.

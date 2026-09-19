@@ -84,11 +84,4 @@ public final class NodeTimingRegistry {
             STATS.remove(node);
         }
     }
-
-    /** 当前跟踪的节点数（诊断用）。 */
-    public static int trackedCount() {
-        synchronized (STATS) {
-            return STATS.size();
-        }
-    }
 }

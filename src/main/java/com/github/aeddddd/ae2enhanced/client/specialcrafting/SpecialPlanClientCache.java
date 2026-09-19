@@ -16,19 +16,16 @@ import com.github.aeddddd.ae2enhanced.specialcrafting.SpecialPlanInfo;
  */
 public final class SpecialPlanClientCache {
 
-    private static IAEItemStack output;
     private static SpecialPlanInfo info = SpecialPlanInfo.EMPTY;
 
     private SpecialPlanClientCache() {
     }
 
-    public static void update(IAEItemStack newOutput, SpecialPlanInfo newInfo) {
-        output = newOutput != null ? newOutput.copy() : null;
+    public static void update(SpecialPlanInfo newInfo) {
         info = newInfo != null ? newInfo : SpecialPlanInfo.EMPTY;
     }
 
     public static void clear() {
-        output = null;
         info = SpecialPlanInfo.EMPTY;
     }
 

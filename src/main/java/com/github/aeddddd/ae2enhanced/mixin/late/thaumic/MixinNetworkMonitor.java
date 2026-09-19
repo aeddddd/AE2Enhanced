@@ -74,13 +74,11 @@ public class MixinNetworkMonitor {
         IItemList<IAEEssentiaStack> essentiaList = essentiaChannel.createList();
         essentiaMonitor.getAvailableItems(essentiaList);
 
-        int added = 0;
         for (IAEEssentiaStack essentia : essentiaList) {
             if (essentia == null || essentia.getStackSize() <= 0) continue;
             IAEItemStack fakeItem = EssentiaBusHelper.packEssentia(essentia);
             if (fakeItem != null) {
                 out.addStorage(fakeItem);
-                added++;
             }
         }
     }

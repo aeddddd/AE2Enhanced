@@ -5,7 +5,7 @@ import net.minecraftforge.fml.common.network.simpleimpl.IMessage;
 
 public class PacketOmniToolPlacementSubMode implements IMessage {
 
-    private boolean next; // true = 切换到下一个模式，false = 上一个
+    private boolean next; // true 表示切换到下一个模式, false 表示上一个
 
     public PacketOmniToolPlacementSubMode() {
     }

@@ -162,6 +162,11 @@ dependencies {
 test {
     useJUnitPlatform()
     dependsOn 'remapAe2ForTest'
+    // 诊断基准类(test/bench/**,零断言纯观测)不纳入默认测试运行;
+    // 手动运行: ./gradlew test -Pbench(可叠加 AE2E_BENCH=1 获得 3g 堆)
+    if (!project.hasProperty('bench')) {
+        exclude '**/test/bench/**'
+    }
     // 极端规模基准(AE2E_BENCH=1 启用):放大堆并把基准输出直通控制台
     if (System.getenv('AE2E_BENCH') != null) {
         maxHeapSize = '3g'

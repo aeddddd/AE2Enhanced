@@ -196,7 +196,7 @@ public final class ProjectEHelper {
     }
 
     /**
-     * 获取玩家 BigInteger EMC 余额（若 Mixin 未生效则回退到 long）。
+     * 获取玩家 BigInteger EMC 余额, 若 Mixin 未生效则回退到 long.
      */
     @Nonnull
     public static BigInteger getEmcBig(@Nullable Object provider) {

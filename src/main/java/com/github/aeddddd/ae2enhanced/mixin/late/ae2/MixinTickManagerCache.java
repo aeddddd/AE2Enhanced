@@ -15,11 +15,11 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
- * 每节点 tick 耗时采集：UEL 删除了 TickTracker 的计时字段
- * （LastFiveTicksTime 恒为 0），本 Mixin 包装 onUpdateTick 中的
- * tickingRequest 调用，自行记录到 {@link NodeTimingRegistry}.
+ * 每节点 tick 耗时采集. UEL 删除了 TickTracker 的计时字段,
+ * LastFiveTicksTime 恒为 0, 本 Mixin 包装 onUpdateTick 中的
+ * tickingRequest 调用, 自行记录到 {@link NodeTimingRegistry}.
  *
- * <p>开关：/ae2e debug perf off 时直通原调用，零计时开销。</p>
+ * <p>开关: /ae2e debug perf off 时直通原调用, 零计时开销.</p>
  */
 @Mixin(value = TickManagerCache.class, remap = false)
 public abstract class MixinTickManagerCache {
@@ -39,7 +39,7 @@ public abstract class MixinTickManagerCache {
         }
     }
 
-    /** 节点移除时同步清理计时注册表（WeakHashMap 之外的主动回收）。 */
+    /** 节点移除时同步清理计时注册表, 属于 WeakHashMap 之外的主动回收. */
     @Inject(method = "removeNode", at = @At("HEAD"), require = 0)
     private void ae2e$onRemoveNode(IGridNode gridNode, IGridHost machine, CallbackInfo ci) {
         NodeTimingRegistry.remove(gridNode);

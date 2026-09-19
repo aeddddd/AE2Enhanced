@@ -9,7 +9,7 @@ import java.util.Map;
  * 黑洞合成配方.
  * 物品被投入黑洞事件视界后,若累计数量满足输入,则转化为输出产物.
  *
- * 输入 key 格式："registryName:meta",支持同一 Item 的不同 metadata 区分.
+ * 输入 key 格式: "registryName:meta", 支持同一 Item 的不同 metadata 区分.
  */
 public class BlackHoleRecipe {
 
@@ -19,7 +19,7 @@ public class BlackHoleRecipe {
 
     public BlackHoleRecipe(String id, Map<String, Integer> inputs, ItemStack output) {
         this.id = id;
-        // null 归一化：inputs 视为空 Map,output 视为 ItemStack.EMPTY
+        // null 归一化: inputs 视为空 Map, output 视为 ItemStack.EMPTY
         this.inputs = inputs != null ? new HashMap<>(inputs) : new HashMap<>();
         this.output = output != null ? output.copy() : ItemStack.EMPTY;
     }
@@ -63,7 +63,7 @@ public class BlackHoleRecipe {
     }
 
     /**
-     * 生成 ItemStack 的 key："registryName:meta"，若存在 NBT 则追加 NBT 字符串以区分同 meta 的不同物品。
+     * 生成 ItemStack 的 key: "registryName:meta", 若存在 NBT 则追加 NBT 字符串以区分同 meta 的不同物品.
      */
     public static String keyOf(ItemStack stack) {
         if (stack.isEmpty() || stack.getItem().getRegistryName() == null) return "";

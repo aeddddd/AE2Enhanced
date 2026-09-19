@@ -1,16 +1,13 @@
 package com.github.aeddddd.ae2enhanced.storage;
 
-import appeng.api.AEApi;
 import appeng.api.storage.IStorageChannel;
 import com.github.aeddddd.ae2enhanced.storage.energy.AEEnergyStack;
 import com.github.aeddddd.ae2enhanced.storage.energy.EnergyChannelResolver;
 import com.github.aeddddd.ae2enhanced.storage.energy.IAEEnergyStack;
 
-import java.math.BigInteger;
-
 /**
  * 超维度仓储枢纽的 RF 能量存储适配器,继承 {@link AbstractStorageAdapter}.
- * 内部使用 BigInteger 维护数量,突破 long 上限.
+ * 内部使用 {@link HugeCount} 混合精度计数,突破 long 上限.
  */
 public class HyperdimensionalEnergyStorageAdapter extends AbstractStorageAdapter<IAEEnergyStack, EnergyDescriptor> {
 
@@ -18,7 +15,7 @@ public class HyperdimensionalEnergyStorageAdapter extends AbstractStorageAdapter
         super(file);
         this.channel = (IStorageChannel<IAEEnergyStack>) EnergyChannelResolver.getChannel();
         file.loadEnergy(storage);
-        recalcTotal();
+        file.registerPostLoadHook(this::recalcTotal); // 异步首加载完成后重算总数
     }
 
     @Override
@@ -32,11 +29,8 @@ public class HyperdimensionalEnergyStorageAdapter extends AbstractStorageAdapter
     }
 
     @Override
-    protected IAEEnergyStack createResult(IAEEnergyStack request, BigInteger amount) {
-        if (amount.compareTo(StorageConstants.LONG_MAX) > 0) {
-            return AEEnergyStack.create(Long.MAX_VALUE);
-        }
-        return AEEnergyStack.create(amount.longValueExact());
+    protected IAEEnergyStack createResult(IAEEnergyStack request, HugeCount amount) {
+        return AEEnergyStack.create(amount.toLongSaturated());
     }
 
     @Override

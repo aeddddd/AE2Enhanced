@@ -10,10 +10,10 @@ import stanhebben.zenscript.annotations.ZenClass;
 import stanhebben.zenscript.annotations.ZenMethod;
 
 /**
- * CraftTweaker 集成：允许通过 ZenScript 为 Assembly Hub 注册新的升级卡.
+ * CraftTweaker 集成: 允许通过 ZenScript 为 Assembly Hub 注册新的升级卡,
  * 类型仅限并行(Parallel)和速度(Speed).
  *
- * 用法示例：
+ * 用法示例:
  * <pre>
  *   // 注册自定义并行升级卡
  *   mods.ae2enhanced.AssemblyHub.registerParallelUpgrade(

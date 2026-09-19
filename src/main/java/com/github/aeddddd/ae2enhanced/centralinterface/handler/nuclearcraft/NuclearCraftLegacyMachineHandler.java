@@ -1,20 +1,20 @@
 package com.github.aeddddd.ae2enhanced.centralinterface.handler.nuclearcraft;
 
-import com.github.aeddddd.ae2enhanced.centralinterface.TargetSession;
-
 import appeng.api.networking.security.IActionSource;
 import appeng.api.storage.data.IAEItemStack;
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
+import com.github.aeddddd.ae2enhanced.centralinterface.FluidTransferHelper;
+import com.github.aeddddd.ae2enhanced.centralinterface.HandlerCapabilities;
 import com.github.aeddddd.ae2enhanced.centralinterface.IRemoteHandler;
+import com.github.aeddddd.ae2enhanced.centralinterface.TargetSession;
 import net.minecraft.inventory.InventoryCrafting;
 import net.minecraft.item.ItemStack;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.NonNullList;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
+import net.minecraftforge.fluids.FluidStack;
 import net.minecraftforge.fml.common.Loader;
-
-import com.github.aeddddd.ae2enhanced.centralinterface.HandlerCapabilities;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
@@ -235,6 +235,13 @@ public class NuclearCraftLegacyMachineHandler implements IRemoteHandler {
             AE2Enhanced.LOGGER.warn("[AE2E] NuclearCraft clearOutputs failed", e);
         }
         return cleared;
+    }
+
+    @Override
+    public List<FluidStack> clearOutputFluids(World world, BlockPos pos, IActionSource source, TargetSession session, List<FluidStack> batchFluids) {
+        // NC 的输出罐被 TankSorption 标为 OUT、输入罐标为 IN；
+        // 通过真实面并按机器自身罐模式抽取，因此不会动输入罐。
+        return FluidTransferHelper.drainExtractableFluids(world, pos, batchFluids);
     }
 
     @Override

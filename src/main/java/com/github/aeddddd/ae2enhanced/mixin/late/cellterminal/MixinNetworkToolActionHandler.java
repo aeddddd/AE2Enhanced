@@ -12,9 +12,8 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import java.util.Map;
 
 /**
- * 网络批量工具(如"按内容分区存储总线")同样会改写 EMC 接口白名单,
+ * 网络批量工具同样会改写 EMC 接口白名单, 如按内容分区存储总线,
  * 在入口记录执行者以便 {@code EMCInterfaceFilterHost} 做权限校验.
- *
  * cellterminal 自有方法名不参与重映射, remap=false.
  */
 @Mixin(value = NetworkToolActionHandler.class, remap = false)

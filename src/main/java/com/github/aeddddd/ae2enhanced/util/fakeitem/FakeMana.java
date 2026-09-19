@@ -65,10 +65,6 @@ public final class FakeMana {
         });
     }
 
-    public static boolean isManaFakeItem(ItemStack stack) {
-        return ItemManaDrop.isManaDrop(stack);
-    }
-
     public static IAEItemStack packMana(IAEManaStack mana) {
         return FakeItemRegister.packAEStackLong(mana, ItemRegistry.MANA_DROP);
     }

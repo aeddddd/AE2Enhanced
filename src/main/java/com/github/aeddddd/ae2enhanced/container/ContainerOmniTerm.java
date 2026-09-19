@@ -3,29 +3,23 @@ package com.github.aeddddd.ae2enhanced.container;
 import appeng.api.AEApi;
 import appeng.api.config.Actionable;
 import appeng.api.config.PowerMultiplier;
-import appeng.api.storage.ITerminalHost;
-import appeng.api.storage.channels.IItemStorageChannel;
 import appeng.api.implementations.ICraftingPatternItem;
 import appeng.api.networking.crafting.ICraftingPatternDetails;
 import appeng.api.networking.storage.IStorageGrid;
+import appeng.api.storage.ITerminalHost;
+import appeng.api.storage.channels.IItemStorageChannel;
 import appeng.api.storage.data.IAEItemStack;
+import appeng.api.util.AEPartLocation;
+import appeng.container.ContainerNull;
+import appeng.container.ContainerOpenContext;
 import appeng.container.guisync.GuiSync;
 import appeng.container.implementations.ContainerMEMonitorable;
 import appeng.container.interfaces.IInventorySlotAware;
-import appeng.container.slot.IOptionalSlotHost;
-import appeng.container.slot.SlotCraftingMatrix;
-import appeng.container.slot.SlotCraftingTerm;
-import appeng.container.slot.SlotPatternTerm;
-import appeng.container.slot.SlotPlayerHotBar;
-import appeng.container.slot.SlotPlayerInv;
-import appeng.container.slot.SlotRestrictedInput;
-import appeng.container.ContainerNull;
+import appeng.container.slot.*;
 import appeng.core.localization.PlayerMessages;
 import appeng.helpers.IContainerCraftingPacket;
 import appeng.helpers.ItemStackHelper;
 import appeng.helpers.WirelessTerminalGuiObject;
-import appeng.api.util.AEPartLocation;
-import appeng.container.ContainerOpenContext;
 import appeng.tile.inventory.AppEngInternalInventory;
 import appeng.util.Platform;
 import appeng.util.inv.IAEAppEngInventory;
@@ -35,11 +29,12 @@ import com.github.aeddddd.ae2enhanced.client.gui.slot.RCSlotFakeCraftingMatrix;
 import com.github.aeddddd.ae2enhanced.client.gui.slot.RCSlotPatternOutputs;
 import com.github.aeddddd.ae2enhanced.client.gui.slot.SlotHighCapacity;
 import com.github.aeddddd.ae2enhanced.client.gui.slot.SlotOmniUpgrade;
-import com.github.aeddddd.ae2enhanced.item.ItemOmniWirelessTerminal;
 import com.github.aeddddd.ae2enhanced.client.me.CraftingStatus;
-import com.github.aeddddd.ae2enhanced.storage.OmniTerminalData;
-import com.github.aeddddd.ae2enhanced.storage.OmniTerminalInventory;
-import com.github.aeddddd.ae2enhanced.storage.OmniTerminalStorage;
+import com.github.aeddddd.ae2enhanced.item.ItemOmniWirelessTerminal;
+import com.github.aeddddd.ae2enhanced.storage.*;
+import com.github.aeddddd.ae2enhanced.tile.TileHyperdimensionalController;
+import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
+import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.entity.player.InventoryPlayer;
 import net.minecraft.inventory.InventoryCrafting;
@@ -52,24 +47,8 @@ import net.minecraft.nbt.NBTTagList;
 import net.minecraftforge.items.IItemHandler;
 import net.minecraftforge.items.wrapper.PlayerInvWrapper;
 
-import com.github.aeddddd.ae2enhanced.network.packet.PacketOmniInventoryUpdate;
-import com.github.aeddddd.ae2enhanced.network.packet.PacketOmniSearchRequest;
-import com.github.aeddddd.ae2enhanced.network.packet.PacketOmniSearchResult;
-import com.github.aeddddd.ae2enhanced.storage.ItemDescriptor;
-import com.github.aeddddd.ae2enhanced.storage.ItemStorageAdapter;
-import com.github.aeddddd.ae2enhanced.storage.SimpleMEMonitor;
-import com.github.aeddddd.ae2enhanced.tile.TileHyperdimensionalController;
-import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
-import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap;
-
 import java.lang.reflect.Method;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Optional;
-import java.util.Set;
+import java.util.*;
 
 /**
  * 全能无线终端 Container —— 物品库 + 合成栏 + 81槽位编码样板 + 右侧存储
@@ -1665,9 +1644,6 @@ public class ContainerOmniTerm extends ContainerMEMonitorable
     // ================== 服务端搜索（基于超维度仓储索引）====================
 
     /**
-     * 处理客户端发来的搜索请求，利用超维度仓储的预构建索引快速筛选。
-     */
-    /**
      * R3: 处理客户端发来的分页请求。
      */
     public void handlePageRequest(com.github.aeddddd.ae2enhanced.network.packet.PacketOmniPageRequest request) {
@@ -1780,53 +1756,6 @@ public class ContainerOmniTerm extends ContainerMEMonitorable
         return new ItemStorageAdapter.PageResult(total, request.getOffset(), page);
     }
 
-    public void handleSearchRequest(PacketOmniSearchRequest request) {
-        ItemStorageAdapter adapter = findItemStorageAdapter();
-        List<IAEItemStack> results;
-
-        if (adapter != null) {
-            results = adapter.search(request.getQuery(), request.isModSearch(), request.getLimit());
-        } else {
-            results = fallbackSearch(request);
-        }
-
-        // ViewMode 过滤
-        appeng.api.config.ViewItems viewMode = appeng.api.config.ViewItems.values()[request.getViewModeOrdinal()];
-        List<IAEItemStack> filtered = new ArrayList<>();
-        for (IAEItemStack stack : results) {
-            if (viewMode == appeng.api.config.ViewItems.CRAFTABLE && !stack.isCraftable()) continue;
-            if (viewMode == appeng.api.config.ViewItems.STORED && stack.getStackSize() == 0L) continue;
-            filtered.add(stack);
-        }
-
-        // 排序
-        appeng.api.config.SortOrder sortBy = appeng.api.config.SortOrder.values()[request.getSortByOrdinal()];
-        appeng.api.config.SortDir sortDir = appeng.api.config.SortDir.values()[request.getSortDirOrdinal()];
-        Comparator<IAEItemStack> c = getSearchComparator(sortBy);
-        appeng.util.ItemSorters.setDirection(sortDir);
-        appeng.util.ItemSorters.init();
-        filtered.sort(c);
-
-        // 截断到 limit
-        if (filtered.size() > request.getLimit()) {
-            filtered = filtered.subList(0, request.getLimit());
-        }
-
-        // 转换为 Entry 列表
-        List<PacketOmniSearchResult.Entry> entries = new ArrayList<>(filtered.size());
-        for (IAEItemStack stack : filtered) {
-            int id = this.getOrAllocateId(stack);
-            entries.add(new PacketOmniSearchResult.Entry(id, stack, stack.getStackSize()));
-        }
-
-        // 发送结果到客户端
-        PacketOmniSearchResult result = new PacketOmniSearchResult(entries);
-        result.setFullResult(true);
-        com.github.aeddddd.ae2enhanced.AE2Enhanced.network.sendTo(
-                result,
-                (net.minecraft.entity.player.EntityPlayerMP) this.getPlayerInv().player);
-    }
-
     private ItemStorageAdapter findItemStorageAdapter() {
         ItemStorageAdapter adapter = null;
 
@@ -1882,41 +1811,6 @@ public class ContainerOmniTerm extends ContainerMEMonitorable
         }
 
         return adapter;
-    }
-
-    private List<IAEItemStack> fallbackSearch(PacketOmniSearchRequest request) {
-        // 未找到超维度仓储时的 fallback：遍历 omniMonitor.getStorageList()
-        appeng.api.storage.data.IItemList<IAEItemStack> list = this.omniMonitor.getStorageList();
-        List<IAEItemStack> results = new ArrayList<>();
-        String query = request.getQuery().toLowerCase();
-
-        boolean fuzzyModSearch = request.isModSearch()
-                && (com.github.aeddddd.ae2enhanced.config.AE2EnhancedConfig.terminal.modSearchFuzzyThreshold <= 0
-                || getMonitorItemCount() <= com.github.aeddddd.ae2enhanced.config.AE2EnhancedConfig.terminal.modSearchFuzzyThreshold);
-
-        for (IAEItemStack stack : list) {
-            if (!stack.isMeaningful()) continue;
-            if (request.isModSearch()) {
-                String modId = stack.asItemStackRepresentation().getItem().getRegistryName().getNamespace().toLowerCase();
-                if (fuzzyModSearch ? modId.contains(query) : modId.equals(query)) {
-                    results.add(stack.copy());
-                }
-            } else {
-                String name = stack.asItemStackRepresentation().getDisplayName().toLowerCase();
-                if (name.contains(query)) {
-                    results.add(stack.copy());
-                }
-            }
-        }
-        return results;
-    }
-
-    private int getMonitorItemCount() {
-        int count = 0;
-        for (IAEItemStack stack : this.omniMonitor.getStorageList()) {
-            if (stack.isMeaningful()) count++;
-        }
-        return count;
     }
 
     private static Comparator<IAEItemStack> getSearchComparator(appeng.api.config.SortOrder sortBy) {

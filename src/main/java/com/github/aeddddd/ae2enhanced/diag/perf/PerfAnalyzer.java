@@ -47,10 +47,6 @@ public final class PerfAnalyzer {
         GridStat(Grid grid) {
             this.grid = grid;
         }
-
-        public double totalMs() {
-            return totalAvgNanos / 1_000_000.0;
-        }
     }
 
     /** 机器类聚合（跨全部网格）。 */
@@ -61,10 +57,6 @@ public final class PerfAnalyzer {
 
         MachineStat(String className) {
             this.className = className;
-        }
-
-        public double totalMs() {
-            return totalAvgNanos / 1_000_000.0;
         }
     }
 

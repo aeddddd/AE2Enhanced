@@ -14,7 +14,6 @@ public final class BotaniaApplieCompat {
 
     private static final boolean LOADED;
     private static final boolean HAS_MANA_CHANNEL;
-    private static Class<?> manaChannelClass;
     private static Object manaChannelInstance;
 
     // Mana 数据包物品反射缓存
@@ -28,7 +27,7 @@ public final class BotaniaApplieCompat {
         boolean loaded = false;
         boolean hasChannel = false;
         try {
-            manaChannelClass = Class.forName("nyonio.ae2.ManaStorageChannel");
+            Class<?> manaChannelClass = Class.forName("nyonio.ae2.ManaStorageChannel");
             loaded = true;
             Object instance = manaChannelClass.getField("INSTANCE").get(null);
             if (instance instanceof IStorageChannel) {
@@ -78,15 +77,6 @@ public final class BotaniaApplieCompat {
     @SuppressWarnings("unchecked")
     public static IStorageChannel<?> getManaStorageChannelInstance() {
         return (IStorageChannel<?>) manaChannelInstance;
-    }
-
-    /**
-     * 获取 Botania_Applie 的 {@code ManaStorageChannel} 类对象.
-     *
-     * @return 外部通道类,若不存在则返回 null
-     */
-    public static Class<?> getManaChannelClass() {
-        return manaChannelClass;
     }
 
     /**

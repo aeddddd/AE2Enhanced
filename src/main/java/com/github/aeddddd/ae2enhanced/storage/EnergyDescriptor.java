@@ -1,7 +1,5 @@
 package com.github.aeddddd.ae2enhanced.storage;
 
-import appeng.api.storage.channels.IItemStorageChannel;
-import appeng.api.storage.data.IAEItemStack;
 import com.github.aeddddd.ae2enhanced.storage.energy.AEEnergyStack;
 import com.github.aeddddd.ae2enhanced.storage.energy.IAEEnergyStack;
 import net.minecraft.nbt.NBTTagCompound;

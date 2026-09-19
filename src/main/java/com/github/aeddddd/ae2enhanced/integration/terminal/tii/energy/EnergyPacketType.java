@@ -14,10 +14,7 @@ import net.minecraft.util.text.TextFormatting;
 import nyonio.terminal_interaction_integration.api.IPacketType;
 
 /**
- * TII RF 能量数据包类型.
- * <p>
- * 若 Flux_Applied 的数据包可用则优先使用,否则回退到 AE2E 的 {@link ItemEnergyDrop}.
- * </p>
+ * TII RF 能量数据包类型. 若 Flux_Applied 的数据包可用则优先使用, 否则回退到 AE2E 的 {@link ItemEnergyDrop}.
  */
 public class EnergyPacketType implements IPacketType {
 

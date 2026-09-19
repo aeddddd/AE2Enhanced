@@ -5,45 +5,43 @@ import appeng.api.networking.security.IActionSource;
 import appeng.api.storage.IMEMonitor;
 import appeng.api.storage.channels.IItemStorageChannel;
 import appeng.api.storage.data.IAEItemStack;
-
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
 import com.github.aeddddd.ae2enhanced.dimension.PresetLoader;
 import com.github.aeddddd.ae2enhanced.item.ItemAdvancedMEOmniTool;
 import com.github.aeddddd.ae2enhanced.item.ItemConformalCharge;
+import com.github.aeddddd.ae2enhanced.item.ItemMEPlacementTool;
+import com.github.aeddddd.ae2enhanced.mixin.late.accessor.IEntityLivingBaseAccessor;
+import com.github.aeddddd.ae2enhanced.network.packet.PacketPlacementUndo;
 import com.github.aeddddd.ae2enhanced.omnitool.OmniToolUpgrades;
 import com.github.aeddddd.ae2enhanced.omnitool.module.CombatModule;
 import com.github.aeddddd.ae2enhanced.omnitool.module.MiningModule;
-import com.github.aeddddd.ae2enhanced.item.ItemMEPlacementTool;
 import com.github.aeddddd.ae2enhanced.omnitool.network.WirelessTransmitterNetworkLink;
-import com.github.aeddddd.ae2enhanced.network.packet.PacketPlacementUndo;
-import com.github.aeddddd.ae2enhanced.util.placement.PlacementConfig;
 import com.github.aeddddd.ae2enhanced.tile.TileAdvancedMECollector;
 import com.github.aeddddd.ae2enhanced.util.ForceKillHelper;
-import com.github.aeddddd.ae2enhanced.mixin.late.accessor.IEntityLivingBaseAccessor;
+import com.github.aeddddd.ae2enhanced.util.placement.PlacementConfig;
+import net.minecraft.block.state.IBlockState;
 import net.minecraft.entity.EntityLivingBase;
 import net.minecraft.entity.item.EntityItem;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.nbt.NBTTagList;
-import net.minecraftforge.common.util.Constants;
 import net.minecraft.util.DamageSource;
-import net.minecraft.block.state.IBlockState;
 import net.minecraft.util.EnumParticleTypes;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
 import net.minecraftforge.common.MinecraftForge;
-import net.minecraftforge.event.entity.living.LivingDeathEvent;
+import net.minecraftforge.common.util.Constants;
+import net.minecraftforge.event.entity.living.LivingDropsEvent;
 import net.minecraftforge.event.entity.living.LivingHealEvent;
 import net.minecraftforge.event.entity.living.LivingHurtEvent;
-import net.minecraftforge.event.entity.living.LivingDropsEvent;
 import net.minecraftforge.event.entity.player.PlayerDropsEvent;
 import net.minecraftforge.event.entity.player.PlayerInteractEvent;
-import net.minecraftforge.fml.common.gameevent.PlayerEvent;
 import net.minecraftforge.event.world.BlockEvent;
 import net.minecraftforge.fml.client.event.ConfigChangedEvent;
 import net.minecraftforge.fml.common.eventhandler.EventPriority;
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
+import net.minecraftforge.fml.common.gameevent.PlayerEvent;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -57,7 +55,7 @@ public final class ModEventHandler {
     private ModEventHandler() {}
 
     public static void register() {
-        // 指环事件处理器需先于 ModEventHandler 注册：同优先级下先注册者先执行,
+        // 指环事件处理器需先于 ModEventHandler 注册: 同优先级下先注册者先执行,
         // 保证飞升指环在死亡掉落被收集器重定向之前完成保留
         MinecraftForge.EVENT_BUS.register(new com.github.aeddddd.ae2enhanced.ring.RingEventHandler());
         MinecraftForge.EVENT_BUS.register(new ModEventHandler());
@@ -65,7 +63,7 @@ public final class ModEventHandler {
     }
 
     /**
-     * 配置变更时重载个人维度地板预设缓存。
+     * 配置变更时重载个人维度地板预设缓存.
      */
     @SubscribeEvent
     public void onConfigChanged(ConfigChangedEvent.OnConfigChangedEvent event) {
@@ -75,7 +73,7 @@ public final class ModEventHandler {
     }
 
     /**
-     * 允许先进 ME 工具破坏不可破坏方块（如基岩、命令方块等 hardness < 0 的方块）。
+     * 允许先进 ME 工具破坏不可破坏方块, 如基岩、命令方块等 hardness < 0 的方块.
      */
     @SubscribeEvent(priority = EventPriority.HIGHEST)
     public void onLeftClickBlock(PlayerInteractEvent.LeftClickBlock event) {
@@ -97,7 +95,7 @@ public final class ModEventHandler {
     }
 
     /**
-     * ME 放置工具 / 先进 ME 工具放置模式：左键点击方块时，若已设置线缆起点，则设为终点并放置线缆。
+     * 放置模式: 左键点击方块时, 若已设置线缆起点, 则设为终点并放置线缆.
      */
     @SubscribeEvent(priority = EventPriority.HIGHEST)
     public void onPlacementToolLeftClick(PlayerInteractEvent.LeftClickBlock event) {
@@ -112,7 +110,7 @@ public final class ModEventHandler {
 
         PlacementConfig config = new PlacementConfig(stack);
         BlockPos start = config.getCableStart();
-        if (start == null) return; // 无线缆起点，正常破坏
+        if (start == null) return; // 无线缆起点, 正常破坏
 
         event.setCanceled(true);
         BlockPos end = event.getPos().offset(event.getFace());
@@ -120,7 +118,7 @@ public final class ModEventHandler {
     }
 
     /**
-     * 玩家退出时清理放置工具的撤销记录，避免长期驻留内存。
+     * 玩家退出时清理放置工具的撤销记录, 避免长期驻留内存.
      */
     @SubscribeEvent
     public void onPlayerLoggedOut(net.minecraftforge.fml.common.gameevent.PlayerEvent.PlayerLoggedOutEvent event) {
@@ -128,7 +126,7 @@ public final class ModEventHandler {
     }
 
     /**
-     * ME 放置工具 / 先进 ME 工具放置模式：Ctrl + 右键撤销上一次放置。
+     * 放置模式: Ctrl + 右键撤销上一次放置.
      */
     @SubscribeEvent(priority = EventPriority.HIGHEST)
     public void onPlacementToolRightClick(PlayerInteractEvent.RightClickItem event) {
@@ -166,10 +164,10 @@ public final class ModEventHandler {
     }
 
     /**
-     * 先进 ME 工具的掉落重定向（背包/AE 模式）。
-     * 必须以 LOWEST 优先级执行：BOP 的 SilkTouchEventHandler 在 NORMAL 优先级会对
-     * IBOPBlock 重新向列表填入 getPickBlock 掉落；若在 HIGHEST 清空列表会被其重新填充，
-     * 且 Forge 的精准采集分支无视 dropChance 无条件生成列表内物品，导致背包与原地双重掉落。
+     * 先进 ME 工具的掉落重定向, 背包/AE 模式.
+     * 必须以 LOWEST 优先级执行: BOP 的 SilkTouchEventHandler 在 NORMAL 优先级会向列表重新填入
+     * getPickBlock 掉落, 且 Forge 的精准采集分支无视 dropChance 无条件生成列表内物品,
+     * 若在 HIGHEST 清空列表会被其重新填充, 导致背包与原地双重掉落.
      */
     @SubscribeEvent(priority = EventPriority.LOWEST)
     public void onHarvestDropsOmniTool(BlockEvent.HarvestDropsEvent event) {

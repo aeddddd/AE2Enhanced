@@ -1,7 +1,6 @@
 package com.github.aeddddd.ae2enhanced.client.gui;
 
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
-import com.github.aeddddd.ae2enhanced.chamber.LongItemStore;
 import com.github.aeddddd.ae2enhanced.container.ContainerSingularityChamber;
 import com.github.aeddddd.ae2enhanced.network.packet.PacketChamberAction;
 import com.github.aeddddd.ae2enhanced.network.packet.PacketChamberSync;
@@ -28,8 +27,8 @@ import java.util.List;
  *
  * <p>布局：9×3 输入缓存（虚拟槽,点击倒入/取回）、9 列任务区
  * （进度条 + 任务输出图标）、箭头流向、9 格输出缓冲（虚拟槽）、
- * 右侧竖排 5 卡片槽（并行 + 4 升级）、输出行右侧红石模式按钮
- * （灰=未选中 / 浅蓝=悬停 / 蓝=已激活,中央图标指示模式）.</p>
+ * 右侧竖排 5 卡片槽（并行 + 4 升级）、输出行右侧凸出面板内的红石模式按钮
+ * （灰=未选中 / 浅蓝=悬停 / 蓝=已激活,中央火把图标指示模式）.</p>
  */
 @SideOnly(Side.CLIENT)
 public class GuiSingularityChamber extends GuiContainer {
@@ -47,16 +46,18 @@ public class GuiSingularityChamber extends GuiContainer {
     private static final int JOB_X = 8, JOB_Y = 94;            // 任务图标
     private static final int OUT_X = 8, OUT_Y = 120;           // 输出缓冲
     private static final int INV_Y = 152, HOTBAR_Y = 210;      // 玩家背包
-    private static final int REDSTONE_X = 180, REDSTONE_Y = 119; // 红石按钮（输出行右侧预留位）
+    // 红石按钮：底版纹理 x175-197 y114-143,中心 (186,128)
+    private static final int REDSTONE_CX = 186, REDSTONE_CY = 128;
+    private static final int REDSTONE_W = 20, REDSTONE_H = 21; // 点击/悬停判定区域
 
-    // ---- 贴图区精灵坐标 ----
+    // ---- 贴图区精灵坐标（与手绘精灵实际边界对齐） ----
     private static final int[] SPRITE_FILL = {212, 1, 13, 4};   // 紫色进度填充
-    private static final int[] SPRITE_BTN_NORMAL = {228, 6};    // 灰：未选中
-    private static final int[] SPRITE_BTN_HOVER = {210, 6};     // 浅蓝：悬停
-    private static final int[] SPRITE_BTN_ACTIVE = {210, 26};   // 蓝：已按下
-    private static final int[] ICON_HIGH = {208, 61, 9, 9};     // 红：高电平
-    private static final int[] ICON_LOW = {208, 52, 9, 9};      // 暗红：低电平
-    private static final int[] ICON_IGNORE = {208, 70, 9, 9};   // 深色：忽略
+    private static final int[] SPRITE_BTN_NORMAL = {229, 6, 17, 20};  // 灰：未选中
+    private static final int[] SPRITE_BTN_HOVER = {209, 5, 20, 21};   // 浅蓝：悬停
+    private static final int[] SPRITE_BTN_ACTIVE = {209, 26, 19, 21}; // 蓝：已激活
+    private static final int[] ICON_HIGH = {210, 45, 9, 9};     // 亮红火把+信号：高电平
+    private static final int[] ICON_LOW = {210, 54, 9, 9};      // 暗红火把：低电平
+    private static final int[] ICON_IGNORE = {210, 63, 9, 9};   // 常亮火把：忽略
 
     private final BlockPos pos;
 
@@ -103,9 +104,11 @@ public class GuiSingularityChamber extends GuiContainer {
     protected void drawGuiContainerBackgroundLayer(float partialTicks, int mouseX, int mouseY) {
         GlStateManager.color(1.0f, 1.0f, 1.0f, 1.0f);
         mc.getTextureManager().bindTexture(TEXTURE);
-        // 主面板 + 右侧卡片条带（条带右边界在 texture x=206,需画满 32px 宽）
+        // 主面板 + 右侧卡片条带（纹理 x178-209 y0-103,含右/下边框,与屏幕坐标恒等映射）
         drawTexturedModalRect(guiLeft, guiTop, 0, 0, PANEL_W, ySize);
-        drawTexturedModalRect(guiLeft + PANEL_W, guiTop, PANEL_W, 0, 32, 100);
+        drawTexturedModalRect(guiLeft + 178, guiTop, 178, 0, 32, 104);
+        // 红石按钮底版（主面板右缘凸出块,纹理 x175-197 y114-143）
+        drawTexturedModalRect(guiLeft + 175, guiTop + 114, 175, 114, 23, 30);
 
         // 任务进度填充（紫色精灵,按进度裁剪宽度）
         for (int i = 0; i < Math.min(9, jobs.size()); i++) {
@@ -129,9 +132,10 @@ public class GuiSingularityChamber extends GuiContainer {
         RenderHelper.disableStandardItemLighting();
         GlStateManager.color(1.0f, 1.0f, 1.0f, 1.0f);
 
-        // 红石按钮：悬停 > 已激活(非忽略) > 未选中
+        // 红石按钮：按底版中心居中绘制（手绘精灵宽高不一,逐状态取中）
         mc.getTextureManager().bindTexture(TEXTURE);
-        boolean hovered = inRect(mouseX, mouseY, guiLeft + REDSTONE_X, guiTop + REDSTONE_Y, 18, 18);
+        boolean hovered = inRect(mouseX, mouseY, guiLeft + REDSTONE_CX - REDSTONE_W / 2,
+                guiTop + REDSTONE_CY - REDSTONE_H / 2, REDSTONE_W, REDSTONE_H);
         int[] sprite;
         if (hovered) {
             sprite = SPRITE_BTN_HOVER;
@@ -140,10 +144,11 @@ public class GuiSingularityChamber extends GuiContainer {
         } else {
             sprite = SPRITE_BTN_NORMAL;
         }
-        drawTexturedModalRect(guiLeft + REDSTONE_X, guiTop + REDSTONE_Y, sprite[0], sprite[1], 18, 18);
-        // 模式图标（9×9 紧密瓦片,1:1 居中绘制在按钮的图标层区域）
+        drawTexturedModalRect(guiLeft + REDSTONE_CX - sprite[2] / 2, guiTop + REDSTONE_CY - sprite[3] / 2,
+                sprite[0], sprite[1], sprite[2], sprite[3]);
+        // 模式图标（9×9 手绘火把,居中叠于按钮之上）
         int[] icon = redstoneMode == 1 ? ICON_HIGH : redstoneMode == 2 ? ICON_LOW : ICON_IGNORE;
-        drawTexturedModalRect(guiLeft + REDSTONE_X + 4, guiTop + REDSTONE_Y + 4,
+        drawTexturedModalRect(guiLeft + REDSTONE_CX - icon[2] / 2, guiTop + REDSTONE_CY - icon[3] / 2,
                 icon[0], icon[1], icon[2], icon[3]);
     }
 
@@ -163,7 +168,7 @@ public class GuiSingularityChamber extends GuiContainer {
 
     @Override
     protected void mouseClicked(int mouseX, int mouseY, int mouseButton) throws IOException {
-        if (inRect(mouseX, mouseY, guiLeft + REDSTONE_X, guiTop + REDSTONE_Y, 18, 18)) {
+        if (inRedstoneButton(mouseX, mouseY)) {
             AE2Enhanced.network.sendToServer(new PacketChamberAction(
                     pos, PacketChamberAction.ACTION_CYCLE_REDSTONE, ""));
             mc.getSoundHandler().playSound(PositionedSoundRecord.getMasterRecord(
@@ -171,6 +176,11 @@ public class GuiSingularityChamber extends GuiContainer {
             return;
         }
         super.mouseClicked(mouseX, mouseY, mouseButton);
+    }
+
+    private boolean inRedstoneButton(int mx, int my) {
+        return inRect(mx, my, guiLeft + REDSTONE_CX - REDSTONE_W / 2,
+                guiTop + REDSTONE_CY - REDSTONE_H / 2, REDSTONE_W, REDSTONE_H);
     }
 
     private static boolean inRect(int mx, int my, int x, int y, int w, int h) {
@@ -242,7 +252,7 @@ public class GuiSingularityChamber extends GuiContainer {
 
     private void drawCustomTooltips(int mouseX, int mouseY) {
         // 红石按钮
-        if (inRect(mouseX, mouseY, guiLeft + REDSTONE_X, guiTop + REDSTONE_Y, 18, 18)) {
+        if (inRedstoneButton(mouseX, mouseY)) {
             List<String> tooltip = new ArrayList<>();
             tooltip.add(I18n.format("gui.ae2enhanced.chamber.redstone." + redstoneMode));
             tooltip.add(I18n.format("gui.ae2enhanced.chamber.energy",

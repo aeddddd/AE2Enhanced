@@ -7,7 +7,6 @@ import com.github.aeddddd.ae2enhanced.AE2Enhanced;
 import net.minecraftforge.fml.common.Loader;
 
 import java.lang.reflect.Method;
-import java.math.BigInteger;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -51,22 +50,25 @@ public class OptionalStorageManager {
         }
 
         @SuppressWarnings("unchecked")
-        Map<Object, BigInteger> getStorageMap() {
+        Map<Object, HugeCount> getStorageMap() {
             try {
-                return (Map<Object, BigInteger>) getStorageMapMethod.invoke(adapter);
+                return (Map<Object, HugeCount>) getStorageMapMethod.invoke(adapter);
             } catch (Exception e) {
                 AE2Enhanced.LOGGER.warn("[AE2E] Failed to get storage map", e);
                 return null;
             }
         }
 
-        BigInteger getTotalCount() {
+        HugeCount getTotalCount() {
             try {
                 Object total = getTotalCountMethod.invoke(adapter);
-                return total instanceof BigInteger ? (BigInteger) total : BigInteger.ZERO;
+                if (total instanceof HugeCount) {
+                    return (HugeCount) total;
+                }
+                return HugeCount.ZERO;
             } catch (Exception e) {
                 AE2Enhanced.LOGGER.warn("[AE2E] Failed to get total count", e);
-                return BigInteger.ZERO;
+                return HugeCount.ZERO;
             }
         }
 
@@ -188,8 +190,8 @@ public class OptionalStorageManager {
         return count;
     }
 
-    public BigInteger getTotalCount() {
-        BigInteger sum = BigInteger.ZERO;
+    public HugeCount getTotalCount() {
+        HugeCount sum = HugeCount.ZERO;
         for (OptionalAdapterWrapper wrapper : optionalAdapters) {
             sum = sum.add(wrapper.getTotalCount());
         }

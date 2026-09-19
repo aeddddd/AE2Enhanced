@@ -56,7 +56,4 @@ public class ContainerComputationUnformed extends Container {
         return itemstack;
     }
 
-    public TileComputationCore getTile() {
-        return tile;
-    }
 }

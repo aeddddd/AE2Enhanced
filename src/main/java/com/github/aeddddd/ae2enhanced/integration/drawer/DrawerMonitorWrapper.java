@@ -3,15 +3,13 @@ package com.github.aeddddd.ae2enhanced.integration.drawer;
 import appeng.api.config.AccessRestriction;
 import appeng.api.config.Actionable;
 import appeng.api.networking.security.IActionSource;
-import appeng.api.networking.storage.IBaseMonitor;
 import appeng.api.networking.ticking.TickRateModulation;
-import appeng.api.storage.IMEInventoryHandler;
 import appeng.api.storage.IMEMonitor;
 import appeng.api.storage.IMEMonitorHandlerReceiver;
 import appeng.api.storage.IStorageChannel;
-import appeng.me.storage.ITickingMonitor;
 import appeng.api.storage.data.IAEItemStack;
 import appeng.api.storage.data.IItemList;
+import appeng.me.storage.ITickingMonitor;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -20,12 +18,9 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * 抽屉模组监视器包装器.
- *
- * <p>将 {@link IDrawerIndexAdapter} 包装为 AE2 的 {@link IMEMonitor} + {@link ITickingMonitor},
- * 统一处理 onTick() 差异检测、listener 通知、以及主动操作后的增量更新.</p>
- *
- * <p>本类是无条件加载的公共类,不引用任何第三方抽屉模组类,常量池安全.</p>
+ * 抽屉模组监视器包装器, 将 {@link IDrawerIndexAdapter} 包装为 AE2 的 {@link IMEMonitor} 与
+ * {@link ITickingMonitor}, 统一处理 onTick() 差异检测, listener 通知和主动操作后的增量更新.
+ * 本类无条件加载, 不引用任何第三方抽屉模组类, 常量池安全.
  */
 public class DrawerMonitorWrapper implements IMEMonitor<IAEItemStack>, ITickingMonitor {
 

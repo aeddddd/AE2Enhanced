@@ -6,7 +6,7 @@ import net.minecraft.client.resources.I18n;
 import net.minecraft.entity.player.InventoryPlayer;
 
 /**
- * E1a：通用输入总线的 GUI.
+ * E1a: 通用输入总线的 GUI.
  */
 public class GuiUniversalImportBus extends GuiUniversalBus {
 

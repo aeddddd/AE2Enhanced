@@ -65,10 +65,6 @@ public final class FakeEnergies {
         });
     }
 
-    public static boolean isEnergyFakeItem(ItemStack stack) {
-        return ItemEnergyDrop.isEnergyDrop(stack);
-    }
-
     public static IAEItemStack packEnergy(IAEEnergyStack energy) {
         return FakeItemRegister.packAEStackLong(energy, ItemRegistry.ENERGY_DROP);
     }

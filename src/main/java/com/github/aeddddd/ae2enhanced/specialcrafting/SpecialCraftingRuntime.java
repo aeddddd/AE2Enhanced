@@ -10,14 +10,10 @@ import com.github.aeddddd.ae2enhanced.config.AE2EnhancedConfig;
 
 /**
  * 特殊配方功能运行时状态.
- * <p>持有两类状态:</p>
- * <ul>
- * <li>功能开关:由配置文件给出初始值,{@code /ae2e specialcrafting} 指令运行时切换.
- * 关闭时路由层完全放行原生行为（计算/提交/执行零干预）.</li>
- * <li>特殊 job 集群标记:特殊计划提交到计算核心集群时登记,执行层门控
- * （SelfRefOutputGate / RoundQuotaScheduler）仅对被标记的集群生效,
- * 普通 job 与普通 CPU 零影响.job 完成/取消时解除标记.</li>
- * </ul>
+ * <p>功能开关由配置文件给出初始值,{@code /ae2e specialcrafting} 指令可运行时切换;
+ * 关闭时路由层完全放行原生行为(计算/提交/执行零干预).特殊 job 提交到计算核心
+ * 集群时登记集群标记,执行层门控(SelfRefOutputGate / RoundQuotaScheduler)
+ * 仅对被标记的集群生效,job 完成/取消时解除标记.</p>
  */
 public final class SpecialCraftingRuntime {
 
@@ -33,10 +29,6 @@ public final class SpecialCraftingRuntime {
      */
     public static boolean isEnabled() {
         return AE2EnhancedConfig.crafting.specialCrafting;
-    }
-
-    public static void setEnabled(boolean enabled) {
-        AE2EnhancedConfig.crafting.specialCrafting = enabled;
     }
 
     public static void tagCluster(CraftingCPUCluster cluster) {

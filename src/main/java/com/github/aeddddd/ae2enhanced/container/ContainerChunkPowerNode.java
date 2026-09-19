@@ -42,10 +42,6 @@ public class ContainerChunkPowerNode extends Container {
         }
     }
 
-    public TileChunkPowerNode getTile() {
-        return tile;
-    }
-
     @Override
     public void detectAndSendChanges() {
         super.detectAndSendChanges();

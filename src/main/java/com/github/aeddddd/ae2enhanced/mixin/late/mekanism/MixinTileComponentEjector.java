@@ -20,11 +20,9 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * Mekanism 机器产物直注 Mixin。
- *
- * <p>在 {@link TileComponentEjector#tick()} 调用 {@code outputItems()} 之前，
- * 把当前配置的物品输出槽中的产物重定向到已绑定的 ME 网络回收节点。
- * 同时流体/GAS 阶段调用 ejectFluid 前把流体产物重定向到网络。</p>
+ * Mekanism 机器产物直注 Mixin. 在 TileComponentEjector.tick() 调用 outputItems() 之前,
+ * 把当前配置的物品输出槽中的产物重定向到已绑定的 ME 网络回收节点,
+ * 流体阶段在 ejectFluid 前把流体产物重定向到网络.
  */
 @Mixin(value = TileComponentEjector.class, remap = false)
 public class MixinTileComponentEjector {

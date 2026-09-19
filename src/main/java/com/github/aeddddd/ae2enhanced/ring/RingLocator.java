@@ -33,10 +33,6 @@ public final class RingLocator {
         return findInBaubles(player);
     }
 
-    public static boolean hasRing(EntityPlayer player) {
-        return !findRing(player).isEmpty();
-    }
-
     /**
      * 统计玩家身上飞升凭证数量(物品栏 getSizeInventory 已含主手/副手/护甲,另加 Baubles).
      * 供 Vethea 维度切换整合器计算冗余存档副本数.

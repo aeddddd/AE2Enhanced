@@ -36,6 +36,33 @@ public class MemoryCardHandlerRegistry {
         return null;
     }
 
+    /**
+     * 按稳定 ID 反查 handler(供粘贴过滤器查询来源 handler 声明的键分类).
+     * 兼容旧版内存卡中的粗粒度 ID(ae2_part / ae2_tile / ae2e_custom).
+     * 找不到时返回 null,调用方回退到全局键清单.
+     */
+    public static IMemoryCardHandler findById(String id) {
+        if (id == null || id.isEmpty()) return null;
+        init();
+        String effective = id;
+        switch (id) {
+            case "ae2_part":
+                effective = "AE2PartHandler";
+                break;
+            case "ae2_tile":
+                effective = "AE2TileHandler";
+                break;
+            default:
+                break;
+        }
+        for (IMemoryCardHandler handler : HANDLERS) {
+            if (handler.getId().equals(effective)) {
+                return handler;
+            }
+        }
+        return null;
+    }
+
     public static synchronized void init() {
         if (initialized) {
             return;
@@ -53,6 +80,18 @@ public class MemoryCardHandlerRegistry {
         tryLoad("thermalexpansion", "com.github.aeddddd.ae2enhanced.util.memorycard.handler.thermalexpansion.ThermalExpansionMachineHandler");
         tryLoad("nuclearcraft", "com.github.aeddddd.ae2enhanced.util.memorycard.handler.nuclearcraft.NuclearCraftMachineHandler");
         tryLoad("techreborn", "com.github.aeddddd.ae2enhanced.util.memorycard.handler.techreborn.TechRebornMachineHandler");
+        tryLoad("industrialforegoing", "com.github.aeddddd.ae2enhanced.util.memorycard.handler.industrialforegoing.IndustrialForegoingMachineHandler");
+        tryLoad("extrautils2", "com.github.aeddddd.ae2enhanced.util.memorycard.handler.extrautils2.ExU2MachineHandler");
+        // Quantum Things(Random Things 非官方续作)沿用 randomthings 作为 modid
+        tryLoad("randomthings", "com.github.aeddddd.ae2enhanced.util.memorycard.handler.quantumthings.QuantumThingsMachineHandler");
+        tryLoad("ae2stuff", "com.github.aeddddd.ae2enhanced.util.memorycard.handler.ae2stuff.AE2StuffMachineHandler");
+        // Lazy AE2 的 modid 为 threng
+        tryLoad("threng", "com.github.aeddddd.ae2enhanced.util.memorycard.handler.lazyae2.LazyAE2MachineHandler");
+        tryLoad("rftools", "com.github.aeddddd.ae2enhanced.util.memorycard.handler.rftools.RFToolsCrafterHandler");
+
+        // 3. 原版容器兜底(必须最后注册,模组设备优先由各自 handler 处理;
+        //    运行时由配置 memoryCard.vanillaContainerCopy 控制)
+        register(new com.github.aeddddd.ae2enhanced.util.memorycard.handler.vanilla.VanillaContainerHandler());
     }
 
     private static void tryLoad(String modId, String className) {

@@ -6,11 +6,10 @@ import net.minecraft.inventory.Slot;
 import net.minecraft.item.ItemStack;
 
 /**
- * Long 缓存槽的虚拟槽位：映射到 {@link LongItemStore} 的第 N 个条目.
+ * Long 缓存槽的虚拟槽位, 映射到 {@link LongItemStore} 的第 N 个条目.
  *
- * <p>点击逻辑全部由 Container.slotClick 拦截处理（标准 CPacketClickWindow 链路）;
- * 本槽位只负责展示模板物品与悬停高亮,不持有真实库存,
- * getHasStack 恒为 false 以避免原版 tooltip 与自定义计数 tooltip 重复.</p>
+ * <p>点击逻辑全部由 Container.slotClick 拦截处理, 本槽位只负责展示模板物品与悬停高亮,
+ * 不持有真实库存. getHasStack 恒为 false, 以避免原版 tooltip 与自定义计数 tooltip 重复.</p>
  */
 public class SlotLongStore extends Slot {
 
@@ -32,7 +31,7 @@ public class SlotLongStore extends Slot {
     @Override
     public ItemStack getStack() {
         LongItemStore.Entry entry = getEntry();
-        // 数量为 1 的模板：原版渲染不画计数,由 GUI 覆盖层绘制 long 计数
+        // 数量为 1 的模板, 原版渲染不画计数, 由 GUI 覆盖层绘制 long 计数
         return entry != null ? entry.getTemplate() : ItemStack.EMPTY;
     }
 
@@ -48,7 +47,7 @@ public class SlotLongStore extends Slot {
 
     @Override
     public boolean isItemValid(ItemStack stack) {
-        // 禁止标准 putStack,放入逻辑走 Container.slotClick
+        // 禁止标准 putStack, 放入逻辑走 Container.slotClick
         return false;
     }
 

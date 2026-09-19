@@ -1,11 +1,5 @@
 package com.github.aeddddd.ae2enhanced.mixin.late.ae2;
 
-import org.spongepowered.asm.mixin.Mixin;
-import org.spongepowered.asm.mixin.Shadow;
-import org.spongepowered.asm.mixin.injection.At;
-import org.spongepowered.asm.mixin.injection.Inject;
-import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
-
 import appeng.api.networking.pathing.IPathingGrid;
 import appeng.core.AEConfig;
 import appeng.core.features.AEFeature;
@@ -15,9 +9,14 @@ import appeng.me.pathfinding.IPathItem;
 import com.github.aeddddd.ae2enhanced.mixin.late.accessor.IGridNodeAccessor;
 import com.github.aeddddd.ae2enhanced.pathing.GridValidationBatcher;
 import com.github.aeddddd.ae2enhanced.pathing.IEnhancedPathItem;
+import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Shadow;
+import org.spongepowered.asm.mixin.injection.At;
+import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
- * 为 GridConnection 添加 PR #8285 快速频道路径算法所需的额外方法。
+ * 为 GridConnection 添加 PR #8285 快速频道路径算法所需的额外方法.
  */
 @Mixin(value = GridConnection.class, remap = false)
 public abstract class MixinGridConnection implements IEnhancedPathItem {

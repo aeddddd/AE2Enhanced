@@ -13,7 +13,7 @@ import java.util.List;
 
 /**
  * JEI 奇点处理仓配方包装.
- * 每个输入组作为一个槽位,组内替代物品由 JEI 自动循环展示.
+ * 每个输入组作为一个槽位, 组内替代物品由 JEI 自动循环展示.
  */
 public class ChamberRecipeWrapper implements IRecipeWrapper {
 
@@ -34,7 +34,8 @@ public class ChamberRecipeWrapper implements IRecipeWrapper {
             List<ItemStack> alternatives = new ArrayList<>();
             for (ItemStack template : group.getTemplates()) {
                 ItemStack display = template.copy();
-                display.setCount((int) Math.min(Math.max(1, group.getCount()), 64));
+                // 数量保留真实值, 黑洞配方可达数千, 由 ChamberIngredientRenderer 格式化显示
+                display.setCount((int) Math.min(Math.max(1, group.getCount()), Integer.MAX_VALUE));
                 alternatives.add(display);
             }
             if (!alternatives.isEmpty()) {

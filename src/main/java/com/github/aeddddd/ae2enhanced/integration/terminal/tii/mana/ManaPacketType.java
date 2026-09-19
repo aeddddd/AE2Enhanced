@@ -14,10 +14,7 @@ import net.minecraft.util.text.TextFormatting;
 import nyonio.terminal_interaction_integration.api.IPacketType;
 
 /**
- * TII Botania Mana 数据包类型.
- * <p>
- * 若 Botania_Applie 的 Mana 数据包可用则优先使用,否则回退到 AE2E 的 {@link ItemManaDrop}.
- * </p>
+ * TII Botania Mana 数据包类型. 若 Botania_Applie 的 Mana 数据包可用则优先使用, 否则回退到 AE2E 的 {@link ItemManaDrop}.
  */
 public class ManaPacketType implements IPacketType {
 

@@ -81,12 +81,4 @@ public class EnergyAdapterRegistry {
         RESOLVE_CACHE.put(blockId, found);
         return found;
     }
-
-    /**
-     * 获取所有已注册的适配器副本(用于调试或列表展示).
-     */
-    public static List<IEnergyAdapter> getAdapters() {
-        init();
-        return new ArrayList<>(ADAPTERS);
-    }
 }

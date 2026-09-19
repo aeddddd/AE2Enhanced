@@ -66,11 +66,6 @@ public class PersonalDimensionData extends WorldSavedData {
         return id != null ? entries.get(id) : null;
     }
 
-    @Nullable
-    public UUID getPlayerForDimension(int dimId) {
-        return dimToPlayer.get(dimId);
-    }
-
     public void updateDimensionMapping(UUID playerId, int dimId) {
         PlayerDimEntry entry = getEntry(playerId);
         if (entry.dimensionId != Integer.MIN_VALUE && entry.dimensionId != dimId) {

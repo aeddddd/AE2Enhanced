@@ -34,11 +34,10 @@ import javax.annotation.Nullable;
 import java.util.List;
 
 /**
- * 先进网络链接凭证 —— 绑定 ME 网络的个人功能/防护凭证.
- *
- * <p>置于背包、双手或饰品栏即生效；通过安全终端绑定到 ME 网络后,
- * 可直接消耗网络中存储的 RF(能量存储通道),网络不可达时回退到内部 2.1G RF 缓存.
- * 分 I~III 阶段递进解锁功能,与 16 个无限时间被约束微型奇点逐个合成后飞升.</p>
+ * 先进网络链接凭证, 绑定 ME 网络的个人功能凭证.
+ * 置于背包, 双手或饰品栏即生效; 绑定后可直接消耗网络存储的 RF,
+ * 网络不可达时回退到内部 2.1G RF 缓存. 分 I~III 阶段递进解锁功能,
+ * 与 16 个被约束微型奇点逐个合成后飞升.
  */
 @Optional.InterfaceList({
         @Optional.Interface(iface = "baubles.api.IBauble", modid = "baubles")
@@ -93,7 +92,7 @@ public class ItemNetworkLinkCredential extends Item implements INetworkEncodable
 
                 @Override
                 public int extractEnergy(int maxExtract, boolean simulate) {
-                    return 0; // 内部缓存仅供凭证自身消耗,不对外放电
+                    return 0; // 内部缓存仅供凭证自身消耗, 不对外放电
                 }
 
                 @Override

@@ -5,11 +5,9 @@ import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
 
 /**
- * Astral Sorcery Starlight 假物品.
- * 用于在标准 AE2 物品终端中显示 Starlight 存储量.
- *
- * 设计：Starlight 无子类型,ItemStack 的 count 固定为 1(作为模板),
- * 实际数量通过 IAEItemStack.stackSize 表示.
+ * Astral Sorcery Starlight 假物品,用于在标准 AE2 物品终端中显示 Starlight 存储量.
+ * Starlight 无子类型,ItemStack 的 count 固定为 1 作为模板,实际数量通过
+ * IAEItemStack.stackSize 表示.
  */
 public class ItemStarlightDrop extends AbstractNbtDrop {
 
@@ -28,10 +26,8 @@ public class ItemStarlightDrop extends AbstractNbtDrop {
     }
 
     /**
-     * 创建携带具体数量的 Starlight 假物品.
-     * <p>
-     * count 限制在 [1,64] 用于显示,真实数量通过 NBT {@code Amount} 保存.
-     * </p>
+     * 创建携带具体数量的 Starlight 假物品. count 限制在 [1,64] 用于显示,
+     * 真实数量通过 NBT {@code Amount} 保存.
      */
     public static ItemStack createStack(long amount) {
         int count = (int) Math.min(Math.max(amount, 1), 64);

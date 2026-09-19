@@ -4,11 +4,7 @@ import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.nbt.NBTTagList;
 import net.minecraft.util.math.BlockPos;
 
-import java.util.Collections;
-import java.util.EnumSet;
-import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
@@ -27,14 +23,9 @@ public class PlayerDimEntry {
     public boolean hasReturnPoint = false;
 
     /**
-     * 被允许进入该维度的其他玩家 UUID。
+     * 组队白名单：被邀请进入该维度（拥有完整建造/交互能力）的其他玩家 UUID。
      */
     public final Set<UUID> allowedPlayers = new HashSet<>();
-
-    /**
-     * 其他玩家在该维度内的权限。未在 map 中的玩家默认没有任何权限。
-     */
-    public final Map<UUID, Set<PersonalDimPermission>> permissions = new HashMap<>();
 
     public PlayerDimEntry(UUID playerId) {
         this.playerId = playerId;
@@ -61,20 +52,6 @@ public class PlayerDimEntry {
             allowed.appendTag(t);
         }
         tag.setTag("allowedPlayers", allowed);
-
-        NBTTagList perms = new NBTTagList();
-        for (Map.Entry<UUID, Set<PersonalDimPermission>> e : permissions.entrySet()) {
-            NBTTagCompound t = new NBTTagCompound();
-            t.setString("uuid", e.getKey().toString());
-            StringBuilder sb = new StringBuilder();
-            for (PersonalDimPermission p : e.getValue()) {
-                if (sb.length() > 0) sb.append(',');
-                sb.append(p.name());
-            }
-            t.setString("permissions", sb.toString());
-            perms.appendTag(t);
-        }
-        tag.setTag("permissions", perms);
 
         return tag;
     }
@@ -116,86 +93,24 @@ public class PlayerDimEntry {
                 }
             }
         }
-
-        permissions.clear();
-        if (tag.hasKey("permissions", 9)) {
-            NBTTagList list = tag.getTagList("permissions", 10);
-            for (int i = 0; i < list.tagCount(); i++) {
-                NBTTagCompound t = list.getCompoundTagAt(i);
-                try {
-                    UUID id = UUID.fromString(t.getString("uuid"));
-                    Set<PersonalDimPermission> set = EnumSet.noneOf(PersonalDimPermission.class);
-                    for (String s : t.getString("permissions").split(",")) {
-                        if (s.isEmpty()) continue;
-                        try {
-                            set.add(PersonalDimPermission.valueOf(s));
-                        } catch (IllegalArgumentException ignored) {
-                        }
-                    }
-                    // 解析后无任何有效权限的条目直接跳过，避免留下空集合占位
-                    if (set.isEmpty()) continue;
-                    permissions.put(id, set);
-                } catch (IllegalArgumentException ignored) {
-                }
-            }
-        }
+        // 旧存档中的 "permissions" 逐玩家权限表已废弃，读取时直接忽略
     }
 
     /**
-     * 判断条目是否为"空"：既未分配维度，也无白名单/权限/返回点，且规则未被修改。
+     * 判断条目是否为"空"：既未分配维度，也无白名单/返回点，且规则未被修改。
      * 空条目多为只读查询意外创建，持久化时应跳过。
      */
     public boolean isEmpty() {
         return dimensionId == Integer.MIN_VALUE
                 && allowedPlayers.isEmpty()
-                && permissions.isEmpty()
                 && !hasReturnPoint
                 && rules.isDefault();
     }
 
     /**
-     * 检查指定玩家是否拥有某项权限。
-     */
-    public boolean hasPermission(UUID playerId, PersonalDimPermission permission) {
-        Set<PersonalDimPermission> set = permissions.get(playerId);
-        return set != null && set.contains(permission);
-    }
-
-    /**
-     * 授予指定玩家权限。若玩家不在白名单中，会自动加入白名单。
-     */
-    public void grantPermission(UUID playerId, PersonalDimPermission permission) {
-        allowedPlayers.add(playerId);
-        permissions.computeIfAbsent(playerId, k -> EnumSet.noneOf(PersonalDimPermission.class)).add(permission);
-    }
-
-    /**
-     * 移除指定玩家的某项权限。
-     */
-    public void revokePermission(UUID playerId, PersonalDimPermission permission) {
-        Set<PersonalDimPermission> set = permissions.get(playerId);
-        if (set != null) {
-            set.remove(permission);
-            if (set.isEmpty()) {
-                permissions.remove(playerId);
-                allowedPlayers.remove(playerId);
-            }
-        }
-    }
-
-    /**
-     * 将指定玩家完全从白名单与权限表中移除。
+     * 将指定玩家从组队白名单中移除。
      */
     public void removePlayer(UUID playerId) {
         allowedPlayers.remove(playerId);
-        permissions.remove(playerId);
-    }
-
-    /**
-     * 获取指定玩家的权限集合（只读）。
-     */
-    public Set<PersonalDimPermission> getPermissions(UUID playerId) {
-        Set<PersonalDimPermission> set = permissions.get(playerId);
-        return set != null ? Collections.unmodifiableSet(EnumSet.copyOf(set)) : Collections.emptySet();
     }
 }

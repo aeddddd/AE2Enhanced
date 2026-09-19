@@ -35,6 +35,7 @@ import java.util.List;
  * (进行中优先 / 按持续时间 / 按数量), 见 {@link PlanViewHelper}.</li>
  * <li>搜索框: 标题栏右侧, 按物品显示名过滤列表.</li>
  * <li>进行中子项持续时间: 格子左下角常显(0.5 缩放), 悬停 tooltip 追加已用时行.
+ * 计时跨界面关闭/重开延续(静态共享跟踪器), 换世界/换服时重置.
  * 总已持续时间(替换原生 ETA)由 MixinContainerCraftingCPUElapsed 在服务端同步.</li>
  * </ul>
  */
@@ -65,8 +66,12 @@ public abstract class MixinGuiCraftingCPU implements IPlanViewHost {
     @Unique
     private String ae2enhanced$searchText = "";
 
+    /**
+     * 子项持续时间跟踪器: 静态共享, 跨 GUI 会话持久(关闭/重开界面不清零),
+     * 切换世界/服务器时由 {@link CraftingDurationTracker#update} 自动重置.
+     */
     @Unique
-    private final CraftingDurationTracker ae2enhanced$durations = new CraftingDurationTracker();
+    private static final CraftingDurationTracker ae2enhanced$durations = new CraftingDurationTracker();
 
     @Unique
     private final PlanViewHelper.ViewStats ae2enhanced$stats = new PlanViewHelper.ViewStats();

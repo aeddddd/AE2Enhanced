@@ -1,35 +1,18 @@
 package com.github.aeddddd.ae2enhanced.tile;
 
 import appeng.api.networking.IGridNode;
+import appeng.api.networking.events.MENetworkChannelsChanged;
+import appeng.api.networking.events.MENetworkEventSubscribe;
+import appeng.api.networking.events.MENetworkPowerStatusChange;
 import appeng.api.storage.ICellContainer;
 import appeng.api.storage.ICellInventory;
 import appeng.api.storage.IMEInventoryHandler;
 import appeng.api.storage.IStorageChannel;
 import appeng.api.storage.channels.IFluidStorageChannel;
 import appeng.api.storage.channels.IItemStorageChannel;
-import appeng.api.networking.events.MENetworkChannelsChanged;
-import appeng.api.networking.events.MENetworkEventSubscribe;
-import appeng.api.networking.events.MENetworkPowerStatusChange;
 import appeng.api.util.AECableType;
 import appeng.api.util.AEPartLocation;
 import appeng.api.util.DimensionalCoord;
-import net.minecraft.item.ItemStack;
-import net.minecraft.nbt.NBTTagCompound;
-import net.minecraft.nbt.NBTTagList;
-import net.minecraft.network.NetworkManager;
-import net.minecraft.network.play.server.SPacketUpdateTileEntity;
-import net.minecraft.util.EnumFacing;
-import net.minecraft.util.ITickable;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.world.World;
-import net.minecraftforge.common.util.Constants;
-
-import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
-import java.util.Collections;
-import java.util.EnumSet;
-import java.util.List;
-
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
 import com.github.aeddddd.ae2enhanced.config.AE2EnhancedConfig;
 import com.github.aeddddd.ae2enhanced.network.packet.PacketRecyclerSync;
@@ -39,6 +22,18 @@ import com.github.aeddddd.ae2enhanced.recycler.RecyclerNetworkHandler;
 import com.github.aeddddd.ae2enhanced.recycler.TargetManager;
 import com.github.aeddddd.ae2enhanced.recycler.TargetManager.TargetRef;
 import com.github.aeddddd.ae2enhanced.registry.content.BlockRegistry;
+import net.minecraft.item.ItemStack;
+import net.minecraft.nbt.NBTTagCompound;
+import net.minecraft.nbt.NBTTagList;
+import net.minecraft.network.NetworkManager;
+import net.minecraft.network.play.server.SPacketUpdateTileEntity;
+import net.minecraft.util.ITickable;
+import net.minecraftforge.common.util.Constants;
+
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+import java.util.Collections;
+import java.util.List;
 
 /**
  * ME 网络回收节点的 TileEntity.
@@ -240,24 +235,12 @@ public class TileMENetworkRecycler extends TileAENetworkBase implements ITickabl
         return targetManager;
     }
 
-    public RecyclerNetworkHandler getNetworkHandler() {
-        return networkHandler;
-    }
-
-    public RecyclerFluidNetworkHandler getFluidNetworkHandler() {
-        return fluidNetworkHandler;
-    }
-
     public boolean isPowered() {
         return getProxy().isPowered();
     }
 
     public boolean isActive() {
         return getProxy().isActive();
-    }
-
-    public int getClientFlags() {
-        return clientFlags;
     }
 
     public int getClientTargetCount() {

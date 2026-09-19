@@ -4,7 +4,6 @@ import com.github.aeddddd.ae2enhanced.crafting.BlackHoleRecipe;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.nbt.NBTTagList;
-import net.minecraftforge.common.util.Constants;
 
 import java.util.Collection;
 import java.util.LinkedHashMap;

@@ -16,8 +16,8 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * 指环阶段升级配方：指环 + 指定数量的高级材料 → 阶段 +1.
- * 材料按多重集合精确匹配(3x3 摆满),输出完整保留指环 NBT(绑定/能量/配置).
+ * 指环阶段升级配方: 指环 + 指定数量的高级材料 → 阶段 +1.
+ * 材料按多重集合精确匹配, 摆满 3x3, 输出完整保留指环 NBT 的绑定、能量与配置.
  */
 public class RecipeRingTierUpgrade extends IForgeRegistryEntry.Impl<IRecipe> implements IRecipe {
 
@@ -28,8 +28,8 @@ public class RecipeRingTierUpgrade extends IForgeRegistryEntry.Impl<IRecipe> imp
 
     /**
      * @param name         注册名
-     * @param requiredTier 要求指环当前阶段(升级后为 requiredTier+1)
-     * @param materials    材料需求,成对传入 (Item, count)
+     * @param requiredTier 要求指环当前阶段, 升级后为 requiredTier+1
+     * @param materials    材料需求, 成对传入 Item 与数量
      */
     public RecipeRingTierUpgrade(ResourceLocation name, int requiredTier, Object... materials) {
         setRegistryName(name);

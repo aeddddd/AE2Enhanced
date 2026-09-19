@@ -11,10 +11,9 @@ import java.util.Date;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * LP 模型失败转储/回放（数值缺陷离线复现用）.
- * <p>求解器判 NUMERIC_FAILURE 等异常时把完整模型(m/n、CSC 矩阵、b、cost、界)
- * 序列化到 run 目录 {@code lp-dumps/};测试侧 {@code LpModelReplayTest} 可逐字节
- * 回放同一份模型,无需真实游戏环境即可定位数值缺陷.</p>
+ * LP 模型失败转储与回放, 用于数值缺陷的离线复现. 求解器判 NUMERIC_FAILURE 时把完整模型
+ * 序列化到 {@code lp-dumps/}, 测试侧 {@code LpModelReplayTest} 可逐字节回放同一份模型,
+ * 无需真实游戏环境即可定位缺陷.
  */
 public final class LpModelDump {
 
@@ -25,10 +24,7 @@ public final class LpModelDump {
     private LpModelDump() {
     }
 
-    /**
-     * 把模型转储到 {@code <workdir>/lp-dumps/},返回文件;IO 失败静默返回 null
-     * (求解路径不可因诊断写盘失败而崩).
-     */
+    /** 把模型转储到 {@code <workdir>/lp-dumps/}, 返回文件; IO 失败静默返回 null, 求解路径不可因诊断写盘失败而崩溃. */
     public static File dump(LpModel model, String reason) {
         try {
             File dir = new File("lp-dumps");
@@ -97,7 +93,7 @@ public final class LpModelDump {
         }
     }
 
-    /** CSC 三元组还原为逐列映射(fromColumns 公开构造入口). */
+    /** 把 CSC 三元组还原为逐列的映射, 作为 fromColumns 的公开构造入口. */
     private static java.util.List<java.util.Map<Integer, Double>> columnsOf(int[] colPtr,
             int[] rowIdx, double[] values, int cols) {
         java.util.List<java.util.Map<Integer, Double>> columns = new java.util.ArrayList<>(cols);

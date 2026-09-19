@@ -118,7 +118,7 @@ public class EMCInterfaceFilterHost implements IInterfaceHost {
 
     @Override
     public boolean isExport() {
-        // EMC 接口是网络的单向物品源,语义等同"从外部读入网络"
+        // EMC 接口是网络的单向物品源, 语义等同从外部读入网络
         return false;
     }
 

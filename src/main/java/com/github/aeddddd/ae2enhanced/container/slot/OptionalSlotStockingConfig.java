@@ -6,7 +6,7 @@ import net.minecraft.item.ItemStack;
 import net.minecraftforge.items.IItemHandler;
 
 /**
- * Stocking Bus 的可选过滤槽：容量卡解锁,不限制 count.
+ * Stocking Bus 的可选过滤槽, 容量卡解锁, 不限制 count.
  */
 public class OptionalSlotStockingConfig extends OptionalSlotFake {
 

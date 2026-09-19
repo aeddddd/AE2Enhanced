@@ -3,7 +3,6 @@ package com.github.aeddddd.ae2enhanced.item;
 import appeng.api.features.INetworkEncodable;
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
 import com.github.aeddddd.ae2enhanced.util.placement.PlacementConfig;
-import com.github.aeddddd.ae2enhanced.util.placement.PlacementMode;
 import com.github.aeddddd.ae2enhanced.util.placement.PlacementTargetResolver;
 import com.github.aeddddd.ae2enhanced.util.placement.PlacementToolHelper;
 import com.github.aeddddd.ae2enhanced.util.placement.SecurityTerminalBindingHelper;

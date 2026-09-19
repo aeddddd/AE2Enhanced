@@ -1,6 +1,5 @@
 package com.github.aeddddd.ae2enhanced.platform.energy.adapter;
 
-import com.github.aeddddd.ae2enhanced.platform.energy.IEnergyAdapter;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraftforge.energy.IEnergyStorage;
 

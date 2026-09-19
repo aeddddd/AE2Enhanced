@@ -1,26 +1,17 @@
 package com.github.aeddddd.ae2enhanced.mixin;
 
+import org.objectweb.asm.tree.ClassNode;
 import org.spongepowered.asm.mixin.extensibility.IMixinConfigPlugin;
 import org.spongepowered.asm.mixin.extensibility.IMixinInfo;
-import org.objectweb.asm.tree.ClassNode;
 
 import java.util.List;
 import java.util.Set;
 
 /**
- * NuclearCraft Mixin 配置插件。
- *
- * <p>按 NC 大版本分流：</p>
- * <ul>
- *     <li>NC:O 2o.x（重制版）：{@code produceProducts()} 是 {@code IProcessor} 的接口
- *     default 方法，应用接口 Mixin {@code MixinIProcessor}；</li>
- *     <li>NC 2.19a（非重制版）：{@code produceProducts()} 定义在三个具体处理器基类中，
- *     应用 {@code MixinTileItemProcessor} / {@code MixinTileFluidProcessor} /
- *     {@code MixinTileItemFluidProcessor}。</li>
- * </ul>
- *
- * <p>版本判别：重制版独有 {@code nc/tile/internal/processor/AbstractProcessorElement.class}；
- * 非重制版独有 {@code nc/tile/processor/TileItemProcessor.class}。</p>
+ * NuclearCraft Mixin 配置插件.
+ * 按 NC 大版本分流: NC:O 2o.x 重制版的 produceProducts() 是 IProcessor 的 default 方法, 走接口
+ * Mixin MixinIProcessor; NC 2.19a 的定义在具体处理器基类中, 走 MixinTileItemProcessor 等类 Mixin.
+ * 重制版依据独有的 AbstractProcessorElement.class 判别.
  */
 public class NuclearCraftMixinPlugin implements IMixinConfigPlugin {
 
@@ -47,8 +38,8 @@ public class NuclearCraftMixinPlugin implements IMixinConfigPlugin {
     public boolean shouldApplyMixin(String targetClassName, String mixinClassName) {
         if (mixinClassName.endsWith(".MixinNCOEnergyProcessor")
                 || mixinClassName.endsWith(".MixinNCONuclearFurnace")) {
-            // 重制版类 Mixin：向 TileEnergyProcessor / TileNuclearFurnace 添加
-            // produceProducts 的类级重写（接口 default 方法无法直接注入）
+            // 重制版类 Mixin: 向 TileEnergyProcessor / TileNuclearFurnace 添加
+            // produceProducts 的类级重写, 接口 default 方法无法直接注入
             return overhauledLoaded;
         }
         if (mixinClassName.endsWith(".MixinRadiationHandler")) {

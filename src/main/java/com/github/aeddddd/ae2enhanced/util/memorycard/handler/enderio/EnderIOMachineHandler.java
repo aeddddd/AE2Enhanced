@@ -286,6 +286,28 @@ public class EnderIOMachineHandler implements IMemoryCardHandler {
         }
     }
 
+    // ===== 键分类声明(粘贴选项过滤用) =====
+
+    @Override
+    public java.util.Set<String> getUpgradeKeys() {
+        return new java.util.HashSet<>(java.util.Arrays.asList("eio:upgrades"));
+    }
+
+    @Override
+    public java.util.Set<String> getFacingKeys() {
+        return new java.util.HashSet<>(java.util.Arrays.asList("facing"));
+    }
+
+    @Override
+    public java.util.Set<String> getSideKeys() {
+        return new java.util.HashSet<>(java.util.Arrays.asList("faceModes"));
+    }
+
+    @Override
+    public java.util.Set<String> getRedstoneKeys() {
+        return new java.util.HashSet<>(java.util.Arrays.asList("redstoneMode"));
+    }
+
     @Override
     public String getDisplayName(Object target) {
         if (AVAILABLE && target != null) {

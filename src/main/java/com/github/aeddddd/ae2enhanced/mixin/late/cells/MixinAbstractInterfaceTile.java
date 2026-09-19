@@ -12,9 +12,9 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
- * Mixin CELLS AbstractInterfaceTile，在任意 inventory 变化后尝试重建无线连接。
- * 由于 CELLS Interface 使用 AppEngInternalInventory 而非 UpgradeInventory，
- * MixinUpgradeInventory 无法捕获其升级槽变化，需要在此补充触发。
+ * Mixin CELLS AbstractInterfaceTile, 在任意 inventory 变化后尝试重建无线连接.
+ * CELLS Interface 用 AppEngInternalInventory 而非 UpgradeInventory, MixinUpgradeInventory
+ * 无法捕获其升级槽变化, 在此补充触发.
  */
 @Mixin(targets = "com.cells.blocks.interfacebase.AbstractInterfaceTile", remap = false)
 public class MixinAbstractInterfaceTile {

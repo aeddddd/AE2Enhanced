@@ -67,12 +67,12 @@ public class PersonalDimensionDataTest {
         assertThat(b.rules.timeValue).isEqualTo(18000L);
 
         // 双向索引一致性
-        assertThat(restored.getPlayerForDimension(10)).isEqualTo(PLAYER_A);
-        assertThat(restored.getPlayerForDimension(-20)).isEqualTo(PLAYER_B);
+        assertThat(restored.getEntryByDimensionId(10).playerId).isEqualTo(PLAYER_A);
+        assertThat(restored.getEntryByDimensionId(-20).playerId).isEqualTo(PLAYER_B);
         assertThat(restored.getEntryByDimensionId(10)).isSameAs(a);
         assertThat(restored.getEntryByDimensionId(-20)).isSameAs(b);
         // 未分配维度的条目不进反向索引
-        assertThat(restored.getPlayerForDimension(Integer.MIN_VALUE)).isNull();
+        assertThat(restored.getEntryByDimensionId(Integer.MIN_VALUE)).isNull();
         assertThat(restored.getEntryByDimensionId(999)).isNull();
     }
 
@@ -97,7 +97,7 @@ public class PersonalDimensionDataTest {
         PersonalDimensionData restored = new PersonalDimensionData();
         restored.readFromNBT(tag);
 
-        assertThat(restored.getPlayerForDimension(7)).isEqualTo(PLAYER_A);
+        assertThat(restored.getEntryByDimensionId(7).playerId).isEqualTo(PLAYER_A);
         assertThat(restored.getAllEntries()).hasSize(1);
     }
 
@@ -106,13 +106,12 @@ public class PersonalDimensionDataTest {
     public void testUpdateDimensionMappingRemovesOldMapping() {
         PersonalDimensionData data = new PersonalDimensionData();
         data.updateDimensionMapping(PLAYER_A, 10);
-        assertThat(data.getPlayerForDimension(10)).isEqualTo(PLAYER_A);
+        assertThat(data.getEntryByDimensionId(10).playerId).isEqualTo(PLAYER_A);
 
         data.updateDimensionMapping(PLAYER_A, 20);
 
-        assertThat(data.getPlayerForDimension(10)).isNull();
         assertThat(data.getEntryByDimensionId(10)).isNull();
-        assertThat(data.getPlayerForDimension(20)).isEqualTo(PLAYER_A);
+        assertThat(data.getEntryByDimensionId(20).playerId).isEqualTo(PLAYER_A);
         assertThat(data.getEntry(PLAYER_A).dimensionId).isEqualTo(20);
     }
 
@@ -124,8 +123,8 @@ public class PersonalDimensionDataTest {
         data.updateDimensionMapping(PLAYER_B, 20);
 
         // B 从未分配状态绑定时，不应移除 A 的映射
-        assertThat(data.getPlayerForDimension(10)).isEqualTo(PLAYER_A);
-        assertThat(data.getPlayerForDimension(20)).isEqualTo(PLAYER_B);
+        assertThat(data.getEntryByDimensionId(10).playerId).isEqualTo(PLAYER_A);
+        assertThat(data.getEntryByDimensionId(20).playerId).isEqualTo(PLAYER_B);
     }
 
     /** removeEntry 同步清理反向索引，条目与维度映射都不复存在。 */
@@ -137,7 +136,6 @@ public class PersonalDimensionDataTest {
         data.removeEntry(PLAYER_A);
 
         assertThat(data.getAllEntries()).isEmpty();
-        assertThat(data.getPlayerForDimension(10)).isNull();
         assertThat(data.getEntryByDimensionId(10)).isNull();
     }
 
@@ -151,7 +149,7 @@ public class PersonalDimensionDataTest {
         data.removeEntry(PLAYER_B);
 
         assertThat(data.getAllEntries()).hasSize(1);
-        assertThat(data.getPlayerForDimension(10)).isEqualTo(PLAYER_A);
+        assertThat(data.getEntryByDimensionId(10).playerId).isEqualTo(PLAYER_A);
     }
 
     /** copyFrom 迁移全部条目与反向索引。 */
@@ -165,8 +163,8 @@ public class PersonalDimensionDataTest {
         target.copyFrom(legacy);
 
         assertThat(target.getAllEntries()).hasSize(2);
-        assertThat(target.getPlayerForDimension(10)).isEqualTo(PLAYER_A);
-        assertThat(target.getPlayerForDimension(-5)).isEqualTo(PLAYER_B);
+        assertThat(target.getEntryByDimensionId(10).playerId).isEqualTo(PLAYER_A);
+        assertThat(target.getEntryByDimensionId(-5).playerId).isEqualTo(PLAYER_B);
         assertThat(target.getEntryByDimensionId(10).playerId).isEqualTo(PLAYER_A);
     }
 
@@ -181,8 +179,8 @@ public class PersonalDimensionDataTest {
         target.copyFrom(legacy);
 
         assertThat(target.getAllEntries()).hasSize(1);
-        assertThat(target.getPlayerForDimension(99)).isNull();
-        assertThat(target.getPlayerForDimension(10)).isEqualTo(PLAYER_A);
+        assertThat(target.getEntryByDimensionId(99)).isNull();
+        assertThat(target.getEntryByDimensionId(10).playerId).isEqualTo(PLAYER_A);
     }
 
     /** readFromNBT 跳过 playerUUID 非法的条目，合法条目不受影响。 */
@@ -207,8 +205,8 @@ public class PersonalDimensionDataTest {
         data.readFromNBT(tag);
 
         assertThat(data.getAllEntries()).hasSize(1);
-        assertThat(data.getPlayerForDimension(22)).isEqualTo(PLAYER_A);
-        assertThat(data.getPlayerForDimension(11)).isNull();
+        assertThat(data.getEntryByDimensionId(22).playerId).isEqualTo(PLAYER_A);
+        assertThat(data.getEntryByDimensionId(11)).isNull();
     }
 
     /** readFromNBT 清空旧数据后再加载，不会残留之前的条目与索引。 */
@@ -222,8 +220,8 @@ public class PersonalDimensionDataTest {
         data.readFromNBT(source.writeToNBT(new NBTTagCompound()));
 
         assertThat(data.getAllEntries()).hasSize(1);
-        assertThat(data.getPlayerForDimension(10)).isNull();
-        assertThat(data.getPlayerForDimension(20)).isEqualTo(PLAYER_B);
+        assertThat(data.getEntryByDimensionId(10)).isNull();
+        assertThat(data.getEntryByDimensionId(20).playerId).isEqualTo(PLAYER_B);
     }
 
     /** 修改操作（映射更新、规则、进入点、返回点、删除、copyFrom）均置脏标记。 */

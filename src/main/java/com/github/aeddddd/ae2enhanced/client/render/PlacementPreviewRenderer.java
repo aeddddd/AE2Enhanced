@@ -2,11 +2,7 @@ package com.github.aeddddd.ae2enhanced.client.render;
 
 import com.github.aeddddd.ae2enhanced.item.ItemAdvancedMEOmniTool;
 import com.github.aeddddd.ae2enhanced.item.ItemMEPlacementTool;
-import com.github.aeddddd.ae2enhanced.util.placement.CablePlacementHelper;
-import com.github.aeddddd.ae2enhanced.util.placement.ConstructionWandHelper;
-import com.github.aeddddd.ae2enhanced.util.placement.PlacementConfig;
-import com.github.aeddddd.ae2enhanced.util.placement.PlacementMode;
-import com.github.aeddddd.ae2enhanced.util.placement.PlacementTargetResolver;
+import com.github.aeddddd.ae2enhanced.util.placement.*;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.BufferBuilder;
 import net.minecraft.client.renderer.GlStateManager;
@@ -14,7 +10,6 @@ import net.minecraft.client.renderer.Tessellator;
 import net.minecraft.client.renderer.vertex.DefaultVertexFormats;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.item.ItemStack;
-import net.minecraft.util.EnumFacing;
 import net.minecraft.util.math.AxisAlignedBB;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.RayTraceResult;
@@ -27,7 +22,7 @@ import net.minecraftforge.fml.relauncher.SideOnly;
 import java.util.List;
 
 /**
- * 放置工具预览渲染器：批量放置位置预览 + 线缆路径预览 + 线缆起点高亮。
+ * 放置工具预览渲染器: 批量放置位置预览 + 线缆路径预览 + 线缆起点高亮.
  */
 @SideOnly(Side.CLIENT)
 public class PlacementPreviewRenderer {
@@ -56,7 +51,7 @@ public class PlacementPreviewRenderer {
         double py = player.lastTickPosY + (player.posY - player.lastTickPosY) * event.getPartialTicks();
         double pz = player.lastTickPosZ + (player.posZ - player.lastTickPosZ) * event.getPartialTicks();
 
-        // Omni Tool 放置模式使用配置的触及距离；ME 放置工具使用当前模式的基础触及距离
+        // Omni Tool 放置模式用配置的触及距离, ME 放置工具用当前方块交互距离
         Minecraft mc = Minecraft.getMinecraft();
         double reach = isOmniPlacement ? config.getReachDistance()
                 : (mc.playerController != null ? mc.playerController.getBlockReachDistance() : 5.0);
@@ -84,7 +79,7 @@ public class PlacementPreviewRenderer {
             BlockPos end = ray.getBlockPos().offset(ray.sideHit);
             List<BlockPos> path = CablePlacementHelper.calculatePath(cableStart, end);
             for (BlockPos pos : path) {
-                // 起点已用橙色高亮，跳过避免重复绘制
+                // 起点已用橙色高亮, 跳过避免重复绘制
                 if (!pos.equals(cableStart)) {
                     drawBoxEdges(buffer, new AxisAlignedBB(pos).grow(0.002), R, G, B, 0.4f);
                 }

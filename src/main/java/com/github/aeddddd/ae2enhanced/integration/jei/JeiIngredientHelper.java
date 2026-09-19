@@ -1,8 +1,7 @@
 package com.github.aeddddd.ae2enhanced.integration.jei;
 
-import com.github.aeddddd.ae2enhanced.registry.content.ItemRegistry;
-import com.github.aeddddd.ae2enhanced.registry.content.PartRegistry;
 import com.github.aeddddd.ae2enhanced.item.ItemEssentiaDrop;
+import com.github.aeddddd.ae2enhanced.registry.content.ItemRegistry;
 import com.github.aeddddd.ae2enhanced.util.compat.Ae2fcCompat;
 import com.github.aeddddd.ae2enhanced.util.fakeitem.FakeItemRegister;
 import mekanism.api.gas.GasStack;
@@ -15,9 +14,7 @@ import thaumcraft.api.items.ItemsTC;
 /**
  * JEI 成分转换工具类.
  * 将 AE2Enhanced 的假物品(流体/气体/源质 drop)转换为 JEI 可识别的实际成分,
- * 从而支持在终端中直接按 R/U 查询对应流体/气体/源质的配方.
- *
- * 复刻 ae2fc CoreModHooks.wrapFluidPacket 的设计.
+ * 支持在终端中直接按 R/U 查询对应流体/气体/源质的配方. 设计复刻 ae2fc CoreModHooks.wrapFluidPacket.
  */
 public class JeiIngredientHelper {
 

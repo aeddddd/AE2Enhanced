@@ -7,10 +7,6 @@ public enum DisplayTheme {
     DARK,
     LIGHT;
 
-    public DisplayTheme next() {
-        return this == DARK ? LIGHT : DARK;
-    }
-
     public static DisplayTheme byOrdinal(int ord) {
         return ord == 1 ? LIGHT : DARK;
     }

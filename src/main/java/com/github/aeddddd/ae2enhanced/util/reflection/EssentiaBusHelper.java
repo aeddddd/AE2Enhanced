@@ -1,16 +1,15 @@
 package com.github.aeddddd.ae2enhanced.util.reflection;
-import com.github.aeddddd.ae2enhanced.util.essentia.EssentiaChannelAccessor;
-import com.github.aeddddd.ae2enhanced.util.fakeitem.FakeItemRegister;
 
 import appeng.api.config.Actionable;
 import appeng.api.networking.security.IActionSource;
 import appeng.api.storage.IMEMonitor;
 import appeng.api.storage.data.IAEItemStack;
 import appeng.tile.inventory.AppEngInternalAEInventory;
-import com.github.aeddddd.ae2enhanced.registry.content.ItemRegistry;
-import com.github.aeddddd.ae2enhanced.registry.content.PartRegistry;
 import com.github.aeddddd.ae2enhanced.item.ItemEssentiaDrop;
+import com.github.aeddddd.ae2enhanced.registry.content.ItemRegistry;
+import com.github.aeddddd.ae2enhanced.util.essentia.EssentiaChannelAccessor;
 import com.github.aeddddd.ae2enhanced.util.fakeitem.FakeEssentias;
+import com.github.aeddddd.ae2enhanced.util.fakeitem.FakeItemRegister;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.EnumFacing;
 import thaumicenergistics.api.EssentiaStack;

@@ -7,9 +7,9 @@ import appeng.api.networking.security.IActionSource;
 import appeng.api.storage.IMEMonitor;
 import appeng.api.storage.data.IAEItemStack;
 import appeng.api.storage.data.IItemList;
-import appeng.util.prioritylist.IPartitionList;
 import appeng.util.Platform;
 import appeng.util.item.AEItemStack;
+import appeng.util.prioritylist.IPartitionList;
 import com.github.aeddddd.ae2enhanced.util.CraftFuzzyCandidateCache;
 import net.minecraft.inventory.InventoryCrafting;
 import net.minecraft.item.ItemStack;
@@ -26,17 +26,12 @@ import java.util.List;
 
 /**
  * 修复 AE2-UEL 合成终端 shift 合成一组时随库存规模线性膨胀的卡顿.
- *
- * 原实现: 只要精确物品缺失且模板注册了矿物词典(或带 NBT/耐久通配),
- * fuzzy 分支会对全网络物品列表做 O(N) 遍历并附带配方重匹配;
- * shift 合成时外层 SlotCraftingTerm.doClick 单 tick 内最多 64 次合成 × 9 个原料格,
- * 形成 64×9×N 的级联开销.
- *
- * 本 mixin 完整复刻原方法逻辑, 仅将 fuzzy 分支的全表扫描结果按 tick 缓存
- * (见 CraftFuzzyCandidateCache), 候选被抽空时自动失效并重扫, 语义与原实现一致.
- *
- * 位于 mixins.ae2enhanced.early.json：部分整合包的 coremod 在 late 配置生效前
- * 就加载 appeng.util.Platform（"loaded too early" 导致 mixin 被拒），故提前注册.
+ * 原实现中 fuzzy 分支对全网络物品列表做 O(N) 遍历并附带配方重匹配,
+ * shift 合成单 tick 最多 64 次合成 × 9 个原料格, 形成 64×9×N 的级联开销.
+ * 本 mixin 复刻原方法逻辑, 仅将 fuzzy 分支的全表扫描结果按 tick 缓存(见 CraftFuzzyCandidateCache),
+ * 候选被抽空时自动失效并重扫, 语义与原实现一致.
+ * 位于 mixins.ae2enhanced.early.json: 部分整合包的 coremod 在 late 配置生效前就加载
+ * appeng.util.Platform("loaded too early" 导致 mixin 被拒), 故提前注册.
  */
 @Mixin(value = Platform.class, remap = false)
 public abstract class MixinPlatformCraftExtract {

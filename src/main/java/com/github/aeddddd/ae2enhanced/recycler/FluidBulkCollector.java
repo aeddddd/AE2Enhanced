@@ -15,7 +15,6 @@ import java.util.List;
 public class FluidBulkCollector {
 
     private final List<IAEFluidStack> buffer = new ArrayList<>();
-    private long totalCount = 0;
 
     public void add(@Nonnull FluidStack stack) {
         if (stack == null || stack.amount <= 0) return;
@@ -29,12 +28,10 @@ public class FluidBulkCollector {
         for (IAEFluidStack existing : buffer) {
             if (existing.getFluidStack().isFluidEqual(stack.getFluidStack())) {
                 existing.add(stack);
-                totalCount += stack.getStackSize();
                 return;
             }
         }
         buffer.add(stack.copy());
-        totalCount += stack.getStackSize();
     }
 
     @Nonnull
@@ -42,19 +39,10 @@ public class FluidBulkCollector {
         if (buffer.isEmpty()) return Collections.emptyList();
         List<IAEFluidStack> result = new ArrayList<>(buffer);
         buffer.clear();
-        totalCount = 0;
         return result;
     }
 
     public boolean isEmpty() {
         return buffer.isEmpty();
-    }
-
-    public int getTypeCount() {
-        return buffer.size();
-    }
-
-    public long getTotalCount() {
-        return totalCount;
     }
 }

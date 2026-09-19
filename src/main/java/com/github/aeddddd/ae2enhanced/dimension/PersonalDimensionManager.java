@@ -22,16 +22,15 @@ import net.minecraftforge.fml.common.gameevent.TickEvent;
 import net.minecraftforge.event.entity.living.LivingDeathEvent;
 import net.minecraftforge.event.entity.living.LivingSpawnEvent;
 import net.minecraftforge.event.world.WorldEvent;
+import net.minecraftforge.event.world.ExplosionEvent;
 import net.minecraftforge.fml.common.network.FMLNetworkEvent;
 
 import javax.annotation.Nullable;
 import java.io.File;
 import java.util.ArrayList;
-import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -164,14 +163,6 @@ public final class PersonalDimensionManager {
         }
     }
 
-    public static int getDimensionId(UUID playerId) {
-        WorldServer overworld = getOverworld();
-        if (overworld == null) return Integer.MIN_VALUE;
-        // 只读查询不创建空条目
-        PlayerDimEntry entry = PersonalDimensionData.get(overworld).peekEntry(playerId);
-        return entry != null ? entry.dimensionId : Integer.MIN_VALUE;
-    }
-
     /**
      * 只读查询指定玩家的条目，不存在时返回 null（不会创建空条目）。
      */
@@ -214,14 +205,13 @@ public final class PersonalDimensionManager {
             PlayerAbilityApplier.resetAbilities(player);
             return;
         }
-        // 权限校验：返回点若位于他人的个人维度，玩家必须仍在白名单且拥有 ENTER 权限，
-        // 否则被 kick 的玩家可通过"埋点-返回"反复重进他人维度
+        // 白名单校验：返回点若位于他人的个人维度，玩家必须仍在白名单中，
+        // 否则被移出组队的玩家可通过"埋点-返回"反复重进他人维度
         if (isPersonalDimension(entry.returnDim)) {
             PlayerDimEntry ownerEntry = getEntryByDimension(entry.returnDim);
             boolean allowed = ownerEntry != null
                     && (ownerEntry.playerId.equals(player.getUniqueID())
-                        || (ownerEntry.allowedPlayers.contains(player.getUniqueID())
-                            && ownerEntry.hasPermission(player.getUniqueID(), PersonalDimPermission.ENTER)));
+                        || ownerEntry.allowedPlayers.contains(player.getUniqueID()));
             if (!allowed) {
                 WorldServer ow = getOverworld();
                 if (ow != null) {
@@ -264,7 +254,7 @@ public final class PersonalDimensionManager {
     }
 
     /**
-     * 将指定玩家传送到目标所有者的个人维度，并校验访问权限。
+     * 将指定玩家传送到目标所有者的个人维度，并校验其是否在组队白名单中。
      *
      * @param player  要传送的玩家
      * @param ownerId 维度所有者
@@ -286,8 +276,7 @@ public final class PersonalDimensionManager {
         if (entry == null || entry.dimensionId == Integer.MIN_VALUE) {
             return false;
         }
-        if (!entry.allowedPlayers.contains(player.getUniqueID())
-                || !entry.hasPermission(player.getUniqueID(), PersonalDimPermission.ENTER)) {
+        if (!entry.allowedPlayers.contains(player.getUniqueID())) {
             return false;
         }
         int dimId = entry.dimensionId;
@@ -310,7 +299,8 @@ public final class PersonalDimensionManager {
     }
 
     /**
-     * 邀请玩家进入指定所有者的个人维度。
+     * 邀请玩家加入指定所有者个人维度的组队白名单。
+     * 受邀玩家在该维度内拥有完整的进入/建造/交互能力，不再细分权限。
      */
     public static boolean invitePlayer(UUID ownerId, UUID targetId) {
         WorldServer overworld = getOverworld();
@@ -318,16 +308,12 @@ public final class PersonalDimensionManager {
         PlayerDimEntry entry = PersonalDimensionData.get(overworld).getEntry(ownerId);
         if (entry == null) return false;
         entry.allowedPlayers.add(targetId);
-        Set<PersonalDimPermission> perms = entry.permissions.computeIfAbsent(targetId, k -> EnumSet.noneOf(PersonalDimPermission.class));
-        perms.add(PersonalDimPermission.ENTER);
-        perms.add(PersonalDimPermission.BUILD);
-        perms.add(PersonalDimPermission.INTERACT);
         PersonalDimensionData.get(overworld).markDirty();
         return true;
     }
 
     /**
-     * 将玩家从指定所有者的个人维度白名单移除。
+     * 将玩家从指定所有者个人维度的组队白名单移除。
      */
     public static boolean kickPlayer(UUID ownerId, UUID targetId) {
         WorldServer overworld = getOverworld();
@@ -353,23 +339,6 @@ public final class PersonalDimensionManager {
         WorldServer overworld = getOverworld();
         if (overworld == null) return;
         PersonalDimensionData.get(overworld).clearReturnPointIfInDimension(playerId, dimId);
-    }
-
-    /**
-     * 设置某玩家对指定所有者维度的某项权限。
-     */
-    public static boolean setPermission(UUID ownerId, UUID targetId, PersonalDimPermission permission, boolean value) {
-        WorldServer overworld = getOverworld();
-        if (overworld == null) return false;
-        PlayerDimEntry entry = PersonalDimensionData.get(overworld).getEntry(ownerId);
-        if (entry == null) return false;
-        if (value) {
-            entry.grantPermission(targetId, permission);
-        } else {
-            entry.revokePermission(targetId, permission);
-        }
-        PersonalDimensionData.get(overworld).markDirty();
-        return true;
     }
 
     /**
@@ -487,35 +456,7 @@ public final class PersonalDimensionManager {
     }
 
     /**
-     * 计算玩家当前可编辑规则的维度所有者。
-     *
-     * <p>玩家位于他人个人维度内，且拥有 {@link PersonalDimPermission#MANAGE_RULES}
-     * 权限（或为 OP）时，编辑所在维度所有者的规则；其余情况编辑自己的规则。</p>
-     */
-    public static UUID getRuleEditTarget(EntityPlayer player) {
-        UUID self = player.getUniqueID();
-        int dimId = player.dimension;
-        if (!isPersonalDimension(dimId)) return self;
-        PlayerDimEntry entry = getEntryByDimension(dimId);
-        if (entry == null || entry.playerId.equals(self)) return self;
-        if (player.canUseCommand(2, "") || entry.hasPermission(self, PersonalDimPermission.MANAGE_RULES)) {
-            return entry.playerId;
-        }
-        return self;
-    }
-
-    /**
-     * 检查玩家是否有权管理指定所有者维度的规则（所有者本人与 OP 恒为 true）。
-     */
-    public static boolean canManageRules(EntityPlayer player, UUID ownerId) {
-        if (player.getUniqueID().equals(ownerId)) return true;
-        if (player.canUseCommand(2, "")) return true;
-        PlayerDimEntry entry = getEntry(ownerId);
-        return entry != null && entry.hasPermission(player.getUniqueID(), PersonalDimPermission.MANAGE_RULES);
-    }
-
-    /**
-     * 将指定所有者的规则同步给指定玩家（用于委托编辑场景）。
+     * 将指定所有者的规则同步给指定玩家（用于进入他人维度时按所有者规则渲染/应用）。
      */
     public static void sendRulesToPlayer(UUID rulesOwnerId, EntityPlayerMP target) {
         if (AE2Enhanced.network == null) return;
@@ -608,6 +549,16 @@ public final class PersonalDimensionManager {
         if (entry != null && entry.rules.disableMobSpawning) {
             event.setResult(net.minecraftforge.fml.common.eventhandler.Event.Result.DENY);
         }
+    }
+
+    /**
+     * 个人维度是玩家的私人建造空间：维度内爆炸不破坏任何方块（实体伤害不受影响）。
+     */
+    @SubscribeEvent
+    public static void onExplosionDetonate(ExplosionEvent.Detonate event) {
+        if (event.getWorld().isRemote) return;
+        if (!isPersonalDimension(event.getWorld().provider.getDimension())) return;
+        event.getAffectedBlocks().clear();
     }
 
     /**

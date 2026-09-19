@@ -15,17 +15,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * CraftTweaker 集成：允许通过 ZenScript 添加/移除微型奇点仪式配方.
- *
- * 用法示例：
- * <pre>
- *   mods.ae2enhanced.SingularityRitual.addRecipe("my_recipe",
- *       [&lt;minecraft:diamond&gt; * 64, &lt;minecraft:emerald&gt; * 32],
- *       &lt;minecraft:nether_star&gt;,
- *       &lt;appliedenergistics2:controller&gt;,
- *       12000);
- *   mods.ae2enhanced.SingularityRitual.removeRecipe("my_recipe");
- * </pre>
+ * CraftTweaker 集成, 允许通过 ZenScript 添加或移除微型奇点仪式配方,
+ * 对应 mods.ae2enhanced.SingularityRitual 的 addRecipe 与 removeRecipe 方法.
  */
 @ZenRegister
 @ZenClass("mods.ae2enhanced.SingularityRitual")

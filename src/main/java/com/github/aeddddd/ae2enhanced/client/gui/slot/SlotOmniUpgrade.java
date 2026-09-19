@@ -10,8 +10,7 @@ import net.minecraftforge.items.IItemHandler;
 import javax.annotation.Nonnull;
 
 /**
- * Omni Terminal 右侧升级卡槽位 —— 支持 AE2 标准升级卡、频道接收卡和 Omni 专用升级卡.
- * 每张升级卡只能堆叠 1 个.
+ * Omni Terminal 右侧升级卡槽位, 接受 AE2 标准升级卡, 频道接收卡和 Omni 专用升级卡, 每张卡只能堆叠 1 个.
  */
 public class SlotOmniUpgrade extends AppEngSlot {
 

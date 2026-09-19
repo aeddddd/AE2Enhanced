@@ -2,7 +2,6 @@ package com.github.aeddddd.ae2enhanced.storage.energy;
 
 import appeng.api.config.FuzzyMode;
 import appeng.api.storage.IStorageChannel;
-import appeng.api.storage.data.IAEStack;
 import appeng.util.item.AEStack;
 import io.netty.buffer.ByteBuf;
 import net.minecraft.item.ItemStack;

@@ -7,8 +7,6 @@ import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.util.ResourceLocation;
 
-import java.util.Objects;
-
 /**
  * 物品描述符,用于在内存中作为存储 Map 的 Key.
  * 基于 Item registryName + meta + NBT 内容做 equals/hashCode,不依赖 NBTTagCompound 的引用相等.
@@ -112,6 +110,14 @@ public class ItemDescriptor implements Descriptor {
     public NBTTagCompound getNbt() {
         // 返回副本,避免调用方修改内部 NBT 破坏 equals/hashCode 契约
         return nbt != null ? nbt.copy() : null;
+    }
+
+    /**
+     * 仅供 codec 序列化使用的原始引用（不做防御性深拷贝）。
+     * 契约：调用方严禁修改返回值或长期持有。持久化层的 codec 只读遍历。
+     */
+    public NBTTagCompound getNbtRaw() {
+        return nbt;
     }
 
     /**

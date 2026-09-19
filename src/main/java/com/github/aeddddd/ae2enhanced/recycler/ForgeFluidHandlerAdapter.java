@@ -42,7 +42,8 @@ public class ForgeFluidHandlerAdapter implements FluidTargetAdapter {
         if (h == null) return result;
 
         for (IFluidTankProperties prop : h.getTankProperties()) {
-            if (prop == null) continue;
+            // 按机器声明的罐模式判断：只回收可抽取的罐，输入罐（canDrain == false）不参与
+            if (prop == null || !prop.canDrain()) continue;
             FluidStack contents = prop.getContents();
             if (contents != null && contents.amount > 0) {
                 result.add(contents.copy());
@@ -59,8 +60,25 @@ public class ForgeFluidHandlerAdapter implements FluidTargetAdapter {
 
         FluidStack wanted = requested.getFluidStack();
         if (wanted == null || wanted.amount <= 0) return null;
+        if (!hasDrainableTank(h, wanted)) return null;
 
         return h.drain(wanted, !simulate);
+    }
+
+    /**
+     * 判断目标是否声明了“装有该流体且可抽取”的罐。
+     */
+    private boolean hasDrainableTank(IFluidHandler handler, FluidStack wanted) {
+        IFluidTankProperties[] properties = handler.getTankProperties();
+        if (properties == null) return false;
+        for (IFluidTankProperties property : properties) {
+            if (property == null || !property.canDrain()) continue;
+            FluidStack contents = property.getContents();
+            if (contents != null && contents.amount > 0 && contents.isFluidEqual(wanted)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     @Override

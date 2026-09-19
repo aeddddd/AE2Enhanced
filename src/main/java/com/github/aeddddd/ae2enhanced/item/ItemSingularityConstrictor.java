@@ -14,8 +14,8 @@ import java.util.Arrays;
 import java.util.List;
 
 /**
- * 奇点约束器 — 右键微型奇点将其约束为物品形态.
- * 约束后本物品转化为被约束的微型奇点；扔出奇点恢复为方块时在原地返还空的约束器.
+ * 奇点约束器: 右键微型奇点将其约束为物品形态.
+ * 约束后本物品转化为被约束的微型奇点; 扔出奇点恢复为方块时在原地返还空的约束器.
  */
 public class ItemSingularityConstrictor extends Item {
 

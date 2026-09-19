@@ -1,14 +1,10 @@
 package com.github.aeddddd.ae2enhanced.centralinterface;
 
 import appeng.api.storage.data.IAEItemStack;
-import appeng.util.item.AEItemStack;
 import net.minecraft.item.ItemStack;
-import net.minecraft.nbt.NBTTagCompound;
-import net.minecraft.nbt.NBTTagList;
 import net.minecraftforge.fluids.FluidStack;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
@@ -114,10 +110,6 @@ public class TargetSession {
         this.startProcessAttempts++;
     }
 
-    public void resetStartProcessAttempts() {
-        this.startProcessAttempts = 0;
-    }
-
     /**
      * 判断自推料以来是否已过指定 grace tick。
      */
@@ -140,6 +132,34 @@ public class TargetSession {
         this.state = TargetState.PUSHING;
         this.pushedFluids = pushedFluids != null ? new ArrayList<>(pushedFluids) : new ArrayList<>();
         return true;
+    }
+
+    /**
+     * 在清理目标输出槽之前预先登记本批预期产物。
+     *
+     * <p>{@link IRemoteHandler#clearOutputs} 依赖 session 中的预期产物来识别上一轮的残留产物，
+     * 若等到 {@link #commitPush} 才写入，清理阶段只能看到空快照，通用处理器将无法清理任何残留。</p>
+     */
+    public void preCommitExpectedOutputs(IAEItemStack[] expectedOutputs) {
+        if (this.state != TargetState.PUSHING) {
+            throw new IllegalStateException("Cannot pre-commit outputs from state " + this.state);
+        }
+        this.expectedOutputs = expectedOutputs != null ? expectedOutputs.clone() : null;
+    }
+
+    /**
+     * 记录本批已推入目标的物品输入快照与流体。
+     *
+     * <p>发配在 {@link #commitPush} 之前失败时，会话仍处于 {@code PUSHING}，
+     * 此处的快照是 {@link IRemoteHandler#revertMaterials} 识别“本批材料”的唯一依据，
+     * 同时也是回退日志中已推流体的记录来源。</p>
+     */
+    public void recordPushedBatch(List<ItemStack> inputs, List<FluidStack> fluids) {
+        if (this.state != TargetState.PUSHING) {
+            throw new IllegalStateException("Cannot record pushed batch from state " + this.state);
+        }
+        this.inputs = inputs != null ? new ArrayList<>(inputs) : null;
+        this.pushedFluids = fluids != null ? new ArrayList<>(fluids) : null;
     }
 
     /**
@@ -251,92 +271,6 @@ public class TargetSession {
         }
         long elapsed = currentWorldTime - this.startTime;
         return elapsed >= timeoutTicks;
-    }
-
-    /**
-     * 序列化到 NBT（仅保存 PROCESSING 状态）。
-     */
-    public NBTTagCompound serializeProcessing() {
-        NBTTagCompound tag = new NBTTagCompound();
-        tag.setTag("binding", binding.writeToNBT());
-        tag.setLong("startTime", this.startTime);
-
-        if (expectedOutputs != null && expectedOutputs.length > 0) {
-            NBTTagList outList = new NBTTagList();
-            for (IAEItemStack output : expectedOutputs) {
-                if (output == null) continue;
-                outList.appendTag(output.createItemStack().serializeNBT());
-            }
-            tag.setTag("outputs", outList);
-        }
-
-        if (inputs != null && !inputs.isEmpty()) {
-            NBTTagList inList = new NBTTagList();
-            for (ItemStack input : inputs) {
-                if (input.isEmpty()) continue;
-                inList.appendTag(input.serializeNBT());
-            }
-            tag.setTag("inputs", inList);
-        }
-
-        if (inputFluids != null && !inputFluids.isEmpty()) {
-            NBTTagList fluidList = new NBTTagList();
-            for (FluidStack fluid : inputFluids) {
-                if (fluid == null || fluid.amount <= 0) continue;
-                fluidList.appendTag(fluid.writeToNBT(new NBTTagCompound()));
-            }
-            if (fluidList.tagCount() > 0) {
-                tag.setTag("inputFluids", fluidList);
-            }
-        }
-        return tag;
-    }
-
-    /**
-     * 从 NBT 恢复为 PROCESSING 状态。
-     */
-    public static TargetSession deserializeProcessing(NBTTagCompound tag, DualityCentralInterface owner) {
-        TargetBinding binding = TargetBinding.readFromNBT(tag.getCompoundTag("binding"));
-        TargetSession session = new TargetSession(binding, owner);
-        session.state = TargetState.PROCESSING;
-        session.startTime = tag.getLong("startTime");
-
-        if (tag.hasKey("outputs")) {
-            NBTTagList outList = tag.getTagList("outputs", 10);
-            IAEItemStack[] outputs = new IAEItemStack[outList.tagCount()];
-            for (int i = 0; i < outList.tagCount(); i++) {
-                ItemStack stack = new ItemStack(outList.getCompoundTagAt(i));
-                if (!stack.isEmpty()) {
-                    outputs[i] = AEItemStack.fromItemStack(stack);
-                }
-            }
-            session.expectedOutputs = outputs;
-        }
-
-        if (tag.hasKey("inputs")) {
-            NBTTagList inList = tag.getTagList("inputs", 10);
-            List<ItemStack> inputs = new ArrayList<>();
-            for (int i = 0; i < inList.tagCount(); i++) {
-                ItemStack stack = new ItemStack(inList.getCompoundTagAt(i));
-                if (!stack.isEmpty()) {
-                    inputs.add(stack);
-                }
-            }
-            session.inputs = inputs;
-        }
-
-        if (tag.hasKey("inputFluids")) {
-            NBTTagList fluidList = tag.getTagList("inputFluids", 10);
-            List<FluidStack> fluids = new ArrayList<>();
-            for (int i = 0; i < fluidList.tagCount(); i++) {
-                FluidStack fluid = FluidStack.loadFluidStackFromNBT(fluidList.getCompoundTagAt(i));
-                if (fluid != null && fluid.amount > 0) {
-                    fluids.add(fluid);
-                }
-            }
-            session.inputFluids = fluids;
-        }
-        return session;
     }
 
     @Override

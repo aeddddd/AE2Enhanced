@@ -1,6 +1,5 @@
 package com.github.aeddddd.ae2enhanced.util.placement;
 
-import appeng.api.AEApi;
 import appeng.api.parts.IPart;
 import appeng.api.parts.IPartHost;
 import appeng.api.parts.PartItemStack;

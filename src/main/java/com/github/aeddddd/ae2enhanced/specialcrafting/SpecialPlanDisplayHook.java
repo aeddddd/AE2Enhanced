@@ -17,10 +17,10 @@ import com.github.aeddddd.ae2enhanced.AE2Enhanced;
 import com.github.aeddddd.ae2enhanced.network.packet.PacketSpecialPlanInfo;
 
 /**
- * 普通计划的调用次数显示钩子（与 1.20.1 的 SpecialPlanInfo 全计划覆盖对齐）.
+ * 普通计划的调用次数显示钩子.
  * <p>由 MixinCraftingJob 在原生 {@code CraftingJob.run()} 返回时调用:
  * 遍历合成树统计各主产出键的样板调用次数,向发起玩家发送显示包.
- * 特殊计划的完整信息由 {@link LpCraftingJob} 自行发送（含结构标注）.</p>
+ * 特殊计划的完整信息由 {@link LpCraftingJob} 自行发送(含结构标注).</p>
  */
 public final class SpecialPlanDisplayHook {
 

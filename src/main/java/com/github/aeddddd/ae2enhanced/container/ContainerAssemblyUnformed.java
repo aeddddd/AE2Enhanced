@@ -56,7 +56,4 @@ public class ContainerAssemblyUnformed extends Container {
         return itemstack;
     }
 
-    public TileAssemblyController getTile() {
-        return tile;
-    }
 }

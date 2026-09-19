@@ -23,19 +23,15 @@ import com.github.aeddddd.ae2enhanced.mixin.bridge.ICraftingGridCacheAccess;
 
 /**
  * 网络样板索引（按 CraftingGridCache 实例缓存，recalculateCraftingPatterns 后失效重建）.
- * <ul>
- * <li>键图 SCC（迭代 Tarjan）:{@link #isCycleStep} 的 O(输入×输出) 查表，
- * 取代原先逐节点 budget=512 的 DFS（旧实现 O(节点数×512×样板扫描),
- * 是数千节点计划编译的主瓶颈）;</li>
- * <li>副产物生产者倒排：全样板扫描一次建成，LP 模型构建器按分量收集时复用;</li>
- * <li>SCC 键图是 LP 计划器(M7 起默认路径)求解单元划分与成环判定的基础.</li>
- * </ul>
- * 计算在线程池线程上并发执行：构建由 MixinCraftingGridCache 同步惰性触发,
- * memo 使用并发容器；键图数据构建后不可变.
+ * <p>维护三类倒排：主输出键的快照查询（{@link #patternsFor}）、副产物生产者倒排、
+ * 消费者倒排；并以 输出键 → 输入键 的键图做 Tarjan SCC 划分，作为 LP 计划器
+ * 求解单元划分与成环判定（{@link #isCycleStep}）的基础.</p>
+ * <p>构建与查询在线程池线程上并发执行：构建由 MixinCraftingGridCache 同步惰性触发,
+ * memo 使用并发容器；键图数据构建后不可变.</p>
  */
 public final class NetworkPatternIndex {
 
-    /** canon 输出键 → 以它为非主索引输出的样板（与旧 ProducerIndex.byproductIndex 同语义）. */
+    /** canon 输出键 → 以它为非主索引输出的样板. */
     private final Map<IAEItemStack, List<ICraftingPatternDetails>> byproduct;
     /** canon 输入键 → 消费它的全部样板（单元独占原料判定:消费者是否同属一个求解单元）. */
     private final Map<IAEItemStack, List<ICraftingPatternDetails>> consumers;
@@ -75,7 +71,7 @@ public final class NetworkPatternIndex {
 
     /**
      * 取网络的缓存索引（惰性构建）;非本模组缓存实现（如单元测试模拟网格）返回 null,
-     * 调用方应回退到逐次扫描的旧路径.
+     * 调用方应回退到逐次扫描.
      */
     @Nullable
     public static NetworkPatternIndex of(ICraftingGrid cc) {
@@ -87,17 +83,14 @@ public final class NetworkPatternIndex {
 
     /**
      * 全量构建（由 MixinCraftingGridCache 在同步块内调用）.
-     * <p><b>并发</b>：AE2-UEL 的 craftableItems 是就地 clear+重建的 fastutil map（无锁，
-     * 服务器线程持有），重建空窗期 map 稳定为空且无并发修改——计算线程任何活读
-     * （含"快照+复核"式校验）都无法区分空窗与真空网络.故数据源只能是
-     * recalc TAIL（服务器线程、重建刚完成）固化的一致性快照，见
+     * <p>并发约定：craftableItems 是就地 clear+重建的无锁 fastutil map（服务器线程持有）,
+     * 重建空窗期任何活读都无法区分空窗与真空网络.故数据源只能是 recalc TAIL
+     * （服务器线程、重建刚完成）固化的一致性快照,见
      * {@link ICraftingGridCacheAccess#ae2enhanced$craftableSnapshot()}.</p>
      */
     public static NetworkPatternIndex build(ICraftingGrid cc) {
         ICraftingGridCacheAccess access = (ICraftingGridCacheAccess) cc;
-        // 快照由 recalc TAIL(服务器线程、重建刚完成)固化,无竞态;空窗期活读
-        // 得到的部分/空视图在此被彻底排除(此前"快照+复核"无法识别稳定空窗,
-        // 会在重建期建出空索引 → LP 误判缺料仅根键缺失,重试自愈)
+        // 快照在重建完成点固化,无竞态;空窗期可能读到的部分/空视图被排除在外
         return buildFromSnapshot(access.ae2enhanced$craftableSnapshot(), access);
     }
 
@@ -135,7 +128,7 @@ public final class NetworkPatternIndex {
                                 k -> Collections.newSetFromMap(new IdentityHashMap<>())).add(pattern);
                     }
                 }
-                // 副产物倒排（与旧实现一致：跳过该样板的主索引键）
+                // 副产物倒排：跳过该样板的主索引键
                 for (IAEItemStack output : pattern.getCondensedOutputs()) {
                     if (output == null) {
                         continue;
@@ -152,7 +145,7 @@ public final class NetworkPatternIndex {
         Map<IAEItemStack, List<ICraftingPatternDetails>> byproduct = new HashMap<>();
         for (Map.Entry<IAEItemStack, Set<ICraftingPatternDetails>> entry : byproductSets.entrySet()) {
             List<ICraftingPatternDetails> list = new ArrayList<>(entry.getValue());
-            list.sort(PATTERN_CONTENT_ORDER); // 确定性序:身份桶序随重建漂移会传导到 LP 秩/种子校验访问序
+            list.sort(PATTERN_CONTENT_ORDER); // 确定性序:避免身份桶序随重建漂移传导到 LP 访问序
             byproduct.put(entry.getKey(), Collections.unmodifiableList(list));
         }
         Map<IAEItemStack, List<ICraftingPatternDetails>> consumers = new HashMap<>();
@@ -222,7 +215,6 @@ public final class NetworkPatternIndex {
     /**
      * 样板是否成环步骤：某输入键与某输出键处于同一 SCC
      * （输入键可经"被产生"边回到输出键 ⇔ 同 SCC，因本样板自带 输出→输入 边）.
-     * 与旧 budget DFS 语义等价（且不受 512 截断影响）.
      */
     public boolean isCycleStep(ICraftingPatternDetails pattern) {
         Boolean memo = this.cycleStepMemo.get(pattern);
@@ -256,7 +248,7 @@ public final class NetworkPatternIndex {
     }
 
     /** detector 判定 memo:键为 canon(请求物);结果仅依赖样板集,随索引一并失效.
-     * (M7 起 detector 已随旧特殊路由删除,memo 保留供未来路由层复用) */
+     * 当前无写入方,保留供未来路由层复用 */
     @Nullable
     public Boolean detectorVerdict(IAEItemStack canonKey) {
         return this.detectorMemo.get(canonKey);

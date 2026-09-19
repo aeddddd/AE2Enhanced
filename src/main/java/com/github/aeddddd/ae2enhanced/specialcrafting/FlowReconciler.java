@@ -27,21 +27,14 @@ import com.github.aeddddd.ae2enhanced.specialcrafting.lp.SccLpModelBuilder;
 import com.github.aeddddd.ae2enhanced.specialcrafting.lp.SccLpSolve.Execution;
 
 /**
- * 整数化对账层（方案 L §10.3.4,M5）:LP 实数计数 → 整数次数 + 精确 used/missing 归因.
- * <p>方法 = <b>静态批量重演</b>:按可行调度序（单元冷凝逆序 = 上游先产;单元内
- * 增益相→中性相,与 {@link SeedBootstrapCheck} 同序）在模拟库存上整批重演,
- * 记账口径与原 DAG 路径逐字节同语义（网络优先提取记 used、合成侧余额抵扣、
- * 产出/容器返还注入、发射台免费满足;助手方法见本类末尾）.</p>
- * <ul>
- * <li><b>整数化</b>:次数 = ⌈count − 1e-6⌉(只增不减,守恒方向安全;尾差 ±1/边
- * 在重演中浮现为输入缺口,精确归因 missing——§10.3.4 小量尾差策略);</li>
- * <li><b>守恒校验</b>:重演中任何输入提取不足(库存+合成侧余额都不够,非发射台)
- * 即记 missing(防御;LP+种子校验一致时不触发,整数化尾差除外);</li>
- * <li><b>发射台</b>:canEmitFor 键提取网络实存后剩余免费满足(原生同语义);</li>
- * <li><b>根库存</b>:请求物自身库存不抵交付(全额生产,原生 CraftingJob.ignore(output)
- * 同语义),但可作为点火种子被提取(记 used,执行层点火必需),期末由循环盈余
- * 随 CPU 剩余返还网络(种子保留).</li>
- * </ul>
+ * LP 实数计数 → 整数次数 + 精确缺料归因的对账层.
+ * <p>静态批量重演:按可行调度序(单元冷凝逆序 = 上游先产;单元内增益相→中性相,
+ * 与 {@link SeedBootstrapCheck} 同序)在模拟库存上整批重演,记账口径与原 DAG
+ * 路径一致:网络优先提取记 used、合成侧余额抵扣、产出/容器返还注入、发射台
+ * 免费满足.</p>
+ * <p>整数化取 ⌈count − 1e-6⌉(只增不减),尾差 ±1/边在重演中浮现为输入缺口并
+ * 精确归因 missing;请求物自身全额生产,库存不抵交付,但可作为点火种子被提取
+ * (记 used),期末由循环盈余随 CPU 剩余返还网络.</p>
  */
 public final class FlowReconciler {
 
@@ -86,10 +79,10 @@ public final class FlowReconciler {
             }
         }
 
-        // 1.5) 整数化守恒修复:独立 ⌈⌉ 对分数速率环会破坏配比(如 2C→3A 的 1.5 轮
-        // 上取整后中间键 3≠4 失衡)——逐单元检查内部键净平衡(库存+Σ(out−in)·t),
-        // 负平衡时按产出系数最小整数回补该键的生产者,级联至收敛.只增不减,
-        // 交付能力不受损;不修则重演/执行层在失衡键上断料死锁
+        // 1.5) 整数化守恒修复:独立上取整会破坏分数速率环的配比(如 2C→3A 的
+        // 1.5 轮取整后中间键失衡)——逐单元检查内部键净平衡,负平衡时按产出系数
+        // 回补该键的生产者,级联收敛.只增不减,交付能力不受损;不修则重演/执行层
+        // 在失衡键上断料死锁
         repairIntegralBalance(cc, index, outcome, times, inv);
 
         // 守恒修复回补激活的零计数执行记录补入扁平列表(物化/成环判定按
@@ -103,9 +96,8 @@ public final class FlowReconciler {
         }
 
         // 2) 重演:单元冷凝逆序(上游先产),多趟不动点——跨单元容器返还
-        // (下游单元样板的返还物是上游单元样板的输入,如空桶自举链)在本单元
-        // 重演时尚未回记,单趟会误判"无法启动";整轮重扫直至无进展为止.
-        // 仍无法启动的剩余次数由上游赤字承担差额,不重复记账
+        // (下游单元的返还物是上游单元的输入)在本单元重演时尚未回记,单趟会误判
+        // 无法启动;整轮重扫直至无进展.仍无法启动的剩余次数由上游赤字承担差额
         Map<IAEItemStack, Long> synthetic = new LinkedHashMap<>();
         Map<IAEItemStack, Long> fundedByCredit = new LinkedHashMap<>();
         Map<IAEItemStack, Long> networkSourced = new LinkedHashMap<>();
@@ -140,7 +132,7 @@ public final class FlowReconciler {
         }
 
         // 3) 根键交付结算:全额生产口径——交付只吃合成盈余(库存不抵交付),
-        // 缺口由 LP 赤字(步骤 5)表达;发射台根全额免费满足,不提取、不记 used
+        // 缺口由 LP 赤字表达;发射台根全额免费满足,不提取、不记 used
         if (!index.canEmit(rootKey)) {
             long funded = Math.min(target, synthetic.getOrDefault(rootKey, 0L));
             if (funded > 0) {
@@ -157,7 +149,7 @@ public final class FlowReconciler {
         }
 
         // 5) LP 赤字整数化入账(单元内短缺/降级直通/截断缺口;重演提取缺口由上游
-        // 赤字承担,不重复记账——整数化尾差(±1/边)按 §10.3.4 策略随赤字口径收敛)
+        // 赤字承担,不重复记账)
         for (Map.Entry<IAEItemStack, Double> deficit : outcome.deficits.entrySet()) {
             long amount = toLong(deficit.getValue());
             if (amount > 0) {
@@ -173,6 +165,8 @@ public final class FlowReconciler {
         final Execution exec;
         final Map<IAEItemStack, Long> inputs;
         final Map<IAEItemStack, Long> outputs;
+        /** 含容器返还的产出视图(非消耗输入判定用;生产注入仍用 {@link #outputs}). */
+        final Map<IAEItemStack, Long> outWithReturns;
         final double netGain;
         long remaining;
 
@@ -185,6 +179,12 @@ public final class FlowReconciler {
                 if (o != null) {
                     this.outputs.merge(RecursiveCraftingHelper.canon(o), o.getStackSize(), Long::sum);
                 }
+            }
+            // 非消耗判定口径与 SeedBootstrapCheck 一致(产出 = 凝聚输出 + 容器返还)
+            this.outWithReturns = new LinkedHashMap<>(this.outputs);
+            for (Map.Entry<IAEItemStack, Long> ret : FlowReconciler.returnsPerCraft(exec.pattern)
+                    .entrySet()) {
+                this.outWithReturns.merge(ret.getKey(), ret.getValue(), Long::sum);
             }
             double in = 0;
             for (Map.Entry<IAEItemStack, Long> e : this.inputs.entrySet()) {
@@ -216,8 +216,7 @@ public final class FlowReconciler {
     /**
      * 单元重演一趟:增益相(增益源反复至耗尽)→ 中性相(一趟),交替至本趟无法前进.
      * 剩余未完成的次数保留在 {@link ReplayVar#remaining} 中(跨单元返还可能在下趟
-     * 回记后使其可启动);LP+种子校验已保证可行,多趟不动点必收敛;提取不足记
-     * missing(防御/整数化尾差).
+     * 回记后使其可启动);提取不足记 missing(整数化尾差).
      */
     private static ReplayPass replayUnit(ICraftingGrid cc, NetworkPatternIndex index, List<ReplayVar> vars,
             MECraftingInventory inv,
@@ -241,38 +240,124 @@ public final class FlowReconciler {
                 break;
             }
             boolean progressed = false;
-            // 增益相
+            // 增益相:竞争键(多个增益源的共同输入)按剩余需求比例快照分配——
+            // 贪心全量访问会让先访问的增益源吃光共享种子、饿死兄弟增益源;
+            // 与 SeedBootstrapCheck 增益相同口径.全部份额地板归零(小额尘埃竞争)
+            // 时回退贪心,保底前进.
             boolean gainProgress = true;
             int gainPasses = 0;
             while (gainProgress && gainPasses++ < 4096) {
                 gainProgress = false;
+                // 快照:增益变量对竞争键的总需求 + 消费者数(独占消费者判定,
+                // 与 SeedBootstrapCheck 同口径) + 水塘分配预处理(逐键小额/大额合计)
+                Map<IAEItemStack, Long> gainContested = new LinkedHashMap<>();
+                Map<IAEItemStack, Integer> gainConsumers = new LinkedHashMap<>();
+                Map<IAEItemStack, Long> gainSmallNeed = new LinkedHashMap<>();
+                Map<IAEItemStack, Long> gainBigDemand = new LinkedHashMap<>();
                 for (ReplayVar v : vars) {
                     if (v.netGain <= 0 || v.remaining <= 0) {
                         continue;
                     }
-                    long cap = capacity(v, inv, synthetic, index);
-                    if (cap <= 0) {
+                    for (Map.Entry<IAEItemStack, Long> in : v.inputs.entrySet()) {
+                        if (!index.canEmit(in.getKey())) {
+                            // 催化/放大器的自键仍计入(瞬时消耗当前池),其可行量另行豁免
+                            long fullNeed = SaturatedMath.multiply(in.getValue(), v.remaining);
+                            gainContested.merge(in.getKey(), fullNeed, SaturatedMath::add);
+                            gainConsumers.merge(in.getKey(), 1, Integer::sum);
+                            if (fullNeed <= invAmount(inv, in.getKey())) {
+                                gainSmallNeed.merge(in.getKey(), fullNeed, SaturatedMath::add);
+                            } else {
+                                gainBigDemand.merge(in.getKey(), fullNeed, SaturatedMath::add);
+                            }
+                        }
+                    }
+                }
+                long[] gainCaps = new long[vars.size()];
+                for (int i = 0; i < vars.size(); i++) {
+                    ReplayVar v = vars.get(i);
+                    if (v.netGain <= 0 || v.remaining <= 0) {
                         continue;
                     }
-                    gainProgress = progressed = progressedAny = true;
-                    extractedTotal = SaturatedMath.add(extractedTotal, applyBatch(v, cap, index, inv, synthetic,
-                            fundedByCredit, networkSourced, containerKeys, rootNode, src));
+                    long cap = v.remaining;
+                    for (Map.Entry<IAEItemStack, Long> in : v.inputs.entrySet()) {
+                        if (index.canEmit(in.getKey())) {
+                            continue;
+                        }
+                        long available = invAmount(inv, in.getKey());
+                        long limit;
+                        if (v.outWithReturns.getOrDefault(in.getKey(), 0L) >= in.getValue()) {
+                            // 非消耗(催化/放大)键:免截流(与 SeedBootstrapCheck 同口径)
+                            limit = available / in.getValue();
+                        } else {
+                            long totalDemand = gainContested.getOrDefault(in.getKey(), 0L);
+                            limit = gainConsumers.getOrDefault(in.getKey(), 0) > 1
+                                    && totalDemand > available && totalDemand > 0
+                                    ? waterShareLong(available, v.remaining, in.getValue(), totalDemand,
+                                            gainSmallNeed.getOrDefault(in.getKey(), 0L),
+                                            gainBigDemand.getOrDefault(in.getKey(), 0L))
+                                    : available / in.getValue();
+                        }
+                        cap = Math.min(cap, limit);
+                    }
+                    gainCaps[i] = cap;
+                }
+                boolean anyCap = false;
+                for (long c : gainCaps) {
+                    if (c > 0) {
+                        anyCap = true;
+                        break;
+                    }
+                }
+                if (anyCap) {
+                    for (int i = 0; i < vars.size(); i++) {
+                        ReplayVar v = vars.get(i);
+                        if (v.netGain <= 0 || gainCaps[i] <= 0) {
+                            continue;
+                        }
+                        // 安全钳:不超过入账时刻可用量(与 SeedBootstrapCheck 同口径)
+                        long exec = gainCaps[i];
+                        for (Map.Entry<IAEItemStack, Long> in : v.inputs.entrySet()) {
+                            if (!index.canEmit(in.getKey())) {
+                                exec = Math.min(exec, invAmount(inv, in.getKey()) / in.getValue());
+                            }
+                        }
+                        if (exec <= 0) {
+                            continue;
+                        }
+                        gainProgress = progressed = progressedAny = true;
+                        extractedTotal = SaturatedMath.add(extractedTotal, applyBatch(v, exec, index,
+                                inv, synthetic, fundedByCredit, networkSourced, containerKeys, rootNode, src));
+                    }
+                } else {
+                    // 份额地板归零(尘埃竞争):贪心兜底,保证不劣于旧行为
+                    for (ReplayVar v : vars) {
+                        if (v.netGain <= 0 || v.remaining <= 0) {
+                            continue;
+                        }
+                        long cap = capacity(v, inv, synthetic, index);
+                        if (cap <= 0) {
+                            continue;
+                        }
+                        gainProgress = progressed = progressedAny = true;
+                        extractedTotal = SaturatedMath.add(extractedTotal, applyBatch(v, cap, index, inv,
+                                synthetic, fundedByCredit, networkSourced, containerKeys, rootNode, src));
+                    }
                 }
             }
             // 中性相:竞争键(多个可启动变量的共同输入)按各变量剩余需求比例
-            // 快照分配(与 SeedBootstrapCheck 中性相同口径)——贪心全量访问会让
-            // 先访问变量吃光共享种子、饿死增益源上游(θ 环 crush/charge 争同一
-            // 原料时 sand 种子未实取,执行层断料死锁);另对每个仍可启动的增益
-            // 变量保留"一次批量"所需(增益相已先跑,未点火即等待中性产物)——
-            // 否则中性变量会吃光共享种子饿死尚未点火的增益源(X4:中性 p1 吃光
-            // 32 石,增益 p2 无法启动;分母计入全部剩余需求的比例式会几何衰减,
-            // 同样到不了点火水位)
+            // 快照分配——贪心全量访问会让先访问变量吃光共享种子、饿死尚未点火的
+            // 增益源;另对每个仍可启动的增益变量保留"一次批量"所需,否则中性变量
+            // 会吃光共享种子(分母计入全部剩余需求的比例式会几何衰减,同样到不了
+            // 点火水位)
             boolean neutralProgress = true;
             int neutralPasses = 0;
             while (neutralProgress && neutralPasses++ < 4096) {
                 neutralProgress = false;
                 // 快照:竞争键总需求(仅中性变量)+ 增益变量一次批量保留
+                // (含消费者数;独占消费者不按比例截流)+ 水塘分配预处理
+                // (逐键小额/大额合计,基准 = 趟首可用量 − 保留)
                 Map<IAEItemStack, Long> contested = new LinkedHashMap<>();
+                Map<IAEItemStack, Integer> neutralConsumers = new LinkedHashMap<>();
                 Map<IAEItemStack, Long> reserved = new LinkedHashMap<>();
                 for (ReplayVar v : vars) {
                     if (v.remaining <= 0) {
@@ -289,11 +374,33 @@ public final class FlowReconciler {
                         } else {
                             contested.merge(in.getKey(), SaturatedMath.multiply(in.getValue(), v.remaining),
                                     SaturatedMath::add);
+                            neutralConsumers.merge(in.getKey(), 1, Integer::sum);
+                        }
+                    }
+                }
+                Map<IAEItemStack, Long> smallNeed = new LinkedHashMap<>();
+                Map<IAEItemStack, Long> bigDemand = new LinkedHashMap<>();
+                for (ReplayVar v : vars) {
+                    if (v.netGain > 0 || v.remaining <= 0) {
+                        continue;
+                    }
+                    for (Map.Entry<IAEItemStack, Long> in : v.inputs.entrySet()) {
+                        if (index.canEmit(in.getKey())) {
+                            continue;
+                        }
+                        long fullNeed = SaturatedMath.multiply(in.getValue(), v.remaining);
+                        long base = Math.max(0L, invAmount(inv, in.getKey())
+                                - reserved.getOrDefault(in.getKey(), 0L));
+                        if (fullNeed <= base) {
+                            smallNeed.merge(in.getKey(), fullNeed, SaturatedMath::add);
+                        } else {
+                            bigDemand.merge(in.getKey(), fullNeed, SaturatedMath::add);
                         }
                     }
                 }
                 // 快照式分配:先按快照算出全部变量的本趟可行量,再统一入账
-                // (中性总需求 ≤ 保留后可用量时退化为全量贪心;否则按需求比例分配)
+                // (中性总需求 ≤ 保留后可用量时退化为全量贪心;否则按需求比例分配).
+                // 自补充键例外同增益相:产出 > 消耗的输入键免保留免截流.
                 long[] caps = new long[vars.size()];
                 for (int i = 0; i < vars.size(); i++) {
                     ReplayVar v = vars.get(i);
@@ -305,13 +412,21 @@ public final class FlowReconciler {
                         if (index.canEmit(in.getKey())) {
                             continue;
                         }
-                        long available = Math.max(0L, invAmount(inv, in.getKey())
-                                - reserved.getOrDefault(in.getKey(), 0L));
-                        long totalDemand = contested.getOrDefault(in.getKey(), 0L);
-                        long share = totalDemand > available && totalDemand > 0
-                                ? (long) (available * ((double) in.getValue() * v.remaining / totalDemand))
-                                : available;
-                        cap = Math.min(cap, share / in.getValue());
+                        long limit;
+                        if (v.outWithReturns.getOrDefault(in.getKey(), 0L) >= in.getValue()) {
+                            limit = invAmount(inv, in.getKey()) / in.getValue();
+                        } else {
+                            long available = Math.max(0L, invAmount(inv, in.getKey())
+                                    - reserved.getOrDefault(in.getKey(), 0L));
+                            long totalDemand = contested.getOrDefault(in.getKey(), 0L);
+                            limit = neutralConsumers.getOrDefault(in.getKey(), 0) > 1
+                                    && totalDemand > available && totalDemand > 0
+                                    ? waterShareLong(available, v.remaining, in.getValue(), totalDemand,
+                                            smallNeed.getOrDefault(in.getKey(), 0L),
+                                            bigDemand.getOrDefault(in.getKey(), 0L))
+                                    : available / in.getValue();
+                        }
+                        cap = Math.min(cap, limit);
                     }
                     caps[i] = cap;
                 }
@@ -320,15 +435,25 @@ public final class FlowReconciler {
                     if (v.netGain > 0 || caps[i] <= 0) {
                         continue;
                     }
+                    // 安全钳:不超过入账时刻可用量(与增益相同口径)
+                    long exec = caps[i];
+                    for (Map.Entry<IAEItemStack, Long> in : v.inputs.entrySet()) {
+                        if (!index.canEmit(in.getKey())) {
+                            exec = Math.min(exec, invAmount(inv, in.getKey()) / in.getValue());
+                        }
+                    }
+                    if (exec <= 0) {
+                        continue;
+                    }
                     neutralProgress = progressed = progressedAny = true;
-                    extractedTotal = SaturatedMath.add(extractedTotal, applyBatch(v, caps[i], index, inv, synthetic,
+                    extractedTotal = SaturatedMath.add(extractedTotal, applyBatch(v, exec, index, inv, synthetic,
                             fundedByCredit, networkSourced, containerKeys, rootNode, src));
                 }
             }
             if (!progressed) {
                 if (reserveForGain) {
                     // 保留过激致整趟零进展(如增益源等待跨单元注入):退化为
-                    // 无保留贪心重试本趟(总比卡死强)
+                    // 无保留贪心重试本趟
                     reserveForGain = false;
                     continue;
                 }
@@ -352,6 +477,24 @@ public final class FlowReconciler {
             cap = Math.min(cap, available / in.getValue());
         }
         return cap;
+    }
+
+    /**
+     * 水塘分配(长整数口径,与 SeedBootstrapCheck.waterShare 同语义):
+     * 小额消费者(全额需求 ≤ 趟首可用量)足额放行;大额按比例分剩余可用量;
+     * 小额合计超可用量时退化为全体按比例.返回本变量本趟可执行次数上限.
+     */
+    private static long waterShareLong(long base, long remaining, long perCraft, long totalDemand,
+            long smallNeed, long bigDemand) {
+        long fullNeed = SaturatedMath.multiply(perCraft, remaining);
+        if (smallNeed <= base && fullNeed <= base) {
+            return remaining; // 小额(且小额合计不超可用量):足额完成
+        }
+        if (smallNeed <= base) {
+            long availForBig = base - smallNeed;
+            return bigDemand > 0 ? (long) (availForBig * ((double) fullNeed / bigDemand)) / perCraft : 0L;
+        }
+        return (long) (base * ((double) perCraft * remaining / totalDemand)) / perCraft;
     }
 
     /**
@@ -415,15 +558,14 @@ public final class FlowReconciler {
 
     /**
      * 整数化守恒修复(逐单元):内部键净平衡 = 库存 + Σ(out−in)·t 不得为负.
-     * 负平衡时回补该键净产出为正的执行记录(⌈缺口/净产出⌉ 次,只增不减),
-     * 回补可能消耗其他键造成新负平衡,级联修补(防御上限 64 轮;净增环
-     * 保证整数可行解存在,经验上数轮内收敛).
+     * 负平衡时回补该键净产出为正的执行记录(⌈缺口/净产出⌉ 次,只增不减);
+     * 回补可能消耗其他键造成新负平衡,级联修补(防御上限 64 轮).
      */
     private static void repairIntegralBalance(ICraftingGrid cc, NetworkPatternIndex index,
             LpPlanOutcome outcome, Map<Execution, Long> times, MECraftingInventory inv) {
         // 外层不动点:内部键修复只保证单元内配比;回补抬升的次数会多耗跨单元外部键
-        // (如 H13 的 p0 由 1 抬到 2,dirt 消耗翻倍超过 LP 折算的 1)——外部键负平衡时
-        // 回补其生产者所在单元,可能破坏该单元内部平衡,故内外交替至收敛(防御 64 轮)
+        // ——外部键负平衡时回补其生产者所在单元,可能破坏该单元内部平衡,
+        // 故内外交替至收敛(防御 64 轮)
         for (int outer = 0; outer < 64; outer++) {
             repairInternalBalance(outcome, times, inv);
             if (!repairExternalBalance(cc, index, outcome, times, inv)) {
@@ -443,7 +585,7 @@ public final class FlowReconciler {
             LpPlanOutcome outcome,
             Map<Execution, Long> times, MECraftingInventory inv) {
         // 全图生产者倒排:canon 键 → 生产执行记录(含零计数——LP 判定无需生产的
-        // 键可能因整数化回补抬升下游消耗而需要点火,如 H13 辅材子合成)
+        // 键可能因整数化回补抬升下游消耗而需要点火)
         Map<IAEItemStack, List<Execution>> producerExecs = new HashMap<>();
         for (UnitSolution unit : outcome.unitSolutions) {
             for (Execution exec : unit.executions) {
@@ -529,7 +671,7 @@ public final class FlowReconciler {
         return bumpedAny;
     }
 
-    /** 逐单元内部键守恒修复(原 repairIntegralBalance 主体). */
+    /** 逐单元内部键守恒修复. */
     private static void repairInternalBalance(LpPlanOutcome outcome, Map<Execution, Long> times,
             MECraftingInventory inv) {
         for (UnitSolution unit : outcome.unitSolutions) {
@@ -602,7 +744,7 @@ public final class FlowReconciler {
         }
     }
 
-    // ===== 记账助手(M7 起内化于本类) =====
+    // ===== 记账助手 =====
 
     /** 单次提取的结果:总提取量 + 其中来自网络实取的量. */
     private static final class ExtractOutcome {

@@ -11,7 +11,7 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Redirect;
 
 /**
- * E2a：防止流体/气体/源质假物品在 IO Port 传输时被计数为真实物品.
+ * E2a: 防止流体/气体/源质假物品在 IO Port 传输时被计数为真实物品.
  */
 @Mixin(value = TileIOPort.class, remap = false)
 public class MixinTileIOPort {

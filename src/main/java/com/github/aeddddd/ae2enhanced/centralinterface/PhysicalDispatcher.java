@@ -99,10 +99,21 @@ public class PhysicalDispatcher {
 
         boolean success = false;
         try {
+            // 先登记本批预期产物：clearOutputs 依赖 session 中的预期产物识别上一轮残留，
+            // 否则通用处理器在清理阶段只能看到空快照，残留产物会一直留在目标中。
+            session.preCommitExpectedOutputs(patternDetails.getOutputs());
+
             // 1. 发配前回收目标输出槽残留内容，防止残留产物干扰新材料推送
             List<ItemStack> clearedOutputs = safeClearOutputs(handler, world, target.pos, source, session);
             if (!clearedOutputs.isEmpty()) {
                 stashOrInject(grid, world, clearedOutputs);
+            }
+
+            // 1b. 回收目标输出罐的残留流体：残留产物流体会占满输出罐，使机器拒绝开始新配方
+            List<FluidStack> batchFluids = FluidTransferHelper.peekFluidInputs(table);
+            List<FluidStack> clearedFluids = safeClearOutputFluids(handler, world, target.pos, source, session, batchFluids);
+            if (!clearedFluids.isEmpty()) {
+                injectFluidsOrKeep(grid, world, target.pos, clearedFluids);
             }
 
             // 2. 推送流体输入（如果配方包含流体）
@@ -110,6 +121,10 @@ public class PhysicalDispatcher {
                 revertSession(session, "pushFluidInputs failed", source);
                 return false;
             }
+
+            // 记录本批材料快照：发配在 commitPush 之前失败时，PUSHING 阶段的
+            // revertMaterials 只能依靠这份快照识别并取回已推入目标的材料。
+            session.recordPushedBatch(snapshotItemInputs(table), pushedFluids);
 
             // 3. 检查目标是否可以开始处理本次配方
             if (!safeCanStart(handler, world, target.pos, table, session)) {
@@ -249,8 +264,10 @@ public class PhysicalDispatcher {
 
             Boolean finished = safeHasFinished(handler, world, target.pos, inputs, session);
             if (finished == null) {
-                // hasFinished 异常，安全结束会话避免无限循环
-                finished = true;
+                // hasFinished 异常时不能当作已完成：那会在产物尚未收完时关闭会话，
+                // 残留产物只能等下一批发配的 clearOutputs 才被清理。
+                // 这里保持会话继续收集，由 processingTimeoutTicks 超时回退兜底。
+                finished = false;
             }
             session.finishCollect(finished);
             if (!products.isEmpty() || !fluidProducts.isEmpty()) {
@@ -286,7 +303,7 @@ public class PhysicalDispatcher {
     }
 
     /**
-     * 统一回退一个 session：收集产物、回退材料、回退流体、释放所有权。
+     * 统一回退一个 session：收集产物、回退材料、记录流体、释放所有权。
      *
      * @param reason 回退原因，仅用于日志
      */
@@ -297,21 +314,26 @@ public class PhysicalDispatcher {
             if (world != null && world.provider.getDimension() == target.dimension && world.isBlockLoaded(target.pos)) {
                 IRemoteHandler handler = HandlerRegistry.findHandler(target.blockId);
                 if (handler != null) {
-                    // 先尝试收集可能已产生的产物
-                    List<ItemStack> products = safeCollectProducts(handler, world, target.pos,
-                            session.getExpectedOutputs(), session.getInputs(), source, session);
-                    if (products != null && !products.isEmpty()) {
-                        stashOrInject(owner.gridConnection(), world, products);
+                    // 仅对已提交(处理中/收集中)的批次做产物扫描。
+                    // PUSHING 阶段本批材料尚未开始处理，此刻的全量扫描会把机器里
+                    // 上一轮的残留、燃料以及玩家放入的物品一并收进网络。
+                    if (session.getState() != TargetState.PUSHING) {
+                        List<ItemStack> products = safeCollectProducts(handler, world, target.pos,
+                                session.getExpectedOutputs(), session.getInputs(), source, session);
+                        if (products != null && !products.isEmpty()) {
+                            stashOrInject(owner.gridConnection(), world, products);
+                        }
                     }
 
-                    // 回退尚未消耗的材料
+                    // 回退尚未消耗的材料(按本批输入快照识别)
                     List<ItemStack> reverted = safeRevertMaterials(handler, world, target.pos, source, session);
                     if (reverted != null && !reverted.isEmpty()) {
                         stashOrInject(owner.gridConnection(), world, reverted);
                     }
 
-                    // 回退已推流体
-                    FluidTransferHelper.revertPushedFluids(world, target.pos, session.getInputFluids());
+                    // 流体只记录不抽取：从目标抽回流体后没有任何回注通道，
+                    // 抽取出来的流体只会被丢弃，因此保留在目标内并留下回退记录。
+                    logPushedFluids(session, target, reason);
                 }
             }
         } catch (Throwable e) {
@@ -319,6 +341,27 @@ public class PhysicalDispatcher {
         } finally {
             session.reset();
         }
+    }
+
+    /**
+     * 记录本次回退涉及但保留在目标内的流体，不执行抽取。
+     */
+    private void logPushedFluids(TargetSession session, TargetBinding target, String reason) {
+        List<FluidStack> fluids = session.getInputFluids();
+        if (fluids.isEmpty()) {
+            fluids = session.getPushedFluids();
+        }
+        if (fluids.isEmpty()) {
+            return;
+        }
+        long total = 0;
+        for (FluidStack fluid : fluids) {
+            if (fluid != null) {
+                total += fluid.amount;
+            }
+        }
+        AE2Enhanced.LOGGER.warn("[AE2E] CentralInterface revert kept {} mb of fluid inside {} at {} (reason: {})",
+                total, target.blockId, target.pos, reason);
     }
 
     /**
@@ -394,6 +437,35 @@ public class PhysicalDispatcher {
             AE2Enhanced.LOGGER.warn("[AE2E] Handler clearOutputs threw at {}: {}", pos, e.toString());
             return new ArrayList<>();
         }
+    }
+
+    private List<FluidStack> safeClearOutputFluids(IRemoteHandler handler, World world, BlockPos pos,
+                                                   IActionSource source, TargetSession session, List<FluidStack> batchFluids) {
+        try {
+            List<FluidStack> fluids = handler.clearOutputFluids(world, pos, source, session, batchFluids);
+            return fluids != null ? fluids : new ArrayList<>();
+        } catch (Throwable e) {
+            AE2Enhanced.LOGGER.warn("[AE2E] Handler clearOutputFluids threw at {}: {}", pos, e.toString());
+            return new ArrayList<>();
+        }
+    }
+
+    /**
+     * 将流体注入网络，网络容纳不下的部分推回目标机器，仍推不下的记录丢弃。
+     *
+     * @return true 表示全部注入网络
+     */
+    private boolean injectFluidsOrKeep(IGridConnection grid, World world, BlockPos pos, List<FluidStack> fluids) {
+        List<FluidStack> overflow = NetworkAccess.injectFluidsToNetwork(grid, owner.host, fluids);
+        if (overflow.isEmpty()) {
+            return true;
+        }
+        List<FluidStack> stillRemaining = FluidTransferHelper.pushFluidsToTarget(world, pos, overflow);
+        for (FluidStack f : stillRemaining) {
+            AE2Enhanced.LOGGER.warn("[AE2E] CentralInterface fluid lost for {}: {} mb of {}",
+                    pos, f.amount, f.getFluid().getName());
+        }
+        return false;
     }
 
     private boolean safeCanStart(IRemoteHandler handler, World world, BlockPos pos, InventoryCrafting table, TargetSession session) {

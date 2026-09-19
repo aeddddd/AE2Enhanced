@@ -1,5 +1,9 @@
 package com.github.aeddddd.ae2enhanced.test.lp;
 
+import static com.github.aeddddd.ae2enhanced.test.support.LpTestSupport.buildMiniWeb;
+import static com.github.aeddddd.ae2enhanced.test.support.LpTestSupport.canon;
+import static com.github.aeddddd.ae2enhanced.test.support.SimulationEnv.block;
+import static com.github.aeddddd.ae2enhanced.test.support.SimulationEnv.mult;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -10,18 +14,16 @@ import java.util.Map;
 
 import org.junit.jupiter.api.Test;
 
-import net.minecraft.block.Block;
 import net.minecraft.init.Blocks;
-import net.minecraft.item.ItemStack;
 
 import appeng.api.networking.crafting.ICraftingPatternDetails;
 import appeng.api.storage.data.IAEItemStack;
-import appeng.util.item.AEItemStack;
 
-import com.github.aeddddd.ae2enhanced.specialcrafting.RecursiveCraftingHelper;
-import com.github.aeddddd.ae2enhanced.test.specialcrafting.PlanView;
-import com.github.aeddddd.ae2enhanced.test.specialcrafting.ProcessingPatternBuilder;
-import com.github.aeddddd.ae2enhanced.test.specialcrafting.SimulationEnv;
+import com.github.aeddddd.ae2enhanced.test.support.LpTestSupport.MiniWeb;
+import com.github.aeddddd.ae2enhanced.test.support.ExecutionHarness;
+import com.github.aeddddd.ae2enhanced.test.support.PlanView;
+import com.github.aeddddd.ae2enhanced.test.support.ProcessingPatternBuilder;
+import com.github.aeddddd.ae2enhanced.test.support.SimulationEnv;
 
 /**
  * M5 物化与对账测试:LP 路径全链(求解 → 重演对账 → 物化原生树 → dive/populatePlan).
@@ -43,7 +45,7 @@ public class LpPlanMaterializationTest {
                 .addPreciseInput(1, b).build());
         env.addStoredItem(a);
 
-        PlanView plan = PlanView.of(env.runDag(mult(x, 10)));
+        PlanView plan = PlanView.of(env.runLp(mult(x, 10)));
         assertFalse(plan.simulation(), "计划应成功: " + plan.missingItems());
         assertEquals(10L, plan.patternTimes().getOrDefault(p1, 0L));
         assertEquals(9L, plan.patternTimes().getOrDefault(p2, 0L));
@@ -61,7 +63,7 @@ public class LpPlanMaterializationTest {
                 .addPreciseInput(1, a).build());
         env.addStoredItem(mult(a, 4));
 
-        PlanView plan = PlanView.of(env.runDag(mult(x, 10)));
+        PlanView plan = PlanView.of(env.runLp(mult(x, 10)));
         assertTrue(plan.simulation(), "缺料计划应置模拟标志");
         assertEquals(10L, plan.patternTimes().getOrDefault(px, 0L));
         // usedItems 口径:LpCraftingJob.populatePlan 会把 missing 条目回注 plan 列表
@@ -78,7 +80,7 @@ public class LpPlanMaterializationTest {
         ICraftingPatternDetails dup = env.addPattern(new ProcessingPatternBuilder(mult(a, 2))
                 .addPreciseInput(1, a).build());
 
-        PlanView plan = PlanView.of(env.runDag(mult(a, 10)));
+        PlanView plan = PlanView.of(env.runLp(mult(a, 10)));
         assertTrue(plan.simulation());
         assertEquals(10L, plan.missingItems().getOrDefault(canon(a), 0L));
         assertEquals(0L, plan.patternTimes().getOrDefault(dup, 0L), "无种子不应有执行");
@@ -93,7 +95,7 @@ public class LpPlanMaterializationTest {
                 .addPreciseInput(1, a).build());
         env.addStoredItem(a);
 
-        PlanView plan = PlanView.of(env.runDag(mult(a, 10)));
+        PlanView plan = PlanView.of(env.runLp(mult(a, 10)));
         assertFalse(plan.simulation(), "计划应成功: " + plan.missingItems());
         assertEquals(10L, plan.patternTimes().getOrDefault(dup, 0L));
         assertEquals(1L, plan.usedItems().getOrDefault(canon(a), 0L), "used = 种子 A×1");
@@ -104,30 +106,16 @@ public class LpPlanMaterializationTest {
     @Test
     public void miniWebMaterialized() {
         SimulationEnv env = new SimulationEnv();
-        IAEItemStack[] keys = new IAEItemStack[50];
-        Block[] palette = { Blocks.STONE, Blocks.COBBLESTONE, Blocks.DIRT, Blocks.PLANKS, Blocks.SAND,
-                Blocks.GRAVEL, Blocks.LOG, Blocks.GLASS, Blocks.CLAY, Blocks.BRICK_BLOCK };
-        for (int i = 0; i < keys.length; i++) {
-            keys[i] = AEItemStack.fromItemStack(new ItemStack(palette[i % palette.length], 1, i / palette.length));
-        }
-        ICraftingPatternDetails[] ring = new ICraftingPatternDetails[50];
-        for (int i = 0; i < 50; i++) {
-            ring[i] = env.addPattern(new ProcessingPatternBuilder(keys[(i + 1) % 50])
-                    .addPreciseInput(1, keys[i]).build());
-        }
-        env.addPattern(new ProcessingPatternBuilder(mult(keys[5], 2)).addPreciseInput(1, keys[5]).build());
-        ICraftingPatternDetails dup25 = env.addPattern(new ProcessingPatternBuilder(mult(keys[25], 2))
-                .addPreciseInput(1, keys[25]).build());
-        env.addPattern(new ProcessingPatternBuilder(mult(keys[45], 2)).addPreciseInput(1, keys[45]).build());
-        env.addStoredItem(keys[25]);
+        MiniWeb web = buildMiniWeb(env);
+        env.addStoredItem(web.keys[25]);
 
-        PlanView plan = PlanView.of(env.runDag(mult(keys[0], 100)));
+        PlanView plan = PlanView.of(env.runLp(mult(web.keys[0], 100)));
         assertFalse(plan.simulation(), "计划应成功: " + plan.missingItems());
-        assertEquals(99L, plan.patternTimes().getOrDefault(dup25, 0L));
+        assertEquals(99L, plan.patternTimes().getOrDefault(web.dup25, 0L));
         for (int i = 25; i <= 49; i++) {
-            assertEquals(100L, plan.patternTimes().getOrDefault(ring[i], 0L), "环流 p" + i);
+            assertEquals(100L, plan.patternTimes().getOrDefault(web.ring[i], 0L), "环流 p" + i);
         }
-        assertEquals(1L, plan.usedItems().getOrDefault(canon(keys[25]), 0L), "used = 种子 K25×1");
+        assertEquals(1L, plan.usedItems().getOrDefault(canon(web.keys[25]), 0L), "used = 种子 K25×1");
         assertTrue(plan.missingItems().isEmpty());
     }
 
@@ -138,7 +126,7 @@ public class LpPlanMaterializationTest {
         IAEItemStack e = block(Blocks.STONE);
         env.addEmitable(e);
 
-        PlanView plan = PlanView.of(env.runDag(mult(e, 100)));
+        PlanView plan = PlanView.of(env.runLp(mult(e, 100)));
         assertFalse(plan.simulation(), "发射台计划应成功");
         assertTrue(plan.patternTimes().isEmpty(), "发射台不应有样板执行");
         assertTrue(plan.usedItems().isEmpty(), "发射台不应有 used: " + plan.usedItems());
@@ -157,7 +145,7 @@ public class LpPlanMaterializationTest {
         env.addStoredItem(mult(x, 64));
         env.addStoredItem(mult(a, 64));
 
-        PlanView plan = PlanView.of(env.runDag(mult(x, 10)));
+        PlanView plan = PlanView.of(env.runLp(mult(x, 10)));
         assertFalse(plan.simulation());
         assertEquals(10L, plan.patternTimes().getOrDefault(p, 0L), "库存不抵交付,全额生产");
         assertEquals(10L, plan.usedItems().getOrDefault(canon(a), 0L), "used = 原料 a×10");
@@ -178,15 +166,15 @@ public class LpPlanMaterializationTest {
                 .addPreciseInput(1, b).build());
         env.addStoredItem(a);
 
-        PlanView plan = PlanView.of(env.runDag(mult(x, 10)));
+        PlanView plan = PlanView.of(env.runLp(mult(x, 10)));
         assertFalse(plan.simulation());
         Map<IAEItemStack, Long> network = new LinkedHashMap<>();
         network.put(canon(a), 1L);
-        for (List<ICraftingPatternDetails> order : com.github.aeddddd.ae2enhanced.test.specialcrafting.ExecutionHarness
+        for (List<ICraftingPatternDetails> order : com.github.aeddddd.ae2enhanced.test.support.ExecutionHarness
                 .pushOrders(java.util.Arrays.asList(p1, p2))) {
-            com.github.aeddddd.ae2enhanced.test.specialcrafting.ExecutionHarness.Result result =
-                    com.github.aeddddd.ae2enhanced.test.specialcrafting.ExecutionHarness.execute(plan, network,
-                            com.github.aeddddd.ae2enhanced.test.specialcrafting.ExecutionHarness.Options
+            com.github.aeddddd.ae2enhanced.test.support.ExecutionHarness.Result result =
+                    com.github.aeddddd.ae2enhanced.test.support.ExecutionHarness.execute(plan, network,
+                            com.github.aeddddd.ae2enhanced.test.support.ExecutionHarness.Options
                                     .gameDefaults(), order);
             assertTrue(result.completed, "订单应完成 [ticks=" + result.ticks + "]");
             assertFalse(result.deadlock);
@@ -204,13 +192,13 @@ public class LpPlanMaterializationTest {
                 .addPreciseInput(1, a).build());
         env.addStoredItem(a);
 
-        PlanView plan = PlanView.of(env.runDag(mult(a, 10)));
+        PlanView plan = PlanView.of(env.runLp(mult(a, 10)));
         assertFalse(plan.simulation());
         Map<IAEItemStack, Long> network = new LinkedHashMap<>();
         network.put(canon(a), 1L);
-        com.github.aeddddd.ae2enhanced.test.specialcrafting.ExecutionHarness.Result result =
-                com.github.aeddddd.ae2enhanced.test.specialcrafting.ExecutionHarness.execute(plan, network,
-                        com.github.aeddddd.ae2enhanced.test.specialcrafting.ExecutionHarness.Options
+        com.github.aeddddd.ae2enhanced.test.support.ExecutionHarness.Result result =
+                com.github.aeddddd.ae2enhanced.test.support.ExecutionHarness.execute(plan, network,
+                        com.github.aeddddd.ae2enhanced.test.support.ExecutionHarness.Options
                                 .gameDefaults(),
                         java.util.Collections.singletonList(dup));
         assertTrue(result.completed, "订单应完成 [ticks=" + result.ticks + "]");
@@ -219,19 +207,5 @@ public class LpPlanMaterializationTest {
         assertEquals(10L, result.delivered);
     }
 
-    // ===== 工具 =====
-
-    private static IAEItemStack canon(IAEItemStack stack) {
-        return RecursiveCraftingHelper.canon(stack);
-    }
-
-    private static IAEItemStack block(Block block) {
-        return AEItemStack.fromItemStack(new ItemStack(block));
-    }
-
-    private static IAEItemStack mult(IAEItemStack template, long multiplier) {
-        IAEItemStack copy = template.copy();
-        copy.setStackSize(multiplier);
-        return copy;
-    }
+    // ===== 工具(公共助手见 LpTestSupport) =====
 }

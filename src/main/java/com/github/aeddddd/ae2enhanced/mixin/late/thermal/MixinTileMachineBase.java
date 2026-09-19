@@ -78,15 +78,19 @@ public class MixinTileMachineBase {
 
     private void redirectFluidHandler(IFluidHandler handler, World world, BlockPos pos) {
         for (IFluidTankProperties prop : handler.getTankProperties()) {
-            if (prop == null) continue;
+            // 按机器声明的罐模式判断：只处理可抽取的罐，输入罐（canDrain == false）不碰
+            if (prop == null || !prop.canDrain()) continue;
             FluidStack contents = prop.getContents();
             if (contents == null || contents.amount <= 0) continue;
             FluidStack remainder = MachineOutputRedirector.tryRedirectFluid(contents, world, pos);
             if (remainder == null || remainder.amount == 0) {
                 handler.drain(contents, true);
             } else if (remainder.amount < contents.amount) {
-                int accepted = contents.amount - remainder.amount;
-                handler.drain(new FluidStack(contents.getFluid(), accepted), true);
+                // 按实际被接受的数量抽取，且必须保留原 FluidStack 的 NBT 信息，
+                // 否则带 NBT 的流体无法匹配，已注入的部分会残留在罐中造成重复
+                FluidStack accepted = contents.copy();
+                accepted.amount = contents.amount - remainder.amount;
+                handler.drain(accepted, true);
             }
         }
     }

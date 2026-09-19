@@ -2,9 +2,8 @@ package com.github.aeddddd.ae2enhanced.util.fakeitem;
 
 import appeng.api.storage.data.IAEItemStack;
 import appeng.util.item.AEItemStack;
-import com.github.aeddddd.ae2enhanced.registry.content.ItemRegistry;
-import com.github.aeddddd.ae2enhanced.registry.content.PartRegistry;
 import com.github.aeddddd.ae2enhanced.item.ItemGasDrop;
+import com.github.aeddddd.ae2enhanced.registry.content.ItemRegistry;
 import com.mekeng.github.common.me.data.IAEGasStack;
 import com.mekeng.github.common.me.data.impl.AEGasStack;
 import mekanism.api.gas.GasStack;
@@ -78,35 +77,12 @@ public final class FakeGases {
     }
 
     /**
-     * 判断 ItemStack 是否是气体假物品.
-     * 注意：本方法直接引用 ItemGasDrop,仅供条件配置(gas.json)中的代码使用.
-     * 无条件配置中的代码应使用 {@link #isGasFakeItemSafe(ItemStack)}.
-     */
-    public static boolean isGasFakeItem(ItemStack stack) {
-        return ItemGasDrop.isGasDrop(stack);
-    }
-
-    /**
      * 安全判断 ItemStack 是否是气体假物品.
      * 使用字符串比较而非直接引用 ItemGasDrop 类,避免 Mekanism 不存在时
      * 触发 NoClassDefFoundError.
      */
     public static boolean isGasFakeItemSafe(ItemStack stack) {
         return !stack.isEmpty() && GAS_DROP_CLASS.equals(stack.getItem().getClass().getName());
-    }
-
-    /**
-     * 安全获取气体假物品的气体注册名.
-     * 直接从 NBT 读取,不加载 ItemGasDrop 类.
-     */
-    public static String tryGetGasName(ItemStack stack) {
-        if (!isGasFakeItemSafe(stack)) return null;
-        net.minecraft.nbt.NBTTagCompound tag = stack.getTagCompound();
-        return tag != null ? tag.getString("GasName") : null;
-    }
-
-    public static ItemStack packGas2Drops(GasStack stack) {
-        return FakeItemRegister.packStack(stack, ItemRegistry.GAS_DROP);
     }
 
     public static IAEItemStack packGas2AEDrops(GasStack stack) {

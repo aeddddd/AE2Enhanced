@@ -32,7 +32,7 @@ public class PacketOmniToolPlacementSubModeHandler implements IMessageHandler<Pa
                     "gui.ae2enhanced.placement.mode." + nextMode.name().toLowerCase()).getFormattedText();
             player.sendStatusMessage(new TextComponentTranslation(
                     "message.ae2enhanced.placement.mode_changed", modeName), true);
-            // 强制同步 NBT 到客户端，防止数据丢失
+            // 强制同步 NBT 到客户端, 防止数据丢失
             player.setHeldItem(EnumHand.MAIN_HAND, stack);
         });
         return null;

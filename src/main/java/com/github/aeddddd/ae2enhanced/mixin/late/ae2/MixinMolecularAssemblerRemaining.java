@@ -4,6 +4,7 @@ import appeng.api.networking.crafting.ICraftingPatternDetails;
 import appeng.container.ContainerNull;
 import appeng.tile.crafting.TileMolecularAssembler;
 import appeng.util.Platform;
+import com.github.aeddddd.ae2enhanced.mixin.bridge.IPatternHelperAccess;
 import net.minecraft.inventory.InventoryCrafting;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.crafting.IRecipe;
@@ -14,21 +15,13 @@ import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Redirect;
 
-import com.github.aeddddd.ae2enhanced.mixin.bridge.IPatternHelperAccess;
-
 /**
- * 分子装配室合成收官时按<b>配方实际剩余物</b>({@code IRecipe.getRemainingItems})
- * 替代原生 {@code Platform.getContainerItem} 处理输入槽.
- *
- * <p>原生只认 {@code Item.hasContainerItem},CraftTweaker 的 {@code .reuse()} 等
- * 配方级不消耗实现（剩余物钩子返回物品但 Item 无容器物）下,物品会被静默销毁——
- * 且若任其留在槽位,CPU 下一次合成无法再从 CPU 库存提取该物,任务必然卡死.
- * 本 mixin 把剩余物立即推回（经 pushOut 回流到 CPU 库存,与容器物同一回收路径),
- * 槽位清空,使下一次合成可正常重取;CPU 侧的 waitingFor 预期由
- * {@link MixinCraftingCPUClusterRemaining} 用同一张剩余物表登记,两端一致.</p>
- *
- * <p>对原版配方,recipe 剩余物与容器物一致(Forge 默认实现即返回容器物),
- * 行为不变;非 PatternHelper 实现(如 ae2fc 流体样板)或配方异常时回退原生.</p>
+ * 分子装配室合成收官时按配方实际剩余物(IRecipe.getRemainingItems)替代原生
+ * Platform.getContainerItem 处理输入槽.
+ * 原生只认 Item.hasContainerItem, CraftTweaker .reuse() 等配方级不消耗实现下物品会被静默销毁,
+ * 且留在槽位会让 CPU 下一次合成无法重取该物而卡死; 本 mixin 把剩余物立即推回 CPU 库存,
+ * 使下一次合成可正常重取. CPU 侧 waitingFor 预期由 MixinCraftingCPUClusterRemaining 登记, 两端一致.
+ * 原版配方剩余物与容器物一致, 行为不变; 非 PatternHelper 实现(如 ae2fc 流体样板)或配方异常时回退原生.
  */
 @Mixin(value = TileMolecularAssembler.class, remap = false)
 public abstract class MixinMolecularAssemblerRemaining {

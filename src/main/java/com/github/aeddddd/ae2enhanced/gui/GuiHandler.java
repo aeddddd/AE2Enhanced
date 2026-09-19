@@ -1,57 +1,16 @@
 package com.github.aeddddd.ae2enhanced.gui;
-import com.github.aeddddd.ae2enhanced.client.gui.GuiAssemblyFormed;
-import com.github.aeddddd.ae2enhanced.client.gui.GuiAssemblyPattern;
-import com.github.aeddddd.ae2enhanced.client.gui.GuiAssemblyUnformed;
-import com.github.aeddddd.ae2enhanced.client.gui.GuiComputationFormed;
-import com.github.aeddddd.ae2enhanced.client.gui.GuiComputationUnformed;
-import com.github.aeddddd.ae2enhanced.client.gui.GuiHyperdimensionalNexus;
-import com.github.aeddddd.ae2enhanced.client.gui.GuiHyperdimensionalUnformed;
-import com.github.aeddddd.ae2enhanced.client.gui.GuiStockingBus;
-import com.github.aeddddd.ae2enhanced.client.gui.GuiUniversalExportBus;
-import com.github.aeddddd.ae2enhanced.client.gui.GuiUniversalImportBus;
-import com.github.aeddddd.ae2enhanced.client.gui.GuiUniversalMemoryCard;
-import com.github.aeddddd.ae2enhanced.client.gui.GuiAdvancedMECollector;
-import com.github.aeddddd.ae2enhanced.client.gui.GuiMENetworkRecycler;
-import com.github.aeddddd.ae2enhanced.client.gui.GuiWirelessChannelTransmitter;
-import com.github.aeddddd.ae2enhanced.client.gui.GuiOmniToolConfig;
-import com.github.aeddddd.ae2enhanced.client.gui.GuiPersonalDimensionConfig;
-import com.github.aeddddd.ae2enhanced.client.gui.GuiEMCInterface;
 
 import appeng.api.parts.IPart;
 import appeng.api.parts.IPartHost;
 import appeng.api.util.AEPartLocation;
-import com.github.aeddddd.ae2enhanced.container.ContainerAssemblyFormed;
-import com.github.aeddddd.ae2enhanced.container.ContainerAssemblyPattern;
-import com.github.aeddddd.ae2enhanced.container.ContainerAssemblyUnformed;
-import com.github.aeddddd.ae2enhanced.container.ContainerComputationFormed;
-import com.github.aeddddd.ae2enhanced.container.ContainerComputationUnformed;
-import com.github.aeddddd.ae2enhanced.container.ContainerHyperdimensionalNexus;
-import com.github.aeddddd.ae2enhanced.container.ContainerHyperdimensionalUnformed;
-import com.github.aeddddd.ae2enhanced.container.ContainerStockingBus;
-import com.github.aeddddd.ae2enhanced.container.ContainerOmniTerm;
-import com.github.aeddddd.ae2enhanced.container.ContainerAdvancedMECollector;
-import com.github.aeddddd.ae2enhanced.container.ContainerEMCInterface;
-import com.github.aeddddd.ae2enhanced.container.ContainerMENetworkRecycler;
-import com.github.aeddddd.ae2enhanced.container.ContainerWirelessChannelTransmitter;
-import com.github.aeddddd.ae2enhanced.container.ContainerOmniToolConfig;
-import com.github.aeddddd.ae2enhanced.container.ContainerPersonalDimensionConfig;
-
-import com.github.aeddddd.ae2enhanced.container.ContainerUniversalExportBus;
-import com.github.aeddddd.ae2enhanced.container.ContainerUniversalImportBus;
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
-import com.github.aeddddd.ae2enhanced.item.ItemMEPlacementTool;
+import com.github.aeddddd.ae2enhanced.client.gui.*;
+import com.github.aeddddd.ae2enhanced.container.*;
 import com.github.aeddddd.ae2enhanced.item.ItemOmniWirelessTerminal;
 import com.github.aeddddd.ae2enhanced.part.PartStockingBus;
 import com.github.aeddddd.ae2enhanced.part.PartUniversalExportBus;
 import com.github.aeddddd.ae2enhanced.part.PartUniversalImportBus;
-import com.github.aeddddd.ae2enhanced.tile.TileAssemblyController;
-import com.github.aeddddd.ae2enhanced.tile.TileComputationCore;
-import com.github.aeddddd.ae2enhanced.tile.TileHyperdimensionalController;
-import com.github.aeddddd.ae2enhanced.tile.TileCentralMEInterface;
-import com.github.aeddddd.ae2enhanced.tile.TileAdvancedMECollector;
-import com.github.aeddddd.ae2enhanced.tile.TileMENetworkRecycler;
-import com.github.aeddddd.ae2enhanced.tile.TileEMCInterface;
-import com.github.aeddddd.ae2enhanced.tile.TileWirelessChannelTransmitter;
+import com.github.aeddddd.ae2enhanced.tile.*;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.item.ItemStack;
 import net.minecraft.tileentity.TileEntity;
@@ -251,8 +210,8 @@ public class GuiHandler implements IGuiHandler {
             return new com.github.aeddddd.ae2enhanced.container.ContainerRingConfig();
         }
         if (ID == GUI_PERSONAL_DIMENSION_CONFIG) {
-            // 在他人维度内且拥有 MANAGE_RULES 权限时，编辑所在维度所有者的规则
-            java.util.UUID target = com.github.aeddddd.ae2enhanced.dimension.PersonalDimensionManager.getRuleEditTarget(player);
+            // 规则始终编辑玩家自己的维度
+            java.util.UUID target = player.getUniqueID();
             if (player instanceof net.minecraft.entity.player.EntityPlayerMP) {
                 com.github.aeddddd.ae2enhanced.dimension.PersonalDimensionManager.sendRulesToPlayer(
                         target, (net.minecraft.entity.player.EntityPlayerMP) player);
@@ -419,11 +378,8 @@ public class GuiHandler implements IGuiHandler {
                     new com.github.aeddddd.ae2enhanced.container.ContainerRingConfig());
         }
         if (ID == GUI_PERSONAL_DIMENSION_CONFIG) {
-            // 注：客户端 playerId 仅用于 canInteractWith，实际编辑目标与权限校验均在服务端
-            // （getServerGuiElement 用 PersonalDimensionManager.getRuleEditTarget 解析目标，
-            // PacketPersonalDimensionRulesHandler 同样在服务端重新解析目标）。
-            // 客户端无法访问服务端的 PersonalDimensionData，现有同步包也未携带目标 UUID，
-            // 故此处保持使用玩家自身 UUID。
+            // 注：客户端 playerId 仅用于 canInteractWith，规则始终编辑玩家自己的维度，
+            // 服务端 getServerGuiElement 与 PacketPersonalDimensionRulesHandler 均按玩家自身 UUID 处理。
             return new GuiPersonalDimensionConfig(player, new ContainerPersonalDimensionConfig(player.getUniqueID()));
         }
         if (ID == GUI_DISPLAY_WALL) {

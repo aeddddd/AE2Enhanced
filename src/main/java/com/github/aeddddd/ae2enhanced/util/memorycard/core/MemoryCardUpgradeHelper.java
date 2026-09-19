@@ -19,7 +19,6 @@ import appeng.me.helpers.PlayerSource;
 import appeng.util.item.AEItemStack;
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
 import com.github.aeddddd.ae2enhanced.item.ItemUniversalMemoryCard;
-import com.github.aeddddd.ae2enhanced.tile.TileWirelessChannelTransmitter;
 import com.google.common.collect.ImmutableSet;
 import net.minecraft.entity.item.EntityItem;
 import net.minecraft.entity.player.EntityPlayer;
@@ -143,22 +142,36 @@ public class MemoryCardUpgradeHelper {
     public static NetworkPullResult tryPullFromNetwork(EntityPlayer player, List<ItemStack> missing) {
         ItemStack handStack = player.getHeldItemMainhand();
         if (!(handStack.getItem() instanceof ItemUniversalMemoryCard)) return NetworkPullResult.FAILED;
-        if (!ItemUniversalMemoryCard.hasBinding(handStack)) return NetworkPullResult.FAILED;
-
-        NBTTagCompound binding = ItemUniversalMemoryCard.getBinding(handStack);
-        BlockPos pos = BlockPos.fromLong(binding.getLong("pos"));
-        int dim = binding.getInteger("dim");
 
         World world = player.getEntityWorld();
-        if (world.provider.getDimension() != dim) return NetworkPullResult.FAILED;
-        if (!world.isBlockLoaded(pos)) return NetworkPullResult.FAILED;
 
-        TileEntity te = world.getTileEntity(pos);
-        if (!(te instanceof TileWirelessChannelTransmitter)) return NetworkPullResult.FAILED;
-        TileWirelessChannelTransmitter transmitter = (TileWirelessChannelTransmitter) te;
+        // 优先：编码键绑定(将卡放入安全终端编码槽写入),经 LocatableRegistry 解析,不受维度限制
+        appeng.tile.misc.TileSecurityStation station = null;
+        Long securityKey = ItemUniversalMemoryCard.getBoundSecurityKey(handStack);
+        if (securityKey != null) {
+            station = resolveStationByKey(securityKey);
+        } else if (ItemUniversalMemoryCard.hasBinding(handStack)) {
+            // 旧版坐标绑定(右键安全终端)兼容路径
+            NBTTagCompound binding = ItemUniversalMemoryCard.getBinding(handStack);
+            BlockPos pos = BlockPos.fromLong(binding.getLong("pos"));
+            int dim = binding.getInteger("dim");
+            if (world.provider.getDimension() != dim) return NetworkPullResult.FAILED;
+            if (!world.isBlockLoaded(pos)) return NetworkPullResult.FAILED;
+            // 网络连接通过 AE2 安全终端(带提取权限校验)
+            TileEntity te = world.getTileEntity(pos);
+            if (te instanceof appeng.tile.misc.TileSecurityStation) {
+                station = (appeng.tile.misc.TileSecurityStation) te;
+            }
+        }
+        if (station == null) return NetworkPullResult.FAILED;
 
         try {
-            appeng.api.networking.IGrid grid = transmitter.getProxy().getGrid();
+            appeng.api.networking.IGrid grid = station.getProxy().getGrid();
+            appeng.api.networking.security.ISecurityGrid security = grid.getCache(
+                    appeng.api.networking.security.ISecurityGrid.class);
+            if (security != null && !security.hasPermission(player, appeng.api.config.SecurityPermissions.EXTRACT)) {
+                return NetworkPullResult.FAILED;
+            }
             appeng.api.networking.storage.IStorageGrid storageGrid = grid.getCache(appeng.api.networking.storage.IStorageGrid.class);
             if (storageGrid == null) return NetworkPullResult.FAILED;
             IMEMonitor<IAEItemStack> inv = storageGrid.getInventory(
@@ -203,7 +216,7 @@ public class MemoryCardUpgradeHelper {
 
             boolean craftingRequested = false;
             if (!craftable.isEmpty() && craftingGrid != null) {
-                craftingRequested = requestCrafting(player, world, grid, source, craftingGrid, craftable, transmitter);
+                craftingRequested = requestCrafting(player, world, grid, source, craftingGrid, craftable, station);
             }
 
             for (ItemStack toExtract : directExtract) {
@@ -224,20 +237,36 @@ public class MemoryCardUpgradeHelper {
 
             return NetworkPullResult.PULLED;
         } catch (GridAccessException e) {
-            AE2Enhanced.LOGGER.debug("[AE2E] UMC bound transmitter grid not accessible at {}", pos);
+            AE2Enhanced.LOGGER.debug("[AE2E] UMC bound security station grid not accessible at {}", station.getPos());
             return NetworkPullResult.FAILED;
         }
     }
 
+    /**
+     * 经 AE2 LocatableRegistry 按编码键解析安全终端(与无线终端同一机制).
+     * 终端所在区块未加载或已拆除时返回 null.
+     */
+    private static appeng.tile.misc.TileSecurityStation resolveStationByKey(long key) {
+        try {
+            appeng.api.features.ILocatable obj = AEApi.instance().registries().locatable().getLocatableBy(key);
+            if (obj instanceof appeng.tile.misc.TileSecurityStation) {
+                return (appeng.tile.misc.TileSecurityStation) obj;
+            }
+        } catch (Exception e) {
+            AE2Enhanced.LOGGER.debug("[AE2E] Failed to resolve UMC bound security key {}", key);
+        }
+        return null;
+    }
+
     private static boolean requestCrafting(EntityPlayer player, World world, appeng.api.networking.IGrid grid,
                                            PlayerSource source, ICraftingGrid craftingGrid,
-                                           List<ItemStack> toCraft, TileWirelessChannelTransmitter transmitter) {
+                                           List<ItemStack> toCraft, appeng.tile.misc.TileSecurityStation station) {
         boolean anyRequested = false;
 
         ICraftingRequester requester = new ICraftingRequester() {
             @Override
             public IGridNode getActionableNode() {
-                return transmitter.getProxy().getNode();
+                return station.getProxy().getNode();
             }
 
             @Override

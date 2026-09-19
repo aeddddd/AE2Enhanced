@@ -1,6 +1,5 @@
 package com.github.aeddddd.ae2enhanced.recycler;
 
-import appeng.api.storage.data.IAEItemStack;
 import com.github.aeddddd.ae2enhanced.storage.ItemDescriptor;
 import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.objects.ObjectOpenHashSet;
@@ -28,16 +27,6 @@ public class RecyclerIndex {
         set.add(target);
     }
 
-    public void remove(@Nonnull ItemDescriptor desc, @Nonnull TargetManager.TargetRef target) {
-        ObjectOpenHashSet<TargetManager.TargetRef> set = index.get(desc);
-        if (set != null) {
-            set.remove(target);
-            if (set.isEmpty()) {
-                index.remove(desc);
-            }
-        }
-    }
-
     public void clear() {
         index.clear();
     }
@@ -51,10 +40,6 @@ public class RecyclerIndex {
     @Nonnull
     public Set<ItemDescriptor> getAllTypes() {
         return Collections.unmodifiableSet(index.keySet());
-    }
-
-    public boolean contains(@Nonnull ItemDescriptor desc) {
-        return index.containsKey(desc);
     }
 
     public void rebuild(@Nonnull Map<TargetManager.TargetRef, TargetAdapterSnapshot> snapshots) {
@@ -72,11 +57,9 @@ public class RecyclerIndex {
      * 目标快照.
      */
     public static final class TargetAdapterSnapshot {
-        public final long lastChangeTick;
         public final java.util.List<ItemStack> contents;
 
-        public TargetAdapterSnapshot(long lastChangeTick, java.util.List<ItemStack> contents) {
-            this.lastChangeTick = lastChangeTick;
+        public TargetAdapterSnapshot(java.util.List<ItemStack> contents) {
             this.contents = contents;
         }
     }

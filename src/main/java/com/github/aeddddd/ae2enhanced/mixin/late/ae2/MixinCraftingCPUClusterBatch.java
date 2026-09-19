@@ -9,7 +9,6 @@ import appeng.api.storage.data.IItemList;
 import appeng.me.cache.CraftingGridCache;
 import appeng.me.cluster.implementations.CraftingCPUCluster;
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
-import com.github.aeddddd.ae2enhanced.mixin.bridge.IComputationCoreAccess;
 import com.github.aeddddd.ae2enhanced.mixin.bridge.ICraftingGridCacheAccess;
 import com.github.aeddddd.ae2enhanced.mixin.bridge.IMeInventoryVersionAccess;
 import com.github.aeddddd.ae2enhanced.mixin.late.accessor.ITaskProgressAccessor;
@@ -25,13 +24,13 @@ import net.minecraft.item.crafting.IRecipe;
 import net.minecraft.util.NonNullList;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
-import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -41,6 +40,23 @@ import java.util.Map;
  * <p>在 executeCrafting HEAD 中批量处理经由 TileAssemblyMeInterface 推送的任务：
  * 虚拟样板直接按并行上限结算产出，真实样板按配方批量核算材料与产物。
  * 同时在 updateCraftingLogic HEAD 处理任务收官与 Crafting Monitor 清空修复。</p>
+ *
+ * <h3>跨配方并行（本 Mixin 的调度职责）</h3>
+ * <p>并行上限不再等同「单次批量大小 + 整枢纽冷却」，而是枢纽可同时持有的在途份数，
+ * 由 {@link TileAssemblyController} 的并行预算分配器在<b>同一周期内的多个样板</b>间分摊：
+ * 每趟先把本趟待服务样板按控制器汇总（{@code beginParallelPass}），再逐任务取额度
+ * （{@code allowanceFor}），结算成功后登记实际占用（{@code claimParallel}）。
+ * 并发配方数由跨配方并行模块限制（无卡 = 1，等价「一次只处理一种配方」）。
+ * 某个样板剩余量/材料/供电不足时，用不完的额度会在同趟后续轮次回流给其他样板。</p>
+ *
+ * <h3>能耗</h3>
+ * <p>材料预检通过、MODULATE 扣料之前调用 {@code chargeCraftEnergy} 计费；欠电时按实付
+ * 比例降低本次结算份数（0 = 本 tick 跳过该样板），因此产物/进度/并行占用与实付能量一致。</p>
+ *
+ * <p>注意：批量结算<b>不得</b>扣减 {@code remainingOperations}（原生每 tick 发配配额）。
+ * 原生的 {@code usedOps[3]} 环形记账把它当作「本拍消耗」，一旦批量把配额扣成负数，
+ * 后续 1~3 tick 会算出非正配额而整段跳过 {@code executeCrafting}（连带跳过本 Mixin 的
+ * 批量结算），表现为枢纽周期性停摆。枢纽的节流由并行预算承担，原生配额只描述物理发配。</p>
  */
 @Mixin(value = CraftingCPUCluster.class, remap = false, priority = 1000)
 public abstract class MixinCraftingCPUClusterBatch {
@@ -52,9 +68,6 @@ public abstract class MixinCraftingCPUClusterBatch {
     private Map<ICraftingPatternDetails, Object> tasks;
 
     @Shadow
-    private int remainingOperations;
-
-    @Shadow
     private long remainingItemCount;
 
     @Shadow
@@ -62,6 +75,34 @@ public abstract class MixinCraftingCPUClusterBatch {
 
     @Shadow
     private IAEItemStack finalOutput;
+
+    /**
+     * 汇总本趟各装配中枢的待服务样板（每个样板只计入首个可服务它的中枢）.
+     *
+     * <p>预扫描的目的是让并行预算分配器知道「有多少个配方在竞争同一周期的额度」，
+     * 从而把额度切成多份并行推进，而不是让迭代顺序靠前的样板吃满预算。</p>
+     */
+    private static Map<TileAssemblyController, List<ICraftingPatternDetails>> collectPending(
+            Map<ICraftingPatternDetails, Object> tasks, CraftingGridCache cache) {
+        Map<TileAssemblyController, List<ICraftingPatternDetails>> pending = new java.util.IdentityHashMap<>();
+        for (Map.Entry<ICraftingPatternDetails, Object> entry : tasks.entrySet()) {
+            Object progress = entry.getValue();
+            if (progress == null) continue;
+            if (((ITaskProgressAccessor) progress).ae2e$getValue() <= 0) continue;
+
+            List<ICraftingMedium> mediums = ((ICraftingGridCacheAccess) cache).ae2enhanced$getMediumsMemo(entry.getKey());
+            if (mediums == null || mediums.isEmpty()) continue;
+
+            for (ICraftingMedium medium : mediums) {
+                if (!(medium instanceof TileAssemblyMeInterface)) continue;
+                TileAssemblyController controller = ((TileAssemblyMeInterface) medium).getController();
+                if (controller == null) continue;
+                pending.computeIfAbsent(controller, k -> new ArrayList<>()).add(entry.getKey());
+                break;
+            }
+        }
+        return pending;
+    }
 
     @Shadow
     private void postChange(IAEItemStack diff, appeng.api.networking.security.IActionSource src) {
@@ -80,10 +121,6 @@ public abstract class MixinCraftingCPUClusterBatch {
     }
 
     // ==================== Batch Crafting (Assembly Hub) ====================
-
-    private static int batchCallCount = 0;
-    private static int batchSuccessCount = 0;
-    private static int batchFailCount = 0;
 
     private static appeng.api.storage.data.IAEItemStack fetchFromNetwork(
             CraftingCPUCluster cpu,
@@ -164,6 +201,11 @@ public abstract class MixinCraftingCPUClusterBatch {
         return ((ICraftingGridCacheAccess) cache).ae2enhanced$getMediumsMemo(details);
     }
 
+    @Shadow
+    private net.minecraft.world.World getWorld() {
+        return null;
+    }
+
     @Inject(method = "executeCrafting", at = @At("HEAD"))
     private void batchProcessVirtualTasks(IEnergyGrid energy, CraftingGridCache cache, CallbackInfo ci) {
         // 性能早退：网络中不存在装配中枢时,批量结算不可能命中,
@@ -178,9 +220,6 @@ public abstract class MixinCraftingCPUClusterBatch {
                 .isSpecialCluster((CraftingCPUCluster) (Object) this)) return;
 
         CraftingCPUCluster cpu;
-        boolean anyOurTask = false;
-        int virtualTasksFound = 0;
-        int virtualTasksExecuted = 0;
 
         try {
             cpu = (CraftingCPUCluster) (Object) this;
@@ -194,7 +233,24 @@ public abstract class MixinCraftingCPUClusterBatch {
             int doWhileIterations = 0;
             do {
                 changed = false;
-                for (Map.Entry<ICraftingPatternDetails, Object> entry : new ArrayList<>(tasks.entrySet())) {
+                // 每趟重算各控制器的待服务样板集合并开启一趟预算分配：
+                // 并行额度按本趟竞争者数量分摊，已有在途的样板让位于首轮竞争者。
+                Map<TileAssemblyController, List<ICraftingPatternDetails>> pendingByController =
+                        collectPending(tasks, cache);
+                for (Map.Entry<TileAssemblyController, List<ICraftingPatternDetails>> pe : pendingByController.entrySet()) {
+                    pe.getKey().beginParallelPass(pe.getValue());
+                }
+                // 任务迭代顺序按世界时间轮转：并行上限/并发槽位小于待服务样板数时，额度受预算
+                // 耗尽影响只落在迭代顺序靠前的样板，逐 tick 轮转才能覆盖全部样板（否则靠后的
+                // 样板永远拿不到额度 = 变相卡死）。
+                List<Map.Entry<ICraftingPatternDetails, Object>> ordered = new ArrayList<>(tasks.entrySet());
+                if (ordered.size() > 1) {
+                    net.minecraft.world.World batchWorld = getWorld();
+                    if (batchWorld != null) {
+                        Collections.rotate(ordered, -(int) (batchWorld.getTotalWorldTime() % ordered.size()));
+                    }
+                }
+                for (Map.Entry<ICraftingPatternDetails, Object> entry : ordered) {
                     ICraftingPatternDetails details = entry.getKey();
                     Object progress = entry.getValue();
 
@@ -206,7 +262,6 @@ public abstract class MixinCraftingCPUClusterBatch {
 
                     for (ICraftingMedium medium : mediums) {
                         if (!(medium instanceof TileAssemblyMeInterface)) continue;
-                        anyOurTask = true;
 
                         TileAssemblyController controller = ((TileAssemblyMeInterface) medium).getController();
                         if (controller == null) continue;
@@ -215,10 +270,10 @@ public abstract class MixinCraftingCPUClusterBatch {
                         // 输入模板中 FLUID_DROP 按 mB 计量、普通物品按个数计量；
                         // 配方用容器形态输入(getOriginInputs)重建,被替换的流体槽无空容器返还.
                         if (controller.isFluidPattern(details)) {
-                            if (!controller.canBatch()) break;
+                            long allowance = controller.allowanceFor(details);
+                            if (allowance <= 0) continue; // 本趟无额度：让其他中枢/装配室接手
 
-                            long cap = controller.getParallelCap();
-                            long batchSize = (cap >= Long.MAX_VALUE / 2) ? remaining : Math.min(remaining, cap);
+                            long batchSize = Math.min(remaining, allowance);
 
                             appeng.api.networking.security.IActionSource source = cpu.getActionSource();
                             controller.setCurrentActionSource(source);
@@ -313,6 +368,11 @@ public abstract class MixinCraftingCPUClusterBatch {
                                 }
                                 if (!canExtract || actualBatchSize <= 0) break;
 
+                                // 能耗：按实际结算份数计费,欠电时按实付比例降载（0 = 本 tick 无电）
+                                long energyGrant = controller.chargeCraftEnergy(actualBatchSize);
+                                if (energyGrant <= 0) continue;
+                                actualBatchSize = Math.min(actualBatchSize, energyGrant);
+
                                 // MODULATE 实际扣料(Drop 扣 mB,物品扣个数)
                                 for (int i = 0; i < 9; i++) {
                                     if (i >= fluidInputs.length || fluidInputs[i] == null) continue;
@@ -365,7 +425,6 @@ public abstract class MixinCraftingCPUClusterBatch {
                                 long newRemaining = remaining - actualBatchSize;
                                 ((ITaskProgressAccessor) progress).ae2e$setValue(newRemaining);
 
-                                this.remainingOperations = (int) (this.remainingOperations - actualBatchSize);
                                 long totalOutputCount = 0;
                                 for (IAEItemStack out : details.getCondensedOutputs()) {
                                     if (out != null) totalOutputCount += out.getStackSize() * actualBatchSize;
@@ -373,8 +432,8 @@ public abstract class MixinCraftingCPUClusterBatch {
                                 this.remainingItemCount = this.remainingItemCount - totalOutputCount;
 
                                 controller.setBatchBusy(true);
+                                controller.claimParallel(details, actualBatchSize);
                                 changed = true;
-                                controller.resetBatchCooldown();
                             } catch (Exception e) {
                                 AE2Enhanced.LOGGER.error("[AE2E] Fluid batch error: {}", e.toString());
                             } finally {
@@ -384,11 +443,10 @@ public abstract class MixinCraftingCPUClusterBatch {
                         }
 
                         if (!controller.isVirtualPattern(details)) {
-                            if (!controller.canBatch()) break;
+                            long allowance = controller.allowanceFor(details);
+                            if (allowance <= 0) continue; // 本趟无额度：让其他中枢/装配室接手
 
-                            long cap = controller.getParallelCap();
-                            long batchSize = (cap >= Long.MAX_VALUE / 2) ? remaining : Math.min(remaining, cap);
-                            long actualBatchSize = batchSize;
+                            long actualBatchSize = Math.min(remaining, allowance);
 
                             appeng.api.networking.security.IActionSource source = cpu.getActionSource();
                             controller.setCurrentActionSource(source);
@@ -457,6 +515,11 @@ public abstract class MixinCraftingCPUClusterBatch {
                                 }
                                 if (!canExtract || actualBatchSize <= 0) break;
 
+                                // 能耗：按实际结算份数计费,欠电时按实付比例降载（0 = 本 tick 无电）
+                                long energyGrant = controller.chargeCraftEnergy(actualBatchSize);
+                                if (energyGrant <= 0) continue;
+                                actualBatchSize = Math.min(actualBatchSize, energyGrant);
+
                                 for (int i = 0; i < info.slotTemplates.length; i++) {
                                     if (info.slotTemplates[i] == null) continue;
                                     long needCount;
@@ -515,7 +578,6 @@ public abstract class MixinCraftingCPUClusterBatch {
                                 long newRemaining = remaining - actualBatchSize;
                                 ((ITaskProgressAccessor) progress).ae2e$setValue(newRemaining);
 
-                                this.remainingOperations = (int) (this.remainingOperations - actualBatchSize);
                                 long oldRemItemCount = this.remainingItemCount;
                                 long totalOutputCount = 0;
                                 for (IAEItemStack out : details.getCondensedOutputs()) {
@@ -524,8 +586,8 @@ public abstract class MixinCraftingCPUClusterBatch {
                                 this.remainingItemCount = oldRemItemCount - totalOutputCount;
 
                                 controller.setBatchBusy(true);
+                                controller.claimParallel(details, actualBatchSize);
                                 changed = true;
-                                controller.resetBatchCooldown();
 
 
                             } catch (Exception e) {
@@ -536,11 +598,10 @@ public abstract class MixinCraftingCPUClusterBatch {
                             break;
                         }
 
-                        if (!controller.canBatch()) continue;
-                        virtualTasksFound++;
+                        long allowance = controller.allowanceFor(details);
+                        if (allowance <= 0) continue; // 本趟无额度：让其他中枢/装配室接手
 
-                        long cap = controller.getParallelCap();
-                        long batchSize = (cap >= Long.MAX_VALUE / 2) ? remaining : Math.min(remaining, cap);
+                        long batchSize = Math.min(remaining, allowance);
 
                         appeng.api.networking.security.IActionSource source = cpu.getActionSource();
                         controller.setCurrentActionSource(source);
@@ -593,6 +654,13 @@ public abstract class MixinCraftingCPUClusterBatch {
                                 continue;
                             }
 
+                            // 能耗：按实际结算份数计费,欠电时按实付比例降载（0 = 本 tick 无电）
+                            long energyGrant = controller.chargeCraftEnergy(batchSize);
+                            if (energyGrant <= 0) {
+                                continue;
+                            }
+                            batchSize = Math.min(batchSize, energyGrant);
+
                             for (IAEItemStack inputTemplate : details.getCondensedInputs()) {
                                 if (inputTemplate == null || inputTemplate.getStackSize() <= 0) continue;
                                 long totalNeed = inputTemplate.getStackSize() * batchSize;
@@ -636,12 +704,13 @@ public abstract class MixinCraftingCPUClusterBatch {
 
                             long newRemaining = remaining - batchSize;
                             ((ITaskProgressAccessor) progress).ae2e$setValue(newRemaining);
+                            // 产物直接写入 CPU 库存,不回流(injectItems) → 剩余计数须在结算侧递减,
+                            // 与真实/流体批量分支同口径(原生发配走回流路径,故不得在发配侧递减).
+                            this.remainingItemCount = this.remainingItemCount - totalOutputItems;
 
                             controller.setBatchBusy(true);
-
+                            controller.claimParallel(details, batchSize);
                             changed = true;
-                            virtualTasksExecuted++;
-                            controller.resetBatchCooldown();
 
 
                         } finally {
@@ -654,15 +723,6 @@ public abstract class MixinCraftingCPUClusterBatch {
             } while (changed && doWhileIterations < 100000);
         } catch (Exception e) {
             AE2Enhanced.LOGGER.error("[AE2E] batchProcessVirtualTasks unexpected error: {}", e.toString());
-        } finally {
-            batchCallCount++;
-            if (virtualTasksExecuted > 0) {
-                batchSuccessCount += virtualTasksExecuted;
-
-            } else if (anyOurTask && batchCallCount % 20 == 1) {
-                batchFailCount++;
-
-            }
         }
     }
 }

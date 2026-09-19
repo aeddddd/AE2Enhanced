@@ -88,15 +88,6 @@ public final class Timer {
         return sorted[idx] / 1_000_000.0;
     }
 
-    public synchronized void reset() {
-        pos = 0;
-        size = 0;
-        count = 0;
-        totalNanos = 0;
-        minNanos = Long.MAX_VALUE;
-        maxNanos = 0;
-    }
-
     /** 不可变快照，毫秒单位。 */
     public static final class Snapshot {
         public final long count;

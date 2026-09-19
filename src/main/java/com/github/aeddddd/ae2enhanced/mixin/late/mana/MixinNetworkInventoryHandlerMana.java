@@ -23,12 +23,10 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 /**
- * E2a：在 NetworkInventoryHandler 层面拦截 Mana 假物品.
- * 本 mixin 位于 mixins.ae2enhanced.late.tii.json 中,由 TiiMixinPlugin 条件加载：
- * 仅当 TII(Terminal Interaction Integration) 未安装时生效.
- *
- * NetworkMonitor 在更外层拦截了大部分操作,但某些内部逻辑可能直接调用
- * NetworkInventoryHandler.此处的 HEAD 拦截确保 Mana 假物品不会被当作真实物品取出.
+ * 在 NetworkInventoryHandler 层面拦截 Mana 假物品,由 TiiMixinPlugin 条件加载,
+ * 仅当 TII(Terminal Interaction Integration) 未安装时生效. 部分内部逻辑绕过
+ * NetworkMonitor 直接调用 NetworkInventoryHandler,这里的 HEAD 拦截确保 Mana 假物品
+ * 不会被当作真实物品取出.
  */
 @SuppressWarnings("rawtypes")
 @Mixin(value = NetworkInventoryHandler.class, remap = false, priority = 1100)
@@ -62,7 +60,7 @@ public class MixinNetworkInventoryHandlerMana {
         ItemStack mcStack = itemStack.createItemStack();
         if (!ItemManaDrop.isManaDrop(mcStack)) return;
 
-        // E2a：Mana 假物品禁止作为真实物品被取出.
+        // Mana 假物品禁止作为真实物品被取出.
         cir.setReturnValue(request);
     }
 

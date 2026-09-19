@@ -8,7 +8,7 @@ import org.spongepowered.asm.mixin.gen.Accessor;
 import java.util.List;
 
 /**
- * ItemRepo 私有字段访问接口(仅客户端加载).
+ * ItemRepo 私有字段访问接口, 仅客户端加载.
  * 供 OmniItemRepo 同步父类 view/changed/resort 状态.
  */
 @Mixin(value = ItemRepo.class, remap = false)

@@ -22,15 +22,7 @@ public final class Counter {
         count.increment();
     }
 
-    public void add(long delta) {
-        count.add(delta);
-    }
-
     public long get() {
         return count.sum();
-    }
-
-    public void reset() {
-        count.reset();
     }
 }

@@ -1,39 +1,25 @@
 package com.github.aeddddd.ae2enhanced.tile;
 
+import appeng.api.AEApi;
 import appeng.api.networking.IGridNode;
 import appeng.api.storage.ICellContainer;
 import appeng.api.storage.ICellInventory;
+import appeng.api.storage.IMEInventoryHandler;
 import appeng.api.util.AECableType;
 import appeng.api.util.AEPartLocation;
 import appeng.me.helpers.AENetworkProxy;
-import appeng.me.helpers.MachineSource;
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
-import com.github.aeddddd.ae2enhanced.registry.content.BlockRegistry;
+import com.github.aeddddd.ae2enhanced.block.BlockHyperdimensionalController;
 import com.github.aeddddd.ae2enhanced.config.AE2EnhancedConfig;
 import com.github.aeddddd.ae2enhanced.diag.DiagSwitch;
 import com.github.aeddddd.ae2enhanced.diag.metrics.MetricsRegistry;
 import com.github.aeddddd.ae2enhanced.diag.metrics.Timer;
-import com.github.aeddddd.ae2enhanced.block.BlockHyperdimensionalController;
-import com.github.aeddddd.ae2enhanced.integration.botaniaapplie.BotaniaApplieCompat;
-import com.github.aeddddd.ae2enhanced.integration.fluxapplied.FluxAppliedCompat;
-import com.github.aeddddd.ae2enhanced.storage.EnergyDescriptor;
-import com.github.aeddddd.ae2enhanced.storage.FluidStorageAdapter;
-import com.github.aeddddd.ae2enhanced.storage.HyperdimensionalEnergyStorageAdapter;
-import com.github.aeddddd.ae2enhanced.storage.HyperdimensionalStorageFile;
-import com.github.aeddddd.ae2enhanced.storage.ManaDescriptor;
-import com.github.aeddddd.ae2enhanced.storage.ManaStorageAdapter;
-import com.github.aeddddd.ae2enhanced.storage.StarlightStorageAdapter;
-import com.github.aeddddd.ae2enhanced.storage.ItemStorageAdapter;
-import com.github.aeddddd.ae2enhanced.storage.IStorageAdapter;
-import com.github.aeddddd.ae2enhanced.storage.OptionalStorageManager;
-import com.github.aeddddd.ae2enhanced.storage.SimpleMEMonitor;
+import com.github.aeddddd.ae2enhanced.mixin.late.accessor.INetworkMonitorAccessor;
+import com.github.aeddddd.ae2enhanced.registry.content.BlockRegistry;
+import com.github.aeddddd.ae2enhanced.storage.*;
 import com.github.aeddddd.ae2enhanced.storage.channel.ChannelRegistrationManager;
 import com.github.aeddddd.ae2enhanced.storage.energy.EnergyChannelResolver;
-import com.github.aeddddd.ae2enhanced.storage.external.ExternalStorageAdapter;
 import com.github.aeddddd.ae2enhanced.storage.mana.ManaChannelResolver;
-import com.github.aeddddd.ae2enhanced.mixin.late.accessor.INetworkMonitorAccessor;
-import appeng.api.AEApi;
-import appeng.api.storage.IMEInventoryHandler;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
@@ -58,6 +44,8 @@ public class TileHyperdimensionalController extends TileAENetworkBase implements
     private boolean formed = false;
 
     private UUID nexusId;
+    /** 服务器级常驻会话（文件+adapter+索引），attach/detach 时镜像到下方字段 */
+    private com.github.aeddddd.ae2enhanced.storage.HyperdimensionalStorageManager.NexusSession session;
     private HyperdimensionalStorageFile storageFile;
     private ItemStorageAdapter itemAdapter;
     private FluidStorageAdapter fluidAdapter;
@@ -236,110 +224,113 @@ public class TileHyperdimensionalController extends TileAENetworkBase implements
 
     private void initStorage() {
         if (world == null || world.isRemote) return;
-        if (storageFile == null) {
-            storageFile = new HyperdimensionalStorageFile(world, nexusId);
-            itemAdapter = new ItemStorageAdapter(storageFile);
-            storageFile.setStorageRef(itemAdapter.getStorageMap());
-            itemAdapter.setOnChangeCallback(null);
-            itemAdapter.setPostChangeCallback(this::postItemAlteration);
-            itemMonitor = new SimpleMEMonitor(itemAdapter);
+        if (session == null && nexusId != null) {
+            // 服务器级常驻会话：同一 nexus 重复 attach 不再重读磁盘/重建索引
+            session = com.github.aeddddd.ae2enhanced.storage.HyperdimensionalStorageManager.acquire(world, nexusId);
+            attachSession();
+        }
+    }
 
-            fluidAdapter = new FluidStorageAdapter(storageFile);
-            storageFile.setFluidStorageRef(fluidAdapter.getStorageMap());
-            fluidAdapter.setOnChangeCallback(null);
-            fluidAdapter.setPostChangeCallback(this::postFluidAlteration);
+    /** 把会话镜像到本 tile 字段并绑定回调（attach）。 */
+    private void attachSession() {
+        this.storageFile = session.getFile();
+        this.itemAdapter = session.getItemAdapter();
+        this.itemMonitor = session.getItemMonitor();
+        this.fluidAdapter = session.getFluidAdapter();
+        this.energyAdapter = session.getEnergyAdapter();
+        this.manaAdapter = session.getManaAdapter();
+        this.starlightAdapter = session.getStarlightAdapter();
+        this.optionalStorage = session.getOptionalStorage();
 
-            energyAdapter = createEnergyAdapter();
-            storageFile.setEnergyStorageRef((java.util.Map<EnergyDescriptor, java.math.BigInteger>) (java.util.Map<?, ?>) energyAdapter.getStorageMap());
-
-            manaAdapter = createManaAdapter();
-            if (manaAdapter != null) {
-                storageFile.setManaStorageRef(manaAdapter.getStorageMap());
+        itemAdapter.setOnChangeCallback(null);
+        itemAdapter.setPostChangeCallback(this::postItemAlteration);
+        fluidAdapter.setOnChangeCallback(null);
+        fluidAdapter.setPostChangeCallback(this::postFluidAlteration);
+        // energy/mana adapter 静态类型为 IStorageAdapter（可能是 AE2E 自有或外部通道实现），
+        // 其 setPostChangeCallback 泛型签名不一致，与可选 adapter 一样走反射绑定
+        energyAdapter.setOnChangeCallback(null);
+        java.util.function.BiConsumer<appeng.api.storage.data.IAEStack<?>, appeng.api.networking.security.IActionSource> energyCallback = this::postEnergyAlteration;
+        bindPostChange(energyAdapter, energyCallback);
+        if (manaAdapter != null) {
+            manaAdapter.setOnChangeCallback(null);
+            java.util.function.BiConsumer<appeng.api.storage.data.IAEStack<?>, appeng.api.networking.security.IActionSource> manaCallback = this::postManaAlteration;
+            bindPostChange(manaAdapter, manaCallback);
+        }
+        if (starlightAdapter != null) {
+            starlightAdapter.setOnChangeCallback(null);
+            starlightAdapter.setPostChangeCallback(this::postStarlightAlteration);
+        }
+        Object gasAdapter = optionalStorage.getGasAdapter();
+        if (gasAdapter != null) {
+            try {
+                java.util.function.BiConsumer<Object, appeng.api.networking.security.IActionSource> gasCallback = this::postGasAlteration;
+                gasAdapter.getClass().getMethod("setOnChangeCallback", Runnable.class).invoke(gasAdapter, (Runnable) null);
+                gasAdapter.getClass().getMethod("setPostChangeCallback", java.util.function.BiConsumer.class).invoke(gasAdapter, gasCallback);
+            } catch (Exception e) {
+                com.github.aeddddd.ae2enhanced.AE2Enhanced.LOGGER.warn("[AE2E] Failed to setup gas adapter callbacks", e);
             }
-
-            if (net.minecraftforge.fml.common.Loader.isModLoaded("astralsorcery")) {
-                starlightAdapter = new StarlightStorageAdapter(storageFile);
-                storageFile.setStarlightStorageRef(starlightAdapter.getStorageMap());
-                starlightAdapter.setOnChangeCallback(null);
-                starlightAdapter.setPostChangeCallback(this::postStarlightAlteration);
+        }
+        Object essentiaAdapter = optionalStorage.getEssentiaAdapter();
+        if (essentiaAdapter != null) {
+            try {
+                java.util.function.BiConsumer<Object, appeng.api.networking.security.IActionSource> essentiaCallback = this::postEssentiaAlteration;
+                essentiaAdapter.getClass().getMethod("setOnChangeCallback", Runnable.class).invoke(essentiaAdapter, (Runnable) null);
+                essentiaAdapter.getClass().getMethod("setPostChangeCallback", java.util.function.BiConsumer.class).invoke(essentiaAdapter, essentiaCallback);
+            } catch (Exception e) {
+                com.github.aeddddd.ae2enhanced.AE2Enhanced.LOGGER.warn("[AE2E] Failed to setup essentia adapter callbacks", e);
             }
+        }
+    }
 
-            optionalStorage = new OptionalStorageManager();
-            optionalStorage.init(storageFile);
+    /** 反射绑定/解绑 IStorageAdapter 的 postChange 回调（泛型签名不一致，与可选 adapter 同款反射路径）。 */
+    @SuppressWarnings("rawtypes")
+    private static void bindPostChange(IStorageAdapter adapter, java.util.function.BiConsumer callback) {
+        if (adapter == null) return;
+        try {
+            adapter.getClass().getMethod("setPostChangeCallback", java.util.function.BiConsumer.class)
+                    .invoke(adapter, callback);
+        } catch (Exception e) {
+            com.github.aeddddd.ae2enhanced.AE2Enhanced.LOGGER.warn("[AE2E] Failed to bind adapter callback", e);
+        }
+    }
 
-            Object gasAdapter = optionalStorage.getGasAdapter();
+    /** 解除回调绑定并清空字段镜像（detach）。会话与数据继续常驻注册表。 */
+    private void detachSession() {
+        if (session == null) return;
+        try {
+            itemAdapter.setPostChangeCallback(null);
+            fluidAdapter.setPostChangeCallback(null);
+            bindPostChange(energyAdapter, null);
+            if (manaAdapter != null) bindPostChange(manaAdapter, null);
+            if (starlightAdapter != null) starlightAdapter.setPostChangeCallback(null);
+            // 从外部 ME monitor 摘除监听，避免分离后会话仍被外部网络变化驱动
+            itemAdapter.setExternalMonitor(null);
+            Object gasAdapter = session.getOptionalStorage().getGasAdapter();
             if (gasAdapter != null) {
                 try {
-                    Object map = gasAdapter.getClass().getMethod("getStorageMap").invoke(gasAdapter);
-                    if (map instanceof java.util.Map) storageFile.setGasStorageRef((java.util.Map) map);
-                    java.util.function.BiConsumer<Object, appeng.api.networking.security.IActionSource> gasCallback = this::postGasAlteration;
-                    gasAdapter.getClass().getMethod("setOnChangeCallback", Runnable.class).invoke(gasAdapter, (Runnable) null);
-                    gasAdapter.getClass().getMethod("setPostChangeCallback", java.util.function.BiConsumer.class).invoke(gasAdapter, gasCallback);
+                    gasAdapter.getClass().getMethod("setPostChangeCallback", java.util.function.BiConsumer.class).invoke(gasAdapter, (Object) null);
                 } catch (Exception e) {
-                    com.github.aeddddd.ae2enhanced.AE2Enhanced.LOGGER.warn("[AE2E] Failed to setup gas adapter callbacks", e);
+                    com.github.aeddddd.ae2enhanced.AE2Enhanced.LOGGER.warn("[AE2E] Failed to clear gas adapter callbacks", e);
                 }
             }
-            Object essentiaAdapter = optionalStorage.getEssentiaAdapter();
+            Object essentiaAdapter = session.getOptionalStorage().getEssentiaAdapter();
             if (essentiaAdapter != null) {
                 try {
-                    Object map = essentiaAdapter.getClass().getMethod("getStorageMap").invoke(essentiaAdapter);
-                    if (map instanceof java.util.Map) storageFile.setEssentiaStorageRef((java.util.Map) map);
-                    java.util.function.BiConsumer<Object, appeng.api.networking.security.IActionSource> essentiaCallback = this::postEssentiaAlteration;
-                    essentiaAdapter.getClass().getMethod("setOnChangeCallback", Runnable.class).invoke(essentiaAdapter, (Runnable) null);
-                    essentiaAdapter.getClass().getMethod("setPostChangeCallback", java.util.function.BiConsumer.class).invoke(essentiaAdapter, essentiaCallback);
+                    essentiaAdapter.getClass().getMethod("setPostChangeCallback", java.util.function.BiConsumer.class).invoke(essentiaAdapter, (Object) null);
                 } catch (Exception e) {
-                    com.github.aeddddd.ae2enhanced.AE2Enhanced.LOGGER.warn("[AE2E] Failed to setup essentia adapter callbacks", e);
+                    com.github.aeddddd.ae2enhanced.AE2Enhanced.LOGGER.warn("[AE2E] Failed to clear essentia adapter callbacks", e);
                 }
             }
+        } finally {
+            storageFile = null;
+            itemAdapter = null;
+            fluidAdapter = null;
+            energyAdapter = null;
+            manaAdapter = null;
+            starlightAdapter = null;
+            itemMonitor = null;
+            optionalStorage = null;
         }
-    }
-
-    /**
-     * 创建能量适配器:优先使用 Flux_Applied 外部通道,否则回退到 AE2E 自有通道.
-     */
-    private IStorageAdapter createEnergyAdapter() {
-        if (FluxAppliedCompat.isFluxStorageChannelAvailable()) {
-            ExternalStorageAdapter<EnergyDescriptor> adapter = new ExternalStorageAdapter<>(
-                    storageFile,
-                    FluxAppliedCompat.getFluxStorageChannelInstance(),
-                    "fe",
-                    EnergyDescriptor.INSTANCE
-            );
-            storageFile.loadEnergy((java.util.Map<EnergyDescriptor, java.math.BigInteger>) (java.util.Map<?, ?>) adapter.getStorageMap());
-            adapter.recalcTotal();
-            adapter.setOnChangeCallback(null);
-            adapter.setPostChangeCallback(this::postEnergyAlteration);
-            return adapter;
-        }
-        HyperdimensionalEnergyStorageAdapter adapter = new HyperdimensionalEnergyStorageAdapter(storageFile);
-        adapter.setOnChangeCallback(null);
-        adapter.setPostChangeCallback(this::postEnergyAlteration);
-        return adapter;
-    }
-
-    /**
-     * 创建 Mana 适配器:优先使用 Botania_Applie 外部通道,否则在 Botania 存在时回退到 AE2E 自有通道.
-     */
-    private IStorageAdapter createManaAdapter() {
-        if (BotaniaApplieCompat.isManaStorageChannelAvailable()) {
-            ExternalStorageAdapter<ManaDescriptor> adapter = new ExternalStorageAdapter<>(
-                    storageFile,
-                    BotaniaApplieCompat.getManaStorageChannelInstance(),
-                    "mana",
-                    ManaDescriptor.INSTANCE
-            );
-            storageFile.loadMana((java.util.Map<ManaDescriptor, java.math.BigInteger>) (java.util.Map<?, ?>) adapter.getStorageMap());
-            adapter.recalcTotal();
-            adapter.setOnChangeCallback(null);
-            adapter.setPostChangeCallback(this::postManaAlteration);
-            return adapter;
-        } else if (net.minecraftforge.fml.common.Loader.isModLoaded("botania")) {
-            ManaStorageAdapter adapter = new ManaStorageAdapter(storageFile);
-            adapter.setOnChangeCallback(null);
-            adapter.setPostChangeCallback(this::postManaAlteration);
-            return adapter;
-        }
-        return null;
     }
 
     // 缓存可选存储通道的 Class 与实例,避免每次变更都反射查找
@@ -579,19 +570,10 @@ public class TileHyperdimensionalController extends TileAENetworkBase implements
     }
 
     private void closeStorage() {
-        if (storageFile != null) {
-            storageFile.close();
-            storageFile = null;
-            itemAdapter = null;
-            fluidAdapter = null;
-            energyAdapter = null;
-            manaAdapter = null;
-            starlightAdapter = null;
-            itemMonitor = null;
-        }
-        if (optionalStorage != null) {
-            optionalStorage.close();
-            optionalStorage = null;
+        if (session != null) {
+            detachSession();
+            com.github.aeddddd.ae2enhanced.storage.HyperdimensionalStorageManager.release(session);
+            session = null;
         }
     }
 
@@ -671,6 +653,11 @@ public class TileHyperdimensionalController extends TileAENetworkBase implements
 
         tickCounter++;
 
+        // 驱动持久化层每 tick 把累积变更写入 WAL（耐久窗口约 1 tick）
+        if (session != null) {
+            session.getFile().onServerTick();
+        }
+
         // 冲刷本 tick 累积的存储变更通知(按通道合并,替代每次存取单独通知)
         flushPendingAlterations();
 
@@ -700,7 +687,7 @@ public class TileHyperdimensionalController extends TileAENetworkBase implements
 
             // 更新存储统计并同步到客户端(物品 + 流体 + 可选存储)
             int newTypes = 0;
-            java.math.BigInteger newTotal = java.math.BigInteger.ZERO;
+            com.github.aeddddd.ae2enhanced.storage.HugeCount newTotal = com.github.aeddddd.ae2enhanced.storage.HugeCount.ZERO;
             if (itemAdapter != null) {
                 newTypes += itemAdapter.getStorageMap().size();
                 newTotal = newTotal.add(itemAdapter.getTotalCount());
@@ -717,7 +704,7 @@ public class TileHyperdimensionalController extends TileAENetworkBase implements
                 newTypes += optionalStorage.getTotalTypeCount();
                 newTotal = newTotal.add(optionalStorage.getTotalCount());
             }
-            String newTotalStr = formatBigNumber(newTotal);
+            String newTotalStr = formatBigNumber(newTotal.toBigInteger());
             String newTotalRaw = newTotal.toString();
             if (newTypes != clientStorageTypes || !newTotalStr.equals(clientStorageTotal) || !newTotalRaw.equals(clientStorageTotalRaw)) {
                 clientStorageTypes = newTypes;
@@ -776,7 +763,6 @@ public class TileHyperdimensionalController extends TileAENetworkBase implements
     }
 
     private static final String[] NUMBER_UNITS = {"", "K", "M", "G", "T", "P", "E", "Z", "Y"};
-    private static final String[] NUMBER_UNIT_NAMES = {"", "Thousand", "Million", "Billion", "Trillion", "Quadrillion", "Quintillion", "Sextillion", "Septillion"};
     private static final java.math.BigInteger ONE_E27 = new java.math.BigInteger("1000000000000000000000000000");
 
     public static String toScientificNotation(java.math.BigInteger num) {

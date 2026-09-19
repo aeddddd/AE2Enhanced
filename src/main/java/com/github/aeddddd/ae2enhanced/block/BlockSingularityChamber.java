@@ -19,8 +19,8 @@ import net.minecraft.world.World;
 import javax.annotation.Nullable;
 
 /**
- * 奇点处理仓 — 后期单方块高并行处理机器.
- * 右键打开 GUI；破坏时以 BlockEntityTag 保留能量/缓存/卡片/任务状态.
+ * 奇点处理仓, 后期单方块高并行处理机器.
+ * 右键打开 GUI; 破坏时以 BlockEntityTag 保留能量/缓存/卡片/任务状态.
  */
 public class BlockSingularityChamber extends Block {
 
@@ -38,7 +38,7 @@ public class BlockSingularityChamber extends Block {
         return true;
     }
 
-    // ---- 透明框架外观：非实心 + CUTOUT 渲染层,窗口可见内部 TESR 奇点 ----
+    // ---- 透明框架外观: 非实心 + CUTOUT 渲染层, 窗口可见内部 TESR 奇点 ----
 
     @Override
     public boolean isOpaqueCube(IBlockState state) {
@@ -74,7 +74,7 @@ public class BlockSingularityChamber extends Block {
     }
 
     /**
-     * 破坏时保留 Tile 全部状态（能量/Long 缓存/卡片/进行中任务）到掉落物 NBT,
+     * 破坏时保留 Tile 的能量/Long 缓存/卡片/进行中任务到掉落物 NBT,
      * 放置时由 ItemBlock 的 BlockEntityTag 机制自动恢复.
      */
     @Override
@@ -84,7 +84,7 @@ public class BlockSingularityChamber extends Block {
         TileEntity te = world.getTileEntity(pos);
         if (te instanceof TileSingularityChamber) {
             NBTTagCompound tag = te.writeToNBT(new NBTTagCompound());
-            // 坐标由放置时重新写入,避免旧坐标污染
+            // 坐标由放置时重新写入, 避免旧坐标污染
             tag.removeTag("x");
             tag.removeTag("y");
             tag.removeTag("z");
@@ -94,8 +94,7 @@ public class BlockSingularityChamber extends Block {
     }
 
     /**
-     * 防止创造模式破坏时 Tile 提前移除导致 NBT 丢失（保持默认行为即可,无需覆盖）,
-     * 但需要确保 breakBlock 时不清除数据 — 默认 super.breakBlock 会移除 TileEntity,
-     * getDrops 在其之前调用,数据已捕获.
+     * 故意不覆盖 breakBlock, 保持默认行为: getDrops 在移除 TileEntity 之前调用,
+     * 创造模式破坏时数据也已经捕获到掉落物 NBT.
      */
 }

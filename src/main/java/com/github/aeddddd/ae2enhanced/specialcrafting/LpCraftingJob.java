@@ -27,14 +27,12 @@ import com.github.aeddddd.ae2enhanced.diag.plan.PlanTracker;
 import com.github.aeddddd.ae2enhanced.specialcrafting.lp.SccLpSolve.Execution;
 
 /**
- * LP 合成计算器（方案 L,M7 起为默认计划路径）:冷凝分层求解 → 整数化对账重演
- * → 物化原生树,取代原生递归树计算.
+ * LP 合成计算器:冷凝分层求解 → 整数化对账重演 → 物化原生树,取代原生递归树计算.
  * <p>继承原生 {@link CraftingJob} 复用其时间片调度/暂停/线程池骨架;
- * LP 路径任何失败/异常都退回原生 {@code super.run()}（宁可慢不可错）.</p>
- * <p><b>1.12.2 关键差异</b>:树即计划且是提交载体,LP 计数解经 {@link FlowReconciler}
- * 整数化重演对账 + {@link LpPlanMaterializer} 物化为原生树后,提交/显示/执行全部
- * 复用原生路径.含成环样板执行的计划标记特殊,硬路由到超因果计算核心
- * （无限库存 + 门控/配额调度在场）.</p>
+ * LP 路径任何失败/异常都退回原生 {@code super.run()}.</p>
+ * <p>1.12.2 中树即计划且是提交载体:LP 计数解经 {@link FlowReconciler} 整数化重演
+ * 对账 + {@link LpPlanMaterializer} 物化为原生树后,提交/显示/执行全部复用原生路径.
+ * 含成环样板执行的计划标记特殊,执行走超因果计算核心(无限库存 + 门控/配额调度).</p>
  */
 public class LpCraftingJob extends CraftingJob
         implements com.github.aeddddd.ae2enhanced.mixin.bridge.ICraftingJobBudgetAccess {
@@ -81,7 +79,7 @@ public class LpCraftingJob extends CraftingJob
     @Override
     public void run() {
         long planStart = System.nanoTime();
-        // 标记是否经 super.run() 回落原生——该路径已由 MixinCraftingJob 的 run RETURN 钩子计数,避免重复
+        // 是否经 super.run() 回落原生;该路径已由 MixinCraftingJob 的 run RETURN 钩子计数,避免重复
         boolean delegatedToNative = false;
         try {
             TickHandler.INSTANCE.registerCraftingSimulation(this.world, this);
@@ -159,7 +157,7 @@ public class LpCraftingJob extends CraftingJob
             }
             CondensationPlanner.LpPlanOutcome outcome = CondensationPlanner.solve(cc, index, output,
                     output.getStackSize(), stock);
-            // 降级埋点(D4 库存直通/截断;验收口径要求恒 0)
+            // 降级单元埋点(库存直通/截断,正常应为 0)
             for (int i = 0; i < outcome.degradedUnits; i++) {
                 MetricsRegistry.counter("plan.lp.degradedUnit").increment();
             }
@@ -194,8 +192,8 @@ public class LpCraftingJob extends CraftingJob
     }
 
     /**
-     * 计划明细诊断（{@code /ae2e debug specialcrafting on} 时生效）：变体选择、
-     * 库存取用、缺料、相关键库存全量 dump，用于定位成环链计划的变体选择问题。
+     * 计划明细日志（{@code /ae2e debug specialcrafting on} 时生效）:输出变体选择、
+     * 库存取用、缺料与相关键库存.
      */
     private static void dumpPlanDetail(IAEItemStack output, Map<IAEItemStack, Long> stock,
             CondensationPlanner.LpPlanOutcome outcome, FlowReconciler.Reconciled reconciled) {
@@ -243,9 +241,9 @@ public class LpCraftingJob extends CraftingJob
     }
 
     /**
-     * 缺失显示修复:原生 dive 的 missing→plan 转移不稳定(节点未扫描时丢失),
-     * 与容器端口径不一致.先清 missing 跑原生(保 used/requestable 不变),
-     * 恢复后由本类统一补到 plan(与原生转移同语义:仅 stackSize).
+     * 原生 dive 只在节点被扫描到时做 missing→plan 转移,未扫描的缺料键会丢失.
+     * 先清零 missing 走原生转移(保 used/requestable 不变),再由本类按同口径
+     * (仅 stackSize)补回 plan.
      */
     @Override
     public void populatePlan(IItemList<IAEItemStack> plan) {

@@ -7,8 +7,7 @@ import net.minecraftforge.items.IItemHandler;
 import javax.annotation.Nonnull;
 
 /**
- * 高容量槽位 —— 绕过 ItemStack.getMaxStackSize() 的 64 限制,
- * 支持手动拖放超过 64 个物品.
+ * 高容量槽位, 绕过 ItemStack.getMaxStackSize() 的 64 上限, 支持手动拖放超过 64 个物品.
  */
 public class SlotHighCapacity extends AppEngSlot {
 

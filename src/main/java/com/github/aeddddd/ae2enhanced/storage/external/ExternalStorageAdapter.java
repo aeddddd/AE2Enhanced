@@ -9,17 +9,9 @@ import appeng.api.storage.IMEMonitorHandlerReceiver;
 import appeng.api.storage.IStorageChannel;
 import appeng.api.storage.data.IAEStack;
 import appeng.api.storage.data.IItemList;
-import com.github.aeddddd.ae2enhanced.AE2Enhanced;
-import com.github.aeddddd.ae2enhanced.storage.Descriptor;
-import com.github.aeddddd.ae2enhanced.storage.EnergyDescriptor;
-import com.github.aeddddd.ae2enhanced.storage.IStorageAdapter;
-import com.github.aeddddd.ae2enhanced.storage.HyperdimensionalStorageFile;
-import com.github.aeddddd.ae2enhanced.storage.ManaDescriptor;
-import com.github.aeddddd.ae2enhanced.storage.StorageConstants;
-import com.github.aeddddd.ae2enhanced.storage.StorageSection;
+import com.github.aeddddd.ae2enhanced.storage.*;
 import net.minecraft.nbt.NBTTagCompound;
 
-import java.math.BigInteger;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -46,11 +38,11 @@ import java.util.function.BiConsumer;
 @SuppressWarnings({"rawtypes", "unchecked"})
 public class ExternalStorageAdapter<D extends Descriptor> implements IMEMonitor, IMEInventoryHandler, IStorageAdapter {
 
-    protected final Map<D, BigInteger> storage = new ConcurrentHashMap<>();
+    protected final Map<D, HugeCount> storage = new ConcurrentHashMap<>();
     protected final IStorageChannel<?> channel;
     protected final HyperdimensionalStorageFile file;
     protected final List<IMEMonitorHandlerReceiver> listeners = new CopyOnWriteArrayList<>();
-    protected final AtomicReference<BigInteger> totalCount = new AtomicReference<>(BigInteger.ZERO);
+    protected final AtomicReference<HugeCount> totalCount = new AtomicReference<>(HugeCount.ZERO);
     protected final D descriptor;
     protected final String nbtKey;
 
@@ -89,9 +81,8 @@ public class ExternalStorageAdapter<D extends Descriptor> implements IMEMonitor,
         return descriptor;
     }
 
-    protected IAEStack createResult(IAEStack request, BigInteger amount) {
-        long size = amount.compareTo(StorageConstants.LONG_MAX) > 0 ? Long.MAX_VALUE : amount.longValue();
-        return createChannelStack(size);
+    protected IAEStack createResult(IAEStack request, HugeCount amount) {
+        return createChannelStack(amount.toLongSaturated());
     }
 
     protected IAEStack getAETemplate(D descriptor) {
@@ -118,8 +109,8 @@ public class ExternalStorageAdapter<D extends Descriptor> implements IMEMonitor,
     /**
      * 为变更通知创建带符号数量的通道堆叠.
      */
-    protected IAEStack createChangeStack(BigInteger amount, boolean isInjection) {
-        long size = amount.compareTo(StorageConstants.LONG_MAX) > 0 ? Long.MAX_VALUE : amount.longValue();
+    protected IAEStack createChangeStack(HugeCount amount, boolean isInjection) {
+        long size = amount.toLongSaturated();
         IAEStack stack = createChannelStack(size);
         if (stack != null) {
             stack.setStackSize(isInjection ? size : -size);
@@ -134,6 +125,7 @@ public class ExternalStorageAdapter<D extends Descriptor> implements IMEMonitor,
 
     @Override
     public IAEStack injectItems(IAEStack input, Actionable type, IActionSource src) {
+        if (file != null) file.awaitLoaded(); // 首加载闸门
         if (input == null || input.getStackSize() <= 0) return null;
         if (file != null && file.isSafeMode()) {
             return input;
@@ -145,19 +137,22 @@ public class ExternalStorageAdapter<D extends Descriptor> implements IMEMonitor,
         if (key == null) {
             return input;
         }
-        BigInteger amount = BigInteger.valueOf(input.getStackSize());
+        HugeCount amount = HugeCount.of(input.getStackSize());
 
-        BigInteger old = storage.get(key);
+        HugeCount old = storage.get(key);
+        HugeCount next;
         if (old == null) {
+            next = amount;
             storage.put(key, amount);
         } else {
-            storage.put(key, old.add(amount));
+            next = old.add(amount);
+            storage.put(key, next);
         }
         addToTotal(amount);
-        if (file != null) file.markDirty(getStorageSection());
+        if (file != null) file.recordChange(getStorageSection(), key, next);
 
         if (hasChangeConsumers()) {
-            IAEStack change = createChangeStack(BigInteger.valueOf(input.getStackSize()), true);
+            IAEStack change = createChangeStack(HugeCount.of(input.getStackSize()), true);
             if (change != null) {
                 notifyPostChange(change, src);
             }
@@ -167,30 +162,31 @@ public class ExternalStorageAdapter<D extends Descriptor> implements IMEMonitor,
 
     @Override
     public IAEStack extractItems(IAEStack request, Actionable type, IActionSource src) {
+        if (file != null) file.awaitLoaded(); // 首加载闸门
         if (request == null || request.getStackSize() <= 0) return null;
         D key = createDescriptor(request);
         if (key == null) {
             return null;
         }
-        BigInteger requested = BigInteger.valueOf(request.getStackSize());
-        BigInteger available = storage.get(key);
+        HugeCount requested = HugeCount.of(request.getStackSize());
+        HugeCount available = storage.get(key);
         if (available == null) {
             return null;
         }
-        BigInteger toExtract = available.min(requested);
-        if (toExtract.signum() <= 0) {
+        HugeCount toExtract = available.min(requested);
+        if (toExtract.isZero()) {
             return null;
         }
 
         if (type == Actionable.MODULATE) {
-            BigInteger remaining = available.subtract(toExtract);
-            if (remaining.signum() <= 0) {
+            HugeCount remaining = available.subtract(toExtract);
+            if (remaining.isZero()) {
                 storage.remove(key);
             } else {
                 storage.put(key, remaining);
             }
             subtractFromTotal(toExtract);
-            if (file != null) file.markDirty(getStorageSection());
+            if (file != null) file.recordChange(getStorageSection(), key, remaining);
 
             if (hasChangeConsumers()) {
                 IAEStack change = createChangeStack(toExtract, false);
@@ -205,18 +201,14 @@ public class ExternalStorageAdapter<D extends Descriptor> implements IMEMonitor,
 
     @Override
     public IItemList getAvailableItems(IItemList out) {
-        for (Map.Entry<D, BigInteger> entry : storage.entrySet()) {
+        if (file != null) file.awaitLoaded(); // 首加载闸门
+        for (Map.Entry<D, HugeCount> entry : storage.entrySet()) {
             D desc = entry.getKey();
             IAEStack aeStack = getAETemplate(desc);
             if (aeStack == null) continue;
 
-            BigInteger count = entry.getValue();
             IAEStack copy = aeStack.copy();
-            if (count.compareTo(StorageConstants.LONG_MAX) > 0) {
-                copy.setStackSize(Long.MAX_VALUE);
-            } else {
-                copy.setStackSize(count.longValue());
-            }
+            copy.setStackSize(entry.getValue().toLongSaturated());
             out.add(copy);
         }
         return out;
@@ -269,27 +261,23 @@ public class ExternalStorageAdapter<D extends Descriptor> implements IMEMonitor,
     }
 
     public void recalcTotal() {
-        BigInteger sum = BigInteger.ZERO;
-        for (BigInteger v : storage.values()) {
+        HugeCount sum = HugeCount.ZERO;
+        for (HugeCount v : storage.values()) {
             sum = sum.add(v);
         }
         totalCount.set(sum);
     }
 
-    public Map<D, BigInteger> getStorageMap() {
+    public Map<D, HugeCount> getStorageMap() {
         return storage;
     }
 
-    public BigInteger getTotalCount() {
+    public HugeCount getTotalCount() {
         return totalCount.get();
     }
 
     public boolean isSafeMode() {
         return file != null && file.isSafeMode();
-    }
-
-    public HyperdimensionalStorageFile getFile() {
-        return file;
     }
 
     @Override
@@ -305,16 +293,16 @@ public class ExternalStorageAdapter<D extends Descriptor> implements IMEMonitor,
         return !listeners.isEmpty() || onChangeCallback != null || postChangeCallback != null;
     }
 
-    private void addToTotal(BigInteger delta) {
-        BigInteger prev, next;
+    private void addToTotal(HugeCount delta) {
+        HugeCount prev, next;
         do {
             prev = totalCount.get();
             next = prev.add(delta);
         } while (!totalCount.compareAndSet(prev, next));
     }
 
-    private void subtractFromTotal(BigInteger delta) {
-        BigInteger prev, next;
+    private void subtractFromTotal(HugeCount delta) {
+        HugeCount prev, next;
         do {
             prev = totalCount.get();
             next = prev.subtract(delta);

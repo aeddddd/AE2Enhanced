@@ -1,6 +1,5 @@
 package com.github.aeddddd.ae2enhanced.crafting;
 
-import com.github.aeddddd.ae2enhanced.item.ItemUpgradeCard;
 import net.minecraft.item.ItemStack;
 
 import javax.annotation.Nullable;
@@ -9,7 +8,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Assembly Hub 升级卡注册表.
- * 允许 CraftTweaker 或其他系统注册新的升级卡物品,限定类型为并行(Parallel)或速度(Speed).
+ * 允许 CraftTweaker 或其他系统注册新的升级卡物品, 类型限定为并行或速度.
  */
 public class AssemblyHubUpgradeRegistry {
 
@@ -17,11 +16,16 @@ public class AssemblyHubUpgradeRegistry {
         PARALLEL, SPEED
     }
 
+    /** 注册表修订号: register/removeById 时递增, 供 TileAssemblyController 缓存失效判断. */
+    private static volatile long revision;
+
+    private static final Map<String, UpgradeDefinition> DEFINITIONS = new ConcurrentHashMap<>();
+
     public static class UpgradeDefinition {
         public final ItemStack item;
         public final UpgradeType type;
         public final int maxStack;
-        public final long[] values; // 索引 0 对应 1 张卡,依此类推
+        public final long[] values; // 索引 0 对应 1 张卡, 依此类推
 
         public UpgradeDefinition(ItemStack item, UpgradeType type, int maxStack, long[] values) {
             this.item = item.copy();
@@ -31,11 +35,6 @@ public class AssemblyHubUpgradeRegistry {
             this.values = values != null ? values.clone() : new long[0];
         }
     }
-
-    private static final Map<String, UpgradeDefinition> DEFINITIONS = new ConcurrentHashMap<>();
-
-    /** 注册表修订号:register/removeById 时递增,供 TileAssemblyController 缓存失效判断. */
-    private static volatile long revision;
 
     public static long getRevision() {
         return revision;
@@ -80,22 +79,6 @@ public class AssemblyHubUpgradeRegistry {
         UpgradeDefinition def = DEFINITIONS.get(keyOf(stack));
         if (def != null) return def;
         return null;
-    }
-
-    public static boolean isParallelUpgrade(ItemStack stack) {
-        if (stack.getItem() instanceof ItemUpgradeCard && stack.getMetadata() == ItemUpgradeCard.META_PARALLEL) {
-            return true;
-        }
-        UpgradeDefinition def = findFor(stack);
-        return def != null && def.type == UpgradeType.PARALLEL;
-    }
-
-    public static boolean isSpeedUpgrade(ItemStack stack) {
-        if (stack.getItem() instanceof ItemUpgradeCard && stack.getMetadata() == ItemUpgradeCard.META_SPEED) {
-            return true;
-        }
-        UpgradeDefinition def = findFor(stack);
-        return def != null && def.type == UpgradeType.SPEED;
     }
 
     /**

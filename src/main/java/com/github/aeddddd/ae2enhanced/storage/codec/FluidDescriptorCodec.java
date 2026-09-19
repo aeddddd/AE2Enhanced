@@ -1,6 +1,7 @@
 package com.github.aeddddd.ae2enhanced.storage.codec;
 
 import com.github.aeddddd.ae2enhanced.storage.FluidDescriptor;
+import com.github.aeddddd.ae2enhanced.storage.StorageConstants;
 import net.minecraft.nbt.CompressedStreamTools;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.nbt.NBTSizeTracker;
@@ -27,7 +28,7 @@ public class FluidDescriptorCodec implements DescriptorCodec<FluidDescriptor> {
         out.writeInt(idBytes.length);
         out.write(idBytes);
 
-        NBTTagCompound nbt = descriptor.getNbt();
+        NBTTagCompound nbt = descriptor.getNbtRaw(); // 序列化只读,不做防御性深拷贝
         if (nbt != null) {
             out.writeByte(1);
             CompressedStreamTools.write(nbt, out);
@@ -46,7 +47,8 @@ public class FluidDescriptorCodec implements DescriptorCodec<FluidDescriptor> {
         boolean hasNbt = in.readByte() != 0;
         NBTTagCompound nbt = null;
         if (hasNbt) {
-            nbt = CompressedStreamTools.read(in, new NBTSizeTracker(2097152L));
+            // 与 ItemDescriptorCodec 一致: 磁盘读取 64MB 上限
+            nbt = CompressedStreamTools.read(in, new NBTSizeTracker(StorageConstants.MAX_NBT_PAYLOAD_BYTES));
         }
 
         Fluid fluid = FluidRegistry.getFluid(id);

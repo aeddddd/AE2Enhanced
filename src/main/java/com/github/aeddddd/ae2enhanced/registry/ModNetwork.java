@@ -14,9 +14,6 @@ import com.github.aeddddd.ae2enhanced.network.packet.PacketUniversalBusConfig;
 import com.github.aeddddd.ae2enhanced.network.packet.PacketOmniTermAction;
 import com.github.aeddddd.ae2enhanced.network.packet.PacketLoadOmniRecipe;
 import com.github.aeddddd.ae2enhanced.network.packet.PacketOmniCraftingUpdate;
-import com.github.aeddddd.ae2enhanced.network.packet.PacketOmniInventoryUpdate;
-import com.github.aeddddd.ae2enhanced.network.packet.PacketOmniSearchRequest;
-import com.github.aeddddd.ae2enhanced.network.packet.PacketOmniSearchResult;
 import com.github.aeddddd.ae2enhanced.network.packet.PacketOmniPageRequest;
 import com.github.aeddddd.ae2enhanced.network.packet.PacketOmniPageResult;
 import com.github.aeddddd.ae2enhanced.network.packet.PacketOmniUpdateNotify;
@@ -88,9 +85,7 @@ public final class ModNetwork {
         nw.registerMessage(PacketLoadOmniRecipe.Handler.class, PacketLoadOmniRecipe.class, 9, Side.SERVER);
         nw.registerMessage(PacketSetSlotAmount.Handler.class, PacketSetSlotAmount.class, 10, Side.SERVER);
         nw.registerMessage(PacketOmniCraftingUpdate.Handler.class, PacketOmniCraftingUpdate.class, 11, Side.CLIENT);
-        nw.registerMessage(PacketOmniInventoryUpdate.Handler.class, PacketOmniInventoryUpdate.class, 12, Side.CLIENT);
-        nw.registerMessage(PacketOmniSearchRequest.Handler.class, PacketOmniSearchRequest.class, 13, Side.SERVER);
-        nw.registerMessage(PacketOmniSearchResult.Handler.class, PacketOmniSearchResult.class, 14, Side.CLIENT);
+        // 12-14 已废弃（旧 R2 Omni 全量同步/搜索协议，已移除）；47 为预留空号。新增包请从当前最大编号继续，勿复用。
         nw.registerMessage(PacketOmniPageRequest.Handler.class, PacketOmniPageRequest.class, 15, Side.SERVER);
         nw.registerMessage(PacketOmniPageResult.Handler.class, PacketOmniPageResult.class, 16, Side.CLIENT);
         nw.registerMessage(PacketOmniUpdateNotify.Handler.class, PacketOmniUpdateNotify.class, 17, Side.CLIENT);

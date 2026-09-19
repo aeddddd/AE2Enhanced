@@ -21,9 +21,9 @@ public class MixinPatternEncoder {
     @Shadow
     protected SlotRestrictedInput patternSlotOUT;
 
-    // shift 点击时 AE2 走 encodeAndMoveToInventory()，其内部会先调 encode()。
-    // 不能用 player.isSneaking() 判定 shift（潜行状态按 tick 同步，与 encode 包存在到达顺序竞态），
-    // 改为标记 encodeAndMoveToInventory 调用窗口，在窗口内跳过自动上传。
+    // shift 点击时 AE2 走 encodeAndMoveToInventory(), 内部会先调 encode().
+    // 潜行状态按 tick 同步, 与 encode 包存在到达顺序竞态, 不能用 isSneaking 判定 shift;
+    // 改为标记 encodeAndMoveToInventory 调用窗口, 在窗口内跳过自动上传.
     @Unique
     private boolean ae2e$inMoveToInventory;
 

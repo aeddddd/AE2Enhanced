@@ -77,10 +77,6 @@ public class TrendBuffer {
         return size[tier];
     }
 
-    public long getTotal(int tier) {
-        return total[tier];
-    }
-
     /** 取某 tier 从最新往回数第 n 个采样(0 = 最新). 调用方保证 n < size. */
     public long getValue(int tier, int n) {
         int cap = TIER_CAPACITY[tier];

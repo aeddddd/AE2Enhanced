@@ -14,11 +14,8 @@ import java.util.Collections;
 import java.util.function.Function;
 
 /**
- * E2a：EssentiaPacket 的 IModel/ICustomModelLoader.
- * 不通过 getQuads() 渲染(该路径在 AE2 终端中因异常被静默吞掉),
+ * EssentiaPacket 的模型占位符. 不通过 getQuads() 渲染, 该路径在 AE2 终端中异常会被静默吞掉,
  * 而是通过 isBuiltInRenderer()=true 让 RenderItem 走 TileEntityItemStackRenderer.
- * 这是一个极简的模型占位符,只负责让 ItemModelMesher 成功返回一个模型,
- * 实际绘制逻辑在 EssentiaItemRenderer 中.
  */
 public class EssentiaPacketModel implements IModel {
 
@@ -46,10 +43,8 @@ public class EssentiaPacketModel implements IModel {
     }
 
     /**
-     * 极简的 BakedModel：isBuiltInRenderer()=true,其余全部返回空值.
-     * RenderItem 发现 isBuiltInRenderer() 为 true 后,直接调用
-     * TileEntityItemStackRenderer.instance.renderByItem(stack),
-     * 从而进入我们的 EssentiaItemRenderer.
+     * BakedModel 占位: isBuiltInRenderer()=true, 其余全部返回空值.
+     * RenderItem 发现后走 TileEntityItemStackRenderer, 进入 EssentiaItemRenderer.
      */
     public static class BakedEssentiaPacketModel implements IBakedModel {
 
@@ -73,7 +68,7 @@ public class EssentiaPacketModel implements IModel {
 
         @Override
         public boolean isBuiltInRenderer() {
-            return true; // 关键：触发 TileEntityItemStackRenderer
+            return true; // RenderItem 据此走 TileEntityItemStackRenderer 路径
         }
 
         @Override

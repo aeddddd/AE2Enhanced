@@ -3,11 +3,10 @@ package com.github.aeddddd.ae2enhanced.item;
 import appeng.api.implementations.ICraftingPatternItem;
 import appeng.api.networking.crafting.ICraftingPatternDetails;
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
-import com.github.aeddddd.ae2enhanced.registry.content.ItemRegistry;
-import com.github.aeddddd.ae2enhanced.registry.content.PartRegistry;
 import com.github.aeddddd.ae2enhanced.crafting.smartpattern.SmartPatternData;
 import com.github.aeddddd.ae2enhanced.crafting.smartpattern.SmartPatternStorageFile;
 import com.github.aeddddd.ae2enhanced.crafting.smartpattern.SmartPatternSubDetails;
+import com.github.aeddddd.ae2enhanced.registry.content.ItemRegistry;
 import net.minecraft.client.resources.I18n;
 import net.minecraft.client.util.ITooltipFlag;
 import net.minecraft.item.Item;
@@ -23,19 +22,9 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * 编码后的智能样板.
- * 实现 {@link ICraftingPatternItem},但 {@link #getPatternForItem} 返回 null,
- * 实际展开逻辑由 Mixin 注入 {@code DualityInterface.addToCraftingList} 处理.
- *
- * <p>NBT 结构(最小化)：</p>
- * <pre>
- * {
- *   patternDataId: UUID
- *   disabledMask: String (Base64 BitSet)
- *   recipeCount: int
- *   targetBlockId: String (诊断信息,可选)
- * }
- * </pre>
+ * 编码后的智能样板. getPatternForItem 返回 null,实际展开由 Mixin 注入
+ * {@code DualityInterface.addToCraftingList} 处理. NBT 只存最小化结构:
+ * patternDataId(UUID)、disabledMask(Base64 BitSet)、recipeCount 和可选的 targetBlockId.
  */
 public class ItemSmartPattern extends Item implements ICraftingPatternItem {
 

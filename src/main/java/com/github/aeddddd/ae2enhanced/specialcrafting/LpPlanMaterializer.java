@@ -1,38 +1,22 @@
 package com.github.aeddddd.ae2enhanced.specialcrafting;
 
-import java.util.ArrayDeque;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.IdentityHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-
 import appeng.api.networking.crafting.ICraftingGrid;
-import appeng.api.networking.crafting.ICraftingPatternDetails;
 import appeng.api.storage.data.IAEItemStack;
 import appeng.crafting.CraftingJob;
 import appeng.crafting.CraftingTreeNode;
 import appeng.crafting.CraftingTreeProcess;
-
 import com.github.aeddddd.ae2enhanced.specialcrafting.CondensationPlanner.LpPlanOutcome;
 import com.github.aeddddd.ae2enhanced.specialcrafting.lp.SccLpSolve.Execution;
 
+import java.util.*;
+
 /**
- * LP 计划物化器（方案 L §10.3.5,M5）:整数化计数 → 原生合成树.
- * <p>挂载语义与 LP 重演对账口径完全一致:</p>
- * <ul>
- * <li>BFS 从根展开:每个被生产的键挂载其全部 LP 生产者 process
- * （crafts = 整数化次数;构造后 {@code processAddProcess} 立即展开输入子节点）;</li>
- * <li>共享生产:同键只挂载一次(首个父槽位),其余父槽位保持空叶子——
- * dive/setJob 不重复计数,执行层经 CPU 库存池自然衔接;</li>
- * <li>无生产者的键(库存/发射台/缺料)= 空叶子,与原生树同构;</li>
- * <li>缺料回填到该键首个父槽位子节点(根请求键回填根节点)——
- * {@code LpCraftingJob.populatePlan} 的 missing 收集通道直接复用.</li>
- * </ul>
- * 层级合法性由构造保证:子树节点 what 恒等于某输入键,而输入键就是父样板的产出
- * 需求——与 LP 物化相同的 dive/getAmountCrafted 不变量.
+ * LP 计划物化器:整数化计数 → 原生合成树.
+ * <p>BFS 从根展开,每个被生产的键挂载其 LP 生产者 process(crafts = 整数化次数,
+ * 构造后立即展开输入子节点).同键只挂载一次(首个父槽位),其余父槽位保持空叶子,
+ * dive/setJob 不重复计数;无生产者的键(库存/发射台/缺料)为空叶子,与原生树同构.
+ * 缺料回填到该键首个父槽位子节点(根请求键回填根节点),供
+ * {@code LpCraftingJob.populatePlan} 的 missing 收集通道复用.</p>
  */
 public final class LpPlanMaterializer {
 
@@ -64,8 +48,8 @@ public final class LpPlanMaterializer {
             }
         }
 
-        // BFS 挂载:每键一次(共享生产);执行记录亦只挂一次——多输出样板的产出键
-        // 都会索引到它,首个产出键节点挂载后,其余产出键保持空叶子(产出已在运行)
+        // BFS 挂载:每键一次(共享生产);执行记录也只挂一次——多输出样板的执行
+        // 挂在首个产出键节点上,其余产出键节点保持空叶子
         Set<IAEItemStack> attached = new java.util.HashSet<>();
         Set<Execution> attachedExecs = Collections.newSetFromMap(new IdentityHashMap<>());
         Map<IAEItemStack, CraftingTreeNode> firstSlotByKey = new HashMap<>();
@@ -112,8 +96,7 @@ public final class LpPlanMaterializer {
                 Ae2CraftingReflect.setNodeMissing(slot,
                         Ae2CraftingReflect.getNodeMissing(slot) + entry.getValue());
             } else {
-                // 无挂载节点的缺料键(降级/截断单元):计划已置模拟态(不可提交),
-                // 此处告警以便诊断,绝不静默丢弃
+                // 无挂载节点的缺料键(降级/截断单元):计划已置模拟态(不可提交),告警提示
                 com.github.aeddddd.ae2enhanced.AE2Enhanced.LOGGER
                         .warn("[LP计划] 缺料键无挂载节点,计划显示不完整: {}×{}",
                                 entry.getValue(), entry.getKey());

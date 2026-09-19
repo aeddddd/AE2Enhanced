@@ -1,8 +1,8 @@
 package com.github.aeddddd.ae2enhanced.client.gui;
 
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
-import com.github.aeddddd.ae2enhanced.gui.GuiHandler;
 import com.github.aeddddd.ae2enhanced.container.ContainerAssemblyPattern;
+import com.github.aeddddd.ae2enhanced.gui.GuiHandler;
 import com.github.aeddddd.ae2enhanced.network.packet.PacketPatternPage;
 import com.github.aeddddd.ae2enhanced.tile.TileAssemblyController;
 import net.minecraft.client.gui.inventory.GuiContainer;
@@ -22,7 +22,7 @@ public class GuiAssemblyPattern extends GuiContainer {
     private static final int PREV_BUTTON_ID = 1;
     private static final int NEXT_BUTTON_ID = 2;
 
-    // 上一页按钮：纹理坐标 7,178 -> 63,198，尺寸 56×20
+    // 上一页按钮: 纹理坐标 7,178 -> 63,198, 尺寸 56x20.
     private static final int PREV_X = 7;
     private static final int PREV_Y = 178;
     private static final int BTN_W = 56;

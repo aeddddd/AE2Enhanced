@@ -6,7 +6,7 @@ import net.minecraft.inventory.Slot;
 import net.minecraft.item.ItemStack;
 
 /**
- * 幽灵槽 —— 用于配置过滤/放置目标，不存储真实物品，不限制堆叠数量显示。
+ * 幽灵槽: 用于配置过滤/放置目标, 不存储真实物品, 不限制堆叠数量显示.
  */
 public class SlotGhost extends Slot {
 

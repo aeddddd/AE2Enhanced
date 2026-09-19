@@ -15,16 +15,6 @@ import javax.annotation.Nullable;
 public interface IOmniToolNetworkLink {
 
     /**
-     * 返回此链接类型的唯一标识，用于日志/配置。
-     */
-    String getId();
-
-    /**
-     * 返回该链接在 tooltip 中显示的本地化键。
-     */
-    String getTooltipKey();
-
-    /**
      * 判断指定物品是否已使用该链接方式绑定。
      */
     boolean isLinked(ItemStack stack);

@@ -14,20 +14,9 @@ import javax.annotation.Nullable;
  */
 public class SecurityTerminalNetworkLink implements IOmniToolNetworkLink {
 
-    public static final String ID = "security_terminal";
     public static final SecurityTerminalNetworkLink INSTANCE = new SecurityTerminalNetworkLink();
 
     private SecurityTerminalNetworkLink() {}
-
-    @Override
-    public String getId() {
-        return ID;
-    }
-
-    @Override
-    public String getTooltipKey() {
-        return "item.ae2enhanced.me_omni_tool.placement.linked";
-    }
 
     @Override
     public boolean isLinked(ItemStack stack) {

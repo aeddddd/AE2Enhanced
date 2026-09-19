@@ -51,12 +51,32 @@ public class MixinCraftingCPUCluster implements IComputationCoreAccess {
         }
     }
 
+    /** 每 tick 标脏合并标记: 本 tick 已真正执行过一次 markDirty 时为 true. */
+    @Unique
+    private boolean ae2enhanced$dirtyMarkedThisTick;
+
+    /**
+     * markDirty 每 tick 合并: executeCrafting 每次推送成功、injectItems 每次交付都会
+     * markDirty → getCore().saveChanges() → 标 chunk 脏(spark 热点 ~2%).
+     * chunk 脏标记在同 tick 内幂等,合并后持久化语义不变,至多损失不足 1 tick 的标脏时机.
+     */
     @Inject(method = "markDirty", at = @At("HEAD"), cancellable = true)
     private void onMarkDirty(CallbackInfo ci) {
+        if (ae2enhanced$dirtyMarkedThisTick) {
+            ci.cancel();
+            return;
+        }
+        ae2enhanced$dirtyMarkedThisTick = true;
         if (ae2enhanced$computationCore != null) {
             ae2enhanced$computationCore.markDirty();
             ci.cancel();
         }
+    }
+
+    /** updateCraftingLogic 每 tick 由 CraftingGridCache.onUpdateTick 对所有集群调用,在 tick 首重置标脏标记. */
+    @Inject(method = "updateCraftingLogic", at = @At("HEAD"), require = 0)
+    private void ae2enhanced$resetDirtyFlag(CallbackInfo ci) {
+        ae2enhanced$dirtyMarkedThisTick = false;
     }
 
     @Inject(method = "getGrid", at = @At("HEAD"), cancellable = true)

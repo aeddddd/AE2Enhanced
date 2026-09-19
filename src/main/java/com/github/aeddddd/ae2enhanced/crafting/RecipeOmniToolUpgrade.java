@@ -94,7 +94,7 @@ public class RecipeOmniToolUpgrade extends ShapelessOreRecipe {
         } else if ("bedrock".equals(upgradeType)) {
             OmniToolUpgrades.setBedrockBreaker(result, true);
         } else if ("enchanted_book".equals(upgradeType)) {
-            // 将原书上的附魔合并到工具的存储附魔区，等级上限取合成时书本等级
+            // 将原书上的附魔合并到工具的存储附魔区, 等级上限取合成时书本等级
             NBTTagList fromBook = OmniToolEnchantments.copyEnchantmentsFromBook(book);
             NBTTagList current = OmniToolEnchantments.getStoredEnchantments(result);
 

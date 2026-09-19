@@ -10,7 +10,6 @@ import appeng.api.storage.IStorageChannel;
 import appeng.api.storage.data.IAEStack;
 import appeng.api.storage.data.IItemList;
 
-import java.math.BigInteger;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -40,11 +39,11 @@ import java.util.function.BiConsumer;
 public abstract class AbstractStorageAdapter<T extends IAEStack<T>, D extends Descriptor>
         implements IMEMonitor<T>, IMEInventoryHandler<T>, IStorageAdapter {
 
-    protected final Map<D, BigInteger> storage = new ConcurrentHashMap<>();
+    protected final Map<D, HugeCount> storage = new ConcurrentHashMap<>();
     protected IStorageChannel<T> channel;
     protected final HyperdimensionalStorageFile file;
     protected final List<IMEMonitorHandlerReceiver<T>> listeners = new CopyOnWriteArrayList<>();
-    protected final AtomicReference<BigInteger> totalCount = new AtomicReference<>(BigInteger.ZERO);
+    protected final AtomicReference<HugeCount> totalCount = new AtomicReference<>(HugeCount.ZERO);
     protected Runnable onChangeCallback = null;
     protected BiConsumer<T, IActionSource> postChangeCallback = null;
 
@@ -65,7 +64,7 @@ public abstract class AbstractStorageAdapter<T extends IAEStack<T>, D extends De
      * - 物品/流体：通常通过 channel.createStack(...) 创建后设置 size
      * - 气体/源质：通常直接 request.copy() 后设置 size
      */
-    protected abstract T createResult(T request, BigInteger amount);
+    protected abstract T createResult(T request, HugeCount amount);
 
     /**
      * 从描述符获取缓存的 AE 模板(stackSize=1).
@@ -84,6 +83,7 @@ public abstract class AbstractStorageAdapter<T extends IAEStack<T>, D extends De
 
     @Override
     public T injectItems(T input, Actionable type, IActionSource src) {
+        if (file != null) file.awaitLoaded(); // 首加载闸门：异步加载完成前触碰存储才等待
         if (input == null || input.getStackSize() <= 0) return null;
         if (isSectionSafeMode()) {
             return input; // 安全模式：拒绝写入
@@ -97,17 +97,20 @@ public abstract class AbstractStorageAdapter<T extends IAEStack<T>, D extends De
         if (key == null) {
             return input;
         }
-        BigInteger amount = BigInteger.valueOf(input.getStackSize());
+        HugeCount amount = HugeCount.of(input.getStackSize());
 
-        BigInteger old = storage.get(key);
+        HugeCount old = storage.get(key);
+        HugeCount next;
         if (old == null) {
+            next = amount;
             storage.put(key, amount);
             onDescriptorAdded(key);
         } else {
-            storage.put(key, old.add(amount));
+            next = old.add(amount);
+            storage.put(key, next);
         }
         addToTotal(amount);
-        if (file != null) file.markDirty(getStorageSection());
+        if (file != null) file.recordChange(getStorageSection(), key, next);
 
         // 只在真正有监听器时才构造 change 与通知
         if (hasChangeConsumers()) {
@@ -118,6 +121,7 @@ public abstract class AbstractStorageAdapter<T extends IAEStack<T>, D extends De
 
     @Override
     public T extractItems(T request, Actionable type, IActionSource src) {
+        if (file != null) file.awaitLoaded(); // 首加载闸门
         if (request == null || request.getStackSize() <= 0) return null;
         if (isSectionSafeMode()) {
             return null; // 安全模式：拒绝提取，防止部分加载的数据被缩水后覆盖原文件
@@ -126,37 +130,30 @@ public abstract class AbstractStorageAdapter<T extends IAEStack<T>, D extends De
         if (key == null) {
             return null;
         }
-        BigInteger requested = BigInteger.valueOf(request.getStackSize());
-        BigInteger available = storage.get(key);
+        HugeCount requested = HugeCount.of(request.getStackSize());
+        HugeCount available = storage.get(key);
         if (available == null) {
             return null;
         }
-        BigInteger toExtract = available.min(requested);
-        if (toExtract.signum() <= 0) {
+        HugeCount toExtract = available.min(requested);
+        if (toExtract.isZero()) {
             return null;
         }
 
         if (type == Actionable.MODULATE) {
-            BigInteger remaining = available.subtract(toExtract);
-            if (remaining.signum() <= 0) {
+            HugeCount remaining = available.subtract(toExtract);
+            if (remaining.isZero()) {
                 storage.remove(key);
                 onDescriptorRemoved(key);
             } else {
                 storage.put(key, remaining);
             }
             subtractFromTotal(toExtract);
-            if (file != null) file.markDirty(getStorageSection());
+            if (file != null) file.recordChange(getStorageSection(), key, remaining);
 
             if (hasChangeConsumers()) {
                 T change = request.copy();
-                // 绝大部分提取量都在 long 范围内,避免 min() 分配
-                long changeSize;
-                if (toExtract.bitLength() < 63) {
-                    changeSize = -toExtract.longValue();
-                } else {
-                    changeSize = -toExtract.min(StorageConstants.LONG_MAX).longValue();
-                }
-                change.setStackSize(changeSize);
+                change.setStackSize(-toExtract.toLongSaturated());
                 notifyPostChange(change, src);
             }
         }
@@ -166,18 +163,14 @@ public abstract class AbstractStorageAdapter<T extends IAEStack<T>, D extends De
 
     @Override
     public IItemList<T> getAvailableItems(IItemList<T> out) {
-        for (Map.Entry<D, BigInteger> entry : storage.entrySet()) {
+        if (file != null) file.awaitLoaded(); // 首加载闸门：避免终端/合成在加载窗口内看到空存储
+        for (Map.Entry<D, HugeCount> entry : storage.entrySet()) {
             D desc = entry.getKey();
             T aeStack = getAETemplate(desc);
             if (aeStack == null) continue;
 
-            BigInteger count = entry.getValue();
             T copy = aeStack.copy();
-            if (count.compareTo(StorageConstants.LONG_MAX) > 0) {
-                copy.setStackSize(Long.MAX_VALUE);
-            } else {
-                copy.setStackSize(count.longValue());
-            }
+            copy.setStackSize(entry.getValue().toLongSaturated());
             out.add(copy);
         }
         return out;
@@ -186,20 +179,20 @@ public abstract class AbstractStorageAdapter<T extends IAEStack<T>, D extends De
     // ---- 状态查询(通用实现) ----
 
     public void recalcTotal() {
-        BigInteger sum = BigInteger.ZERO;
-        for (BigInteger v : storage.values()) {
+        HugeCount sum = HugeCount.ZERO;
+        for (HugeCount v : storage.values()) {
             sum = sum.add(v);
         }
         totalCount.set(sum);
     }
 
     @Override
-    public Map<D, BigInteger> getStorageMap() {
+    public Map<D, HugeCount> getStorageMap() {
         return storage;
     }
 
     @Override
-    public BigInteger getTotalCount() {
+    public HugeCount getTotalCount() {
         return totalCount.get();
     }
 
@@ -214,10 +207,6 @@ public abstract class AbstractStorageAdapter<T extends IAEStack<T>, D extends De
      */
     protected boolean isSectionSafeMode() {
         return file != null && file.isSectionFailed(getStorageSection());
-    }
-
-    public HyperdimensionalStorageFile getFile() {
-        return file;
     }
 
     @Override
@@ -289,16 +278,16 @@ public abstract class AbstractStorageAdapter<T extends IAEStack<T>, D extends De
         return !listeners.isEmpty() || onChangeCallback != null || postChangeCallback != null;
     }
 
-    private void addToTotal(BigInteger delta) {
-        BigInteger prev, next;
+    private void addToTotal(HugeCount delta) {
+        HugeCount prev, next;
         do {
             prev = totalCount.get();
             next = prev.add(delta);
         } while (!totalCount.compareAndSet(prev, next));
     }
 
-    private void subtractFromTotal(BigInteger delta) {
-        BigInteger prev, next;
+    private void subtractFromTotal(HugeCount delta) {
+        HugeCount prev, next;
         do {
             prev = totalCount.get();
             next = prev.subtract(delta);

@@ -12,7 +12,6 @@ import appeng.api.networking.ticking.TickingRequest;
 import appeng.api.storage.data.IAEItemStack;
 import appeng.api.util.IConfigManager;
 import appeng.me.GridAccessException;
-import appeng.me.helpers.AENetworkProxy;
 import appeng.tile.inventory.AppEngInternalAEInventory;
 import appeng.tile.inventory.AppEngInternalInventory;
 import appeng.util.ConfigManager;
@@ -31,12 +30,7 @@ import net.minecraft.world.World;
 import net.minecraftforge.items.IItemHandler;
 
 import javax.annotation.Nonnull;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 /**
  * 中枢 ME 接口的核心逻辑类,复刻 AE2 {@link appeng.helpers.DualityInterface} 的结构.
@@ -194,11 +188,6 @@ public class DualityCentralInterface implements appeng.util.inv.IAEAppEngInvento
 
     public int getInstalledUpgrades(Upgrades upgrade) {
         return ((appeng.api.implementations.IUpgradeableHost) this.host).getInstalledUpgrades(upgrade);
-    }
-
-    public LockCraftingMode getCraftingLockedReason() {
-        // 当前未实现红石状态检测和 unlockEvent 追踪,默认返回 NONE
-        return LockCraftingMode.NONE;
     }
 
     // ---- Crafting Provider ----
@@ -582,7 +571,10 @@ public class DualityCentralInterface implements appeng.util.inv.IAEAppEngInvento
             return true;
         }
         for (TargetSession session : this.sessions.values()) {
-            if (!session.isIdle() && !session.isUnavailable()) {
+            // UNAVAILABLE 目标同样需要保持 tick：恢复入口 recoverUnavailableTargets
+            // 只在 tickingRequest 中运行，若此处返回 false 设备会进入 SLEEP，
+            // 该目标将永久冻结，只能靠解绑重绑恢复。
+            if (!session.isIdle()) {
                 return true;
             }
         }
@@ -647,10 +639,6 @@ public class DualityCentralInterface implements appeng.util.inv.IAEAppEngInvento
 
     public List<TargetBinding> getBindings() {
         return Collections.unmodifiableList(this.bindings);
-    }
-
-    public String getBoundBlockId() {
-        return this.boundBlockId;
     }
 
     public void addBinding(TargetBinding binding) {
@@ -840,15 +828,7 @@ public class DualityCentralInterface implements appeng.util.inv.IAEAppEngInvento
         }
     }
 
-    public void onStackReturnedToNetwork(IAEItemStack stack) {
-        // 空实现,备用
-    }
-
     public IConfigManager getConfigManager() {
         return this.cm;
-    }
-
-    public AENetworkProxy getProxy() {
-        return this.host.getProxy();
     }
 }

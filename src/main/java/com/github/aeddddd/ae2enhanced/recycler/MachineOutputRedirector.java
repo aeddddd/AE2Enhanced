@@ -49,8 +49,11 @@ public final class MachineOutputRedirector {
 
         RecyclerNetworkHandler handler = entry.getHandler();
         if (handler == null) {
-            // 回收节点已失效，清理绑定并回退
-            RecyclerBindingRegistry.getInstance().unregister(entry.ref);
+            // 回收节点已失效，清理绑定并回退。
+            // 只有在物品与流体两个 handler 都已失效时才注销，否则会连带把仍存活的另一半绑定清掉。
+            if (entry.getFluidHandler() == null) {
+                RecyclerBindingRegistry.getInstance().unregister(entry.ref);
+            }
             return output;
         }
 
@@ -85,8 +88,10 @@ public final class MachineOutputRedirector {
 
         RecyclerFluidNetworkHandler handler = entry.getFluidHandler();
         if (handler == null) {
-            // 回收节点已失效，清理绑定并回退
-            RecyclerBindingRegistry.getInstance().unregister(entry.ref);
+            // 同上：仅在两个 handler 都已失效时才注销绑定
+            if (entry.getHandler() == null) {
+                RecyclerBindingRegistry.getInstance().unregister(entry.ref);
+            }
             return output;
         }
 

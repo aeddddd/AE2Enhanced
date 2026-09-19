@@ -5,7 +5,7 @@ import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.gen.Accessor;
 
 /**
- * Entity 受保护字段访问接口.MC 原生类,remap=true 使用 MCP 名.
+ * Entity 受保护字段访问接口. MC 原生类, remap=true 使用 MCP 名.
  */
 @Mixin(Entity.class)
 public interface IEntityAccessor {

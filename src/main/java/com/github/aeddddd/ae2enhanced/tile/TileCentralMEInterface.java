@@ -382,10 +382,6 @@ public class TileCentralMEInterface extends TileAENetworkBase
         }
     }
 
-    public String getBoundBlockId() {
-        return getInterfaceDuality().getBoundBlockId();
-    }
-
     // ---- 客户端同步 ----
 
     @Override

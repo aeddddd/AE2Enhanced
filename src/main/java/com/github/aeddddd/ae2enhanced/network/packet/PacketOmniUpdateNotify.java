@@ -21,12 +21,12 @@ public class PacketOmniUpdateNotify implements IMessage {
 
     @Override
     public void fromBytes(ByteBuf buf) {
-        // 空包，无需读取
+        // 空包, 无需读取
     }
 
     @Override
     public void toBytes(ByteBuf buf) {
-        // 空包，无需写入
+        // 空包, 无需写入
     }
 
     public static class Handler implements IMessageHandler<PacketOmniUpdateNotify, IMessage> {

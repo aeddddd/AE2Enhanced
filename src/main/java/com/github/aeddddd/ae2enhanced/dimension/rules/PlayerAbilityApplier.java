@@ -12,14 +12,9 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * 统一应用/重置个人维度的玩家能力（飞行、移动速度、飞行惯性）。
- *
- * <p>将原本散落在 {@code PersonalDimensionManager} 中的能力逻辑抽离，
- * 避免 WorldTick 与 PlayerTick 重复刷新，并提供一致的 reset 行为。</p>
- *
- * <p>移动速度通过反射设置，兼容部分服务端/插件环境（如 Mohist/CatServer/Arclight
- * 或特殊 mod 改造）中 {@code PlayerCapabilities.setFlySpeed} / {@code setPlayerWalkSpeed}
- * 方法名/签名不一致或被剥离的情况。</p>
+ * 统一应用/重置个人维度的玩家能力: 飞行、移动速度、飞行惯性.
+ * 从 PersonalDimensionManager 抽离以避免 WorldTick 与 PlayerTick 重复刷新.
+ * 速度通过反射设置, 兼容 Mohist/CatServer/Arclight 等改造环境中方法签名不一致或被剥离的情况.
  */
 public final class PlayerAbilityApplier {
 
@@ -141,50 +136,24 @@ public final class PlayerAbilityApplier {
         }
     }
 
-    /**
-     * 进入个人维度前的玩家能力快照（运行时状态，不持久化）。
-     * 离开时优先恢复快照，避免破坏其他模组（如天使指环）提供的飞行/速度来源。
-     */
+    /** 进入个人维度前的能力快照, 不持久化. 离开时优先恢复快照, 避免破坏其他模组(如天使指环)授予的飞行/速度来源. */
     private static final Map<UUID, CapSnapshot> CAP_SNAPSHOTS = new HashMap<>();
 
-    /**
-     * 玩家能力快照。
-     */
-    private static final class CapSnapshot {
-        final boolean allowFlying;
-        final boolean isFlying;
-        final float flySpeed;
-        final float walkSpeed;
-
-        CapSnapshot(boolean allowFlying, boolean isFlying, float flySpeed, float walkSpeed) {
-            this.allowFlying = allowFlying;
-            this.isFlying = isFlying;
-            this.flySpeed = flySpeed;
-            this.walkSpeed = walkSpeed;
-        }
-    }
-
-    /**
-     * 玩家退出登录时清理能力快照，防止离线玩家 UUID 在 map 中累积泄漏。
-     */
+    /** 玩家退出登录时清理能力快照, 防止离线玩家 UUID 在 map 中累积泄漏. */
     public static void discardSnapshot(UUID playerId) {
         CAP_SNAPSHOTS.remove(playerId);
     }
 
     /**
-     * 根据个人维度规则应用飞行与移动速度。
-     * 应在玩家进入维度、登录或规则变更时调用，不要在每 tick 调用。
+     * 根据个人维度规则应用飞行与移动速度. 应在玩家进入维度、登录或规则变更时调用, 不要在每 tick 调用.
+     * 首次进入时快照当前能力, 离开时由 {@link #resetAbilities} 恢复快照而非硬编码默认值,
+     * 以兼容其他模组授予的飞行/速度来源.
      *
-     * <p>首次进入时会快照玩家当前能力，离开维度时通过 {@link #resetAbilities}
-     * 恢复快照而非硬编码默认值，以兼容其他模组的飞行/速度来源。</p>
-     *
-     * @param player 目标玩家
-     * @param rules  维度规则
      * @return 若能力发生变化返回 true
      */
     public static boolean applyCapabilities(EntityPlayerMP player, PersonalDimensionRules rules) {
         PlayerCapabilities cap = player.capabilities;
-        // 仅在无快照时记录，避免维度内重复应用把已被修改的能力当作"原始状态"
+        // 仅在无快照时记录, 避免维度内重复应用把已被修改的能力当作原始状态
         CAP_SNAPSHOTS.computeIfAbsent(player.getUniqueID(), id -> new CapSnapshot(
                 cap.allowFlying, cap.isFlying, getFlySpeedSafe(cap), getWalkSpeedSafe(cap)));
         boolean changed = false;
@@ -213,8 +182,8 @@ public final class PlayerAbilityApplier {
     }
 
     /**
-     * 处理无飞行惯性规则：玩家停止移动输入时清零水平速度。
-     * 这需要在玩家 tick 中持续调用，因为移动输入每 tick 都会变化。
+     * 处理无飞行惯性规则: 玩家停止移动输入时清零水平速度.
+     * 移动输入每 tick 都在变化, 需要在玩家 tick 中持续调用.
      */
     public static void tickNoFlightInertia(EntityPlayerMP player, PersonalDimensionRules rules) {
         if (!rules.noFlightInertia) return;
@@ -226,13 +195,9 @@ public final class PlayerAbilityApplier {
     }
 
     /**
-     * 恢复玩家能力。
-     *
-     * <p>仅在玩家离开个人维度或重生时调用。优先恢复进入维度前的能力快照
-     * （保留其他模组授予的飞行/速度来源）；无快照时（如直接出生在维度外等边界）
-     * 才回退到原版默认值。创造模式玩家的能力不会被修改。</p>
-     *
-     * @param player 目标玩家
+     * 恢复玩家能力. 仅在玩家离开个人维度或重生时调用.
+     * 优先恢复进入前的能力快照, 以保留其他模组授予的飞行/速度来源; 无快照时才回退到原版默认值.
+     * 创造模式玩家的能力不会被修改.
      */
     public static void resetAbilities(EntityPlayerMP player) {
         if (player.isCreative()) {
@@ -284,6 +249,21 @@ public final class PlayerAbilityApplier {
         }
         if (changed) {
             player.sendPlayerAbilities();
+        }
+    }
+
+    /** 玩家能力快照. */
+    private static final class CapSnapshot {
+        final boolean allowFlying;
+        final boolean isFlying;
+        final float flySpeed;
+        final float walkSpeed;
+
+        CapSnapshot(boolean allowFlying, boolean isFlying, float flySpeed, float walkSpeed) {
+            this.allowFlying = allowFlying;
+            this.isFlying = isFlying;
+            this.flySpeed = flySpeed;
+            this.walkSpeed = walkSpeed;
         }
     }
 

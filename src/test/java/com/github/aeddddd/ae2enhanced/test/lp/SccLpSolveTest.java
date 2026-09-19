@@ -1,5 +1,9 @@
 package com.github.aeddddd.ae2enhanced.test.lp;
 
+import static com.github.aeddddd.ae2enhanced.test.support.LpTestSupport.buildMiniWeb;
+import static com.github.aeddddd.ae2enhanced.test.support.LpTestSupport.stockOf;
+import static com.github.aeddddd.ae2enhanced.test.support.SimulationEnv.block;
+import static com.github.aeddddd.ae2enhanced.test.support.SimulationEnv.mult;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -8,22 +12,21 @@ import java.util.Map;
 
 import org.junit.jupiter.api.Test;
 
-import net.minecraft.block.Block;
 import net.minecraft.init.Blocks;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 
 import appeng.api.networking.crafting.ICraftingPatternDetails;
 import appeng.api.storage.data.IAEItemStack;
-import appeng.util.item.AEItemStack;
 
 import com.github.aeddddd.ae2enhanced.specialcrafting.NetworkPatternIndex;
 import com.github.aeddddd.ae2enhanced.specialcrafting.RecursiveCraftingHelper;
 import com.github.aeddddd.ae2enhanced.specialcrafting.lp.LpResult;
 import com.github.aeddddd.ae2enhanced.specialcrafting.lp.SccLpSolve;
 import com.github.aeddddd.ae2enhanced.specialcrafting.lp.SccLpSolve.SccSolution;
-import com.github.aeddddd.ae2enhanced.test.specialcrafting.ProcessingPatternBuilder;
-import com.github.aeddddd.ae2enhanced.test.specialcrafting.SimulationEnv;
+import com.github.aeddddd.ae2enhanced.test.support.LpTestSupport.MiniWeb;
+import com.github.aeddddd.ae2enhanced.test.support.ProcessingPatternBuilder;
+import com.github.aeddddd.ae2enhanced.test.support.SimulationEnv;
 
 /**
  * SCC → LP 模型构建器/求解编排合成夹具（方案 L §6.2）.
@@ -151,36 +154,20 @@ public class SccLpSolveTest {
     @Test
     public void miniWebCompetingGainLoops() {
         SimulationEnv env = new SimulationEnv();
-        IAEItemStack[] keys = new IAEItemStack[50];
-        Block[] palette = { Blocks.STONE, Blocks.COBBLESTONE, Blocks.DIRT, Blocks.PLANKS, Blocks.SAND,
-                Blocks.GRAVEL, Blocks.LOG, Blocks.GLASS, Blocks.CLAY, Blocks.BRICK_BLOCK };
-        for (int i = 0; i < keys.length; i++) {
-            keys[i] = AEItemStack.fromItemStack(new ItemStack(palette[i % palette.length], 1, i / palette.length));
-        }
-        ICraftingPatternDetails[] ring = new ICraftingPatternDetails[50];
-        for (int i = 0; i < 50; i++) {
-            ring[i] = env.addPattern(new ProcessingPatternBuilder(keys[(i + 1) % 50])
-                    .addPreciseInput(1, keys[i]).build());
-        }
-        ICraftingPatternDetails dup5 = env.addPattern(new ProcessingPatternBuilder(mult(keys[5], 2))
-                .addPreciseInput(1, keys[5]).build());
-        ICraftingPatternDetails dup25 = env.addPattern(new ProcessingPatternBuilder(mult(keys[25], 2))
-                .addPreciseInput(1, keys[25]).build());
-        ICraftingPatternDetails dup45 = env.addPattern(new ProcessingPatternBuilder(mult(keys[45], 2))
-                .addPreciseInput(1, keys[45]).build());
+        MiniWeb web = buildMiniWeb(env);
 
-        SccSolution sol = solve(env, keys[0], stockOf(keys[25], 1), demandsOf(keys[0], 100));
+        SccSolution sol = solve(env, web.keys[0], stockOf(web.keys[25], 1), demandsOf(web.keys[0], 100));
         assertEquals(LpResult.Status.OPTIMAL, sol.status);
         assertTrue(sol.deficits.isEmpty(), "蛛网净增环应满足全部需求: " + sol.deficits);
         // LP 最优:dup@45 自举 100,环流仅 45→49→0 五跳各 100
-        assertEquals(100.0, execOf(sol, dup45), EPS);
-        assertEquals(0.0, execOf(sol, dup25), EPS);
-        assertEquals(0.0, execOf(sol, dup5), EPS);
+        assertEquals(100.0, execOf(sol, web.dup45), EPS);
+        assertEquals(0.0, execOf(sol, web.dup25), EPS);
+        assertEquals(0.0, execOf(sol, web.dup5), EPS);
         for (int i = 45; i <= 49; i++) {
-            assertEquals(100.0, execOf(sol, ring[i]), EPS, "交付环流 p" + i);
+            assertEquals(100.0, execOf(sol, web.ring[i]), EPS, "交付环流 p" + i);
         }
         for (int i = 25; i <= 44; i++) {
-            assertEquals(0.0, execOf(sol, ring[i]), EPS, "冗余环流 p" + i);
+            assertEquals(0.0, execOf(sol, web.ring[i]), EPS, "冗余环流 p" + i);
         }
         assertEquals(600.0, totalExec(sol), EPS);
     }
@@ -254,30 +241,12 @@ public class SccLpSolveTest {
         return total;
     }
 
-    private static Map<IAEItemStack, Long> stockOf(Object... kv) {
-        Map<IAEItemStack, Long> stock = new HashMap<>();
-        for (int i = 0; i < kv.length; i += 2) {
-            stock.put(RecursiveCraftingHelper.canon((IAEItemStack) kv[i]), ((Number) kv[i + 1]).longValue());
-        }
-        return stock;
-    }
-
     private static Map<IAEItemStack, Double> demandsOf(Object... kv) {
         Map<IAEItemStack, Double> demands = new HashMap<>();
         for (int i = 0; i < kv.length; i += 2) {
             demands.put(RecursiveCraftingHelper.canon((IAEItemStack) kv[i]), ((Number) kv[i + 1]).doubleValue());
         }
         return demands;
-    }
-
-    private static IAEItemStack block(Block block) {
-        return AEItemStack.fromItemStack(new ItemStack(block));
-    }
-
-    private static IAEItemStack mult(IAEItemStack template, long multiplier) {
-        IAEItemStack copy = template.copy();
-        copy.setStackSize(template.getStackSize() * multiplier);
-        return copy;
     }
 
     /**

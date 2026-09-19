@@ -33,13 +33,6 @@ public interface ICentralInterfaceHost extends IGridProxyable, ICraftingProvider
     DualityCentralInterface getInterfaceDuality();
 
     /**
-     * 当物品被 return 到网络时的回调(用于 storage slot 溢出回收).
-     */
-    default void onStackReturnNetwork(appeng.api.storage.data.IAEItemStack stack) {
-        this.getInterfaceDuality().onStackReturnedToNetwork(stack);
-    }
-
-    /**
      * 保存 NBT 变更标记.
      */
     void saveChanges();

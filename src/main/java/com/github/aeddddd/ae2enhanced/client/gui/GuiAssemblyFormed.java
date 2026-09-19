@@ -1,7 +1,7 @@
 package com.github.aeddddd.ae2enhanced.client.gui;
 
-import com.github.aeddddd.ae2enhanced.container.ContainerAssemblyFormed;
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
+import com.github.aeddddd.ae2enhanced.container.ContainerAssemblyFormed;
 import com.github.aeddddd.ae2enhanced.network.packet.PacketPatternPage;
 import com.github.aeddddd.ae2enhanced.tile.TileAssemblyController;
 import net.minecraft.client.gui.inventory.GuiContainer;
@@ -22,7 +22,7 @@ public class GuiAssemblyFormed extends GuiContainer {
 
     private final TileAssemblyController tile;
 
-    // 按钮区域（纹理坐标 79,23 -> 170,43，尺寸 91×20）
+    // 按钮区域: 纹理坐标 79,23 -> 170,43, 尺寸 91x20.
     private static final int BTN_X = 79;
     private static final int BTN_Y = 23;
     private static final int BTN_W = 91;
@@ -168,7 +168,8 @@ public class GuiAssemblyFormed extends GuiContainer {
                             lines.add("§7" + I18n.format("gui.ae2enhanced.tooltip.upgrades.speed.status", tile.getCraftingTicks()) + "§r");
                             break;
                         case 2:
-                            lines.add("§7" + I18n.format("gui.ae2enhanced.tooltip.upgrades.efficiency.status", count) + "§r");
+                            lines.add("§7" + I18n.format("gui.ae2enhanced.tooltip.upgrades.efficiency.status",
+                                count, String.valueOf(tile.getEnergyPerCraft())) + "§r");
                             break;
                         case 3:
                             lines.add("§7" + I18n.format("gui.ae2enhanced.tooltip.upgrades.capacity.status",
@@ -178,7 +179,10 @@ public class GuiAssemblyFormed extends GuiContainer {
                             lines.add("§7" + I18n.format("gui.ae2enhanced.tooltip.upgrades.upload.status") + "§r");
                             break;
                         case 5:
-                            lines.add("§7" + I18n.format("gui.ae2enhanced.tooltip.upgrades.reserved2.status") + "§r");
+                            int recipeLimit = tile.getConcurrentRecipeLimit();
+                            lines.add("§7" + I18n.format("gui.ae2enhanced.tooltip.upgrades.reserved2.status",
+                                recipeLimit >= TileAssemblyController.CONCURRENT_RECIPES_LIMIT_MAX
+                                    ? "∞" : String.valueOf(recipeLimit)) + "§r");
                             break;
                     }
                 } else {

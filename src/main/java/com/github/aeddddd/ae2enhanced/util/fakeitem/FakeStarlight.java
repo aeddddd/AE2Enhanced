@@ -65,10 +65,6 @@ public final class FakeStarlight {
         });
     }
 
-    public static boolean isStarlightFakeItem(ItemStack stack) {
-        return ItemStarlightDrop.isStarlightDrop(stack);
-    }
-
     public static IAEItemStack packStarlight(IAEStarlightStack starlight) {
         return FakeItemRegister.packAEStackLong(starlight, ItemRegistry.STARLIGHT_DROP);
     }

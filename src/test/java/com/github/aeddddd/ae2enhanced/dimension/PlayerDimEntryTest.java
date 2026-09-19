@@ -1,7 +1,6 @@
 package com.github.aeddddd.ae2enhanced.dimension;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.UUID;
 
@@ -12,7 +11,7 @@ import net.minecraft.nbt.NBTTagList;
 import net.minecraft.util.math.BlockPos;
 
 /**
- * {@link PlayerDimEntry} 的 NBT 序列化容错与权限管理契约测试。
+ * {@link PlayerDimEntry} 的 NBT 序列化容错与组队白名单契约测试。
  */
 public class PlayerDimEntryTest {
 
@@ -20,7 +19,7 @@ public class PlayerDimEntryTest {
     private static final UUID GUEST_A = UUID.fromString("22222222-2222-2222-2222-222222222222");
     private static final UUID GUEST_B = UUID.fromString("33333333-3333-3333-3333-333333333333");
 
-    /** 新条目默认值：维度 ID 为 MIN_VALUE（未分配）、进入点 (0,65,0)、白名单与权限表为空。 */
+    /** 新条目默认值：维度 ID 为 MIN_VALUE（未分配）、进入点 (0,65,0)、组队白名单为空。 */
     @Test
     public void testDefaultValues() {
         PlayerDimEntry entry = new PlayerDimEntry(OWNER);
@@ -31,10 +30,9 @@ public class PlayerDimEntryTest {
         assertThat(entry.returnDim).isEqualTo(0);
         assertThat(entry.hasReturnPoint).isFalse();
         assertThat(entry.allowedPlayers).isEmpty();
-        assertThat(entry.permissions).isEmpty();
     }
 
-    /** 全字段 NBT 往返：维度 ID、进入点、返回点、白名单、权限表逐一相同。 */
+    /** 全字段 NBT 往返：维度 ID、进入点、返回点、组队白名单逐一相同。 */
     @Test
     public void testNbtRoundTrip() {
         PlayerDimEntry original = new PlayerDimEntry(OWNER);
@@ -49,9 +47,8 @@ public class PlayerDimEntryTest {
         original.returnYaw = 90.0f;
         original.returnPitch = -30.0f;
         original.hasReturnPoint = true;
-        original.grantPermission(GUEST_A, PersonalDimPermission.ENTER);
-        original.grantPermission(GUEST_A, PersonalDimPermission.BUILD);
-        original.grantPermission(GUEST_B, PersonalDimPermission.INTERACT);
+        original.allowedPlayers.add(GUEST_A);
+        original.allowedPlayers.add(GUEST_B);
 
         PlayerDimEntry restored = new PlayerDimEntry(OWNER);
         restored.readFromNBT(original.writeToNBT());
@@ -68,10 +65,6 @@ public class PlayerDimEntryTest {
         assertThat(restored.returnPitch).isEqualTo(-30.0f);
         assertThat(restored.hasReturnPoint).isTrue();
         assertThat(restored.allowedPlayers).containsExactlyInAnyOrder(GUEST_A, GUEST_B);
-        assertThat(restored.getPermissions(GUEST_A))
-                .containsExactlyInAnyOrder(PersonalDimPermission.ENTER, PersonalDimPermission.BUILD);
-        assertThat(restored.getPermissions(GUEST_B))
-                .containsExactlyInAnyOrder(PersonalDimPermission.INTERACT);
     }
 
     /** entryPoint 的 BlockPos 通过 long 编解码，负坐标也能正确往返。 */
@@ -102,149 +95,38 @@ public class PlayerDimEntryTest {
         assertThat(entry.allowedPlayers).containsExactly(GUEST_A);
     }
 
-    /** 权限表反序列化容错：未知权限名与空段被跳过，合法权限保留。 */
+    /** 旧存档中的 "permissions" 逐玩家权限表已废弃，读取时直接忽略、不影响白名单。 */
     @Test
-    public void testReadSkipsUnknownPermissionNames() {
+    public void testReadIgnoresLegacyPermissionsTag() {
         NBTTagCompound tag = baseTag();
+        NBTTagList allowed = new NBTTagList();
+        allowed.appendTag(uuidTag(GUEST_A.toString()));
+        tag.setTag("allowedPlayers", allowed);
         NBTTagList perms = new NBTTagList();
-        NBTTagCompound t = uuidTag(GUEST_A.toString());
-        t.setString("permissions", "ENTER,BOGUS,,BUILD");
+        NBTTagCompound t = uuidTag(GUEST_B.toString());
+        t.setString("permissions", "ENTER,BUILD");
         perms.appendTag(t);
         tag.setTag("permissions", perms);
 
         PlayerDimEntry entry = new PlayerDimEntry(OWNER);
         entry.readFromNBT(tag);
 
-        assertThat(entry.getPermissions(GUEST_A))
-                .containsExactlyInAnyOrder(PersonalDimPermission.ENTER, PersonalDimPermission.BUILD);
-    }
-
-    /** 权限表反序列化容错：UUID 非法的权限条目整条跳过，不影响其他条目。 */
-    @Test
-    public void testReadSkipsPermissionEntryWithInvalidUuid() {
-        NBTTagCompound tag = baseTag();
-        NBTTagList perms = new NBTTagList();
-        NBTTagCompound bad = uuidTag("%%%");
-        bad.setString("permissions", "ENTER");
-        perms.appendTag(bad);
-        NBTTagCompound good = uuidTag(GUEST_B.toString());
-        good.setString("permissions", "ENTER");
-        perms.appendTag(good);
-        tag.setTag("permissions", perms);
-
-        PlayerDimEntry entry = new PlayerDimEntry(OWNER);
-        entry.readFromNBT(tag);
-
-        assertThat(entry.permissions).hasSize(1);
-        assertThat(entry.hasPermission(GUEST_B, PersonalDimPermission.ENTER)).isTrue();
-    }
-
-    /** 权限字符串解析后为空（空串或全部非法）的条目被跳过，不会在权限表留下空集合占位。 */
-    @Test
-    public void testReadSkipsPermissionEntryWithEmptySet() {
-        NBTTagCompound tag = baseTag();
-        NBTTagList perms = new NBTTagList();
-        NBTTagCompound empty = uuidTag(GUEST_A.toString());
-        empty.setString("permissions", "");
-        perms.appendTag(empty);
-        NBTTagCompound bogus = uuidTag(GUEST_B.toString());
-        bogus.setString("permissions", "BOGUS");
-        perms.appendTag(bogus);
-        tag.setTag("permissions", perms);
-
-        PlayerDimEntry entry = new PlayerDimEntry(OWNER);
-        entry.readFromNBT(tag);
-
-        assertThat(entry.permissions).isEmpty();
-        assertThat(entry.permissions).doesNotContainKey(GUEST_A);
-        assertThat(entry.permissions).doesNotContainKey(GUEST_B);
-        assertThat(entry.getPermissions(GUEST_A)).isEmpty();
-        assertThat(entry.hasPermission(GUEST_A, PersonalDimPermission.ENTER)).isFalse();
-    }
-
-    /** grantPermission 自动将玩家加入白名单，可重复授予多项权限。 */
-    @Test
-    public void testGrantPermissionAddsToWhitelist() {
-        PlayerDimEntry entry = new PlayerDimEntry(OWNER);
-
-        entry.grantPermission(GUEST_A, PersonalDimPermission.ENTER);
-        entry.grantPermission(GUEST_A, PersonalDimPermission.BUILD);
-
         assertThat(entry.allowedPlayers).containsExactly(GUEST_A);
-        assertThat(entry.hasPermission(GUEST_A, PersonalDimPermission.ENTER)).isTrue();
-        assertThat(entry.hasPermission(GUEST_A, PersonalDimPermission.BUILD)).isTrue();
-        assertThat(entry.hasPermission(GUEST_A, PersonalDimPermission.MANAGE_RULES)).isFalse();
     }
 
-    /** revokePermission 移除单项权限后，玩家仍有其他权限时保留在白名单中。 */
-    @Test
-    public void testRevokeOneOfMultiplePermissionsKeepsPlayer() {
-        PlayerDimEntry entry = new PlayerDimEntry(OWNER);
-        entry.grantPermission(GUEST_A, PersonalDimPermission.ENTER);
-        entry.grantPermission(GUEST_A, PersonalDimPermission.BUILD);
-
-        entry.revokePermission(GUEST_A, PersonalDimPermission.BUILD);
-
-        assertThat(entry.allowedPlayers).contains(GUEST_A);
-        assertThat(entry.hasPermission(GUEST_A, PersonalDimPermission.ENTER)).isTrue();
-        assertThat(entry.hasPermission(GUEST_A, PersonalDimPermission.BUILD)).isFalse();
-    }
-
-    /** revokePermission 清空该玩家全部权限后，自动清理权限表与白名单条目。 */
-    @Test
-    public void testRevokeLastPermissionCleansUpMapAndWhitelist() {
-        PlayerDimEntry entry = new PlayerDimEntry(OWNER);
-        entry.grantPermission(GUEST_A, PersonalDimPermission.ENTER);
-
-        entry.revokePermission(GUEST_A, PersonalDimPermission.ENTER);
-
-        assertThat(entry.permissions).doesNotContainKey(GUEST_A);
-        assertThat(entry.allowedPlayers).isEmpty();
-    }
-
-    /** 对不存在权限的玩家 revokePermission 是空操作，不抛异常。 */
-    @Test
-    public void testRevokeUnknownPlayerIsNoop() {
-        PlayerDimEntry entry = new PlayerDimEntry(OWNER);
-        entry.revokePermission(GUEST_A, PersonalDimPermission.ENTER);
-
-        assertThat(entry.permissions).isEmpty();
-        assertThat(entry.allowedPlayers).isEmpty();
-    }
-
-    /** removePlayer 将玩家从白名单与权限表中完全移除。 */
+    /** removePlayer 将玩家从组队白名单中移除，对不在白名单的玩家是空操作。 */
     @Test
     public void testRemovePlayer() {
         PlayerDimEntry entry = new PlayerDimEntry(OWNER);
-        entry.grantPermission(GUEST_A, PersonalDimPermission.ENTER);
-        entry.grantPermission(GUEST_A, PersonalDimPermission.MANAGE_RULES);
+        entry.allowedPlayers.add(GUEST_A);
+        entry.allowedPlayers.add(GUEST_B);
 
         entry.removePlayer(GUEST_A);
 
-        assertThat(entry.allowedPlayers).isEmpty();
-        assertThat(entry.permissions).isEmpty();
-        assertThat(entry.getPermissions(GUEST_A)).isEmpty();
-    }
+        assertThat(entry.allowedPlayers).containsExactly(GUEST_B);
 
-    /** getPermissions 返回只读副本：尝试修改抛 UnsupportedOperationException，且副本不随后续授权变化。 */
-    @Test
-    public void testGetPermissionsReturnsReadOnlyCopy() {
-        PlayerDimEntry entry = new PlayerDimEntry(OWNER);
-        entry.grantPermission(GUEST_A, PersonalDimPermission.ENTER);
-
-        java.util.Set<PersonalDimPermission> perms = entry.getPermissions(GUEST_A);
-        assertThat(perms).containsExactly(PersonalDimPermission.ENTER);
-        assertThatThrownBy(() -> perms.add(PersonalDimPermission.BUILD))
-                .isInstanceOf(UnsupportedOperationException.class);
-
-        // 副本独立性：之后再授权不影响先前拿到的副本
-        entry.grantPermission(GUEST_A, PersonalDimPermission.BUILD);
-        assertThat(perms).containsExactly(PersonalDimPermission.ENTER);
-        assertThat(entry.getPermissions(GUEST_A))
-                .containsExactlyInAnyOrder(PersonalDimPermission.ENTER, PersonalDimPermission.BUILD);
-
-        // 未授权玩家返回空集合
-        assertThat(entry.getPermissions(GUEST_B)).isEmpty();
+        entry.removePlayer(GUEST_A);
+        assertThat(entry.allowedPlayers).containsExactly(GUEST_B);
     }
 
     /**
@@ -257,7 +139,7 @@ public class PlayerDimEntryTest {
         PlayerDimEntry source = new PlayerDimEntry(OWNER);
         source.dimensionId = 7;
         source.entryPoint = new BlockPos(3, 64, -9);
-        source.grantPermission(GUEST_A, PersonalDimPermission.ENTER);
+        source.allowedPlayers.add(GUEST_A);
         NBTTagCompound tag = source.writeToNBT();
 
         PlayerDimEntry v0 = new PlayerDimEntry(OWNER);
@@ -271,11 +153,10 @@ public class PlayerDimEntryTest {
             assertThat(e.dimensionId).isEqualTo(v0.dimensionId);
             assertThat(e.entryPoint).isEqualTo(v0.entryPoint);
             assertThat(e.allowedPlayers).isEqualTo(v0.allowedPlayers);
-            assertThat(e.permissions).isEqualTo(v0.permissions);
         }
     }
 
-    /** 构造一个只含必填标量字段的基础 tag，便于手工追加白名单/权限表。 */
+    /** 构造一个只含必填标量字段的基础 tag，便于手工追加白名单。 */
     private static NBTTagCompound baseTag() {
         NBTTagCompound tag = new NBTTagCompound();
         tag.setString("playerUUID", OWNER.toString());

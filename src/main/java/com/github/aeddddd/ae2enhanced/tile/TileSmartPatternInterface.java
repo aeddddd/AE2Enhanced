@@ -1,8 +1,8 @@
 package com.github.aeddddd.ae2enhanced.tile;
 
 import appeng.api.storage.data.IAEItemStack;
-import appeng.util.item.AEItemStack;
 import appeng.util.Platform;
+import appeng.util.item.AEItemStack;
 import com.github.aeddddd.ae2enhanced.crafting.smartpattern.SmartPatternData;
 import com.github.aeddddd.ae2enhanced.crafting.smartpattern.SmartPatternStorageFile;
 import com.github.aeddddd.ae2enhanced.crafting.smartpattern.SmartRecipe;
@@ -18,7 +18,6 @@ import net.minecraftforge.items.ItemStackHandler;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.BitSet;
 import java.util.UUID;
 
 /**

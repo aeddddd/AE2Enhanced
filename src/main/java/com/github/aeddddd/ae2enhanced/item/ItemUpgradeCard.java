@@ -54,7 +54,9 @@ public class ItemUpgradeCard extends Item implements IUpgradeModule {
     public static int getMaxStackForMeta(int meta) {
         switch (meta) {
             case META_PARALLEL:
-            case META_SPEED:      return 5;   // 5�?�?Long.MAX_VALUE / 1 tick
+            case META_SPEED:
+            case META_EFFICIENCY:
+            case META_RESERVED2:  return 5;   // 5�?�?Long.MAX_VALUE / 1 tick
             case META_RESERVED1:  return 1;   // 自动上传模块：每个控制器只需1�?
             default:              return 10;  // 预留
         }
@@ -89,6 +91,11 @@ public class ItemUpgradeCard extends Item implements IUpgradeModule {
             case META_RESERVED1:
                 tooltip.add(I18n.format("item.ae2enhanced.upgrade_card.upload.tooltip"));
                 lines = I18n.format("item.ae2enhanced.upgrade_card.upload.tooltip.detail", max).replace("\\n", "\n").split("\n");
+                for (String line : lines) tooltip.add(line);
+                break;
+            case META_RESERVED2:
+                tooltip.add(I18n.format("item.ae2enhanced.upgrade_card.reserved2.tooltip"));
+                lines = I18n.format("item.ae2enhanced.upgrade_card.reserved2.tooltip.detail", max).replace("\\n", "\n").split("\n");
                 for (String line : lines) tooltip.add(line);
                 break;
             default:

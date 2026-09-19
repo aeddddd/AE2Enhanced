@@ -135,7 +135,6 @@ public class BotaniaHandler implements IRemoteHandler, IVirtualBatchCraftingHand
     @Override
     public List<ItemStack> revertMaterials(World world, BlockPos pos, IActionSource source, TargetSession session) {
         TileEntity te = world.getTileEntity(pos);
-//         AE2Enhanced.LOGGER.debug("[AE2E-Botania] revertMaterials at {} te={}", pos, te != null ? te.getClass().getSimpleName() : "null");
         if (BotaniaReflectionHelper.isInstance(BotaniaReflectionHelper.CLASS_TILE_RUNE_ALTAR, te)) {
             List<ItemStack> result = new ArrayList<>();
             IItemHandler handler = BotaniaReflectionHelper.runeAltarGetItemHandler(te);
@@ -215,10 +214,6 @@ public class BotaniaHandler implements IRemoteHandler, IVirtualBatchCraftingHand
             return canCraftVirtuallyAltar(world, pos, ingredients, outputs);
         }
         return false;
-    }
-
-    public List<ItemStack> virtualCraft(World world, BlockPos pos, InventoryCrafting ingredients, IAEItemStack[] outputs, IActionSource source) {
-        return virtualCraftBatch(world, pos, ingredients, outputs, 1, source);
     }
 
     @Override
@@ -322,8 +317,7 @@ public class BotaniaHandler implements IRemoteHandler, IVirtualBatchCraftingHand
                 // Botania 标准行为：原 EntityItem 的 item 被 shrink(1) 清空,产物 spawn 到新 EntityItem
                 // 因此原 entityItem.getItem() 必然为空.直接 setDead 清理即可.
                 if (!entityItem.getItem().isEmpty()) {
-                    // 防御性处理：如果某个魔改版本把产物塞回了原 EntityItem
-                    ItemStack product = entityItem.getItem();
+                    // 防御性处理：如果某个魔改版本把产物塞回了原 EntityItem,移除输入标记
                     entityItem.getEntityData().removeTag(TAG_INPUT_FLAG);
                 } else {
                     entityItem.setDead();

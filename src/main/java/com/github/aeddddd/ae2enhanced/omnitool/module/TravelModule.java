@@ -1,10 +1,8 @@
 package com.github.aeddddd.ae2enhanced.omnitool.module;
 
-import com.github.aeddddd.ae2enhanced.AE2Enhanced;
 import com.github.aeddddd.ae2enhanced.item.ItemAdvancedMEOmniTool;
 import com.github.aeddddd.ae2enhanced.omnitool.OmniToolUpgrades;
 import com.github.aeddddd.ae2enhanced.util.TravelAnchorHelper;
-import com.github.aeddddd.ae2enhanced.util.placement.PlacementConfig;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.client.util.ITooltipFlag;
 import net.minecraft.entity.player.EntityPlayer;

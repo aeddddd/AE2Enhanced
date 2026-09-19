@@ -2,18 +2,16 @@ package com.github.aeddddd.ae2enhanced.tile;
 
 import appeng.api.config.Actionable;
 import appeng.api.networking.IGridNode;
-import appeng.api.networking.security.IActionHost;
 import appeng.api.networking.events.MENetworkChannelsChanged;
 import appeng.api.networking.events.MENetworkEventSubscribe;
 import appeng.api.networking.events.MENetworkPowerStatusChange;
+import appeng.api.networking.security.IActionHost;
 import appeng.api.storage.IMEMonitor;
 import appeng.api.storage.data.IAEStack;
 import appeng.api.util.AECableType;
 import appeng.api.util.AEPartLocation;
 import appeng.me.GridAccessException;
 import appeng.me.helpers.MachineSource;
-import appeng.util.Platform;
-import com.github.aeddddd.ae2enhanced.AE2Enhanced;
 import com.github.aeddddd.ae2enhanced.network.packet.PacketChunkPowerNodeSync;
 import com.github.aeddddd.ae2enhanced.platform.energy.EnergyAdapterRegistry;
 import com.github.aeddddd.ae2enhanced.platform.energy.IEnergyAdapter;
@@ -27,20 +25,12 @@ import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.EnumFacing;
 import net.minecraft.util.ITickable;
 import net.minecraft.util.math.BlockPos;
-import net.minecraft.world.World;
 import net.minecraft.world.chunk.Chunk;
-import net.minecraftforge.common.capabilities.Capability;
 import net.minecraftforge.energy.CapabilityEnergy;
 import net.minecraftforge.energy.IEnergyStorage;
 
 import javax.annotation.Nonnull;
-import java.util.ArrayList;
-import java.util.EnumSet;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 /**
  * 区块供电节点的 TileEntity.
@@ -73,7 +63,9 @@ public class TileChunkPowerNode extends TileAENetworkBase implements ITickable, 
 
     // 目标设备缓存(只存 BlockPos,每 tick 重新获取 TE 和 cap)
     protected final List<BlockPos> cachedTargets = new ArrayList<>();
-    private int cacheRefreshCooldown = 0;
+    /** 下次刷新目标缓存的世界时间(getTotalWorldTime).按真实时间而非 tile 被 tick 次数计,
+     *  避免 Torcherino 等加速手段放大刷新频率(每次刷新需遍历全 chunk TE 做 6 面 capability 探测). */
+    private long nextCacheRefreshTime = 0;
 
     // 目标附加缓存: 可用输入面 / 能量适配器 / 需求退避,随 refreshTargetCache 重建
     private final Map<BlockPos, EnumFacing> targetFaceCache = new HashMap<>();
@@ -187,11 +179,10 @@ public class TileChunkPowerNode extends TileAENetworkBase implements ITickable, 
         lastTickDelivered.clear();
         lastTickOutput = 0;
 
-        if (cacheRefreshCooldown <= 0) {
+        long now = world.getTotalWorldTime();
+        if (now >= nextCacheRefreshTime) {
             refreshTargetCache();
-            cacheRefreshCooldown = CACHE_REFRESH_INTERVAL;
-        } else {
-            cacheRefreshCooldown--;
+            nextCacheRefreshTime = now + CACHE_REFRESH_INTERVAL;
         }
 
         if (cachedTargets.isEmpty()) return;
@@ -214,6 +205,14 @@ public class TileChunkPowerNode extends TileAENetworkBase implements ITickable, 
         }
         if (energyMonitor == null) return;
         MachineSource source = getMachineSource();
+
+        // 第一轮: 汇总各目标需求(退避中的目标跳过),不为每个目标单独走网络提取
+        List<TileEntity> demandTiles = new ArrayList<>();
+        List<IEnergyStorage> demandCaps = new ArrayList<>();
+        List<IEnergyAdapter> demandAdapters = new ArrayList<>();
+        List<Long> demandAmounts = new ArrayList<>();
+        List<BlockPos> demandPositions = new ArrayList<>();
+        long totalDemand = 0;
 
         for (BlockPos targetPos : cachedTargets) {
             if (excludedTargets.contains(targetPos)) continue;
@@ -268,25 +267,40 @@ public class TileChunkPowerNode extends TileAENetworkBase implements ITickable, 
                 continue;
             }
 
-            IAEStack request = EnergyChannelResolver.createStack(demand);
-            if (request == null) continue;
-            IAEStack extracted = (IAEStack) energyMonitor.extractItems(request, Actionable.MODULATE, source);
-            if (extracted == null || extracted.getStackSize() <= 0) continue;
+            demandTiles.add(te);
+            demandCaps.add(cap);
+            demandAdapters.add(adapter);
+            demandAmounts.add(demand);
+            demandPositions.add(targetPos);
+            totalDemand += demand;
+        }
 
-            long toInject = extracted.getStackSize();
-            long actual = adapter.injectEnergy(te, cap, toInject, false);
+        if (demandPositions.isEmpty()) return;
 
+        // 单次网络提取总需求,按目标顺序分发,剩余量一次返还网络.
+        // 网络操作从 2×目标数 降为至多 2 次(extractItems/injectItems 均为全网络遍历,
+        // spark 热点,Torcherino 加速下收益成倍);分发顺序与原逐目标循环一致.
+        IAEStack request = EnergyChannelResolver.createStack(totalDemand);
+        if (request == null) return;
+        IAEStack extracted = (IAEStack) energyMonitor.extractItems(request, Actionable.MODULATE, source);
+        if (extracted == null || extracted.getStackSize() <= 0) return;
+
+        long remaining = extracted.getStackSize();
+        for (int i = 0; i < demandPositions.size() && remaining > 0; i++) {
+            long give = Math.min(demandAmounts.get(i), remaining);
+            if (give <= 0) continue;
+            long actual = demandAdapters.get(i).injectEnergy(demandTiles.get(i), demandCaps.get(i), give, false);
             if (actual > 0) {
-                lastTickDelivered.merge(targetPos, actual, Long::sum);
+                lastTickDelivered.merge(demandPositions.get(i), actual, Long::sum);
                 lastTickOutput += actual;
+                remaining -= actual;
             }
+        }
 
-            long leftover = extracted.getStackSize() - actual;
-            if (leftover > 0) {
-                IAEStack rest = EnergyChannelResolver.createStack(leftover);
-                if (rest != null) {
-                    energyMonitor.injectItems(rest, Actionable.MODULATE, source);
-                }
+        if (remaining > 0) {
+            IAEStack rest = EnergyChannelResolver.createStack(remaining);
+            if (rest != null) {
+                energyMonitor.injectItems(rest, Actionable.MODULATE, source);
             }
         }
     }

@@ -1,6 +1,5 @@
 package com.github.aeddddd.ae2enhanced.recycler;
 
-import appeng.api.storage.data.IAEFluidStack;
 import com.github.aeddddd.ae2enhanced.storage.FluidDescriptor;
 import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.objects.ObjectOpenHashSet;
@@ -29,16 +28,6 @@ public class RecyclerFluidIndex {
         set.add(target);
     }
 
-    public void remove(@Nonnull FluidDescriptor desc, @Nonnull TargetManager.TargetRef target) {
-        ObjectOpenHashSet<TargetManager.TargetRef> set = index.get(desc);
-        if (set != null) {
-            set.remove(target);
-            if (set.isEmpty()) {
-                index.remove(desc);
-            }
-        }
-    }
-
     public void clear() {
         index.clear();
     }
@@ -52,10 +41,6 @@ public class RecyclerFluidIndex {
     @Nonnull
     public Set<FluidDescriptor> getAllTypes() {
         return Collections.unmodifiableSet(index.keySet());
-    }
-
-    public boolean contains(@Nonnull FluidDescriptor desc) {
-        return index.containsKey(desc);
     }
 
     public void rebuild(@Nonnull Map<TargetManager.TargetRef, TargetAdapterSnapshot> snapshots) {
@@ -73,11 +58,9 @@ public class RecyclerFluidIndex {
      * 目标快照.
      */
     public static final class TargetAdapterSnapshot {
-        public final long lastChangeTick;
         public final List<FluidStack> contents;
 
-        public TargetAdapterSnapshot(long lastChangeTick, List<FluidStack> contents) {
-            this.lastChangeTick = lastChangeTick;
+        public TargetAdapterSnapshot(List<FluidStack> contents) {
             this.contents = contents;
         }
     }

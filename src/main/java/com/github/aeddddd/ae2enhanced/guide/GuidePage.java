@@ -4,7 +4,6 @@ import com.github.aeddddd.ae2enhanced.guide.loader.FrontMatterParser;
 import com.github.aeddddd.ae2enhanced.guide.md.element.BlockElement;
 
 import java.util.List;
-import java.util.Locale;
 
 /**
  * 指南页面 —— 解析后的数据模型.
@@ -14,7 +13,6 @@ public final class GuidePage {
     private final String id;
     private final FrontMatterParser.FrontMatter frontMatter;
     private final List<BlockElement> blocks;
-    private final String plainText;       // 搜索用纯文本（小写）
     private final String title;           // 导航标题（无 front-matter 时用首个一级标题，再没有则用 id）
 
     public GuidePage(String id, FrontMatterParser.FrontMatter frontMatter, List<BlockElement> blocks) {
@@ -22,7 +20,6 @@ public final class GuidePage {
         this.frontMatter = frontMatter;
         this.blocks = blocks;
         this.title = resolveTitle(id, frontMatter, blocks);
-        this.plainText = buildPlainText(blocks).toLowerCase(Locale.ROOT);
     }
 
     private static String resolveTitle(String id, FrontMatterParser.FrontMatter fm, List<BlockElement> blocks) {
@@ -40,14 +37,6 @@ public final class GuidePage {
         return id;
     }
 
-    private static String buildPlainText(List<BlockElement> blocks) {
-        StringBuilder sb = new StringBuilder();
-        for (BlockElement block : blocks) {
-            sb.append(block.getPlainText()).append('\n');
-        }
-        return sb.toString();
-    }
-
     public String getId() {
         return id;
     }
@@ -62,12 +51,5 @@ public final class GuidePage {
 
     public String getTitle() {
         return title;
-    }
-
-    /**
-     * 小写纯文本，供子串搜索.
-     */
-    public String getSearchText() {
-        return plainText;
     }
 }

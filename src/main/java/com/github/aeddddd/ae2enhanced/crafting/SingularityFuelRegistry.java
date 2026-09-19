@@ -15,12 +15,12 @@ public class SingularityFuelRegistry {
 
     private static final List<SingularityFuelRecipe> RECIPES = new CopyOnWriteArrayList<>();
 
-    /** 延迟移除队列：CraftTweaker 脚本可能在配方注册前执行 */
+    /** 延迟移除队列: CraftTweaker 脚本可能在配方注册前执行. */
     private static final Set<String> PENDING_REMOVALS = ConcurrentHashMap.newKeySet();
 
     public static void register(SingularityFuelRecipe recipe) {
-        // 同 id 覆盖语义：先移除已有同 id 条目,保证 id 唯一,
-        // 与 AssemblyHubUpgradeRegistry(Map 型)的覆盖语义一致
+        // 同 id 覆盖语义: 先移除已有同 id 条目, 保证 id 唯一,
+        // 与 AssemblyHubUpgradeRegistry 的覆盖语义一致
         RECIPES.removeIf(r -> r.getId().equals(recipe.getId()));
         RECIPES.add(recipe);
     }

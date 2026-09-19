@@ -16,12 +16,12 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
- * E2a：允许流体容器/气体容器作为假物品放入 Cell Workbench 的 view cell 槽位.
+ * 允许流体容器或气体容器作为假物品放入 Cell Workbench 的 view cell 槽位.
  */
 @Mixin(value = ContainerCellWorkbench.class, remap = false)
 public class MixinContainerCellWorkbench {
 
-    // Mekanism IGasItem 类的静态缓存：加载一次，Mekanism 缺席时为 null 并静默禁用气体检测
+    // Mekanism IGasItem 类的静态缓存, 加载一次, Mekanism 缺席时为 null 并禁用气体检测
     private static final Class<?> GAS_ITEM_CLASS;
     static {
         Class<?> clazz = null;

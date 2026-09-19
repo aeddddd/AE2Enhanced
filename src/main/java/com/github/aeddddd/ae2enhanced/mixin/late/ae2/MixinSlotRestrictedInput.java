@@ -14,12 +14,12 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 /**
- * F1b：让频道接收卡能够通过 AE2 升级槽的 Slot 级别验证.
+ * F1b: 让频道接收卡能够通过 AE2 升级槽的 Slot 级别验证.
  *
  * <p>AE2 的 {@link SlotRestrictedInput} 在 UPGRADES 类型下会检查
- * {@code instanceof IUpgradeModule},而我们的接收卡已不再实现该接口.
+ * {@code instanceof IUpgradeModule}, 而我们的接收卡已不再实现该接口.
  * 此 Mixin 在 {@code func_75214_a} / {@code isItemValid} 的 HEAD 拦截,
- * 对频道接收卡单独放行,并复刻原方法中的基本校验(allowEdit、isSlotEnabled).</p>
+ * 对频道接收卡单独放行, 并复刻原方法中的 allowEdit 与 isSlotEnabled 校验.</p>
  */
 @Mixin(value = SlotRestrictedInput.class, remap = false)
 public class MixinSlotRestrictedInput {
@@ -62,7 +62,7 @@ public class MixinSlotRestrictedInput {
             return;
         }
 
-        // 委托给底层 handler 做最终验证(MixinUpgradeInvFilter 会处理数量限制)
+        // 委托给底层 handler 做最终验证, MixinUpgradeInvFilter 会处理数量限制
         IItemHandler handler = as.getItemHandler();
         int idx = ((net.minecraft.inventory.Slot) (Object) this).getSlotIndex();
         boolean ok = handler != null && handler.isItemValid(idx, stack);

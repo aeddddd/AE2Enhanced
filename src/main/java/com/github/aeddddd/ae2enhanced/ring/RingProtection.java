@@ -28,13 +28,6 @@ public final class RingProtection {
 
     // ==================== 基础判定 ====================
 
-    /** 是否佩戴飞升指环(任意侧,纯 NBT 判断). */
-    public static boolean hasAscendedRing(EntityLivingBase entity) {
-        if (!(entity instanceof EntityPlayer)) return false;
-        ItemStack ring = RingLocator.findRing((EntityPlayer) entity);
-        return !ring.isEmpty() && RingNBT.isAscended(ring);
-    }
-
     /** 取玩家当前生效指环(未佩戴返回 EMPTY). */
     public static ItemStack getRing(EntityLivingBase entity) {
         if (!(entity instanceof EntityPlayer)) return ItemStack.EMPTY;
@@ -125,13 +118,5 @@ public final class RingProtection {
 
     public static boolean isHealthBypassed(EntityPlayer player) {
         return HEALTH_BYPASS.contains(player.getUniqueID());
-    }
-
-    // ==================== 永久饱食(飞升) ====================
-
-    /** 飞升指环的饥饿消耗拦截(服务端能量判定在 tick 管理器中完成,此处仅做快速 NBT 判定). */
-    public static boolean hasSaturationFeature(EntityPlayer player) {
-        ItemStack ring = getRing(player);
-        return !ring.isEmpty() && RingNBT.isAscended(ring);
     }
 }

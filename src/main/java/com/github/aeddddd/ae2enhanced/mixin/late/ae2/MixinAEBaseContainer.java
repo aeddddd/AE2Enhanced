@@ -12,13 +12,10 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
- * E2a：阻止从 AE2 终端提取假物品(流体/气体/源质).
- * 无论左键、右键还是 Shift+点击,只要目标物品是假物品,直接取消 doAction.
- * 这是比 MixinNetworkMonitor.extractItems 更可靠的兜底拦截,因为某些终端实现
- * 可能使用自定义的 IMEMonitor,其 extractItems 不会走到 NetworkMonitor.
- *
- * 本 mixin 位于 mixins.ae2enhanced.late.json 中,无条件加载.
- * 源质检查使用字符串比较,避免 Thaumcraft 不存在时加载 ItemEssentiaDrop 导致 NoClassDefFoundError.
+ * 阻止从 AE2 终端提取假物品(流体/气体/源质). 无论左键、右键还是 Shift+点击, 只要目标是
+ * 假物品就直接取消 doAction. 这是比 MixinNetworkMonitor.extractItems 更可靠的兜底,
+ * 某些终端使用自定义 IMEMonitor, 其 extractItems 不会走到 NetworkMonitor.
+ * 源质检查用字符串比较, 避免 Thaumcraft 缺席时加载 ItemEssentiaDrop 导致 NoClassDefFoundError.
  */
 @Mixin(value = AEBaseContainer.class, remap = false)
 public class MixinAEBaseContainer {

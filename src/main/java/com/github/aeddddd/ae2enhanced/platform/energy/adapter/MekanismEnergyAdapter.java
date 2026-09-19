@@ -2,7 +2,6 @@ package com.github.aeddddd.ae2enhanced.platform.energy.adapter;
 
 import com.github.aeddddd.ae2enhanced.platform.energy.IEnergyAdapter;
 import net.minecraft.tileentity.TileEntity;
-import net.minecraft.util.EnumFacing;
 import net.minecraftforge.energy.IEnergyStorage;
 
 import java.lang.reflect.Method;

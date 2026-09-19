@@ -8,9 +8,8 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * mixins.ae2enhanced.late.thaumcraft.json 的配置插件。
- *
- * <p>检测 Thaumcraft 6 是否存在，若不存在则跳过该配置文件下的所有 Mixin。</p>
+ * mixins.ae2enhanced.late.thaumcraft.json 的配置插件. 检测 Thaumcraft 6 是否存在,
+ * 不存在时跳过该配置下所有 Mixin.
  */
 public class ThaumcraftMixinPlugin implements IMixinConfigPlugin {
 

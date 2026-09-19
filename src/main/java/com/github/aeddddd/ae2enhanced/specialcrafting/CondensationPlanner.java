@@ -25,25 +25,17 @@ import com.github.aeddddd.ae2enhanced.specialcrafting.lp.SccLpSolve.Execution;
 import com.github.aeddddd.ae2enhanced.specialcrafting.lp.SccLpSolve.SccSolution;
 
 /**
- * 冷凝分层驱动器（方案 L §10.3 骨架层,M3）.
- * <p>把"请求 → 逐键展开"组织为冷凝 DAG 上的逐单元求解:</p>
- * <ul>
- * <li><b>求解单元</b>:SCC 经"输出共享并查集"合并后的组——同样板的全部凝聚输出
- * 必属同一单元,故每个样板恰好归属一个单元（跨单元样板/committed 语义不需要;
- * 且冷凝图按构造无环:单元间若互达,其键早已同属一个 SCC）;</li>
- * <li><b>需求传播</b>:边 U→V = "U 的样板消耗 V 的键";按冷凝拓扑序（消费方先解）
- * 逐单元求解,LP 环外折算(externalDemands)累加为上游单元需求——拓扑序保证
- * 单元被解时其全部下游需求已知,共享库存/原料键只被结算一次;</li>
- * <li><b>逐单元求解</b>:统一走 {@link SccLpSolve} 字典序两阶段 LP（单键单元
- * 亦精确,阶段② ε·rank 体现样板优先级）;无样板单元走快速路径
- * （发射台零成本,否则 赤字 = 需求 − 库存）;</li>
- * <li><b>降级(D4)</b>:单元 LP 非 OPTIMAL → 该单元整体"库存直通"
- * （赤字 = 需求 − 库存,O(单元) 一次性记账,不再传播上游需求）;</li>
- * <li><b>根库存语义</b>:请求物自身库存计入 stock（净增环种子自举需要真实库存;
- * 与 DAG 路径 invIgnore 的原生镜像语义不同——LP 路径的守恒校验在 M5 对账层）.</li>
- * </ul>
- * 产物为扁平计数解（执行记录 + 赤字 + 统计）,计划树物化在 M5 完成。
- * 本类纯计算、线程安全;所有键均为 canon（{@link RecursiveCraftingHelper#canon}）。
+ * 冷凝分层驱动器.
+ * <p>把根请求逐键展开为冷凝 DAG 上的逐单元求解:键图上的 SCC 经"输出共享并查集"
+ * 合并为求解单元(同样板的全部凝聚输出必属同一单元,故每个样板恰属一个单元,
+ * 冷凝图按构造无环);边 U→V 表示"U 的样板消耗 V 的键",按冷凝拓扑序(消费方先解)
+ * 逐单元求解,LP 环外折算(externalDemands)累加为上游单元需求,共享库存/原料键
+ * 只被结算一次。单元求解统一走 {@link SccLpSolve} 字典序两阶段 LP(单键单元亦
+ * 精确,阶段② ε·rank 体现样板优先级);无样板单元走快速路径(赤字 = 需求 − 库存)。
+ * LP 非 OPTIMAL 时该单元降级为库存直通(赤字 = 需求 − 库存,不再传播上游需求)。
+ * 请求物自身库存计入 stock(净增环种子自举需要真实库存)。
+ * 产物为扁平计数解(执行记录 + 赤字 + 统计),计划树物化在 M5 完成。
+ * 本类纯计算、线程安全;所有键均为 canon({@link RecursiveCraftingHelper#canon}).
  */
 public final class CondensationPlanner {
 
@@ -155,10 +147,8 @@ public final class CondensationPlanner {
 
         // 4) 逐单元求解:需求累加 → LP/快速路径 → 环外折算向后传播
         Map<IAEItemStack, Map<IAEItemStack, Double>> demands = new HashMap<>();
-        // 根需求口径 = 全额生产(原生 CraftingJob.ignore(output) 同语义):请求物自身
-        // 库存不抵扣交付——需求端加回库存量,行约束 production ≥ target+库存+消耗−库存
-        // = target+消耗,赤字/截断短差随库存项对消保持正确;种子点火仍可用根库存
-        // (SeedBootstrapCheck 的 stock 口径不变),期末由 FlowReconciler 偿还
+        // 根需求口径 = 全额生产(CraftingJob.ignore 同语义):请求物自身库存不抵扣
+        // 交付,需求端加回库存量;种子点火仍可用根库存,期末由 FlowReconciler 偿还
         demands.computeIfAbsent(rootUnit, k -> new HashMap<>())
                 .put(rootKey, (double) target + (double) stock.getOrDefault(rootKey, 0L));
         List<Execution> executions = new ArrayList<>();
@@ -198,7 +188,7 @@ public final class CondensationPlanner {
                 degradedReasons.add(result.degradedReason);
             }
             // 扁平列表只收活跃执行(公共契约:库存覆盖时为空);零计数记录保留在
-            // UnitSolution 中,供对账层整数化守恒修复回补激活后由 FlowReconciler 补入
+            // UnitSolution 中,供对账层整数化后回补
             for (Execution exec : result.executions) {
                 if (exec.count > 1e-6) {
                     executions.add(exec);
@@ -224,22 +214,28 @@ public final class CondensationPlanner {
         // 赤字噪声地板:实数传播/禁行泄漏的亚毫级尾差不是真实缺料(整数化会放大为 1)
         deficits.values().removeIf(v -> v < 1e-3);
 
+        // 单元降级/截断时一次性落盘完整计划快照(全部网络样板含 NBT/替代/返还 +
+        // 全网络库存 + 根请求),供离线复现该订单;与 .lpm 转储同一门控:
+        // /ae2e debug specialcrafting(诊断写盘不进默认路径)
+        if (degradedUnits > 0 && SpecialLog.isEnabled()) {
+            com.github.aeddddd.ae2enhanced.diag.plansnapshot.PlanSnapshot.dump(cc, index, what, stock);
+        }
+
         long wallMs = (System.nanoTime() - start) / 1_000_000;
         return new LpPlanOutcome(degradedUnits == 0, executions, deficits, unitSolutions, order.size(),
                 lpUnits, iterations, degradedUnits, degradedReasons, wallMs);
     }
 
-    /** 种子不足禁约束重解上限(M4,§4.4)的底数;实际上限 = min(2×单元键数, 256) 取大底数——
-     * 每轮至少压掉一个卡住增益方向且上界单调不收,多层压缩链(8 键 4+ 层)需要
-     * 超过底数 4 的轮数,大单元(126 键)级联深度可超 64;另设墙钟预算兜底终止. */
+    /** 种子自举重解轮数下限;轮数上限 = max(下限, min(2×单元键数, 上限)):多层压界
+     * 级联需要的轮数可超过 4,另设墙钟预算兜底终止. */
     private static final int MIN_BOOTSTRAP_RESOLVE = 4;
     private static final int MAX_BOOTSTRAP_RESOLVE = 256;
-    /** 单单元自举重解墙钟预算(ns):大单元 64 轮实测 ≈1.5s,预算给级联深度留余量,
-     * 超时按截断处理(等价于轮数耗尽,终止性由轮数上限+墙钟双重保证). */
-    private static final long BOOTSTRAP_TIME_BUDGET_NS = 3_000_000_000L;
-    /** 三振禁路由阈值:同一样板被压界 {@value} 次后仍被模拟判卡住——继续按水位压界
-     * 只会棘轮空转(微步收敛或校验假阴性),直接禁该路由逼 LP 换路;误禁的交付
-     * 损失由历代最优水位截断兜底(禁前轮的交付已留存). */
+    /** 单单元自举重解墙钟预算(ns);超时按截断处理,与轮数上限共同保证终止. */
+    private static final long BOOTSTRAP_TIME_BUDGET_NS =
+            Long.getLong("ae2e.bootstrapBudgetNs", 3_000_000_000L);
+    /** 三振禁路由阈值:同一样板被压界 {@value} 次后仍被判定卡住时,继续按水位压界
+     * 只会空转,直接禁该路由逼 LP 换路;误禁的交付损失由历代最优水位截断兜底
+     * (禁前轮的交付已留存). */
     private static final int CAP_STRIKE_LIMIT = 3;
     /** 逐轮诊断输出(-Dae2e.lpDebug=true,开发期). */
     private static final boolean DEBUG = Boolean.getBoolean("ae2e.lpDebug");
@@ -282,13 +278,12 @@ public final class CondensationPlanner {
         long unitStartNanos = System.nanoTime();
         int iterations = 0;
         // 截断诊断轨迹(SpecialLog 门控):逐轮卡住集/可行水位/禁约束变化,截断时落盘
-        // ——离线区分"棘轮微步/级联深度/校验假阴性"三类不收敛根因
         StringBuilder trace = SpecialLog.isEnabled() ? new StringBuilder() : null;
         Map<ICraftingPatternDetails, Integer> traceIds =
                 trace != null ? new IdentityHashMap<>() : null;
         StringBuilder tracePatterns = trace != null ? new StringBuilder() : null;
-        // 历代最优可行水位:截断计划恒物理可行(模拟实证),但各轮禁约束改路由、交付量
-        // 非单调——保留赤字和最小的一届用于截断,严格不劣于只用末轮
+        // 历代最优可行水位:各轮禁约束改路由后交付量非单调,保留赤字和最小的一届
+        // 用于截断,不劣于只用末轮
         double bestDeficitSum = Double.MAX_VALUE;
         SccSolution bestSol = null;
         SeedBootstrapCheck.Verdict bestVerdict = null;
@@ -348,9 +343,8 @@ public final class CondensationPlanner {
             }
             boolean timeUp = System.nanoTime() - unitStartNanos > BOOTSTRAP_TIME_BUDGET_NS;
             if (round >= maxRounds - 1 || timeUp) {
-                // 重解预算(轮数/墙钟)耗尽:按历代最优可行水位截断——交付缺口
-                // (demand − 终态可用量)如实转赤字;截断计划恒物理可行(模拟实证),
-                // 取最优届严格不劣于末轮
+                // 重解预算(轮数/墙钟)耗尽:按历代最优可行水位截断,交付缺口
+                // (demand − 终态可用量)如实转赤字
                 String reason = timeUp && round < maxRounds - 1
                         ? "种子自举重解超时(>" + BOOTSTRAP_TIME_BUDGET_NS / 1_000_000 + "ms) round="
                                 + round + " 键数=" + keys.size()
@@ -360,18 +354,19 @@ public final class CondensationPlanner {
                 UnitResult r = truncateToFeasibleLevel(cc, index, keys, unitDemand, bestSol,
                         bestVerdict, iterations, reason);
                 if (trace != null) {
-                    dumpTrace(trace, tracePatterns, reason, keys, stock, unitDemand, index, r);
+                    dumpTrace(trace, tracePatterns, reason, keys, stock, unitDemand, index, r,
+                            bestVerdict == null ? null : bestVerdict.finalAvail);
                 }
                 return r;
             }
-            // 禁约束(两级,§4.4 细化):
+            // 禁约束(两级,§4.4):
             // ① 有卡住的净增益源(Σ单元产出 > Σ单元投入)时只压增益源——守恒决定
             //    增益≤1 的环无法凭空造物,凭空交付必经增益源;传导性卡住的非增益
             //    样板(只是上游未产出,如蛛网环流)不压界,否则误杀合法交付路径;
-            // ② 无卡住增益源 = "批量量子"死锁(质量守恒环但种子 < 单次点火批量,
+            // ② 无卡住增益源 = 批量量子死锁(质量守恒环但种子 < 单次点火批量,
             //    如 2A→B+C 而库存只有 1A)——压全部卡住样板到可行水位;
             // ③ 三振禁路由:同一样板压界 CAP_STRIKE_LIMIT 次后仍卡住 → 上界压 0
-            //    (棘轮微步/校验假阴性下按水位压界只空转,禁路由逼 LP 换路);
+            //    逼 LP 换路;
             // 每轮至少一个样板的上界被压到低于本次解值且单调不收 → 解空间严格
             // 收缩,有限步内必收敛(可行或截断),保证终止.
             Map<ICraftingPatternDetails, Double> levels = verdict.levelByPattern(sol.executions);
@@ -418,7 +413,8 @@ public final class CondensationPlanner {
         return sum;
     }
 
-    /** 追加一轮轨迹(仅列卡住执行;样板表按首见编号登记,输入/输出/返还一并留档). */
+    /** 追加一轮轨迹(仅列卡住执行;样板表按首见编号登记;附阻塞键分析——单元键
+     * 终态可用量连一次都不足者列出,无则标"疑调度序"以区分真稀缺与调度假阴性). */
     private static void appendRoundTrace(StringBuilder trace,
             Map<ICraftingPatternDetails, Integer> ids, StringBuilder patternTable, int round,
             SccSolution sol, SeedBootstrapCheck.Verdict verdict, Set<IAEItemStack> keySet,
@@ -437,32 +433,86 @@ public final class CondensationPlanner {
                 id = ids.size();
                 ids.put(exec.pattern, id);
                 patternTable.append('#').append(id).append(" in=")
-                        .append(SccLpModelBuilder.condensedInputs(exec.pattern, exec.variantInputs))
+                        .append(fmtMap(SccLpModelBuilder.condensedInputs(exec.pattern, exec.variantInputs)))
                         .append(" out=")
-                        .append(java.util.Arrays.toString(exec.pattern.getCondensedOutputs()))
+                        .append(fmtArr(exec.pattern.getCondensedOutputs()))
                         .append(" returns=")
-                        .append(FlowReconciler.returnsPerCraft(exec.pattern)).append('\n');
+                        .append(fmtMap(FlowReconciler.returnsPerCraft(exec.pattern))).append('\n');
             }
             trace.append("  #").append(id).append(" count=").append(exec.count)
                     .append(" level=").append(verdict.levels[j])
                     .append(isUnitGainSource(exec, keySet) ? " 增益" : "")
                     .append(" cap=")
-                    .append(upperCaps.getOrDefault(exec.pattern, Double.MAX_VALUE))
-                    .append('\n');
+                    .append(upperCaps.getOrDefault(exec.pattern, Double.MAX_VALUE));
+            // 阻塞键:单元键中终态可用量不足以再执行一次的输入
+            StringBuilder blk = new StringBuilder();
+            for (Map.Entry<IAEItemStack, Long> in : SccLpModelBuilder
+                    .condensedInputs(exec.pattern, exec.variantInputs).entrySet()) {
+                if (!keySet.contains(in.getKey())) {
+                    continue;
+                }
+                double availK = verdict.finalAvail.getOrDefault(in.getKey(), 0.0);
+                if (availK < in.getValue() * 1e-6) {
+                    blk.append(' ').append(fmtKey(in.getKey())).append('=').append(availK);
+                }
+            }
+            trace.append(blk.length() > 0 ? " 阻塞键:" + blk : " 阻塞键:(无-疑调度序)");
+            trace.append('\n');
         }
     }
 
-    /** 截断轨迹落盘(lp-dumps/unit-bootstrap-*.txt):键/库存/需求 + 样板表 + 逐轮轨迹. */
+    /** NBT 感知的键名(toString 只给注册名,同注册名多 NBT 变体无法区分). */
+    private static String fmtKey(IAEItemStack key) {
+        if (key.hasTagCompound()) {
+            return key + " nbt=" + key.getDefinition().getTagCompound();
+        }
+        return String.valueOf(key);
+    }
+
+    /** 键 → 数量映射的 NBT 感知格式化. */
+    private static String fmtMap(Map<IAEItemStack, Long> map) {
+        StringBuilder sb = new StringBuilder("{");
+        boolean first = true;
+        for (Map.Entry<IAEItemStack, Long> e : map.entrySet()) {
+            if (!first) {
+                sb.append(", ");
+            }
+            first = false;
+            sb.append(fmtKey(e.getKey())).append('=').append(e.getValue());
+        }
+        return sb.append('}').toString();
+    }
+
+    /** 输出数组的 NBT 感知格式化. */
+    private static String fmtArr(IAEItemStack[] arr) {
+        StringBuilder sb = new StringBuilder("[");
+        boolean first = true;
+        for (IAEItemStack s : arr) {
+            if (!first) {
+                sb.append(", ");
+            }
+            first = false;
+            sb.append(s == null ? "null" : (s.getStackSize() + "x" + fmtKey(
+                    RecursiveCraftingHelper.canon(s))));
+        }
+        return sb.append(']').toString();
+    }
+
+    /** 截断轨迹落盘(unit-bootstrap-*.txt):键/库存/需求/终态可用 + 样板表 + 逐轮轨迹. */
     private static void dumpTrace(StringBuilder trace, StringBuilder patternTable, String reason,
             List<IAEItemStack> keys, Map<IAEItemStack, Long> stock,
-            Map<IAEItemStack, Double> unitDemand, NetworkPatternIndex index, UnitResult result) {
+            Map<IAEItemStack, Double> unitDemand, NetworkPatternIndex index, UnitResult result,
+            @Nullable Map<IAEItemStack, Double> finalAvail) {
         StringBuilder sb = new StringBuilder();
         sb.append("[单元截断转储] ").append(reason).append('\n');
-        sb.append("赤字: ").append(result.deficits).append('\n');
+        sb.append("赤字: ").append(fmtDoubleKeyMap(result.deficits)).append('\n');
         for (IAEItemStack key : keys) {
-            sb.append("键: ").append(key).append(" 库存=").append(stock.getOrDefault(key, 0L))
+            sb.append("键: ").append(fmtKey(key)).append(" 库存=").append(stock.getOrDefault(key, 0L))
                     .append(" 需求=").append(unitDemand.getOrDefault(key, 0.0))
-                    .append(" 发射台=").append(index.canEmit(key)).append('\n');
+                    .append(" 发射台=").append(index.canEmit(key))
+                    .append(finalAvail == null ? ""
+                            : " 终态可用=" + finalAvail.getOrDefault(key, 0.0))
+                    .append('\n');
         }
         sb.append("== 样板表 ==\n").append(patternTable);
         sb.append("== 逐轮轨迹 ==\n").append(trace);
@@ -470,6 +520,20 @@ public final class CondensationPlanner {
         if (f != null) {
             SpecialLog.info("[LP计划] 单元截断轨迹已转储: {}", f.getAbsolutePath());
         }
+    }
+
+    /** 键 → Double 映射的 NBT 感知格式化(赤字清单用). */
+    private static String fmtDoubleKeyMap(Map<IAEItemStack, Double> map) {
+        StringBuilder sb = new StringBuilder("{");
+        boolean first = true;
+        for (Map.Entry<IAEItemStack, Double> e : map.entrySet()) {
+            if (!first) {
+                sb.append(", ");
+            }
+            first = false;
+            sb.append(fmtKey(e.getKey())).append('=').append(e.getValue());
+        }
+        return sb.append('}').toString();
     }
 
     /** 变量是否单元净增益源(Σ单元键产出 > Σ单元键投入). */
@@ -492,8 +556,8 @@ public final class CondensationPlanner {
 
     /**
      * 根单元求解诊断（{@code /ae2e debug specialcrafting on} 时生效）:
-     * 键集/库存/发射台/样板输入输出/LP 解全量 dump——定位"根单元 LP 判不可行"
-     * 类问题（0 执行 + 根行赤字,截断与降级路径均不经过,常规日志不可见）.
+     * 键集/库存/发射台/样板输入输出/LP 解全量 dump,用于定位"根单元 LP 判不可行"
+     * (0 执行 + 根行赤字,截断与降级路径均不经过,常规日志不可见).
      */
     private static void dumpUnitDetail(NetworkPatternIndex index, List<IAEItemStack> keys,
             List<ICraftingPatternDetails> patterns, Map<IAEItemStack, Long> stock,
@@ -532,7 +596,7 @@ public final class CondensationPlanner {
     }
 
     /**
-     * 根单元快速路径诊断（无样板时）:根键索引无生产者会直接落此路径
+     * 根单元快速路径诊断（无样板时）:根键索引无生产者会落此路径
      * （如流体根键与样板输出键不匹配）,键的完整 toString 可供比对 NBT 差异.
      */
     private static void dumpFastPathRoot(NetworkPatternIndex index, List<IAEItemStack> keys,

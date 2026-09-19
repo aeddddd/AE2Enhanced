@@ -22,8 +22,8 @@ import javax.annotation.Nullable;
 /**
  * 趋势显示幕墙面板方块.
  *
- * <p>水平朝向决定显示面;同朝向面板组成 2~16 × 2~9 的实心矩形即成型.
- * 右键打开配置 GUI;潜行+右键循环切换图表类型.</p>
+ * <p>水平朝向决定显示面; 同朝向面板组成 2~16 × 2~9 的实心矩形即成型.
+ * 右键打开配置 GUI; 潜行+右键循环切换图表类型.</p>
  */
 public class BlockDisplayPanel extends Block {
 
@@ -81,7 +81,7 @@ public class BlockDisplayPanel extends Block {
         if (!(te instanceof TileDisplayPanel)) return false;
         TileDisplayPanel panel = (TileDisplayPanel) te;
         if (world.isRemote) {
-            // 潜行+右键:循环切换图表类型(无需打开 GUI)
+            // 潜行+右键: 循环切换图表类型, 无需打开 GUI
             if (player.isSneaking() && panel.isFormed()) {
                 AE2Enhanced.network.sendToServer(
                         new PacketDisplayAction(panel.getMasterPos() != null ? panel.getMasterPos() : pos,
@@ -90,7 +90,7 @@ public class BlockDisplayPanel extends Block {
             return true;
         }
         if (player.isSneaking()) return true;
-        // 触发即时扫描,保证刚摆好的屏幕立即可交互
+        // 触发即时扫描, 保证刚摆好的屏幕立即可交互
         panel.requestRescan();
         panel.update();
         if (panel.isFormed() && panel.getMasterPos() != null) {

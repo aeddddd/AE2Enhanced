@@ -317,10 +317,6 @@ public class AstralSorceryHandler implements IRemoteHandler, IVirtualBatchCrafti
         return matchIngredients(required, ingredients);
     }
 
-    public List<ItemStack> virtualCraft(World world, BlockPos pos, InventoryCrafting ingredients, IAEItemStack[] outputs, IActionSource source) {
-        return virtualCraftBatch(world, pos, ingredients, outputs, 1, source);
-    }
-
     @Override
     public List<EnumParticleTypes> getVirtualCraftingParticles(World world, BlockPos pos) {
         return Arrays.asList(
@@ -767,15 +763,6 @@ public class AstralSorceryHandler implements IRemoteHandler, IVirtualBatchCrafti
             return (IItemHandler) METHOD_GET_INVENTORY_HANDLER.invoke(te);
         } catch (Exception e) {
             return null;
-        }
-    }
-
-    private static int getAccessibleSize(TileEntity te) {
-        try {
-            Object level = METHOD_GET_ALTAR_LEVEL.invoke(te);
-            return (int) level.getClass().getMethod("getAccessibleInventorySize").invoke(level);
-        } catch (Exception e) {
-            return 9; // fallback
         }
     }
 

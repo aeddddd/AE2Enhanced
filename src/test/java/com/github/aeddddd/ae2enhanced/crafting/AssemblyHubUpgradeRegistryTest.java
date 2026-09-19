@@ -10,7 +10,6 @@ import net.minecraft.init.Items;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 
-import com.github.aeddddd.ae2enhanced.item.ItemUpgradeCard;
 import com.github.aeddddd.ae2enhanced.test.util.AE2TestBootstrap;
 
 /**
@@ -18,8 +17,7 @@ import com.github.aeddddd.ae2enhanced.test.util.AE2TestBootstrap;
  *
  * <p>覆盖 UpgradeDefinition 构造规范化（强制 count=1、数组克隆）、
  * register/findFor 精确匹配语义、getCustomMaxStack、getParallelValue /
- * getSpeedValue 的取值与回退逻辑，以及 isParallelUpgrade / isSpeedUpgrade
- * 的原生卡与注册表两条判定路径。</p>
+ * getSpeedValue 的取值与回退逻辑。</p>
  *
  * <p>{@link AfterEach} 通过 removeById 删除本类注册的 key，避免污染其它测试。</p>
  */
@@ -271,46 +269,5 @@ public class AssemblyHubUpgradeRegistryTest {
         assertThat(AssemblyHubUpgradeRegistry.getSpeedValue(glowstone, 2)).isEqualTo(1);
         // 超出 values 长度：钳制索引到最后一个元素（同样被钳为 1）
         assertThat(AssemblyHubUpgradeRegistry.getSpeedValue(glowstone, 99)).isEqualTo(1);
-    }
-
-    // ------------------------------------------------------------------
-    // isParallelUpgrade / isSpeedUpgrade
-    // ------------------------------------------------------------------
-
-    /** 原生 ItemUpgradeCard：meta=PARALLEL/SPEED 时无需注册即判定为对应升级。 */
-    @Test
-    public void testNativeUpgradeCard() {
-        ItemUpgradeCard card = new ItemUpgradeCard();
-
-        assertThat(AssemblyHubUpgradeRegistry.isParallelUpgrade(
-                new ItemStack(card, 1, ItemUpgradeCard.META_PARALLEL))).isTrue();
-        assertThat(AssemblyHubUpgradeRegistry.isSpeedUpgrade(
-                new ItemStack(card, 1, ItemUpgradeCard.META_SPEED))).isTrue();
-        // 其它 meta 的原生卡两种判定均为 false
-        assertThat(AssemblyHubUpgradeRegistry.isParallelUpgrade(
-                new ItemStack(card, 1, ItemUpgradeCard.META_EFFICIENCY))).isFalse();
-        assertThat(AssemblyHubUpgradeRegistry.isSpeedUpgrade(
-                new ItemStack(card, 1, ItemUpgradeCard.META_EFFICIENCY))).isFalse();
-    }
-
-    /** 注册表路径：非原生卡物品按注册类型判定。 */
-    @Test
-    public void testRegistryPathTypeChecks() {
-        ItemStack redstone = new ItemStack(Items.REDSTONE);
-        ItemStack glowstone = new ItemStack(Items.GLOWSTONE_DUST);
-        AssemblyHubUpgradeRegistry.register(parallelDef(redstone, 4, 2L));
-        AssemblyHubUpgradeRegistry.register(speedDef(glowstone, 4, 10L));
-
-        assertThat(AssemblyHubUpgradeRegistry.isParallelUpgrade(redstone)).isTrue();
-        assertThat(AssemblyHubUpgradeRegistry.isSpeedUpgrade(redstone)).isFalse();
-        assertThat(AssemblyHubUpgradeRegistry.isSpeedUpgrade(glowstone)).isTrue();
-        assertThat(AssemblyHubUpgradeRegistry.isParallelUpgrade(glowstone)).isFalse();
-    }
-
-    /** 未注册且非原生卡的物品两种判定均为 false。 */
-    @Test
-    public void testUnregisteredItemNotUpgrade() {
-        assertThat(AssemblyHubUpgradeRegistry.isParallelUpgrade(new ItemStack(Items.APPLE))).isFalse();
-        assertThat(AssemblyHubUpgradeRegistry.isSpeedUpgrade(new ItemStack(Items.APPLE))).isFalse();
     }
 }

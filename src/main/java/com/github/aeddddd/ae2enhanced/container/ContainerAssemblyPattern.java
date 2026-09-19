@@ -111,14 +111,6 @@ public class ContainerAssemblyPattern extends Container {
         return itemstack;
     }
 
-    public TileAssemblyController getTile() {
-        return tile;
-    }
-
-    public int getPage() {
-        return page;
-    }
-
     /**
      * 将 IItemHandler 的指定槽位区间代理为 IInventory,供原版 Slot 使用.
      * 避免使用 null inventory 导致 Slot 默认方法(decrStackSize 等)NPE.

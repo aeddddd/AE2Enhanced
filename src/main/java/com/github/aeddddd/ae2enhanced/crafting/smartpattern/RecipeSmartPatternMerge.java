@@ -42,7 +42,7 @@ public class RecipeSmartPatternMerge extends IForgeRegistryEntry.Impl<IRecipe> i
     @Override
     @Nonnull
     public ItemStack getCraftingResult(@Nonnull InventoryCrafting inv) {
-        // 预览:返回智能样板副本;实际配方追加在取出时由 SmartPatternMergeHelper 完成
+        // 预览: 返回智能样板副本; 实际配方追加在取出时由 SmartPatternMergeHelper 完成
         for (int i = 0; i < inv.getSizeInventory(); i++) {
             ItemStack stack = inv.getStackInSlot(i);
             if (!stack.isEmpty() && stack.getItem() instanceof ItemSmartPattern) {

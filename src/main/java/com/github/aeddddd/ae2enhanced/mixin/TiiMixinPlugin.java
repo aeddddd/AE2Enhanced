@@ -7,15 +7,9 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * TII（Terminal Interaction Integration）条件 Mixin 插件.
- * <p>
- * 当 TII 存在时，AE2E 自有的 Energy/Mana/Starlight 假物品注入 Mixin 必须禁用，
- * 否则会出现重复显示、重复提取/注入等问题。
- * </p>
- * <p>
- * 检测使用 ClassLoader.getResource，避免在 Mixin 早期阶段触发类加载或 CleanroomMC
- * ActualClassLoader 的额外转换器。
- * </p>
+ * TII (Terminal Interaction Integration) 条件 Mixin 插件.
+ * TII 存在时必须禁用 AE2E 自有的 Energy/Mana/Starlight 假物品注入 Mixin, 否则会出现重复显示与重复提取/注入.
+ * 检测用 ClassLoader.getResource, 避免在 Mixin 早期阶段触发类加载或 CleanroomMC ActualClassLoader 的额外转换器.
  */
 public class TiiMixinPlugin implements IMixinConfigPlugin {
 
@@ -38,7 +32,7 @@ public class TiiMixinPlugin implements IMixinConfigPlugin {
 
     @Override
     public boolean shouldApplyMixin(String targetClassName, String mixinClassName) {
-        // TII 存在时，禁用本配置下所有 Mixin
+        // TII 存在时, 禁用本配置下所有 Mixin
         return !tiiLoaded;
     }
 

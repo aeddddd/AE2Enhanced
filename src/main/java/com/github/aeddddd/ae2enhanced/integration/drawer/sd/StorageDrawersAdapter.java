@@ -19,19 +19,12 @@ import net.minecraft.util.NonNullList;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 /**
- * StorageDrawers Hash 索引适配器.
- *
- * <p>包装 {@link IItemRepository},对 TileEntityController 利用其内置的
- * drawerPrimaryLookup Hash 索引加速 {@link #getAvailableItems},跳过空槽位遍历.</p>
- *
- * <p>所有反射和类加载风险全部封装在本类内部,外部调用者无需考虑 NPE.</p>
+ * StorageDrawers Hash 索引适配器, 包装 {@link IItemRepository}. 对 TileEntityController
+ * 利用内置的 drawerPrimaryLookup Hash 索引加速 {@link #getAvailableItems}, 跳过空槽位遍历.
+ * 所有反射和类加载风险封装在本类内部, 外部调用者无需考虑 NPE.
  */
 public class StorageDrawersAdapter implements IDrawerIndexAdapter {
 

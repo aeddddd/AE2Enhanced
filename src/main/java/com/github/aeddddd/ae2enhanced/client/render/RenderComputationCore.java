@@ -23,7 +23,6 @@ public class RenderComputationCore extends TileEntitySpecialRenderer<TileComputa
     private static final float FRAME_RADIUS = 8.5f;
     private static final float PANEL_RADIUS = 8.3f;
     private static final float RING_RADIUS = 10.0f;
-    private static final float JET_LENGTH = 20.0f;
 
     // --- Animation ---
     private static final float ROT_SPEED = 0.4f;

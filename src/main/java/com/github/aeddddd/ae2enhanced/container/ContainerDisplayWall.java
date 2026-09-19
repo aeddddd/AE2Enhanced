@@ -73,7 +73,4 @@ public class ContainerDisplayWall extends AEBaseContainer {
         return null;
     }
 
-    public TileDisplayPanel getTile() {
-        return tile;
-    }
 }

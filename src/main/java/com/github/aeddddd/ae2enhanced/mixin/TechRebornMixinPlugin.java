@@ -1,14 +1,14 @@
 package com.github.aeddddd.ae2enhanced.mixin;
 
+import org.objectweb.asm.tree.ClassNode;
 import org.spongepowered.asm.mixin.extensibility.IMixinConfigPlugin;
 import org.spongepowered.asm.mixin.extensibility.IMixinInfo;
-import org.objectweb.asm.tree.ClassNode;
 
 import java.util.List;
 import java.util.Set;
 
 /**
- * TechReborn 机器产物直注 Mixin 配置插件。
+ * TechReborn 机器产物直注 Mixin 配置插件.
  */
 public class TechRebornMixinPlugin implements IMixinConfigPlugin {
 

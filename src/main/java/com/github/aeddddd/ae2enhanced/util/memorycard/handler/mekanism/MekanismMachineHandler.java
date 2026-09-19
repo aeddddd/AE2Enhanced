@@ -231,6 +231,18 @@ public class MekanismMachineHandler implements IMemoryCardHandler {
         }
     }
 
+    // ===== 键分类声明(粘贴选项过滤用) =====
+
+    @Override
+    public java.util.Set<String> getUpgradeKeys() {
+        return new java.util.HashSet<>(java.util.Arrays.asList("mekanism:upgrades", "ae2e:upgrades"));
+    }
+
+    @Override
+    public java.util.Set<String> getRedstoneKeys() {
+        return new java.util.HashSet<>(java.util.Arrays.asList("controlType"));
+    }
+
     @Override
     public String getDisplayName(Object target) {
         if (target instanceof TileEntity) {

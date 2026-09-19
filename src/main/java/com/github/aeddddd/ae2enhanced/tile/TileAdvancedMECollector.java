@@ -1,11 +1,6 @@
 package com.github.aeddddd.ae2enhanced.tile;
 
-import appeng.api.config.Actionable;
-import appeng.api.config.FuzzyMode;
-import appeng.api.config.RedstoneMode;
-import appeng.api.config.Settings;
-import appeng.api.config.Upgrades;
-import appeng.api.config.YesNo;
+import appeng.api.config.*;
 import appeng.api.networking.IGridNode;
 import appeng.api.networking.events.MENetworkChannelsChanged;
 import appeng.api.networking.events.MENetworkEventSubscribe;
@@ -16,8 +11,8 @@ import appeng.api.util.AECableType;
 import appeng.api.util.AEPartLocation;
 import appeng.api.util.DimensionalCoord;
 import appeng.me.GridAccessException;
-import appeng.me.helpers.AENetworkProxy;
 import appeng.me.helpers.MachineSource;
+import appeng.parts.automation.StackUpgradeInventory;
 import appeng.tile.inventory.AppEngInternalAEInventory;
 import appeng.util.Platform;
 import appeng.util.inv.IAEAppEngInventory;
@@ -31,18 +26,14 @@ import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.network.NetworkManager;
 import net.minecraft.network.play.server.SPacketUpdateTileEntity;
-import net.minecraft.util.EnumFacing;
 import net.minecraft.util.ITickable;
 import net.minecraft.util.math.AxisAlignedBB;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
 import net.minecraftforge.items.IItemHandler;
 import net.minecraftforge.items.ItemStackHandler;
-import appeng.parts.automation.StackUpgradeInventory;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
-import java.util.EnumSet;
 import java.util.List;
 
 /**
@@ -228,10 +219,11 @@ public class TileAdvancedMECollector extends TileAENetworkBase
     }
 
     /**
-     * 将缓冲区物品尽量注入网络.
+     * 将缓冲区物品尽量注入网络.注入前先做同物品合并,
+     * 把同类型分散堆叠聚拢为大堆,减少每 tick 的注网次数(spark 热点).
      */
     private void flushBuffer() {
-        boolean changed = false;
+        boolean changed = mergeBufferStacks();
         for (int i = 0; i < this.buffer.getSlots(); i++) {
             ItemStack stack = this.buffer.getStackInSlot(i);
             if (stack.isEmpty()) continue;
@@ -248,6 +240,33 @@ public class TileAdvancedMECollector extends TileAENetworkBase
         if (changed) {
             markDirty();
         }
+    }
+
+    /**
+     * 合并缓冲区内相同物品(物品+meta+NBT 一致)的堆叠,向前面的槽位聚拢.
+     * 返回是否有合并发生.
+     */
+    private boolean mergeBufferStacks() {
+        boolean changed = false;
+        for (int i = 0; i < this.buffer.getSlots(); i++) {
+            ItemStack a = this.buffer.getStackInSlot(i);
+            if (a.isEmpty() || a.getCount() >= BUFFER_STACK_LIMIT) continue;
+            for (int j = i + 1; j < this.buffer.getSlots(); j++) {
+                ItemStack b = this.buffer.getStackInSlot(j);
+                if (b.isEmpty()) continue;
+                if (!ItemStack.areItemsEqual(a, b) || !ItemStack.areItemStackTagsEqual(a, b)) continue;
+                int move = Math.min(BUFFER_STACK_LIMIT - a.getCount(), b.getCount());
+                if (move <= 0) break;
+                a.grow(move);
+                b.shrink(move);
+                if (b.isEmpty()) {
+                    this.buffer.setStackInSlot(j, ItemStack.EMPTY);
+                }
+                changed = true;
+                if (a.getCount() >= BUFFER_STACK_LIMIT) break;
+            }
+        }
+        return changed;
     }
 
     private void syncClientState() {
@@ -460,10 +479,6 @@ public class TileAdvancedMECollector extends TileAENetworkBase
         return this;
     }
 
-    public net.minecraft.tileentity.TileEntity getTileEntity() {
-        return this;
-    }
-
     private appeng.util.ConfigManager configManager;
 
     @Override
@@ -560,27 +575,27 @@ public class TileAdvancedMECollector extends TileAENetworkBase
         if (stack.isEmpty()) return ItemStack.EMPTY;
         if (!matchesFilter(stack)) return stack;
 
-        // 尝试注入网络
-        ItemStack remaining = injectToNetwork(stack, Actionable.MODULATE);
-        if (remaining.isEmpty()) {
-            this.statEntitiesPrevented++;
-            return ItemStack.EMPTY;
+        // 优先进入本地缓冲区(廉价的本地操作),由 flushBuffer 每 tick 合并注网.
+        // 事件路径(方块破坏/实体掉落)调用频率高,逐次 poweredInsert 全网络遍历是 spark 热点
+        ItemStack bufferRemain = insertToBuffer(stack);
+        int buffered = stack.getCount() - bufferRemain.getCount();
+        if (buffered > 0) {
+            this.statItemsBuffered += buffered;
         }
-
-        // 剩余部分放入缓冲区(即使网络离线也先存起来)
-        ItemStack bufferRemain = insertToBuffer(remaining);
         if (bufferRemain.isEmpty()) {
             this.statEntitiesPrevented++;
             return ItemStack.EMPTY;
         }
 
-        this.statItemsBuffered += remaining.getCount() - bufferRemain.getCount();
-        if (bufferRemain.getCount() < remaining.getCount()) {
+        // 缓冲区放不下时回退直接注网,保持"范围内有收集器绝不生成实体"的保证
+        ItemStack remaining = injectToNetwork(bufferRemain, Actionable.MODULATE);
+        if (remaining.isEmpty()) {
             this.statEntitiesPrevented++;
-        } else {
-            this.statBufferOverflows++;
+            return ItemStack.EMPTY;
         }
-        return bufferRemain;
+
+        this.statBufferOverflows++;
+        return remaining;
     }
 
     private ItemStack injectToNetwork(ItemStack stack, Actionable mode) {

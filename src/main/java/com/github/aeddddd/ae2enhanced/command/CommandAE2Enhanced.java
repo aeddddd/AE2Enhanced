@@ -14,25 +14,25 @@ import appeng.me.Grid;
 import appeng.me.cache.GridStorageCache;
 import appeng.me.helpers.MachineSource;
 import appeng.me.helpers.PlayerSource;
+import appeng.util.item.AEItemStack;
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
 import com.github.aeddddd.ae2enhanced.config.AE2EnhancedConfig;
 import com.github.aeddddd.ae2enhanced.diag.DiagReport;
 import com.github.aeddddd.ae2enhanced.diag.DiagSwitch;
-import com.github.aeddddd.ae2enhanced.diag.harvest.RecipeHarvester;
 import com.github.aeddddd.ae2enhanced.diag.check.CheckResult;
 import com.github.aeddddd.ae2enhanced.diag.check.DiagChecks;
 import com.github.aeddddd.ae2enhanced.diag.check.SystemCheck;
+import com.github.aeddddd.ae2enhanced.diag.harvest.RecipeHarvester;
 import com.github.aeddddd.ae2enhanced.diag.metrics.MetricsRegistry;
 import com.github.aeddddd.ae2enhanced.diag.perf.PerfAnalyzer;
 import com.github.aeddddd.ae2enhanced.diag.perf.PerfBaseline;
 import com.github.aeddddd.ae2enhanced.diag.perf.PerfExporter;
 import com.github.aeddddd.ae2enhanced.diag.perf.TpsTracker;
-import com.github.aeddddd.ae2enhanced.dimension.PersonalDimPermission;
 import com.github.aeddddd.ae2enhanced.dimension.PersonalDimensionManager;
 import com.github.aeddddd.ae2enhanced.dimension.PlayerDimEntry;
-import com.github.aeddddd.ae2enhanced.registry.content.BlockRegistry;
-import com.github.aeddddd.ae2enhanced.mixin.late.accessor.IAEConfigAccessor;
 import com.github.aeddddd.ae2enhanced.item.ItemFluidDrop;
+import com.github.aeddddd.ae2enhanced.mixin.late.accessor.IAEConfigAccessor;
+import com.github.aeddddd.ae2enhanced.registry.content.BlockRegistry;
 import com.github.aeddddd.ae2enhanced.storage.ItemStorageAdapter;
 import com.github.aeddddd.ae2enhanced.tile.TileHyperdimensionalController;
 import com.github.aeddddd.ae2enhanced.util.compat.Ae2fcCompat;
@@ -41,12 +41,7 @@ import net.minecraft.command.CommandBase;
 import net.minecraft.command.ICommandSender;
 import net.minecraft.enchantment.Enchantment;
 import net.minecraft.entity.player.EntityPlayerMP;
-import net.minecraft.item.Item;
-import net.minecraft.item.ItemArmor;
-import net.minecraft.item.ItemBow;
-import net.minecraft.item.ItemStack;
-import net.minecraft.item.ItemSword;
-import net.minecraft.item.ItemTool;
+import net.minecraft.item.*;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.util.math.BlockPos;
@@ -56,17 +51,14 @@ import net.minecraft.util.text.TextComponentTranslation;
 import net.minecraft.util.text.TextFormatting;
 import net.minecraft.util.text.event.ClickEvent;
 import net.minecraft.world.WorldServer;
+import net.minecraftforge.common.config.Config;
+import net.minecraftforge.common.config.ConfigManager;
 import net.minecraftforge.fluids.FluidStack;
 import net.minecraftforge.fml.common.FMLCommonHandler;
-import net.minecraftforge.common.config.ConfigManager;
-import net.minecraftforge.common.config.Config;
-import appeng.util.item.AEItemStack;
-import com.mojang.authlib.GameProfile;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.File;
-import java.math.BigInteger;
 import java.util.*;
 
 /**
@@ -96,8 +88,8 @@ public class CommandAE2Enhanced extends CommandBase {
 
     /**
      * 顶级命令放行所有玩家（level 0），具体权限在 execute 内按子命令分别判定：
-     * pd 的自管理子命令（list/info/tp/invite/kick/setperm）面向普通玩家，
-     * 管理员工具子命令（channels/recoverhd/testhd/migratefluids/pd delete 等）仍需 level 2。
+     * pd 的全部子命令（list/info/delete/tp/invite/kick）面向普通玩家，
+     * 管理员工具子命令（channels/recoverhd/testhd/migratefluids 等）仍需 level 2。
      */
     @Override
     public int getRequiredPermissionLevel() {
@@ -125,20 +117,8 @@ public class CommandAE2Enhanced extends CommandBase {
     private static final String[] PLAYER_SUBCOMMANDS = {"pd", "help"};
     private static final String[] TOGGLE_OPTIONS = {"enable", "disable", "status"};
     private static final String[] PD_SUBCOMMANDS = {
-            "list", "info", "delete", "tp", "invite", "kick", "setperm"
+            "list", "info", "delete", "tp", "invite", "kick"
     };
-    /** 普通玩家可用的 pd 子命令（delete 为管理员操作） */
-    private static final String[] PD_PLAYER_SUBCOMMANDS = {
-            "list", "info", "tp", "invite", "kick", "setperm"
-    };
-    private static final String[] PD_PERMISSIONS;
-    static {
-        PersonalDimPermission[] values = PersonalDimPermission.values();
-        PD_PERMISSIONS = new String[values.length];
-        for (int i = 0; i < values.length; i++) {
-            PD_PERMISSIONS[i] = values[i].name().toLowerCase();
-        }
-    }
 
     @Override
     @Nonnull
@@ -176,7 +156,7 @@ public class CommandAE2Enhanced extends CommandBase {
                 return CommandBase.getListOfStringsMatchingLastWord(args, collectHdUuids(server));
             }
             if ("pd".equals(sub)) {
-                return CommandBase.getListOfStringsMatchingLastWord(args, admin ? PD_SUBCOMMANDS : PD_PLAYER_SUBCOMMANDS);
+                return CommandBase.getListOfStringsMatchingLastWord(args, PD_SUBCOMMANDS);
             }
             if ("diag".equals(sub)) {
                 if (!admin) return Collections.emptyList();
@@ -217,19 +197,14 @@ public class CommandAE2Enhanced extends CommandBase {
         }
         if (args.length == 3 && "pd".equals(sub)) {
             String pdSub = args[1].toLowerCase();
+            // delete 指定他人维度属于管理员操作，普通玩家不补全玩家名（无参时删除自己的维度）
             if ("delete".equals(pdSub) && !admin) {
                 return Collections.emptyList();
-            }
-            if ("setperm".equals(pdSub)) {
-                return CommandBase.getListOfStringsMatchingLastWord(args, PD_PERMISSIONS);
             }
             if ("tp".equals(pdSub) || "info".equals(pdSub) || "delete".equals(pdSub)
                     || "invite".equals(pdSub) || "kick".equals(pdSub)) {
                 return CommandBase.getListOfStringsMatchingLastWord(args, server.getOnlinePlayerNames());
             }
-        }
-        if (args.length == 4 && "pd".equals(sub) && "setperm".equals(args[1].toLowerCase())) {
-            return CommandBase.getListOfStringsMatchingLastWord(args, "true", "false");
         }
         return Collections.emptyList();
     }
@@ -329,8 +304,8 @@ public class CommandAE2Enhanced extends CommandBase {
     }
 
     /**
-     * 校验管理员工具权限（level 2）。pd 的自管理子命令放行普通玩家，
-     * 其余子命令（channels/recoverhd/testhd/migratefluids/pd delete 等）仅 OP 可用。
+     * 校验管理员工具权限（level 2）。pd 子命令面向所有玩家（仅删除他人维度需 OP），
+     * 其余子命令（channels/recoverhd/testhd/migratefluids 等）仅 OP 可用。
      */
     private boolean requireAdmin(@Nonnull ICommandSender sender) {
         if (sender.canUseCommand(2, getName())) {
@@ -455,8 +430,9 @@ public class CommandAE2Enhanced extends CommandBase {
         sender.sendMessage(new TextComponentString(TextFormatting.YELLOW + "/ae2e migratefluids"));
         sender.sendMessage(new TextComponentString(TextFormatting.GRAY + "  Convert AE2E ItemFluidDrop in all ME networks to ae2fc format."));
         sender.sendMessage(new TextComponentString(TextFormatting.GRAY + "  Requires ae2fc to be loaded and OP permission."));
-        sender.sendMessage(new TextComponentString(TextFormatting.YELLOW + "/ae2e pd list|info|delete|tp|invite|kick|setperm"));
-        sender.sendMessage(new TextComponentString(TextFormatting.GRAY + "  Manage personal dimensions."));
+        sender.sendMessage(new TextComponentString(TextFormatting.YELLOW + "/ae2e pd list|info|delete [player]|tp <player>|invite <player>|kick <player>"));
+        sender.sendMessage(new TextComponentString(TextFormatting.GRAY + "  Manage personal dimensions and team invites. All players can use these; no OP required."));
+        sender.sendMessage(new TextComponentString(TextFormatting.GRAY + "  invite/kick: manage the team whitelist of your own dimension; tp: enter your own or a teammate's dimension."));
         sender.sendMessage(new TextComponentString(TextFormatting.YELLOW + "/ae2e specialcrafting <enable|disable|status>"));
         sender.sendMessage(new TextComponentString(TextFormatting.GRAY + "  Toggle special crafting plans (self-referencing/cyclic productive recipes)."));
         sender.sendMessage(new TextComponentString(TextFormatting.GRAY + "  When enabled, such plans are solved in closed form and run on Computation Cores."));
@@ -1009,7 +985,7 @@ public class CommandAE2Enhanced extends CommandBase {
 
     private void executePersonalDimension(@Nonnull MinecraftServer server, @Nonnull ICommandSender sender, @Nonnull String[] args) {
         if (args.length < 2) {
-            sender.sendMessage(new TextComponentString(TextFormatting.RED + "Usage: /ae2e pd <list|info|delete|tp|invite|kick|setperm>"));
+            sender.sendMessage(new TextComponentString(TextFormatting.RED + "Usage: /ae2e pd <list|info|delete|tp|invite|kick>"));
             return;
         }
         String pdSub = args[1].toLowerCase();
@@ -1021,8 +997,6 @@ public class CommandAE2Enhanced extends CommandBase {
                 executePdInfo(server, sender, args);
                 break;
             case "delete":
-                // pd delete 可删除他人维度，属于管理员操作
-                if (!requireAdmin(sender)) return;
                 executePdDelete(server, sender, args);
                 break;
             case "tp":
@@ -1034,12 +1008,9 @@ public class CommandAE2Enhanced extends CommandBase {
             case "kick":
                 executePdKick(server, sender, args);
                 break;
-            case "setperm":
-                executePdSetPerm(server, sender, args);
-                break;
             default:
                 sender.sendMessage(new TextComponentString(TextFormatting.RED + "Unknown personal dimension subcommand: " + pdSub));
-                sender.sendMessage(new TextComponentString(TextFormatting.YELLOW + "Usage: /ae2e pd <list|info|delete|tp|invite|kick|setperm>"));
+                sender.sendMessage(new TextComponentString(TextFormatting.YELLOW + "Usage: /ae2e pd <list|info|delete|tp|invite|kick>"));
         }
     }
 
@@ -1079,12 +1050,6 @@ public class CommandAE2Enhanced extends CommandBase {
             PlayerArgumentUtil.sendPlayerNotFound(sender, args[2]);
             return;
         }
-        // 查看他人维度信息需要管理权限：本人、OP 或拥有该维度 MANAGE_RULES 权限的玩家
-        if (sender instanceof EntityPlayerMP
-                && !PersonalDimensionManager.canManageRules((EntityPlayerMP) sender, targetId)) {
-            sender.sendMessage(new TextComponentString(TextFormatting.RED + "[AE2E] You don't have permission to view this dimension's info."));
-            return;
-        }
         PlayerDimEntry entry = PersonalDimensionManager.getEntry(targetId);
         if (entry == null || entry.dimensionId == Integer.MIN_VALUE) {
             sender.sendMessage(new TextComponentString(TextFormatting.YELLOW + "[AE2E] Player has no personal dimension."));
@@ -1098,22 +1063,31 @@ public class CommandAE2Enhanced extends CommandBase {
         sender.sendMessage(new TextComponentString(TextFormatting.GRAY + "  Lock weather: " + entry.rules.lockWeather));
         sender.sendMessage(new TextComponentString(TextFormatting.GRAY + "  Lock time: " + entry.rules.lockTime + " (daylightCycle=" + entry.rules.daylightCycle + ", time=" + entry.rules.timeValue + ")"));
         sender.sendMessage(new TextComponentString(TextFormatting.GRAY + "  Flight: " + entry.rules.flightEnabled + ", Speed: " + entry.rules.movementSpeed));
-        sender.sendMessage(new TextComponentString(TextFormatting.GRAY + "  Allowed players: " + entry.allowedPlayers.size()));
+        sender.sendMessage(new TextComponentString(TextFormatting.GRAY + "  Team members: " + entry.allowedPlayers.size()));
         for (UUID id : entry.allowedPlayers) {
-            String name = resolvePlayerName(server, id);
-            sender.sendMessage(new TextComponentString(TextFormatting.GRAY + "    - " + name + ": " + formatPermissions(entry.getPermissions(id))));
+            sender.sendMessage(new TextComponentString(TextFormatting.GRAY + "    - " + resolvePlayerName(server, id)));
         }
     }
 
     private void executePdDelete(@Nonnull MinecraftServer server, @Nonnull ICommandSender sender, @Nonnull String[] args) {
+        UUID targetId;
         if (args.length < 3) {
-            sender.sendMessage(new TextComponentString(TextFormatting.RED + "Usage: /ae2e pd delete <player>"));
-            return;
-        }
-        UUID targetId = PlayerArgumentUtil.parseUuid(server, args[2]);
-        if (targetId == null) {
-            PlayerArgumentUtil.sendPlayerNotFound(sender, args[2]);
-            return;
+            // 无参数时删除自己的维度
+            if (!(sender instanceof EntityPlayerMP)) {
+                sender.sendMessage(new TextComponentString(TextFormatting.RED + "Usage: /ae2e pd delete [player]"));
+                return;
+            }
+            targetId = ((EntityPlayerMP) sender).getUniqueID();
+        } else {
+            targetId = PlayerArgumentUtil.parseUuid(server, args[2]);
+            if (targetId == null) {
+                PlayerArgumentUtil.sendPlayerNotFound(sender, args[2]);
+                return;
+            }
+            // 删除他人维度属于管理员操作
+            boolean self = sender instanceof EntityPlayerMP
+                    && ((EntityPlayerMP) sender).getUniqueID().equals(targetId);
+            if (!self && !requireAdmin(sender)) return;
         }
         String name = resolvePlayerName(server, targetId);
         if (PersonalDimensionManager.deleteDimension(targetId)) {
@@ -1155,11 +1129,6 @@ public class CommandAE2Enhanced extends CommandBase {
             return;
         }
         EntityPlayerMP owner = (EntityPlayerMP) sender;
-        // 本命令操作发送者自己的维度：仅所有者本人、拥有 MANAGE_RULES 权限的玩家或 OP 可管理
-        if (!PersonalDimensionManager.canManageRules(owner, owner.getUniqueID())) {
-            sender.sendMessage(new TextComponentString(TextFormatting.RED + "[AE2E] You don't have permission to manage this dimension."));
-            return;
-        }
         EntityPlayerMP target = PlayerArgumentUtil.parseOnlinePlayer(server, sender, args[2]);
         if (target == null) {
             PlayerArgumentUtil.sendPlayerNotFound(sender, args[2]);
@@ -1176,6 +1145,7 @@ public class CommandAE2Enhanced extends CommandBase {
         }
         PersonalDimensionManager.invitePlayer(owner.getUniqueID(), target.getUniqueID());
         sender.sendMessage(new TextComponentString(TextFormatting.GREEN + "[AE2E] Invited " + target.getName() + " to your personal dimension."));
+        target.sendMessage(msg(TextFormatting.GREEN, "chat.ae2enhanced.personal_dimension.invited", owner.getName()));
     }
 
     private void executePdKick(@Nonnull MinecraftServer server, @Nonnull ICommandSender sender, @Nonnull String[] args) {
@@ -1188,11 +1158,6 @@ public class CommandAE2Enhanced extends CommandBase {
             return;
         }
         EntityPlayerMP owner = (EntityPlayerMP) sender;
-        // 本命令操作发送者自己的维度：仅所有者本人、拥有 MANAGE_RULES 权限的玩家或 OP 可管理
-        if (!PersonalDimensionManager.canManageRules(owner, owner.getUniqueID())) {
-            sender.sendMessage(new TextComponentString(TextFormatting.RED + "[AE2E] You don't have permission to manage this dimension."));
-            return;
-        }
         UUID targetId = PlayerArgumentUtil.parseUuid(server, args[2]);
         if (targetId == null) {
             PlayerArgumentUtil.sendPlayerNotFound(sender, args[2]);
@@ -1204,57 +1169,18 @@ public class CommandAE2Enhanced extends CommandBase {
         }
         PlayerDimEntry entry = PersonalDimensionManager.getEntry(owner.getUniqueID());
         if (entry == null || !entry.allowedPlayers.contains(targetId)) {
-            sender.sendMessage(new TextComponentString(TextFormatting.RED + "[AE2E] " + resolvePlayerName(server, targetId) + " is not in your personal dimension whitelist."));
+            sender.sendMessage(new TextComponentString(TextFormatting.RED + "[AE2E] " + resolvePlayerName(server, targetId) + " is not in your personal dimension team."));
             return;
         }
-        if (entry.dimensionId != Integer.MIN_VALUE) {
-            EntityPlayerMP target = server.getPlayerList().getPlayerByUUID(targetId);
-            if (target != null && target.dimension == entry.dimensionId) {
-                PersonalDimensionManager.teleportToReturnPoint(target);
-            }
+        EntityPlayerMP target = server.getPlayerList().getPlayerByUUID(targetId);
+        if (entry.dimensionId != Integer.MIN_VALUE && target != null && target.dimension == entry.dimensionId) {
+            PersonalDimensionManager.teleportToReturnPoint(target);
         }
         PersonalDimensionManager.kickPlayer(owner.getUniqueID(), targetId);
         sender.sendMessage(new TextComponentString(TextFormatting.GREEN + "[AE2E] Kicked " + resolvePlayerName(server, targetId) + " from your personal dimension."));
-    }
-
-    private void executePdSetPerm(@Nonnull MinecraftServer server, @Nonnull ICommandSender sender, @Nonnull String[] args) {
-        if (!(sender instanceof EntityPlayerMP)) {
-            sender.sendMessage(new TextComponentString(TextFormatting.RED + "[AE2E] This command can only be executed by a player."));
-            return;
+        if (target != null) {
+            target.sendMessage(msg(TextFormatting.YELLOW, "chat.ae2enhanced.personal_dimension.kicked", owner.getName()));
         }
-        if (args.length < 5) {
-            sender.sendMessage(new TextComponentString(TextFormatting.RED + "Usage: /ae2e pd setperm <player> <enter|build|interact|manage_rules> <true|false>"));
-            return;
-        }
-        EntityPlayerMP owner = (EntityPlayerMP) sender;
-        // 本命令操作发送者自己的维度：仅所有者本人、拥有 MANAGE_RULES 权限的玩家或 OP 可管理
-        if (!PersonalDimensionManager.canManageRules(owner, owner.getUniqueID())) {
-            sender.sendMessage(new TextComponentString(TextFormatting.RED + "[AE2E] You don't have permission to manage this dimension."));
-            return;
-        }
-        UUID targetId = PlayerArgumentUtil.parseUuid(server, args[2]);
-        if (targetId == null) {
-            PlayerArgumentUtil.sendPlayerNotFound(sender, args[2]);
-            return;
-        }
-        PersonalDimPermission perm;
-        try {
-            perm = PersonalDimPermission.valueOf(args[3].toUpperCase());
-        } catch (IllegalArgumentException e) {
-            sender.sendMessage(new TextComponentString(TextFormatting.RED + "[AE2E] Unknown permission: " + args[3]));
-            return;
-        }
-        boolean value;
-        if ("true".equalsIgnoreCase(args[4])) {
-            value = true;
-        } else if ("false".equalsIgnoreCase(args[4])) {
-            value = false;
-        } else {
-            sender.sendMessage(new TextComponentString(TextFormatting.RED + "[AE2E] Invalid boolean value: " + args[4] + ". Use true or false."));
-            return;
-        }
-        PersonalDimensionManager.setPermission(owner.getUniqueID(), targetId, perm, value);
-        sender.sendMessage(new TextComponentString(TextFormatting.GREEN + "[AE2E] Set permission " + perm.name().toLowerCase() + " for " + resolvePlayerName(server, targetId) + " to " + value + "."));
     }
 
     private static String resolvePlayerName(@Nonnull MinecraftServer server, @Nonnull UUID playerId) {
@@ -1266,16 +1192,6 @@ public class CommandAE2Enhanced extends CommandBase {
 
     private static String formatBlockPos(net.minecraft.util.math.BlockPos pos) {
         return "(" + pos.getX() + ", " + pos.getY() + ", " + pos.getZ() + ")";
-    }
-
-    private static String formatPermissions(java.util.Set<PersonalDimPermission> perms) {
-        if (perms.isEmpty()) return "none";
-        StringBuilder sb = new StringBuilder();
-        for (PersonalDimPermission p : perms) {
-            if (sb.length() > 0) sb.append(", ");
-            sb.append(p.name().toLowerCase());
-        }
-        return sb.toString();
     }
 
     // ---- migrate fluids ----

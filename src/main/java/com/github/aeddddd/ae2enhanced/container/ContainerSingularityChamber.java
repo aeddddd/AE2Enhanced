@@ -1,7 +1,7 @@
 package com.github.aeddddd.ae2enhanced.container;
 
-import com.github.aeddddd.ae2enhanced.AE2Enhanced;
 import appeng.api.config.Upgrades;
+import com.github.aeddddd.ae2enhanced.AE2Enhanced;
 import com.github.aeddddd.ae2enhanced.chamber.LongItemStore;
 import com.github.aeddddd.ae2enhanced.container.slot.SlotLongStore;
 import com.github.aeddddd.ae2enhanced.item.ItemVirtualParallelCard;
@@ -20,11 +20,8 @@ import net.minecraftforge.items.SlotItemHandler;
 /**
  * 奇点处理仓 Container.
  *
- * <p>槽位布局：0-26 输入缓存虚拟槽、27-35 输出缓冲虚拟槽（{@link SlotLongStore},
- * 点击由 {@link #slotClick} 拦截,走标准 CPacketClickWindow 链路）、
- * 36 并行卡、37-40 加速卡、41+ 玩家物品栏.</p>
- *
- * <p>缓存内容与状态通过 {@link PacketChamberSync} 同步（打开首 tick + 每 2 tick）.</p>
+ * <p>槽位布局: 0-26 输入缓存虚拟槽, 27-35 输出缓冲虚拟槽, 36 并行卡, 37-40 加速卡, 41+ 玩家物品栏.
+ * 虚拟槽点击由 {@link #slotClick} 拦截, 缓存内容与状态通过 {@link PacketChamberSync} 每 2 tick 同步.</p>
  */
 public class ContainerSingularityChamber extends Container {
 
@@ -35,7 +32,7 @@ public class ContainerSingularityChamber extends Container {
     public static final int PLAYER_INV_START = SLOT_SPEED_START + 4;
 
     private final TileSingularityChamber tile;
-    /** 初始化为阈值,使打开 GUI 的首个 tick 立即下发一次同步 */
+    /** 初始化为阈值, 使打开 GUI 的首个 tick 立即下发一次同步. */
     private int syncCounter = 2;
 
     public ContainerSingularityChamber(InventoryPlayer playerInv, TileSingularityChamber tile) {
@@ -80,10 +77,6 @@ public class ContainerSingularityChamber extends Container {
         for (int col = 0; col < 9; col++) {
             addSlotToContainer(new Slot(playerInv, col, 8 + col * 18, 210));
         }
-    }
-
-    public TileSingularityChamber getTile() {
-        return tile;
     }
 
     // ---- 虚拟槽位交互（标准 slotClick 链路） ----

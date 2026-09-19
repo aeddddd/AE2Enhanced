@@ -54,7 +54,9 @@ public class TileChunkManaNode extends TileAENetworkBase implements ITickable, I
 
     // 目标设备缓存(只存 BlockPos,每 tick 重新获取 TE 和 cap)
     protected final List<BlockPos> cachedTargets = new ArrayList<>();
-    private int cacheRefreshCooldown = 0;
+    /** 下次刷新目标缓存的世界时间(getTotalWorldTime).按真实时间而非 tile 被 tick 次数计,
+     *  避免 Torcherino 等加速手段放大刷新频率. */
+    private long nextCacheRefreshTime = 0;
 
     // 客户端同步
     private int clientFlags = 0;
@@ -153,11 +155,10 @@ public class TileChunkManaNode extends TileAENetworkBase implements ITickable, I
         IMEMonitor<IAEManaStack> manaMonitor = getManaMonitor();
         if (manaMonitor == null) return;
 
-        if (cacheRefreshCooldown <= 0) {
+        long now = world.getTotalWorldTime();
+        if (now >= nextCacheRefreshTime) {
             refreshTargetCache();
-            cacheRefreshCooldown = CACHE_REFRESH_INTERVAL;
-        } else {
-            cacheRefreshCooldown--;
+            nextCacheRefreshTime = now + CACHE_REFRESH_INTERVAL;
         }
 
         MachineSource source = getMachineSource();

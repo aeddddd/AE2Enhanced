@@ -1,10 +1,6 @@
 package com.github.aeddddd.ae2enhanced.container;
 
-import appeng.api.config.AccessRestriction;
-import appeng.api.config.SecurityPermissions;
-import appeng.api.config.Settings;
-import appeng.api.config.StorageFilter;
-import appeng.api.config.Upgrades;
+import appeng.api.config.*;
 import appeng.container.guisync.GuiSync;
 import appeng.container.implementations.ContainerUpgradeable;
 import appeng.container.slot.SlotRestrictedInput;
@@ -15,7 +11,6 @@ import com.github.aeddddd.ae2enhanced.container.slot.SlotEnergyTypeOnly;
 import com.github.aeddddd.ae2enhanced.item.ItemEnergyDrop;
 import com.github.aeddddd.ae2enhanced.part.PartEnergyStorageBus;
 import net.minecraft.entity.player.InventoryPlayer;
-import net.minecraft.item.ItemStack;
 import net.minecraftforge.items.IItemHandler;
 
 /**
@@ -23,8 +18,6 @@ import net.minecraftforge.items.IItemHandler;
  * 63 过滤槽(前 18 常驻,后 45 由容量卡解锁)+ 5 升级卡槽.
  */
 public class ContainerEnergyStorageBus extends ContainerUpgradeable {
-
-    private final PartEnergyStorageBus part;
 
     @GuiSync(value = 3)
     public AccessRestriction rwMode = AccessRestriction.READ_WRITE;
@@ -34,7 +27,6 @@ public class ContainerEnergyStorageBus extends ContainerUpgradeable {
 
     public ContainerEnergyStorageBus(InventoryPlayer ip, PartEnergyStorageBus te) {
         super(ip, te);
-        this.part = te;
     }
 
     @Override
@@ -101,10 +93,6 @@ public class ContainerEnergyStorageBus extends ContainerUpgradeable {
         ItemHandlerUtil.clear(inv);
         ItemHandlerUtil.setStackInSlot(inv, 0, ItemEnergyDrop.createStack());
         this.func_75142_b();
-    }
-
-    public PartEnergyStorageBus getPart() {
-        return this.part;
     }
 
     public AccessRestriction getReadWriteMode() {

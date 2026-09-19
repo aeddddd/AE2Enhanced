@@ -8,11 +8,8 @@ import nyonio.terminal_interaction_integration.api.IPacketType;
 import nyonio.terminal_interaction_integration.api.IResourceProvider;
 
 /**
- * TII RF 能量资源提供者.
- * <p>
- * 优先使用外部 Flux 通道(若 Flux_Applied 加载),否则回退到 AE2E 自有能量通道.
- * 优先级设为 50,低于 Flux 自身提供者的 100,保证 Flux 存在时 Flux 提供者获胜.
- * </p>
+ * TII RF 能量资源提供者. 优先使用外部 Flux 通道(若 Flux_Applied 加载), 否则回退到 AE2E 自有能量通道.
+ * 优先级设为 50, 低于 Flux 自身提供者的 100, 保证 Flux 存在时 Flux 提供者获胜.
  */
 public class EnergyResourceProvider implements IResourceProvider {
 

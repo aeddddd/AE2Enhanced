@@ -1,9 +1,8 @@
 package com.github.aeddddd.ae2enhanced.integration.jei;
 
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
-import com.github.aeddddd.ae2enhanced.registry.content.ItemRegistry;
-import com.github.aeddddd.ae2enhanced.registry.content.PartRegistry;
 import com.github.aeddddd.ae2enhanced.crafting.BlackHoleRecipe;
+import com.github.aeddddd.ae2enhanced.registry.content.ItemRegistry;
 import mezz.jei.api.IGuiHelper;
 import mezz.jei.api.gui.IDrawable;
 import mezz.jei.api.gui.IGuiItemStackGroup;
@@ -75,7 +74,7 @@ public class BlackHoleRecipeCategory implements IRecipeCategory<BlackHoleRecipeW
         IGuiItemStackGroup stacks = recipeLayout.getItemStacks();
         BlackHoleRecipe recipe = recipeWrapper.getRecipe();
 
-        // 输入：左侧 0~8 槽位
+        // 输入, 左侧 0~8 槽位
         int inputIndex = 0;
         for (List<ItemStack> inputs : ingredients.getInputs(ItemStack.class)) {
             if (inputs.isEmpty()) continue;

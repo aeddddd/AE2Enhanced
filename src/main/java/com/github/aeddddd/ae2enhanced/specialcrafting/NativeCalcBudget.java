@@ -10,11 +10,10 @@ import com.github.aeddddd.ae2enhanced.mixin.bridge.ICraftingJobBudgetAccess;
 
 /**
  * 原生回落计算的时间预算助手.
- * <p>背景:生产事故——复杂大单(数万节点 × 大数量)在 DAG/特殊求解器回落原生后,
- * 原生递归计算永不结束;而下单流程中 RandomComplement 的 setJob 混入会同步
- * {@code future.get()} 把服务器线程挂起在整个计算时长上 → 看门狗崩服.
- * 预算状态由本模组 job 类自持({@link ICraftingJobBudgetAccess}),
- * 心跳检查由 MixinCraftingJob 挂在原生 handlePausing 上.</p>
+ * <p>复杂大单回落到原生递归计算时可能长时间不结束,而下单流程会同步等待
+ * future,把服务器线程挂起整个计算时长;预算状态由本模组 job 类自持
+ * ({@link ICraftingJobBudgetAccess}),心跳检查由 MixinCraftingJob
+ * 挂在原生 handlePausing 上.</p>
  */
 public final class NativeCalcBudget {
 

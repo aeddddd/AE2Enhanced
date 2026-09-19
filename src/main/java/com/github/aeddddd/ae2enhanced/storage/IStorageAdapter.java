@@ -1,11 +1,6 @@
 package com.github.aeddddd.ae2enhanced.storage;
 
-import appeng.api.networking.security.IActionSource;
-import appeng.api.storage.data.IAEStack;
-
-import java.math.BigInteger;
 import java.util.Map;
-import java.util.function.BiConsumer;
 
 /**
  * 超维度仓储中枢各类存储适配器的公共接口.
@@ -19,14 +14,14 @@ import java.util.function.BiConsumer;
 public interface IStorageAdapter {
 
     /**
-     * 获取内部存储 Map(Key 为描述符,Value 为数量).
+     * 获取内部存储 Map(Key 为描述符,Value 为混合精度计数).
      */
-    Map<?, BigInteger> getStorageMap();
+    Map<?, HugeCount> getStorageMap();
 
     /**
      * 获取总数量.
      */
-    BigInteger getTotalCount();
+    HugeCount getTotalCount();
 
     /**
      * 判断当前是否处于安全模式(只读).

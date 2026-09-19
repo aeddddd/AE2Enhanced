@@ -28,10 +28,4 @@ public final class DiagLog {
             AE2Enhanced.LOGGER.warn(message, args);
         }
     }
-
-    public static void error(String switchName, String message, Object... args) {
-        if (DiagSwitch.isEnabled(switchName)) {
-            AE2Enhanced.LOGGER.error(message, args);
-        }
-    }
 }

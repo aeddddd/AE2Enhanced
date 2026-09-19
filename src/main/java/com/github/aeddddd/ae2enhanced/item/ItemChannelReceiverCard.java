@@ -13,11 +13,11 @@ import javax.annotation.Nullable;
 import java.util.List;
 
 /**
- * F1b：频道接收卡.
+ * F1b: 频道接收卡.
  *
  * <p>空白状态可通过无线频道发生器 GUI 绑定到特定发生器.
- * 已绑定状态插入 AE 设备的 Upgrade 槽后,设备节点会与发生器节点建立
- * 远程 {@code GridConnection},从而借用发生器的控制器路径.</p>
+ * 已绑定状态插入 AE 设备的 Upgrade 槽后, 设备节点会与发生器节点建立
+ * 远程 {@code GridConnection}, 从而借用发生器的控制器路径.</p>
  */
 public class ItemChannelReceiverCard extends Item {
 
@@ -59,12 +59,6 @@ public class ItemChannelReceiverCard extends Item {
     public static int getTransmitterDim(ItemStack stack) {
         if (!isBound(stack)) return Integer.MIN_VALUE;
         return stack.getTagCompound().getInteger(NBT_DIM);
-    }
-
-    public static net.minecraft.util.EnumFacing getTransmitterSide(ItemStack stack) {
-        if (!isBound(stack)) return null;
-        int ord = stack.getTagCompound().getInteger(NBT_SIDE);
-        return net.minecraft.util.EnumFacing.byIndex(ord);
     }
 
     public static void clearBinding(ItemStack stack) {

@@ -14,7 +14,6 @@ import appeng.api.storage.data.IAEItemStack;
 import appeng.core.localization.PlayerMessages;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.item.ItemStack;
-import net.minecraft.util.text.TextComponentTranslation;
 import net.minecraft.world.World;
 
 import javax.annotation.Nullable;

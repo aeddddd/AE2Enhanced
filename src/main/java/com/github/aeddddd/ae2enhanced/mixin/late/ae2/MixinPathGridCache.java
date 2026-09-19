@@ -1,15 +1,5 @@
 package com.github.aeddddd.ae2enhanced.mixin.late.ae2;
 
-import java.util.Iterator;
-import java.util.List;
-
-import org.spongepowered.asm.mixin.Mixin;
-import org.spongepowered.asm.mixin.Shadow;
-import org.spongepowered.asm.mixin.gen.Invoker;
-import org.spongepowered.asm.mixin.injection.At;
-import org.spongepowered.asm.mixin.injection.Inject;
-import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
-
 import appeng.api.networking.IGrid;
 import appeng.api.networking.IGridNode;
 import appeng.api.networking.events.MENetworkBootingStatusChange;
@@ -22,17 +12,22 @@ import appeng.me.pathfinding.PathSegment;
 import appeng.tile.networking.TileController;
 import com.github.aeddddd.ae2enhanced.config.AE2EnhancedConfig;
 import com.github.aeddddd.ae2enhanced.pathing.EnhancedPathingCalculation;
+import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Shadow;
+import org.spongepowered.asm.mixin.gen.Invoker;
+import org.spongepowered.asm.mixin.injection.At;
+import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+
+import java.util.Iterator;
+import java.util.List;
 
 /**
- * 将 PR #8285 的快速频道路径算法接入 PathGridCache。
- *
- * <p>当 {@link AE2EnhancedConfig.ChannelPathing#fastPathing} 开启且网络有合法 Controller 时，
- * 直接执行 O(N) 的 EnhancedPathingCalculation，不再使用原版的 PathSegment 多 tick 扩散。</p>
- *
- * <p>当 {@link AE2EnhancedConfig.ChannelPathing#skipRecalcWhenChannelsDisabled} 开启且
- * 频道特性被禁用（无限频道）时，usedChannels 不影响设备激活
- * （meetsChannelRequirements 恒为 true），直接跳过原版的频道分配 BFS、
- * 逐节点 MENetworkChannelChanged 事件与 ticksUntilReady 倒计时。</p>
+ * 将 PR #8285 的快速频道路径算法接入 PathGridCache.
+ * fastPathing 开启且网络有合法 Controller 时, 直接执行 O(N) 的 EnhancedPathingCalculation,
+ * 不再使用原版的 PathSegment 多 tick 扩散.
+ * skipRecalcWhenChannelsDisabled 开启且频道特性被禁用时, usedChannels 不影响设备激活,
+ * 跳过原版的频道分配 BFS、逐节点 MENetworkChannelChanged 事件与 ticksUntilReady 倒计时.
  */
 @Mixin(value = PathGridCache.class, remap = false)
 public abstract class MixinPathGridCache {

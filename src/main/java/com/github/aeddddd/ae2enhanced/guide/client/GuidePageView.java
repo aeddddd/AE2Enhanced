@@ -16,7 +16,6 @@ import net.minecraft.item.ItemStack;
 import org.lwjgl.opengl.GL11;
 
 import java.util.Collections;
-import java.util.List;
 
 /**
  * 指南页面视图 —— 右侧滚动页面区域：渲染 LayoutLine、滚动条、点击/悬停命中检测.
@@ -340,7 +339,4 @@ public final class GuidePageView {
         return mouseX >= x && mouseX < x + width && mouseY >= y && mouseY < y + height;
     }
 
-    public List<LayoutLine> getLines() {
-        return layout != null ? layout.lines : Collections.emptyList();
-    }
 }

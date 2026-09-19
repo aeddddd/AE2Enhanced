@@ -1,16 +1,12 @@
 package com.github.aeddddd.ae2enhanced.util;
 
-import com.github.aeddddd.ae2enhanced.AE2Enhanced;
 import net.minecraft.block.Block;
 import net.minecraft.entity.player.EntityPlayer;
-import net.minecraft.nbt.NBTTagCompound;
-import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.ResourceLocation;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
 
 import javax.annotation.Nullable;
-import java.lang.reflect.Method;
 import java.util.Arrays;
 import java.util.List;
 
@@ -32,48 +28,6 @@ public final class TravelAnchorHelper {
         String mod = reg.getNamespace().toLowerCase();
         return ("enderio".equals(mod) || "enderiomachines".equals(mod) || "enderiozoo".equals(mod))
                 && ANCHOR_REGISTRY_KEYS.contains(path);
-    }
-
-    @Nullable
-    public static BlockPos getAnchorTarget(World world, BlockPos pos) {
-        TileEntity te = world.getTileEntity(pos);
-        if (te == null) return null;
-
-        // 1. 尝试读取 TileEntity NBT 中的目标坐标
-        try {
-            NBTTagCompound nbt = te.writeToNBT(new NBTTagCompound());
-            if (nbt.hasKey("targetX") && nbt.hasKey("targetY") && nbt.hasKey("targetZ")) {
-                return new BlockPos(nbt.getInteger("targetX"), nbt.getInteger("targetY"), nbt.getInteger("targetZ"));
-            }
-            if (nbt.hasKey("x") && nbt.hasKey("y") && nbt.hasKey("z")) {
-                return new BlockPos(nbt.getInteger("x"), nbt.getInteger("y"), nbt.getInteger("z"));
-            }
-        } catch (Exception e) {
-            AE2Enhanced.LOGGER.debug("[AE2E] Failed to read Travel Anchor NBT at {}", pos);
-        }
-
-        // 2. 尝试调用无参 getter 方法
-        for (Method m : te.getClass().getMethods()) {
-            if (m.getParameterCount() != 0) continue;
-            String name = m.getName().toLowerCase();
-            if (!name.contains("target") && !name.contains("destination") && !name.contains("location")) continue;
-            try {
-                m.setAccessible(true);
-                Object ret = m.invoke(te);
-                BlockPos target = toBlockPos(ret);
-                if (target != null) return target;
-            } catch (Exception ignored) {}
-        }
-
-        // 3. 回退：目标为锚点自身所在位置（通常 Travel Anchor 会把你送到另一个 Anchor 的位置）
-        return null;
-    }
-
-    @Nullable
-    private static BlockPos toBlockPos(Object obj) {
-        if (obj instanceof BlockPos) return (BlockPos) obj;
-        if (obj instanceof TileEntity) return ((TileEntity) obj).getPos();
-        return null;
     }
 
     public static boolean teleportToAnchor(EntityPlayer player, World world, BlockPos target) {

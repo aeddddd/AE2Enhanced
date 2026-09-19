@@ -3,42 +3,34 @@ package com.github.aeddddd.ae2enhanced.client.gui;
 import appeng.api.config.ActionItems;
 import appeng.api.config.ItemSubstitution;
 import appeng.api.config.Settings;
-import appeng.api.config.SortDir;
-import appeng.api.config.SortOrder;
 import appeng.api.config.TerminalStyle;
-import appeng.api.config.ViewItems;
 import appeng.api.storage.ITerminalHost;
 import appeng.api.storage.data.IAEItemStack;
 import appeng.api.util.IConfigManager;
+import appeng.client.ActionKey;
 import appeng.client.gui.implementations.GuiMEMonitorable;
 import appeng.client.gui.widgets.GuiImgButton;
 import appeng.client.gui.widgets.GuiScrollbar;
 import appeng.client.gui.widgets.GuiTabButton;
 import appeng.client.gui.widgets.MEGuiTextField;
 import appeng.client.me.InternalSlotME;
-import appeng.container.interfaces.IJEIGhostIngredients;
-import appeng.container.slot.AppEngSlot;
 import appeng.client.me.SlotME;
-import appeng.client.ActionKey;
+import appeng.container.interfaces.IJEIGhostIngredients;
 import appeng.core.AEConfig;
 import appeng.core.AppEng;
 import appeng.core.localization.GuiText;
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
+import com.github.aeddddd.ae2enhanced.client.JEISearchKeyHandler;
 import com.github.aeddddd.ae2enhanced.client.gui.jei.GhostIngredientTarget;
 import com.github.aeddddd.ae2enhanced.client.gui.slot.RCSlotFakeCraftingMatrix;
 import com.github.aeddddd.ae2enhanced.client.gui.slot.RCSlotPatternOutputs;
-import com.github.aeddddd.ae2enhanced.mixin.late.accessor.IGuiMEMonitorableAccessor;
 import com.github.aeddddd.ae2enhanced.client.gui.util.GuiResourceCache;
 import com.github.aeddddd.ae2enhanced.client.gui.util.SlotPositionManager;
-import com.github.aeddddd.ae2enhanced.client.JEISearchKeyHandler;
 import com.github.aeddddd.ae2enhanced.client.me.CraftingStatus;
 import com.github.aeddddd.ae2enhanced.container.ContainerOmniTerm;
-import com.github.aeddddd.ae2enhanced.network.packet.PacketOmniInventoryUpdate;
+import com.github.aeddddd.ae2enhanced.mixin.late.accessor.IGuiMEMonitorableAccessor;
 import com.github.aeddddd.ae2enhanced.network.packet.PacketOmniPageResult;
-import com.github.aeddddd.ae2enhanced.network.packet.PacketOmniSearchRequest;
-import com.github.aeddddd.ae2enhanced.network.packet.PacketOmniSearchResult;
 import com.github.aeddddd.ae2enhanced.network.packet.PacketOmniTermAction;
-import com.github.aeddddd.ae2enhanced.network.packet.PacketOmniUpdateNotify;
 import net.minecraft.client.gui.Gui;
 import net.minecraft.client.gui.GuiButton;
 import net.minecraft.entity.player.InventoryPlayer;
@@ -48,10 +40,10 @@ import net.minecraft.item.ItemStack;
 import org.lwjgl.input.Keyboard;
 import org.lwjgl.input.Mouse;
 
+import java.awt.*;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.awt.Rectangle;
 
 /**
  * 全能无线终端 GUI —— 物品库 + 合成栏 + 81槽位编码样板 + 右侧存储
@@ -726,21 +718,6 @@ public class GuiOmniTerm extends GuiMEMonitorable implements IJEIGhostIngredient
     public void handleUpdateNotify() {
         if (!(this.repo instanceof com.github.aeddddd.ae2enhanced.client.me.OmniItemRepo)) return;
         ((com.github.aeddddd.ae2enhanced.client.me.OmniItemRepo) this.repo).handleUpdateNotify();
-    }
-
-    /**
-     * 旧协议兼容（已废弃）。
-     */
-    public void handleOmniInventoryUpdate(PacketOmniInventoryUpdate.Mode mode,
-                                          List<PacketOmniInventoryUpdate.Entry> entries) {
-        // R3: 旧全量同步协议已废弃
-    }
-
-    /**
-     * 旧协议兼容（已废弃）。
-     */
-    public void handleOmniSearchResult(List<PacketOmniSearchResult.Entry> entries) {
-        // R3: 旧搜索协议已废弃
     }
 
     private void updateItemScrollRange() {

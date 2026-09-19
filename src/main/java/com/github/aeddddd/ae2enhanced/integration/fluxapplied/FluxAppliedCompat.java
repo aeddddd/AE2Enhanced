@@ -11,13 +11,12 @@ import java.lang.reflect.Method;
 
 /**
  * Flux_Applied 兼容性检测类.
- * 仅通过反射探测 {@code com.flux_applied.ae2.FluxStorageChannel},避免无条件加载类中出现外部类的硬引用.
+ * 仅通过反射探测 {@code com.flux_applied.ae2.FluxStorageChannel}, 避免无条件加载类中出现外部类的硬引用.
  */
 public final class FluxAppliedCompat {
 
     private static final boolean LOADED;
     private static final boolean HAS_FLUX_CHANNEL;
-    private static Class<?> fluxChannelClass;
     private static Object fluxChannelInstance;
 
     // Flux 数据包物品反射缓存
@@ -31,7 +30,7 @@ public final class FluxAppliedCompat {
         boolean loaded = false;
         boolean hasChannel = false;
         try {
-            fluxChannelClass = Class.forName("com.flux_applied.ae2.FluxStorageChannel");
+            Class<?> fluxChannelClass = Class.forName("com.flux_applied.ae2.FluxStorageChannel");
             loaded = true;
             Object instance = fluxChannelClass.getField("INSTANCE").get(null);
             if (instance instanceof IStorageChannel) {
@@ -81,15 +80,6 @@ public final class FluxAppliedCompat {
     @SuppressWarnings("unchecked")
     public static IStorageChannel<?> getFluxStorageChannelInstance() {
         return (IStorageChannel<?>) fluxChannelInstance;
-    }
-
-    /**
-     * 获取 Flux_Applied 的 {@code FluxStorageChannel} 类对象.
-     *
-     * @return 外部通道类,若不存在则返回 null
-     */
-    public static Class<?> getFluxChannelClass() {
-        return fluxChannelClass;
     }
 
     /**

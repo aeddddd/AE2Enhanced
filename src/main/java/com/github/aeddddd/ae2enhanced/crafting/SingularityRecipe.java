@@ -9,17 +9,13 @@ import net.minecraft.util.math.AxisAlignedBB;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 /**
  * 黑洞生成仪式配方.
- * 以目标方块为中心,扫描周围 5×5×5 区域内的物品实体,累加数量后匹配输入.
- * 输入支持三类：丢在世界中的物品、右键手持物品、右键目标方块.
- * 输出为微型奇点方块,可配置存在时间.
+ * 以目标方块为中心, 扫描周围 5×5×5 区域内的物品实体, 累加数量后匹配输入.
+ * 输入支持三类: 丢在世界中的物品, 右键手持物品, 右键目标方块.
+ * 输出为微型奇点方块, 可配置存在时间.
  */
 public class SingularityRecipe {
 
@@ -30,27 +26,23 @@ public class SingularityRecipe {
     private final int lifetimeTicks;
 
     /**
-     * 完整构造函数.
-     *
      * @param id             配方唯一标识
      * @param droppedInputs  丢在世界中的物品输入
-     * @param heldItem       右键手持物品(可为 null/Empty,表示不检查)
-     * @param targetBlock    右键目标方块(可为 null,表示不检查)
-     * @param lifetimeTicks  微型奇点存在时间(tick),<=0 使用默认值 6000
+     * @param heldItem       右键手持物品, 可为 null 或空栈表示不检查
+     * @param targetBlock    右键目标方块, 可为 null 表示不检查
+     * @param lifetimeTicks  微型奇点存在时间, 单位 tick, 小于等于 0 时使用默认值 6000
      */
     public SingularityRecipe(String id, List<ItemStack> droppedInputs,
                              ItemStack heldItem, Block targetBlock, int lifetimeTicks) {
         this.id = id;
-        // 防御性拷贝：避免调用方后续修改传入列表影响配方
+        // 防御性拷贝: 避免调用方后续修改传入列表影响配方
         this.droppedInputs = droppedInputs != null ? new ArrayList<>(droppedInputs) : Collections.emptyList();
         this.heldItem = heldItem != null ? heldItem : ItemStack.EMPTY;
         this.targetBlock = targetBlock;
         this.lifetimeTicks = lifetimeTicks > 0 ? lifetimeTicks : TileMicroSingularity.DEFAULT_LIFE_TICKS;
     }
 
-    /**
-     * 简化构造函数(向后兼容)：仅支持 droppedInputs,其余使用默认值.
-     */
+    /** 简化构造函数, 向后兼容: 仅支持 droppedInputs, 其余使用默认值. */
     public SingularityRecipe(String id, List<ItemStack> droppedInputs) {
         this(id, droppedInputs, ItemStack.EMPTY, null, TileMicroSingularity.DEFAULT_LIFE_TICKS);
     }
@@ -80,11 +72,8 @@ public class SingularityRecipe {
         return stack.getItem().getRegistryName() + "#" + stack.getMetadata();
     }
 
-    /**
-     * 检测是否匹配：先检查目标方块和手持物品,再检查 droppedInputs.
-     */
+    /** 检测是否匹配: 先检查目标方块和手持物品, 再检查 droppedInputs. */
     public boolean matches(World world, BlockPos center, ItemStack held) {
-        // 检查目标方块
         if (targetBlock != null) {
             Block actualBlock = world.getBlockState(center).getBlock();
             if (actualBlock != targetBlock) {

@@ -1,6 +1,5 @@
 package com.github.aeddddd.ae2enhanced.network.packet;
 
-import com.github.aeddddd.ae2enhanced.AE2Enhanced;
 import com.github.aeddddd.ae2enhanced.container.ContainerOmniTerm;
 import com.github.aeddddd.ae2enhanced.storage.ItemDescriptor;
 import io.netty.buffer.ByteBuf;
@@ -13,7 +12,6 @@ import net.minecraftforge.fml.common.network.simpleimpl.IMessageHandler;
 import net.minecraftforge.fml.common.network.simpleimpl.MessageContext;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 
 /**

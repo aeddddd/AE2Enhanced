@@ -10,12 +10,9 @@ import java.util.Date;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * 单元自举重解轨迹文本转储（离线定位"重解不收敛"根因用）.
- * <p>种子自举重解超轮截断时，把单元键/库存/需求/样板表与逐轮轨迹(卡住集、
- * 可行水位、禁约束变化)写入 {@code <workdir>/lp-dumps/unit-*.txt};据此可离线
- * 区分棘轮微步(上界缓慢爬降)、级联深度(逐层压界)与校验假阴性(同水位反复
- * 卡住)三类根因.与 {@link LpModelDump} 同目录,IO 失败静默(求解路径不可因
- * 诊断写盘失败而崩).</p>
+ * 单元自举重解轨迹的文本转储. 种子自举重解超轮截断时, 把单元键、库存、需求、样板表与
+ * 逐轮轨迹写入 {@code <workdir>/lp-dumps/unit-*.txt}, 用于离线定位重解不收敛.
+ * 与 {@link LpModelDump} 同目录, IO 失败时静默返回 null.
  */
 public final class UnitTraceDump {
 
@@ -25,7 +22,7 @@ public final class UnitTraceDump {
     private UnitTraceDump() {
     }
 
-    /** 把轨迹文本写入 {@code <workdir>/lp-dumps/},返回文件;IO 失败静默返回 null. */
+    /** 把轨迹文本写入 {@code <workdir>/lp-dumps/}, 返回文件; IO 失败时静默返回 null. */
     public static File dump(String tag, CharSequence content) {
         try {
             File dir = new File("lp-dumps");

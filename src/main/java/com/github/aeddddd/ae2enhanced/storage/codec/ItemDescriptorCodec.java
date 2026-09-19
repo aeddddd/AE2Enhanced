@@ -1,6 +1,7 @@
 package com.github.aeddddd.ae2enhanced.storage.codec;
 
 import com.github.aeddddd.ae2enhanced.storage.ItemDescriptor;
+import com.github.aeddddd.ae2enhanced.storage.StorageConstants;
 import net.minecraft.item.Item;
 import net.minecraft.nbt.CompressedStreamTools;
 import net.minecraft.nbt.NBTTagCompound;
@@ -30,7 +31,8 @@ public class ItemDescriptorCodec implements DescriptorCodec<ItemDescriptor> {
         out.write(idBytes);
         out.writeShort(descriptor.getMeta());
 
-        NBTTagCompound nbt = descriptor.getNbt();
+        // getNbtRaw: 序列化只读遍历,不做防御性深拷贝(契约见 ItemDescriptor.getNbtRaw)
+        NBTTagCompound nbt = descriptor.getNbtRaw();
         if (nbt != null) {
             out.writeByte(1);
             CompressedStreamTools.write(nbt, out);
@@ -50,7 +52,9 @@ public class ItemDescriptorCodec implements DescriptorCodec<ItemDescriptor> {
         boolean hasNbt = in.readByte() != 0;
         NBTTagCompound nbt = null;
         if (hasNbt) {
-            nbt = CompressedStreamTools.read(in, new NBTSizeTracker(2097152L));
+            // 磁盘读取用 64MB 上限(原为网络同款 2MB,超限会锁死整个分区);
+            // 网络同步的 2MB 限制与此无关,超限物品仅终端显示降级
+            nbt = CompressedStreamTools.read(in, new NBTSizeTracker(StorageConstants.MAX_NBT_PAYLOAD_BYTES));
         }
 
         Item item = Item.REGISTRY.getObject(new ResourceLocation(id));

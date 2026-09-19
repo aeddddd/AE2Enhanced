@@ -56,7 +56,8 @@ public class ThermalExpansionMachineHandler implements IMemoryCardHandler {
         return className.startsWith("cofh.thermalexpansion.block.machine.")
                 || className.startsWith("cofh.thermalexpansion.block.dynamo.")
                 || className.startsWith("cofh.thermalexpansion.block.device.")
-                || className.startsWith("cofh.thermalexpansion.block.apparatus.");
+                || className.startsWith("cofh.thermalexpansion.block.apparatus.")
+                || className.startsWith("cofh.thermalexpansion.block.storage.");
     }
 
     @Override
@@ -401,13 +402,50 @@ public class ThermalExpansionMachineHandler implements IMemoryCardHandler {
         if (className.contains(".block.dynamo.")) return "dynamo";
         if (className.contains(".block.device.")) return "device";
         if (className.contains(".block.apparatus.")) return "apparatus";
+        if (className.contains(".block.storage.")) return "storage";
         return null;
+    }
+
+    // ===== 键分类声明(粘贴选项过滤用) =====
+
+    @Override
+    public java.util.Set<String> getUpgradeKeys() {
+        return new java.util.HashSet<>(java.util.Arrays.asList("Augments", "Level"));
+    }
+
+    @Override
+    public java.util.Set<String> getFacingKeys() {
+        return new java.util.HashSet<>(java.util.Arrays.asList("Facing"));
+    }
+
+    @Override
+    public java.util.Set<String> getSideKeys() {
+        return new java.util.HashSet<>(java.util.Arrays.asList("SideCache"));
+    }
+
+    @Override
+    public java.util.Set<String> getRedstoneKeys() {
+        return new java.util.HashSet<>(java.util.Arrays.asList("RSControl"));
     }
 
     @Override
     public String getDisplayName(Object target) {
         if (target instanceof TileEntity) {
-            return ((TileEntity) target).getBlockType().getLocalizedName();
+            TileEntity tile = (TileEntity) target;
+            // TE 是单方块多机型:方块级翻译键不存在(会得到原始 lang key),
+            // 必须用带真实 meta 的物品堆取名(meta = 机型变体)
+            try {
+                net.minecraft.block.Block block = tile.getBlockType();
+                int meta = tile.getWorld() != null
+                        ? block.getMetaFromState(tile.getWorld().getBlockState(tile.getPos()))
+                        : tile.getBlockMetadata();
+                net.minecraft.item.Item item = net.minecraft.item.Item.getItemFromBlock(block);
+                if (item != null) {
+                    return new ItemStack(item, 1, meta).getDisplayName();
+                }
+            } catch (Exception ignored) {
+            }
+            return tile.getBlockType().getLocalizedName();
         }
         return target.getClass().getSimpleName();
     }

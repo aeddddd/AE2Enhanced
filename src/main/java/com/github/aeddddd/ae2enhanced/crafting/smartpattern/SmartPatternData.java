@@ -69,21 +69,12 @@ public class SmartPatternData {
     }
 
     @Nonnull
-    public BitSet getConflictMask() {
-        return conflictMask;
-    }
-
-    @Nonnull
     public BitSet getDisabledMask() {
         return disabledMask;
     }
 
     public void setDisabledMask(@Nonnull BitSet disabledMask) {
         this.disabledMask = disabledMask;
-    }
-
-    public long getCreatedAt() {
-        return createdAt;
     }
 
     /**

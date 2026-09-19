@@ -26,9 +26,9 @@ import java.util.UUID;
  */
 public final class StorageCheck implements SystemCheck {
 
-    /** 与 HyperdimensionalStorageFile 文件头格式保持一致（Magic "AE2E" + version + flags + entryCount） */
+    /** 与 HyperdimensionalStorageFile 文件头格式保持一致（Magic "AE2E" + version; v2 头部含 checkpointRev） */
     private static final int HEADER_MAGIC = 0x41453245; // "AE2E"
-    private static final int HEADER_CURRENT_VERSION = 1;
+    private static final int HEADER_CURRENT_VERSION = 2;
     private static final int HEADER_BYTES = 16;
 
     private static final String KEY_PREFIX = "chat.ae2enhanced.check.storage.";

@@ -16,9 +16,8 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Redirect;
 
 /**
- * 拦截 GUI 切换包(PacketSwitchGuis).
- * 当玩家从合成界面点击返回按钮时,如果原终端是 Omni Terminal,
- * 则拦截返回标准无线终端的逻辑,改为打开 Omni Terminal.
+ * 拦截 GUI 切换包 PacketSwitchGuis: 玩家从合成界面点击返回且原终端是 Omni Terminal 时,
+ * 不再打开标准无线终端界面, 改为打开 Omni Terminal.
  */
 @Mixin(value = PacketSwitchGuis.class, remap = false)
 public class MixinPacketSwitchGuis {

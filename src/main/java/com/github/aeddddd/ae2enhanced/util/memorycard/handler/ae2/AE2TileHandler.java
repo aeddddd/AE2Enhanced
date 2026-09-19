@@ -77,6 +77,13 @@ public class AE2TileHandler implements IMemoryCardHandler {
         return PasteResult.SUCCESS;
     }
 
+    // ===== 键分类声明(粘贴选项过滤用,与本类 copy 产出的键同文件共处) =====
+
+    @Override
+    public java.util.Set<String> getUpgradeKeys() {
+        return new java.util.HashSet<>(java.util.Arrays.asList("ae2e:upgrades"));
+    }
+
     @Override
     public String getDisplayName(Object target) {
         if (target instanceof AEBaseTile) {

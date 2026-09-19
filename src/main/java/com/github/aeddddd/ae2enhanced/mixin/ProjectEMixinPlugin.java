@@ -7,9 +7,7 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * ProjectE 相关 Mixin 的条件加载插件。
- *
- * 当 ProjectE 不存在时整体跳过，避免类找不到导致崩溃。
+ * ProjectE 相关 Mixin 的条件加载插件. ProjectE 不存在时整体跳过, 避免类找不到导致崩溃.
  */
 public class ProjectEMixinPlugin implements IMixinConfigPlugin {
 

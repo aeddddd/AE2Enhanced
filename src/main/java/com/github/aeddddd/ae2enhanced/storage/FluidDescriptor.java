@@ -100,6 +100,14 @@ public class FluidDescriptor implements Descriptor {
         return nbt != null ? nbt.copy() : null;
     }
 
+    /**
+     * 仅供 codec 序列化使用的原始引用（不做防御性深拷贝）。
+     * 契约：调用方严禁修改返回值或长期持有。持久化层的 codec 只读遍历。
+     */
+    public NBTTagCompound getNbtRaw() {
+        return nbt;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;

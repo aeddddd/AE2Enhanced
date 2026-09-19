@@ -4,7 +4,6 @@ import appeng.api.AEApi;
 import appeng.api.storage.IStorageChannel;
 import appeng.api.storage.data.IAEStack;
 import com.github.aeddddd.ae2enhanced.integration.botaniaapplie.BotaniaApplieCompat;
-import com.github.aeddddd.ae2enhanced.integration.fluxapplied.FluxAppliedCompat;
 import com.github.aeddddd.ae2enhanced.storage.channel.ChannelRegistrationManager;
 import net.minecraft.server.MinecraftServer;
 import net.minecraftforge.fml.common.Loader;

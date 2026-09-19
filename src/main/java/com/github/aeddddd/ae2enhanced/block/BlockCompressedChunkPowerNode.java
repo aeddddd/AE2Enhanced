@@ -1,6 +1,5 @@
 package com.github.aeddddd.ae2enhanced.block;
 
-import com.github.aeddddd.ae2enhanced.AE2Enhanced;
 import com.github.aeddddd.ae2enhanced.tile.TileCompressedChunkPowerNode;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.tileentity.TileEntity;

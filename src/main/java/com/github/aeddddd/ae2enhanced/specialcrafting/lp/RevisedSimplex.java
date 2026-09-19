@@ -3,88 +3,141 @@ package com.github.aeddddd.ae2enhanced.specialcrafting.lp;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
 
 import javax.annotation.Nullable;
 
 /**
- * 有界变量两阶段修正单纯形（1.12.2 合成计划 LP 核心,自研无依赖）.
- * <p>求解标准形 {@code min c·x, A x = b, l ≤ x ≤ u}:</p>
- * <ul>
- * <li><b>Phase 1</b>:每行一个人工变量（列 ±e_i,符号随 b 规整）,最小化人工变量和;
- * 和 &gt; 容差 → {@link LpResult.Status#INFEASIBLE};</li>
- * <li><b>Phase 2</b>:人工变量固定为 0,优化原目标;</li>
- * <li><b>定价</b>:全量定价取候选 + 候选集精确最陡边（|d_j|/‖α‖,优于 DEVEX
- * 近似,成本有界）;停滞时降级 Bland 规则（最小指标进出,保证反循环终止）;
- * 候选主元 &lt; max(PIVOT_REL×max‖α‖, PIVOT_ABS) 时拒绝该候选重定价
- * （小主元换基会毒化 eta 链,导航数轮内即漂移失控）,预算耗尽兜底接受
- * 并立即重分解清毒;</li>
- * <li><b>比率测试</b>:Harris 两阶段——第一阶段用松弛余量求步长(slack 按界标定,
- * 已越界行余量地板为 0 促使其被逐出,步长恒 ≥ 0;微观 α 行仅在最大步长下
- * 位移仍不可感知时才跳过,否则隐形位移可推 xb 出界);第二阶段在精确比率
- * ≤ 松弛步长的行中优先取健康主元的 |α| 最大者换基;</li>
- * <li><b>基修补</b>:重分解遇基奇异(基列集近线性相关)时,以人工单位列替换
- * 病态基列恢复分解(小预算,防整体近相关时的连锁失败),残留人工变量由
- * 比率测试/可行性恢复逐出,出口残差(不含人工项)兜底;</li>
- * <li><b>可行性恢复</b>:对偶最优(pricing 无候选)但基变量越界超出口容差时,
- * 做有界对偶单纯形步(对偶比率 min |d_j/α_j| 选进列,保持对偶可行,
- * 把最差越界基变量推回界内)——pricing 最优性与原始可行性无关,
- * 缺少本机制时"对偶最优+原始不可行"的顶点只能误判 NUMERIC_FAILURE;</li>
- * <li><b>残差精化</b>:出口自检未过先做一轮 δ = B⁻¹(b − A·x) 迭代精化,
- * 清除 LU/eta 累积漂移;精化后仍超标才判 NUMERIC_FAILURE,
- * 杜绝"解本身可行但漂移误判"的假失败;</li>
- * <li><b>出口自检</b>:残差容差 {@value #FEAS_TOL}(相对行活动量级,硬约束);
- * 界容差 {@value #EXIT_BOUND_TOL}(相对被违例的界,覆盖 Harris 松弛留量与
- * 混合量级模型的 xb 漂移)——禁止静默错解,也禁止漂移误判.</li>
- * </ul>
- * 数值体系:零判定 {@value #ZERO_TOL};约束矩阵小整数良态,RHS 大数值不直接影响
- * 条件数,但 xb 分量的绝对漂移下限 ∝ ε·(行耦合的大数值),故界验收不使用绝对微容差。
+ * 有界变量两阶段修正单纯形, legacy LP 求解器, 无外部依赖.
+ * 求解 {@code min c·x, A x = b, l ≤ x ≤ u}: Phase 1 最小化人工变量和以求可行基,
+ * 和超容差判 {@link LpResult.Status#INFEASIBLE}, Phase 2 固定人工变量为 0 优化原目标.
+ * 数值策略: 最陡边定价停滞时降级 Bland, 主元过小拒绝重定价, 比率测试用 Harris 松弛,
+ * 基奇异时以人工单位列修补, 出口自检不过先做残差精化再复核.
+ * 仅当 {@code ae2e.lpSolver=legacy} 时使用, 默认求解器为 DualSimplex.
  */
 public final class RevisedSimplex {
 
     private static final double FEAS_TOL = 1e-7;
     private static final double OPT_TOL = 1e-9;
     private static final double ZERO_TOL = 1e-10;
-    /** 出口界容差·绝对项(相对被违例的界;≥ Harris 可行性松弛量级一个数量级). */
+    /** 出口界容差的绝对项, 相对被违例的界, 高于 Harris 可行性松弛量级一个数量级. */
     private static final double EXIT_BOUND_TOL = 1e-6;
-    /** 出口界容差·量级项(相对 max|xb|;双精度下 xb 分量的绝对漂移下限
-     * ∝ ε·κ·(耦合的大数值),混合量级模型的导航漂移只能按此口径验收——
-     * 与残差检查的"相对行活动量级"哲学一致;真实结构性越界(O(0.01+))仍必被捕获). */
+    /** 出口界容差的量级项, 相对 max|xb|, 混合量级模型下 xb 漂移按此口径验收. */
     private static final double EXIT_SCALE_TOL = 1e-12;
-    /** 迭代硬上限(防御;Bland 规则下理论有限终止). */
+    /** 迭代硬上限, 防御用; Bland 规则下理论有限终止. */
     private static final int MAX_ITER = 200_000;
-    /** 连续退化(零步长)迭代阈值,超限切换 Bland 规则直至出现非零步长. */
+    /** 连续零步长迭代阈值, 超限切换 Bland 规则直至出现非零步长. */
     private static final int STALL_LIMIT = 500;
-    /** 最陡边候选集大小(全量定价后按 |d_j| 取前 K 个计算精确最陡边). */
+    /** 最陡边候选集大小, 全量定价后按 |d_j| 取前 K 个再算精确最陡边. */
     private static final int EDGE_CANDIDATES = 32;
-    /** 主元健康阈值·相对项(相对 max|α|;低于则拒绝该进入候选——小主元换基会毒化 eta 链). */
+    /** 主元健康阈值的相对项, 相对 max|α|, 低于则拒绝该进入候选. */
     private static final double PIVOT_REL = 1e-6;
-    /** 主元健康阈值·绝对项(eta 主元模 p 的误差放大率 ≈ 1/p,p < 1e-3 时单 eta
-     * 噪声即可达 2e-7/p ≈ 1e-3 量级(大尺度模型),必须拒绝或立即重分解). */
+    /** 主元健康阈值的绝对项; eta 主元的误差放大率约为 1/p, 过小必须拒绝或重分解. */
     private static final double PIVOT_ABS = 1e-3;
-    /** 换基后立即重分解的主元阈值·相对项(相对 max|α|). */
+    /** 换基后立即重分解的主元阈值, 相对项, 相对 max|α|. */
     private static final double IMMEDIATE_REFACTOR_REL = 1e-4;
-    /** 换基后立即重分解的主元阈值·绝对项(介于健康阈与常规主元之间,小主元 eta
-     * 不留给后续迭代,把毒化限制在当轮). */
+    /** 换基后立即重分解的主元阈值, 绝对项, 介于健康阈与常规主元之间. */
     private static final double IMMEDIATE_REFACTOR_ABS = 1e-2;
-    /** 单迭代进入候选拒绝预算(超限接受非健康主元兜底). */
+    /** 单迭代进入候选拒绝预算, 超限接受非健康主元兜底. */
     private static final int MAX_REJECT = 8;
 
     private RevisedSimplex() {
     }
 
     /**
-     * 求解 LP.纯函数(内部状态一次性),线程安全.
-     * <p>求解链(四层兜底):</p>
-     * <ol>
-     * <li><b>行列均衡</b>:R·A·C 两轮 Ruiz 均衡,因子取 2 的幂(2 的幂乘法
-     * 在双精度下无舍入,不引入新误差)——1:1000 级比率展布在进求解器前削平,
-     * 显著降低小主元/基奇异/可行性恢复的触发率(工业求解器的第一道防线);</li>
-     * <li>缩放模型默认轨迹求解 → 反缩放 + <b>原模型口径校验</b>(残差/界);</li>
-     * <li>缩放模型全程 Bland 轨迹(完全不同主元序列,绕开病态角点);</li>
-     * <li>未缩放原模型双轨迹兜底——任何返回的 OPTIMAL 都通过原模型校验.</li>
-     * </ol>
+     * 求解 LP, 纯函数, 内部状态一次性, 线程安全.
+     * <p>求解链: 先对模型做两轮 Ruiz 行列均衡, 因子取 2 的幂使双精度下无舍入,
+     * 默认轨迹求解后反缩放并按原模型口径校验; 未通过则依次回退缩放 Bland 轨迹,
+     * 未缩放默认轨迹, 未缩放 Bland 轨迹. 任何返回的 OPTIMAL 都通过原模型校验.</p>
      */
+    /** 数值失败兜底重启次数, 微扰与列置换交替. */
+    private static final int PERTURB_RESTARTS = Integer.getInteger("ae2e.perturbRestarts", 6);
+
     public static LpResult solve(LpModel model) {
+        LpResult r = solveChainOnce(model);
+        if (r.status != LpResult.Status.NUMERIC_FAILURE) {
+            return r;
+        }
+        // 数值失败兜底: 交替施加 b 微扰与列置换, 打散退化顶点后换轨迹重试.
+        // 微扰量级 1e-9 相对, 远小于出口容差 1e-7; 解须按原模型口径校验.
+        for (int restart = 1; restart <= PERTURB_RESTARTS; restart++) {
+            LpModel perturbed = (restart & 1) == 1 ? perturbB(model, restart) : permuteColumns(model, restart);
+            LpResult pr = solveChainOnce(perturbed);
+            if (pr.status != LpResult.Status.OPTIMAL) {
+                continue;
+            }
+            // 校验解对原模型口径; 列置换后 pr.x 需先还原列序
+            double[] originalX = pr.x;
+            if ((restart & 1) == 0) {
+                originalX = unpermuteX(model, pr.x, restart);
+            }
+            if (feasibleOnOriginal(model, originalX)) {
+                return LpResult.optimal(originalX, computeObjective(model, originalX), pr.iterations);
+            }
+        }
+        return r;
+    }
+
+    /** 确定性列置换, 按 restart 播种的 Fisher-Yates, 改变主元进入顺序以换轨迹. */
+    private static int[] columnPermutation(int n, int restart) {
+        int[] perm = new int[n];
+        for (int j = 0; j < n; j++) {
+            perm[j] = j;
+        }
+        java.util.Random rng = new java.util.Random(restart * 0x9E3779B97F4A7C15L);
+        for (int j = n - 1; j > 0; j--) {
+            int k = rng.nextInt(j + 1);
+            int tmp = perm[j];
+            perm[j] = perm[k];
+            perm[k] = tmp;
+        }
+        return perm;
+    }
+
+    /** 列置换模型: 新模型第 j 列取原模型第 perm[j] 列. */
+    private static LpModel permuteColumns(LpModel model, int restart) {
+        int n = model.a.cols;
+        int[] perm = columnPermutation(n, restart);
+        List<Map<Integer, Double>> columns = new ArrayList<>(n);
+        double[] cost = new double[n];
+        double[] lower = new double[n];
+        double[] upper = new double[n];
+        for (int j = 0; j < n; j++) {
+            int src = perm[j];
+            Map<Integer, Double> col = new TreeMap<>();
+            for (int p = model.a.colPtr[src]; p < model.a.colPtr[src + 1]; p++) {
+                col.put(model.a.rowIdx[p], model.a.values[p]);
+            }
+            columns.add(col);
+            cost[j] = model.cost[src];
+            lower[j] = model.lower[src];
+            upper[j] = model.upper[src];
+        }
+        return new LpModel(SparseMatrix.fromColumns(model.a.rows, columns), model.b, cost, lower, upper);
+    }
+
+    /** 列置换模型的解向量还原为原模型列序, 确定性重算同一置换. */
+    private static double[] unpermuteX(LpModel original, double[] px, int restart) {
+        int[] perm = columnPermutation(original.a.cols, restart);
+        double[] x = new double[original.a.cols];
+        for (int j = 0; j < px.length; j++) {
+            x[perm[j]] = px[j];
+        }
+        return x;
+    }
+
+    /** 按原模型目标系数重算目标值. */
+    private static double computeObjective(LpModel model, double[] x) {
+        double obj = 0;
+        for (int j = 0; j < model.a.cols; j++) {
+            obj += model.cost[j] * x[j];
+        }
+        return obj;
+    }
+
+    /** 单趟求解链: 缩放默认轨迹, 缩放 Bland 轨迹, 未缩放双轨迹. */
+    private static LpResult solveChainOnce(LpModel model) {
         ScaledModel sm = scale(model);
         LpResult r = solveInternal(sm.model, false);
         if (r.status == LpResult.Status.OPTIMAL) {
@@ -101,9 +154,9 @@ public final class RevisedSimplex {
                 }
             }
         } else {
-            return r; // INFEASIBLE/ITERATION_LIMIT:精确缩放不改变可行性本质,原样返回
+            return r; // INFEASIBLE/ITERATION_LIMIT: 缩放不改变可行性本质, 原样返回
         }
-        // 缩放路径未收敛或反缩放校验未过:未缩放原模型兜底(两档轨迹)
+        // 缩放路径未收敛或反缩放校验未过: 未缩放原模型兜底, 两档轨迹
         LpResult orig = solveInternal(model, false);
         if (orig.status == LpResult.Status.OPTIMAL
                 || orig.status != LpResult.Status.NUMERIC_FAILURE) {
@@ -113,7 +166,63 @@ public final class RevisedSimplex {
         return origBland.status == LpResult.Status.OPTIMAL ? origBland : orig;
     }
 
-    /** 缩放后的模型与反缩放信息:x = C·x′(C = diag(colScale)). */
+    /** b 的确定性微扰, 按 restart 播种; 非零行按 1e-9 相对扰动, 零行不动. */
+    private static LpModel perturbB(LpModel model, int restart) {
+        double[] b = model.b.clone();
+        for (int i = 0; i < b.length; i++) {
+            if (b[i] == 0.0) {
+                continue;
+            }
+            // 确定性伪随机, 由行号与 restart 哈希播种, 幅度 ±1e-9×|b_i|
+            long h = (long) (i + 1) * 0x9E3779B97F4A7C15L * restart;
+            h ^= h >>> 33;
+            h *= 0xFF51AFD7ED558CCDL;
+            h ^= h >>> 33;
+            double noise = ((double) (h >>> 11) / (double) (1L << 53)) * 2.0 - 1.0;
+            b[i] = b[i] * (1.0 + 1e-9 * noise) + Math.signum(b[i]) * 1e-9;
+        }
+        return new LpModel(model.a, b, model.cost, model.lower, model.upper);
+    }
+
+    /** 微扰解在原模型口径下的界与残差复核, 与 {@link #unscaleAndVerify} 同容差. */
+    private static boolean feasibleOnOriginal(LpModel src, double[] x) {
+        int n = src.a.cols;
+        int m = src.a.rows;
+        double scaleTol = EXIT_SCALE_TOL * maxAbs(x);
+        for (int j = 0; j < n; j++) {
+            double lb = src.lower[j];
+            double ub = src.upper[j];
+            if (lb > -LpModel.INF / 2
+                    && x[j] < lb - EXIT_BOUND_TOL * (1 + Math.abs(lb)) - scaleTol) {
+                return false;
+            }
+            if (ub < LpModel.INF / 2
+                    && x[j] > ub + EXIT_BOUND_TOL * (1 + Math.abs(ub)) + scaleTol) {
+                return false;
+            }
+        }
+        double[] residual = new double[m];
+        double[] activity = new double[m];
+        for (int j = 0; j < n; j++) {
+            if (x[j] == 0) {
+                continue;
+            }
+            for (int p = src.a.colPtr[j]; p < src.a.colPtr[j + 1]; p++) {
+                double term = src.a.values[p] * x[j];
+                residual[src.a.rowIdx[p]] += term;
+                activity[src.a.rowIdx[p]] += Math.abs(term);
+            }
+        }
+        for (int i = 0; i < m; i++) {
+            double res = residual[i] - src.b[i];
+            if (Math.abs(res) > FEAS_TOL * (1 + Math.abs(src.b[i]) + activity[i])) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** 缩放后的模型与反缩放信息: x = C·x', C = diag(colScale). */
     private static final class ScaledModel {
         final LpModel model;
         final double[] colScale;
@@ -127,10 +236,9 @@ public final class RevisedSimplex {
     private static final double LN2 = 0.6931471805599453;
 
     /**
-     * 两轮 Ruiz 行列均衡:R·A·C,行/列 max|系数| 轮流压到 ≈1.
-     * <p>因子一律取 2 的幂——2 的幂乘法在双精度下<b>无舍入</b>,缩放与反缩放
-     * 全程精确,不向模型引入任何新误差;可行性/最优性与原模型严格等价.
-     * 无限界(±INF)原样保留不缩放.</p>
+     * 两轮 Ruiz 行列均衡, 即 R·A·C, 行与列的 max|系数| 轮流压到约 1.
+     * 因子一律取 2 的幂, 2 的幂乘法在双精度下无舍入, 缩放与反缩放全程精确;
+     * 无限界原样保留不缩放.
      */
     private static ScaledModel scale(LpModel src) {
         SparseMatrix a = src.a;
@@ -142,7 +250,7 @@ public final class RevisedSimplex {
         Arrays.fill(rowScale, 1);
         Arrays.fill(colScale, 1);
         for (int round = 0; round < 2; round++) {
-            // 行均衡:每行 max|a_ij| → 2 的幂因子
+            // 行均衡: 每行 max|a_ij| 压到约 1, 因子取 2 的幂
             double[] rowMax = new double[m];
             for (int p = 0; p < values.length; p++) {
                 rowMax[a.rowIdx[p]] = Math.max(rowMax[a.rowIdx[p]], Math.abs(values[p]));
@@ -157,7 +265,7 @@ public final class RevisedSimplex {
                     values[p] *= rowF[a.rowIdx[p]];
                 }
             }
-            // 列均衡:每列 max|a_ij| → 2 的幂因子
+            // 列均衡: 每列 max|a_ij| 压到约 1, 因子取 2 的幂
             for (int j = 0; j < n; j++) {
                 double colMax = 0;
                 for (int p = a.colPtr[j]; p < a.colPtr[j + 1]; p++) {
@@ -172,7 +280,7 @@ public final class RevisedSimplex {
                 }
             }
         }
-        // b′ = R·b,c′ = C·c,l′ = l/C,u′ = u/C(x = C·x′;无限界原样保留)
+        // b' = R·b, c' = C·c, l' = l/C, u' = u/C, 由 x = C·x' 得出; 无限界原样保留
         double[] b = new double[m];
         for (int i = 0; i < m; i++) {
             b[i] = src.b[i] * rowScale[i];
@@ -193,7 +301,7 @@ public final class RevisedSimplex {
                 colScale);
     }
 
-    /** 使 max 缩放到 ≈1 的 2 的幂因子(0/空行/空列不缩放). */
+    /** 使 max 缩放到约 1 的 2 的幂因子, 0 或空行空列不缩放. */
     private static double pow2Factor(double max) {
         if (!(max > 0)) {
             return 1;
@@ -206,10 +314,8 @@ public final class RevisedSimplex {
     }
 
     /**
-     * 反缩放(x = C·x′)并用<b>原模型</b>口径校验界与残差(与出口自检同容差).
-     *
-     * @return 校验通过的 OPTIMAL 结果(目标值按原模型重算);不通过返回 null,
-     *         由调用方回退未缩放路径
+     * 反缩放, x = C·x', 并用原模型口径校验界与残差, 容差与出口自检相同.
+     * 校验通过返回 OPTIMAL 结果, 目标值按原模型重算; 不通过返回 null, 由调用方回退未缩放路径.
      */
     @Nullable
     private static LpResult unscaleAndVerify(LpResult r, ScaledModel sm, LpModel src) {
@@ -260,14 +366,14 @@ public final class RevisedSimplex {
     /**
      * 求解主体.
      *
-     * @param forceBland true = 全程 Bland 规则(反循环保证,速度慢但轨迹稳健),
+     * @param forceBland true 表示全程 Bland 规则, 反循环保证, 速度慢但轨迹稳健,
      *                   供 NUMERIC_FAILURE 后的重试使用
      */
     private static LpResult solveInternal(LpModel model, boolean forceBland) {
         int m = model.a.rows;
         int n = model.a.cols;
         if (m == 0) {
-            // 无约束:变量取目标最优侧界
+            // 无约束: 变量取目标最优侧界
             double[] x = new double[n];
             double obj = 0;
             for (int j = 0; j < n; j++) {
@@ -276,13 +382,13 @@ public final class RevisedSimplex {
             }
             return LpResult.optimal(x, obj, 0);
         }
-        // 变量布局:0..n-1 结构列,n..n+m-1 人工列(e_i)
+        // 变量布局: 0..n-1 为结构列, n..n+m-1 为人工列 e_i
         int total = n + m;
         double[] lower = Arrays.copyOf(model.lower, total);
         double[] upper = Arrays.copyOf(model.upper, total);
         double[] costPhase1 = new double[total];
         double[] costPhase2 = Arrays.copyOf(model.cost, total);
-        // b 符号规整:不改行,人工变量列取 sign(b_i)·e_i,使初基解 = |b| 可行
+        // b 符号规整: 不改行, 人工列取 sign(b_i)·e_i, 使初基解为 |b| 可行
         double[] b = model.b.clone();
         double[] artSign = new double[m];
         for (int i = 0; i < m; i++) {
@@ -294,7 +400,7 @@ public final class RevisedSimplex {
 
         // 基状态
         int[] basic = new int[m]; // 位置 → 变量
-        int[] where = new int[total]; // 变量 → 位置(-1 = 非基)
+        int[] where = new int[total]; // 变量 → 位置, -1 表示非基
         Arrays.fill(where, -1);
         for (int i = 0; i < m; i++) {
             basic[i] = n + i;
@@ -302,7 +408,7 @@ public final class RevisedSimplex {
         }
         double[] x = new double[total];
         for (int j = 0; j < n; j++) {
-            // 初值:有限下界取下界,否则有限上界取上界,双侧无限取 0
+            // 初值: 有限下界取下界, 否则有限上界取上界, 双侧无限取 0
             if (lower[j] > -LpModel.INF / 2) {
                 x[j] = lower[j];
             } else if (upper[j] < LpModel.INF / 2) {
@@ -316,29 +422,28 @@ public final class RevisedSimplex {
         int iterations = 0;
         int stall = 0;
         boolean bland = forceBland;
-        /** 基修补预算(单位列替换病态基列的次数上限).
-         * 取小值:修补只能救"偶发单列病态";基列集整体近相关时修补必然
-         * 连锁失败(死亡螺旋),小预算快速 bail,交由 Bland 重试换轨迹. */
-        int[] repairBudget = { 8 };
-        /** 可行性恢复预算(对偶单纯形步数上限,防恢复死循环). */
-        int[] restoreBudget = { 4 * m };
-        /** 诊断:phase1 出口人工变量残留和(出口失败时写入 reason 供日志定位). */
+        /** 基修补预算, 单位列替换病态基列的次数上限. 修补只能救偶发单列病态,
+         * 基列集整体近相关时应快速失败, 交给上层换轨迹重试. */
+        int[] repairBudget = { Integer.getInteger("ae2e.repairBudget", 8) };
+        /** 可行性恢复预算, 对偶单纯形步数上限, 防恢复死循环. */
+        int[] restoreBudget = { Integer.getInteger("ae2e.restoreBudget", 4 * m) };
+        /** 诊断: phase1 出口人工变量残留和, 失败时写入 reason 供日志定位. */
         double phase1Residue = Double.NaN;
-        /** 诊断:phase1→2 钳制后基变量最大越界量(顶点跳变幅度证据). */
+        /** 诊断: phase1 到 phase2 钳制后基变量最大越界量. */
         double transitionMaxViol = 0;
 
         try {
             refactor(basis, model, artSign, basic, where, x, lower, upper, n, m, repairBudget);
             while (true) {
-                // 原始解:x_B = B⁻¹(b − A_N·x_N)——有界单纯形必须扣除非基变量
-                // 坐在非零界(上界/非零下界)上的列贡献,否则界翻转后 RHS 即错
+                // 原始解: x_B = B⁻¹(b − A_N·x_N), 必须扣除非基变量坐在非零界上的
+                // 列贡献, 否则界翻转后 RHS 即错
                 double[] xb = computeBasicRhs(model, artSign, where, x, b, n, total, m);
                 basis.ftran(xb);
                 for (int i = 0; i < m; i++) {
                     x[basic[i]] = xb[i];
                 }
                 if (!phase1 && !Double.isNaN(phase1Residue) && transitionMaxViol == 0) {
-                    // 相变后首个顶点:量测钳制导致的基变量最大越界(诊断)
+                    // 相变后首个顶点: 量测钳制导致的基变量最大越界, 诊断用
                     for (int i = 0; i < m; i++) {
                         double lo = lower[basic[i]];
                         double up = upper[basic[i]];
@@ -350,20 +455,18 @@ public final class RevisedSimplex {
                         }
                     }
                 }
-                // 对偶:y = c_B·B⁻¹
+                // 对偶: y = c_B·B⁻¹
                 double[] y = new double[m];
                 for (int i = 0; i < m; i++) {
                     y[i] = (phase1 ? costPhase1 : costPhase2)[basic[i]];
                 }
                 basis.btran(y);
-                // 进入变量选择(定价 → 候选比率测试 → 主元健康检查):
-                // 主元 < PIVOT_REL×max|α| 的候选被拒绝——小主元换基会毒化 eta 链,
-                // 导航数轮内即漂移失控(实测 |α_p|~1e-7 换基后 5 轮内顶点漂移 >1);
-                // 拒绝后重新定价取次优候选;拒绝预算耗尽/Bland 模式/全集重定价时
-                // 接受非健康主元兜底,兜底换基后立即重分解清毒
+                // 进入变量选择分定价, 候选比率测试与主元健康检查: 主元过小的候选被
+                // 拒绝并重定价, 因为小主元换基会放大 eta 链误差; 预算耗尽, Bland
+                // 模式或全集重定价时接受非健康主元兜底, 兜底换基后立即重分解
                 double[] cost = phase1 ? costPhase1 : costPhase2;
                 int entering = -1;
-                int enterDir = 0; // +1 从下界升,-1 从上界降
+                int enterDir = 0; // +1 从下界升, -1 从上界降
                 double[] alpha = null;
                 double theta = 0;
                 double thetaMaxA = 0;
@@ -375,19 +478,19 @@ public final class RevisedSimplex {
                 int rejectedCount = 0;
                 boolean forced = false;
                 while (true) {
-                    // 定价:非基变量约简成本(跳过已被拒绝的候选)
+                    // 定价: 非基变量约简成本, 跳过已拒绝的候选
                     int cand = -1;
                     int candDir = 0;
                     if (!bland) {
-                        // 候选集精确最陡边:先按 |d_j| 取前 K 个
+                        // 候选集精确最陡边: 先按 |d_j| 取前 K 个
                         int[] candSet = new int[EDGE_CANDIDATES];
                         int[] candSetDir = new int[EDGE_CANDIDATES];
                         double[] candAbs = new double[EDGE_CANDIDATES];
                         int candCount = 0;
                         for (int j = 0; j < total; j++) {
                             if (where[j] >= 0 || j >= n || (rejected != null && rejected[j])) {
-                                continue; // 人工变量离基后永不许再进基(phase1 上界 INF,
-                                // 无阻挡时会"界翻转到 INF"导致 RHS 爆炸——标准为不可进)
+                                continue; // 人工变量离基后禁止再进基,
+                                // 其上界为 INF, 再进基会使 RHS 爆炸
                             }
                             double dj = reducedCost(model, artSign, cost, y, j, n);
                             int dir = directionOf(dj, x[j], lower[j], upper[j]);
@@ -414,7 +517,7 @@ public final class RevisedSimplex {
                                 }
                             }
                         }
-                        // 候选集上精确最陡边
+                        // 候选集上计算精确最陡边
                         double bestEdge = 0;
                         for (int q = 0; q < candCount; q++) {
                             double[] edgeAlpha = columnOf(model, artSign, candSet[q], n);
@@ -431,7 +534,7 @@ public final class RevisedSimplex {
                             }
                         }
                     } else {
-                        // Bland 规则:最小指标的可进变量(人工变量同样禁止再进基)
+                        // Bland 规则: 最小指标的可进变量, 人工变量同样禁止再进基
                         for (int j = 0; j < total; j++) {
                             if (where[j] >= 0 || j >= n || (rejected != null && rejected[j])) {
                                 continue;
@@ -447,14 +550,14 @@ public final class RevisedSimplex {
                     }
                     if (cand < 0) {
                         if (rejectedCount > 0) {
-                            // 剩余候选均被拒绝过:清空拒绝集强制重定价,
-                            // 本次接受任意主元(保证最优性判定不漏候选)
+                            // 剩余候选均被拒绝过: 清空拒绝集强制重定价,
+                            // 本次接受任意主元, 保证最优性判定不漏候选
                             rejected = null;
                             rejectedCount = 0;
                             forced = true;
                             continue;
                         }
-                        break; // entering = -1:最优性达成
+                        break; // entering = -1, 最优性达成
                     }
                     // 候选进入列 α = B⁻¹A_j
                     double[] candAlpha = columnOf(model, artSign, cand, n);
@@ -463,10 +566,10 @@ public final class RevisedSimplex {
                     for (double v : candAlpha) {
                         candMaxAbs = Math.max(candMaxAbs, Math.abs(v));
                     }
-                    // Harris 阶段一:松弛余量求步长(slack 按界标定,不随 xb 放大;
-                    // 已越界行余量地板为 0,零比率阻挡促使逐出钳回,步长恒 ≥ 0);
-                    // 微观 α 行仅在最大步长下位移仍不可感知时才允许跳过——
-                    // 否则 theta×α 的"隐形"位移可将 xb 推出界外而不受保护
+                    // Harris 阶段一: 按松弛余量求步长. slack 按界标定, 不随 xb 放大;
+                    // 已越界行余量地板为 0, 零比率阻挡促使该行被逐出钳回, 步长恒非负.
+                    // 微观 α 行仅在最大步长下位移仍不可感知时才跳过, 否则 theta×α 的
+                    // 隐形位移会把 xb 推出界外
                     double candThetaMax = upper[cand] - lower[cand];
                     double[] roomArr = new double[m];
                     double[] moveArr = new double[m];
@@ -476,7 +579,7 @@ public final class RevisedSimplex {
                         if (a == 0) {
                             continue;
                         }
-                        double move = candDir * a; // >0:x_B_i 降;<0:升
+                        double move = candDir * a; // 大于 0 时 x_B_i 降, 小于 0 时升
                         double room;
                         double boundAbs;
                         if (move > 0) {
@@ -496,12 +599,12 @@ public final class RevisedSimplex {
                         }
                         if (Math.abs(a) < ZERO_TOL
                                 && Math.abs(a) * candThetaMax < FEAS_TOL * (1 + boundAbs)) {
-                            continue; // 微观 α:位移不可感知,跳过安全
+                            continue; // 微观 α, 位移不可感知, 跳过安全
                         }
                         roomArr[i] = room;
                         moveArr[i] = move;
-                        // 可行性松弛:按界标定(1e-7 量级),容差内越界按可接受计;
-                        // 已越界行余量地板为 0——零比率阻挡,下一步即被逐出钳回界上
+                        // 可行性松弛按界标定; 已越界行余量地板为 0, 形成零比率阻挡,
+                        // 下一步即被逐出钳回界上
                         double slack = FEAS_TOL * (1 + boundAbs);
                         double roomEff = room > 0 ? room : 0;
                         double relaxed = (roomEff + slack) / Math.abs(move);
@@ -513,8 +616,8 @@ public final class RevisedSimplex {
                         return LpResult.failure(LpResult.Status.NUMERIC_FAILURE, iterations,
                                 "比率测试步长 NaN(基或 RHS 受污染)");
                     }
-                    // 阶段二:精确比率 ≤ 松弛步长的行中,优先取满足主元健康阈的
-                    // |α| 最大者;无健康行时取最大者但标记非健康(交由拒绝/兜底决策)
+                    // 阶段二: 在精确比率不超过松弛步长的行中, 优先取满足主元健康阈
+                    // 的 |α| 最大者; 无健康行时取 |α| 最大者并标记非健康, 交由拒绝与兜底决策
                     int candLeaving = -1;
                     boolean candLeaveAtLower = false;
                     boolean candHealthy = true;
@@ -544,7 +647,7 @@ public final class RevisedSimplex {
                             }
                         }
                         if (anyPos < 0) {
-                            // 理论不可达(松弛最小行的精确比率必 ≤ theta);防御显式失败
+                            // 理论不可达, 松弛最小行的精确比率必不超过 theta, 防御性显式失败
                             return LpResult.failure(LpResult.Status.NUMERIC_FAILURE, iterations,
                                     "比率测试无换基候选 theta=" + candTheta);
                         }
@@ -562,7 +665,7 @@ public final class RevisedSimplex {
                         leaveAtLower = candLeaveAtLower;
                         break;
                     }
-                    // 主元非健康:拒绝该候选,重定价取次优
+                    // 主元非健康: 拒绝该候选, 重定价取次优
                     if (rejected == null) {
                         rejected = new boolean[total];
                     }
@@ -583,7 +686,7 @@ public final class RevisedSimplex {
                             return LpResult.failure(LpResult.Status.INFEASIBLE, iterations,
                                     "phase1 人工变量和=" + infeasibility);
                         }
-                        // 进入 Phase 2:人工变量固定为 0(基内残值容差内钳到 0)
+                        // 进入 Phase 2: 人工变量固定为 0, 基内残值在容差内钳到 0
                         phase1 = false;
                         phase1Residue = infeasibility;
                         for (int i = 0; i < m; i++) {
@@ -595,9 +698,8 @@ public final class RevisedSimplex {
                         }
                         continue;
                     }
-                    // 出口抛光:重分解清 eta 链尾段漂移 → 全量重算 xb——
-                    // 可行性恢复判定与自检都必须基于新鲜值(漂移假越界会触发
-                    // 无效恢复,而恢复在"实际可行的顶点"上必然报"无合格进列")
+                    // 出口抛光: 重分解清掉 eta 链尾段漂移, 全量重算 xb. 可行性恢复
+                    // 判定与自检必须基于新鲜值, 否则漂移造成的假越界会触发无效恢复
                     refactor(basis, model, artSign, basic, where, x, lower, upper, n, m,
                             repairBudget);
                     double[] xbPolished = computeBasicRhs(model, artSign, where, x, b, n, total, m);
@@ -605,11 +707,10 @@ public final class RevisedSimplex {
                     for (int i = 0; i < m; i++) {
                         x[basic[i]] = xbPolished[i];
                     }
-                    // 对偶最优但原始可能越界(Harris 松弛/修补/小主元漂移均可留下
-                    // 越界基变量;比率测试只挡"会被进一步推动的行", pricing 判定
-                    // 最优与原始可行性无关)——先查原始可行性,越界超阈时做一步
-                    // 对偶单纯形(对偶比率测试选进列,保持对偶可行,把最差越界
-                    // 基变量推回界内)再继续迭代;预算耗尽或无合格进列才诚实失败
+                    // pricing 最优不保证原始可行: Harris 松弛, 基修补与小主元漂移都会
+                    // 留下越界基变量. 先查原始可行性, 越界超阈时做一步有界对偶单纯形,
+                    // 用对偶比率测试选进列以保持对偶可行, 把最差越界基变量推回界内;
+                    // 预算耗尽或无合格进列才判 NUMERIC_FAILURE
                     int worstPos = -1;
                     double worstViol = 0;
                     boolean worstAtLower = false;
@@ -617,9 +718,8 @@ public final class RevisedSimplex {
                     for (int i = 0; i < m; i++) {
                         double lb = lower[basic[i]];
                         double ub = upper[basic[i]];
-                        // 触发口径与出口自检一致(绝对项 + 量级项):容差内的
-                        // 微越界属于双精度正常噪声,不进入恢复(否则恢复步在
-                        // 噪声粒度上永动机式空转)
+                        // 触发口径与出口自检一致, 即绝对项加量级项: 容差内的微越界
+                        // 属双精度正常噪声, 不进入恢复, 否则恢复会在噪声粒度上空转
                         if (lb > -LpModel.INF / 2) {
                             double v = lb - xbPolished[i];
                             if (v > EXIT_BOUND_TOL * (1 + Math.abs(lb)) + restoreScaleTol
@@ -646,13 +746,13 @@ public final class RevisedSimplex {
                                             + ")");
                         }
                         restoreBudget[0]--;
-                        // 对偶在抛光基上重算(eta 链尾段漂移的 y 会误导对偶比率)
+                        // 对偶在抛光基上重算, eta 链尾段漂移的 y 会误导对偶比率
                         for (int i = 0; i < m; i++) {
                             y[i] = cost[basic[i]];
                         }
                         basis.btran(y);
-                        // 对偶比率测试:r = B⁻ᵀe_p( tableau 行),在保持对偶可行
-                        // (min |d_j/α_j|)且能把 xb[p] 推向界内的非基列中选进列
+                        // 对偶比率测试: r = B⁻ᵀe_p 即 tableau 行, 在保持对偶可行且能
+                        // 把 xb[p] 推向界内的非基列中选进列, 取最小的 |d_j/α_j|
                         double[] r = new double[m];
                         r[worstPos] = 1;
                         basis.btran(r);
@@ -665,8 +765,8 @@ public final class RevisedSimplex {
                             }
                             double aj = model.a.dotColumn(j, r);
                             int dirJ;
-                            // xb[p] 对 x_j 的偏导是 −α_j(x_B = B⁻¹(b − A_N·x_N)):
-                            // xb[p] 需增大 ⟺ j 升(dirJ=+1)且 α_j<0,或 j 降且 α_j>0
+                            // xb[p] 对 x_j 的偏导是 −α_j, 来自 x_B = B⁻¹(b − A_N·x_N):
+                            // xb[p] 需增大时, j 升且 α_j<0, 或 j 降且 α_j>0
                             if (worstAtLower) {
                                 if (x[j] < upper[j] - ZERO_TOL && aj < -ZERO_TOL) {
                                     dirJ = 1;
@@ -709,10 +809,10 @@ public final class RevisedSimplex {
                                 : xbPolished[worstPos] - upper[oldVar];
                         double thetaR = need / Math.abs(alphaP);
                         if (upper[enterJ] - lower[enterJ] <= thetaR) {
-                            // 进列先撞对侧界:界翻转,xb[p] 部分恢复,下轮继续
+                            // 进列先撞对侧界: 界翻转, xb[p] 部分恢复, 下轮继续
                             x[enterJ] = enterDirR > 0 ? upper[enterJ] : lower[enterJ];
                         } else {
-                            // 换基:进列替换 worstPos,旧基变量坐到被违例的界上
+                            // 换基: 进列替换 worstPos, 旧基变量坐到被违例的界上
                             x[enterJ] = enterDirR > 0 ? lower[enterJ] + thetaR
                                     : upper[enterJ] - thetaR;
                             x[oldVar] = worstAtLower ? lower[oldVar] : upper[oldVar];
@@ -738,7 +838,7 @@ public final class RevisedSimplex {
                             where[oldVar] = -1;
                             basic[worstPos] = enterJ;
                             where[enterJ] = worstPos;
-                            // 小主元 eta 毒化控制:与主循环同口径立即重分解
+                            // 小主元立即重分解, 与主循环同口径
                             if (Math.abs(alphaP) < Math.max(IMMEDIATE_REFACTOR_REL * maxAbsR,
                                     IMMEDIATE_REFACTOR_ABS)
                                     || basis.etaCount() > Basis.MAX_ETA) {
@@ -749,8 +849,8 @@ public final class RevisedSimplex {
                         iterations++;
                         continue;
                     }
-                    // 出口自检(基于上方抛光后的新鲜 xb);
-                    // 自检未过先做一轮残差精化再复核——精化后仍超标才是真实失败
+                    // 出口自检基于上方抛光后的新鲜 xb; 未过先做一轮残差精化再复核,
+                    // 精化后仍超标才是真实失败
                     String violation = checkPrimalFeasible(model, basic, x, xbPolished, b,
                             lower, upper, n, m);
                     if (violation != null) {
@@ -777,19 +877,19 @@ public final class RevisedSimplex {
                             "迭代数超硬上限 " + MAX_ITER);
                 }
                 if (leavingPos < 0 && theta >= LpModel.INF / 2) {
-                    // 无界方向:本架构模型全部变量有界,仅人工变量残留等异常可达
+                    // 无界方向: 本架构模型全部变量有界, 仅人工变量残留等异常可达
                     return LpResult.failure(LpResult.Status.NUMERIC_FAILURE, iterations,
                             "无界方向(进入变量无阻挡且界宽无限)");
                 }
                 if (leavingPos < 0) {
-                    // 进入变量撞对侧界:界翻转,不换基
+                    // 进入变量撞对侧界: 界翻转, 不换基
                     x[entering] = enterDir > 0 ? upper[entering] : lower[entering];
                     stall = theta == 0 ? stall + 1 : 0;
                 } else {
                     int leaving = basic[leavingPos];
                     x[entering] = enterDir > 0 ? lower[entering] + theta : upper[entering] - theta;
                     x[leaving] = leaveAtLower ? lower[leaving] : upper[leaving];
-                    // 换基:进入列替换 leavingPos 位置
+                    // 换基: 进入列替换 leavingPos 位置
                     int alphaNnz = 0;
                     for (double v : alpha) {
                         if (v != 0) {
@@ -811,8 +911,8 @@ public final class RevisedSimplex {
                     basic[leavingPos] = entering;
                     where[entering] = leavingPos;
                     stall = theta == 0 ? stall + 1 : 0;
-                    // 重分解时机:eta 链累积超阈,或本轮主元偏小(小主元 eta 会放大
-                    // 后续全部 ftran 误差,立即重分解把毒化限制在当轮)
+                    // 重分解时机: eta 链累积超阈, 或本轮主元偏小, 因为小主元 eta 会
+                    // 放大后续全部 ftran 误差, 立即重分解把影响限制在当轮
                     if (basis.etaCount() > Basis.MAX_ETA
                             || Math.abs(alpha[leavingPos]) < Math.max(
                                     IMMEDIATE_REFACTOR_REL * maxAbsAlpha,
@@ -821,8 +921,8 @@ public final class RevisedSimplex {
                                 repairBudget);
                     }
                 }
-                // 停滞控制:触发/解除 Bland(forceBland 重试锁定 Bland,不得解除——
-                // 否则首轮非退化迭代即掉回最陡边,重试轨迹与首轮完全相同,形同虚设)
+                // 停滞控制: 触发与解除 Bland. forceBland 重试必须锁定 Bland, 否则
+                // 首轮非退化迭代即掉回最陡边, 重试轨迹与首轮相同
                 if (!forceBland) {
                     if (!bland && stall > STALL_LIMIT) {
                         bland = true;
@@ -839,13 +939,10 @@ public final class RevisedSimplex {
     }
 
     /**
-     * 重分解当前基(结构列经 CSC 视图,人工列经 ±e_i 视图).
-     * <p>分解失败(基奇异/病态,常见于小主元换基后基列集近线性相关)时做
-     * <b>单位列修补</b>:失败位置的旧基变量退基坐到最近界上,该位置换入
-     * 剩余模最大行的人工单位列 e_row——单位列条件数极佳,修补后分解即可成功;
-     * 顶点由此发生的跳变由后续迭代自动恢复(残留人工变量一旦阻挡即以零比率
-     * 被逐出基,出口残差自检中人工变量非零直接表现为残差违例,保证不错收).
-     * 修补次数受预算限制,耗尽或无定位信息时诚实抛出.</p>
+     * 重分解当前基, 结构列经 CSC 视图, 人工列经 ±e_i 视图.
+     * 分解失败即基奇异或病态时做单位列修补: 失败位置的旧基变量退基坐到最近界上,
+     * 该位置换入对应行的人工单位列, 顶点跳变由后续迭代恢复. 修补次数受预算限制,
+     * 耗尽或无定位信息时抛出.
      */
     private static void refactor(Basis basis, LpModel model, double[] artSign, int[] basic,
             int[] where, double[] x, double[] lower, double[] upper, int n, int m,
@@ -864,31 +961,55 @@ public final class RevisedSimplex {
                 basis.factorize(columns);
                 return;
             } catch (Basis.NumericException e) {
-                if (e.failPos < 0 || e.bestRow < 0 || repairBudget[0] <= 0
-                        || where[n + e.bestRow] >= 0) {
-                    // 放弃修补:附原因(预算耗尽/候选人工列已在基/无定位)供诊断
-                    String why = repairBudget[0] <= 0 ? "预算耗尽"
-                            : e.bestRow >= 0 && where[n + e.bestRow] >= 0 ? "候选人工列已在基"
-                                    : "无定位信息";
-                    throw new Basis.NumericException(e.getMessage() + " [放弃修补:" + why + "]");
+                if (e.failPos < 0 || repairBudget[0] <= 0) {
+                    throw new Basis.NumericException(
+                            e.getMessage() + " [放弃修补:" + (repairBudget[0] <= 0 ? "预算耗尽" : "无定位信息") + "]");
+                }
+                // 候选人工单位列的选择: 只有剩余位置映射行的空闲人工列才有有效主元,
+                // 其余行的单位列必被已消元位置吞没
+                int row = -1;
+                if (e.candRows != null) {
+                    for (int r : e.candRows) {
+                        if (where[n + r] < 0) {
+                            row = r;
+                            break;
+                        }
+                    }
+                }
+                if (row < 0 && e.bestRow >= 0 && where[n + e.bestRow] < 0) {
+                    row = e.bestRow;
+                }
+                if (row < 0) {
+                    throw new Basis.NumericException(e.getMessage() + " [放弃修补:无空闲人工列]");
+                }
+                if (Boolean.getBoolean("ae2e.basisDump")) {
+                    StringBuilder sb = new StringBuilder("[BASIS-DUMP] failPos=" + e.failPos
+                            + " bestRow=" + e.bestRow + " chosenRow=" + row + " basic=");
+                    for (int i = 0; i < m; i++) {
+                        sb.append(basic[i] < n ? basic[i] : ("art#" + (basic[i] - n)));
+                        if (i + 1 < m) {
+                            sb.append(',');
+                        }
+                    }
+                    System.out.println(sb);
                 }
                 repairBudget[0]--;
                 int pos = e.failPos;
                 int oldVar = basic[pos];
-                // 旧基变量退基:坐到最近界上(非基变量必须坐界)
+                // 旧基变量退基: 坐到最近界上, 非基变量必须坐界
                 where[oldVar] = -1;
                 x[oldVar] = Math.abs(x[oldVar] - lower[oldVar]) <= Math
                         .abs(x[oldVar] - upper[oldVar]) ? lower[oldVar] : upper[oldVar];
-                // 该位置换入人工单位列 e_bestRow
-                basic[pos] = n + e.bestRow;
-                where[n + e.bestRow] = pos;
+                // 该位置换入人工单位列 e_row
+                basic[pos] = n + row;
+                where[n + row] = pos;
             }
         }
     }
 
     /**
-     * 全量重算基右端:rhs = b − A_N·x_N.
-     * 非基变量坐在非零界(上界/非零下界)上的列贡献必须扣除,否则界翻转后 RHS 即错.
+     * 全量重算基右端, rhs = b − A_N·x_N.
+     * 非基变量坐在非零界上的列贡献必须扣除, 否则界翻转后 RHS 即错.
      */
     private static double[] computeBasicRhs(LpModel model, double[] artSign, int[] where,
             double[] x, double[] b, int n, int total, int m) {
@@ -909,8 +1030,8 @@ public final class RevisedSimplex {
     }
 
     /**
-     * 残差迭代精化:r = b − A·x(含人工列),δ = B⁻¹r 修正基变量取值.
-     * 精化一轮可将 xb 的分解残差压到 ε² 量级,用于负步长重试与出口自检前复核.
+     * 残差迭代精化: r = b − A·x 含人工列, δ = B⁻¹r 修正基变量取值.
+     * 一轮精化可将 xb 的分解残差压到 ε² 量级, 用于出口自检前的复核.
      */
     private static void refineBasic(LpModel model, double[] artSign, int[] basic, double[] x,
             double[] xb, double[] b, Basis basis, int n, int m) {
@@ -933,7 +1054,7 @@ public final class RevisedSimplex {
         }
     }
 
-    /** 约简成本 d_j = c_j − y·A_j(人工列:c_j − y_i·sign_i). */
+    /** 约简成本 d_j = c_j − y·A_j, 人工列为 c_j − y_i·sign_i. */
     private static double reducedCost(LpModel model, double[] artSign, double[] cost, double[] y,
             int j, int n) {
         if (j < n) {
@@ -942,7 +1063,7 @@ public final class RevisedSimplex {
         return cost[j] - y[j - n] * artSign[j - n];
     }
 
-    /** 可进方向判定:+1 从下界升(d_j<0),-1 从上界降(d_j>0),0 不可进. */
+    /** 可进方向判定: +1 从下界升, d_j<0; -1 从上界降, d_j>0; 0 不可进. */
     private static int directionOf(double dj, double xj, double lj, double uj) {
         if (dj < -OPT_TOL && xj < uj - ZERO_TOL) {
             return 1;
@@ -953,7 +1074,7 @@ public final class RevisedSimplex {
         return 0;
     }
 
-    /** 变量 j 的约束列(矩阵行语义稠密向量). */
+    /** 变量 j 的约束列, 矩阵行语义稠密向量. */
     private static double[] columnOf(LpModel model, double[] artSign, int j, int n) {
         double[] col = new double[model.a.rows];
         if (j < n) {
@@ -965,16 +1086,15 @@ public final class RevisedSimplex {
     }
 
     /**
-     * 出口可行性自检:逐约束残差 + 界违例.
-     * <p>残差容差 {@value #FEAS_TOL}(相对行活动量级,硬约束);界容差
-     * {@value #EXIT_BOUND_TOL}(相对被违例的界,覆盖 Harris 松弛留量与 xb 漂移).</p>
-     *
-     * @return null = 通过;否则最差违例的明细(行/变量/量级/容差,供诊断日志)
+     * 出口可行性自检: 逐约束残差加界违例.
+     * 残差容差 {@value #FEAS_TOL} 相对行活动量级, 为硬约束; 界容差
+     * {@value #EXIT_BOUND_TOL} 相对被违例的界, 覆盖 Harris 松弛留量与 xb 漂移.
+     * 返回 null 表示通过, 否则返回最差违例明细, 供诊断日志.
      */
     @Nullable
     private static String checkPrimalFeasible(LpModel model, int[] basic,
             double[] x, double[] xb, double[] b, double[] lower, double[] upper, int n, int m) {
-        // 量级项:混合量级模型 xb 分量的绝对漂移下限 ∝ ε·κ·max|xb|,按此验收
+        // 量级项: 混合量级模型 xb 分量的绝对漂移下限约为 ε·κ·max|xb|, 按此验收
         double scaleTol = EXIT_SCALE_TOL * maxAbs(xb);
         for (int i = 0; i < m; i++) {
             double lb = lower[basic[i]];
@@ -994,7 +1114,7 @@ public final class RevisedSimplex {
                 }
             }
         }
-        // 残差:Ax + Σ sign_i·x_art·e_i = b;行尺度 = 1 + |b_i| + Σ|a_ij·x_j|
+        // 残差: Ax + Σ sign_i·x_art·e_i = b; 行尺度 = 1 + |b_i| + Σ|a_ij·x_j|
         double[] residual = new double[m];
         double[] activity = new double[m];
         for (int j = 0; j < n; j++) {
@@ -1011,8 +1131,8 @@ public final class RevisedSimplex {
         double worstResidual = 0;
         double worstTol = 0;
         for (int i = 0; i < m; i++) {
-            // 残差 = A·x_struct − b,故意不含人工列:基修补残留的人工变量若取值非零,
-            // 直接表现为该行残差违例(防止单位列修补掩盖真实不可行)
+            // 残差 = A·x_struct − b, 故意不含人工列: 基修补残留的人工变量若取值非零,
+            // 直接表现为该行残差违例, 防止单位列修补掩盖真实不可行
             residual[i] -= b[i];
             double rowScale = 1 + Math.abs(b[i]) + activity[i];
             double over = Math.abs(residual[i]) - FEAS_TOL * rowScale;
@@ -1064,7 +1184,7 @@ public final class RevisedSimplex {
         }
     }
 
-    /** 人工变量列(±e_i)的稀疏视图. */
+    /** 人工变量列 ±e_i 的稀疏视图. */
     private static final class UnitCol implements Basis.SparseCol {
         private final int row;
         private final double sign;

@@ -5,7 +5,7 @@ import net.minecraft.block.Block;
 import net.minecraft.block.material.Material;
 
 /**
- * GTCEu yellow_stripes_block_b 的替代方块，用于个人维度地板预设。
+ * GTCEu yellow_stripes_block_b 的替代方块, 用于个人维度地板预设.
  */
 public class BlockYellowStripesBlockB extends Block {
 

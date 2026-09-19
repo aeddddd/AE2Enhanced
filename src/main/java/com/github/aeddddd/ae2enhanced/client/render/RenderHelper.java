@@ -98,11 +98,6 @@ public final class RenderHelper {
         buffer.pos(c[0], c[1], c[2]).color(r, g, blue, alpha).endVertex();
     }
 
-    /** 重置 line width 到 1.0 */
-    public static void resetLineWidth() {
-        GlStateManager.glLineWidth(1.0f);
-    }
-
     /** 在 XZ 平面绘制吸积盘环带几何(四边形网格),片元效果由 shader 计算 */
     public static void drawAccretionDisk(double inner, double outer, int color, float alpha, int segments) {
         float[] rgb = unpackRGB(color);

@@ -1,16 +1,13 @@
 package com.github.aeddddd.ae2enhanced.storage;
 
-import appeng.api.AEApi;
 import appeng.api.storage.IStorageChannel;
 import com.github.aeddddd.ae2enhanced.storage.mana.AEManaStack;
 import com.github.aeddddd.ae2enhanced.storage.mana.IAEManaStack;
 import com.github.aeddddd.ae2enhanced.storage.mana.ManaChannelResolver;
 
-import java.math.BigInteger;
-
 /**
  * 超维度仓储枢纽的 Botania Mana 存储适配器,继承 {@link AbstractStorageAdapter}.
- * 内部使用 BigInteger 维护数量,突破 long 上限.
+ * 内部使用 {@link HugeCount} 混合精度计数,突破 long 上限.
  */
 public class ManaStorageAdapter extends AbstractStorageAdapter<IAEManaStack, ManaDescriptor> {
 
@@ -18,7 +15,7 @@ public class ManaStorageAdapter extends AbstractStorageAdapter<IAEManaStack, Man
         super(file);
         this.channel = (IStorageChannel<IAEManaStack>) ManaChannelResolver.getChannel();
         file.loadMana(storage);
-        recalcTotal();
+        file.registerPostLoadHook(this::recalcTotal); // 异步首加载完成后重算总数
     }
 
     @Override
@@ -32,11 +29,8 @@ public class ManaStorageAdapter extends AbstractStorageAdapter<IAEManaStack, Man
     }
 
     @Override
-    protected IAEManaStack createResult(IAEManaStack request, BigInteger amount) {
-        if (amount.compareTo(StorageConstants.LONG_MAX) > 0) {
-            return AEManaStack.create(Long.MAX_VALUE);
-        }
-        return AEManaStack.create(amount.longValueExact());
+    protected IAEManaStack createResult(IAEManaStack request, HugeCount amount) {
+        return AEManaStack.create(amount.toLongSaturated());
     }
 
     @Override

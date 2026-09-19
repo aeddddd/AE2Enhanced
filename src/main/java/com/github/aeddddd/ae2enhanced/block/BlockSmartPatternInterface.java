@@ -16,10 +16,7 @@ import net.minecraft.world.World;
 import javax.annotation.Nullable;
 
 /**
- * 智能样板接口方块.
- *
- * 右键打开 GUI,无需接入 ME 网络.
- * 破坏时掉落内部存储的空白样板或已编码样板.
+ * 智能样板接口方块. 右键打开 GUI, 无需接入 ME 网络. 破坏时掉落内部存储的空白样板或已编码样板.
  */
 public class BlockSmartPatternInterface extends Block {
 

@@ -34,16 +34,6 @@ public class RecyclerBindingRegistry {
     }
 
     /**
-     * 注册一个绑定关系（仅物品）。
-     *
-     * @param ref     机器位置引用
-     * @param handler 负责回收的 RecyclerNetworkHandler
-     */
-    public void register(TargetManager.TargetRef ref, RecyclerNetworkHandler handler) {
-        register(ref, handler, null);
-    }
-
-    /**
      * 注册一个绑定关系（物品 + 流体）。
      *
      * @param ref          机器位置引用

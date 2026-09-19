@@ -7,7 +7,7 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * Thermal Expansion 机器产物直注 Mixin 配置插件。
+ * Thermal Expansion 机器产物直注 Mixin 配置插件.
  */
 public class ThermalMixinPlugin implements IMixinConfigPlugin {
 

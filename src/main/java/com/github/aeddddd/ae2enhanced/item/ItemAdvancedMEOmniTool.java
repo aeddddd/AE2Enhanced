@@ -1,7 +1,6 @@
 package com.github.aeddddd.ae2enhanced.item;
 
 import appeng.api.features.INetworkEncodable;
-import appeng.api.networking.IGrid;
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
 import com.github.aeddddd.ae2enhanced.omnitool.ConformalChargeHandler;
 import com.github.aeddddd.ae2enhanced.omnitool.OmniToolEnchantments;
@@ -228,11 +227,6 @@ public class ItemAdvancedMEOmniTool extends Item implements INetworkEncodable {
     @Deprecated
     public static void clearAEBinding(ItemStack stack) {
         WirelessTransmitterNetworkLink.INSTANCE.clear(stack);
-    }
-
-    @Nullable
-    public static IGrid getAELinkedGrid(ItemStack stack, World world) {
-        return WirelessTransmitterNetworkLink.INSTANCE.getLinkedGrid(stack, world, null);
     }
 
     // ==================== Silk Touch ====================

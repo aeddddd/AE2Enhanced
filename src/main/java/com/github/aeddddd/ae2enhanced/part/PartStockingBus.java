@@ -874,9 +874,6 @@ public class PartStockingBus extends PartUpgradeable implements IGridTickable {
                 }
             }
         }
-        if (this.targetAmounts[slot] == 0 && !stack.isEmpty()) {
-            // 已在上方处理,此处仅作保险
-        }
         this.saveChanges();
     }
 

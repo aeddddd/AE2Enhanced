@@ -4,7 +4,7 @@ import com.github.aeddddd.ae2enhanced.part.PartUniversalImportBus;
 import net.minecraft.entity.player.InventoryPlayer;
 
 /**
- * E1a：通用输入总线的 Container.
+ * E1a: 通用输入总线的 Container.
  */
 public class ContainerUniversalImportBus extends AbstractUniversalBusContainer {
 

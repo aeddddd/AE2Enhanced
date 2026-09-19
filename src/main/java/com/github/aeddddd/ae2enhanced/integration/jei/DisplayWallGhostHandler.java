@@ -21,7 +21,7 @@ public class DisplayWallGhostHandler implements IGhostIngredientHandler<GuiDispl
     @Nonnull
     @Override
     public <I> List<Target<I>> getTargets(@Nonnull GuiDisplayWall gui, @Nonnull I ingredient, boolean doStart) {
-        // 仅接受物品与流体(幕墙只采样这两种;气体/源质无采样逻辑,不放行)
+        // 仅接受物品与流体, 幕墙只采样这两种; 气体/源质无采样逻辑, 不放行
         if (!(ingredient instanceof ItemStack) && !(ingredient instanceof FluidStack)) {
             return Collections.emptyList();
         }

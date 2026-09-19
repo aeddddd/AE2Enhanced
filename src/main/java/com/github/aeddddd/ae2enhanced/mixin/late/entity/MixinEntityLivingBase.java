@@ -1,7 +1,6 @@
 package com.github.aeddddd.ae2enhanced.mixin.late.entity;
 
 import com.github.aeddddd.ae2enhanced.omnitool.OmniToolUpgrades;
-import com.github.aeddddd.ae2enhanced.item.ItemAdvancedMEOmniTool;
 import net.minecraft.entity.EntityLivingBase;
 import net.minecraft.util.DamageSource;
 import org.spongepowered.asm.mixin.Mixin;

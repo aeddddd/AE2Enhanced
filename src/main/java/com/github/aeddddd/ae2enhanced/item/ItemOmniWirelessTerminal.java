@@ -6,11 +6,11 @@ import appeng.api.config.SortDir;
 import appeng.api.config.SortOrder;
 import appeng.api.config.ViewItems;
 import appeng.api.features.IWirelessTermHandler;
-import appeng.core.localization.PlayerMessages;
-import appeng.util.ConfigManager;
 import appeng.api.util.IConfigManager;
 import appeng.core.AEConfig;
+import appeng.core.localization.PlayerMessages;
 import appeng.items.tools.powered.powersink.AEBasePoweredItem;
+import appeng.util.ConfigManager;
 import appeng.util.Platform;
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
 import com.github.aeddddd.ae2enhanced.gui.GuiHandler;
@@ -30,7 +30,7 @@ import net.minecraftforge.fml.relauncher.SideOnly;
 import java.util.UUID;
 
 /**
- * 全能无线终端 —— 物品库 + 合成栏 + 编码样板(81槽位) + 右侧存储
+ * 全能无线终端: 物品库 + 合成栏 + 编码样板(81槽位) + 右侧存储.
  */
 @Optional.InterfaceList({
         @Optional.Interface(iface = "baubles.api.IBauble", modid = "baubles")
@@ -86,7 +86,7 @@ public class ItemOmniWirelessTerminal extends AEBasePoweredItem implements IWire
 
     /**
      * 获取或创建该终端 ItemStack 对应的存储 UUID.
-     * UUID 持久化在 ItemStack NBT 中,WorldSavedData 通过此 UUID 存取实际数据.
+     * UUID 持久化在 ItemStack NBT 中, WorldSavedData 通过此 UUID 存取实际数据.
      */
     public static UUID getStorageId(ItemStack stack) {
         NBTTagCompound tag = Platform.openNbtData(stack);
@@ -97,14 +97,10 @@ public class ItemOmniWirelessTerminal extends AEBasePoweredItem implements IWire
         return tag.getUniqueId("storageId");
     }
 
-    public static void setStorageId(ItemStack stack, UUID id) {
-        Platform.openNbtData(stack).setUniqueId("storageId", id);
-    }
-
     @Override
     public IGuiHandler getGuiHandler(ItemStack is) {
-        // 返回 AE2 无线终端的 GuiBridge,避免 GuiCraftAmount.initGui() 中的 ClassCastException.
-        // Omni Terminal 没有自己的 GuiBridge enum 值,使用 GUI_WIRELESS_TERM 作为回退.
+        // 返回 AE2 无线终端的 GuiBridge, 避免 GuiCraftAmount.initGui() 中的 ClassCastException.
+        // Omni Terminal 没有自己的 GuiBridge enum 值, 使用 GUI_WIRELESS_TERM 作为回退.
         return appeng.core.sync.GuiBridge.GUI_WIRELESS_TERM;
     }
 

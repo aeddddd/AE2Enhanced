@@ -23,13 +23,8 @@ public class PacketPersonalDimensionRulesHandler implements IMessageHandler<Pack
             rules.flightEnabled = message.isFlightEnabled();
             rules.movementSpeed = PlayerAbilityApplier.clampMovementSpeed(message.getMovementSpeed());
             rules.noFlightInertia = message.isNoFlightInertia();
-            // 在他人维度内且拥有 MANAGE_RULES 权限时，修改的是所在维度所有者的规则
-            java.util.UUID target = PersonalDimensionManager.getRuleEditTarget(player);
-            PersonalDimensionManager.setRules(target, rules);
-            if (!target.equals(player.getUniqueID())) {
-                // setRules 只同步给所有者，委托编辑者也需要收到最新规则
-                PersonalDimensionManager.sendRulesToPlayer(target, player);
-            }
+            // 规则始终作用于玩家自己的个人维度
+            PersonalDimensionManager.setRules(player.getUniqueID(), rules);
         });
         return null;
     }

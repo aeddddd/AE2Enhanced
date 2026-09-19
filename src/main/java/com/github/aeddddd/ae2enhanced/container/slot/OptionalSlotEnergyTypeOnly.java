@@ -7,7 +7,7 @@ import net.minecraft.item.ItemStack;
 import net.minecraftforge.items.IItemHandler;
 
 /**
- * 能源存储总线可选过滤槽(由容量卡解锁):仅接受 RF 假物品.
+ * 能源存储总线的可选过滤槽, 由容量卡解锁, 仅接受 RF 假物品.
  */
 public class OptionalSlotEnergyTypeOnly extends OptionalSlotFakeTypeOnly {
 

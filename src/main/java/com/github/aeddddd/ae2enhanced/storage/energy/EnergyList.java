@@ -1,10 +1,8 @@
 package com.github.aeddddd.ae2enhanced.storage.energy;
 
 import appeng.api.config.FuzzyMode;
-import appeng.api.storage.data.IAEStack;
 import appeng.api.storage.data.IItemList;
 
-import javax.annotation.Nullable;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;

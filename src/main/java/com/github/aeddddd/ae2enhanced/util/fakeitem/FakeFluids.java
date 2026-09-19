@@ -5,9 +5,8 @@ import appeng.api.storage.data.IAEItemStack;
 import appeng.fluids.util.AEFluidStack;
 import appeng.util.item.AEItemStack;
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
-import com.github.aeddddd.ae2enhanced.registry.content.ItemRegistry;
-import com.github.aeddddd.ae2enhanced.registry.content.PartRegistry;
 import com.github.aeddddd.ae2enhanced.item.ItemFluidDrop;
+import com.github.aeddddd.ae2enhanced.registry.content.ItemRegistry;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraftforge.fluids.FluidRegistry;
@@ -74,14 +73,6 @@ public final class FakeFluids {
                 return stack;
             }
         });
-    }
-
-    public static boolean isFluidFakeItem(ItemStack stack) {
-        return ItemFluidDrop.isFluidDrop(stack);
-    }
-
-    public static ItemStack packFluid2Drops(FluidStack stack) {
-        return FakeItemRegister.packStack(stack, ItemRegistry.FLUID_DROP);
     }
 
     public static IAEItemStack packFluid2AEDrops(FluidStack stack) {

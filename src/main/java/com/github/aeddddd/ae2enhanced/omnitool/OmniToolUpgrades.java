@@ -243,14 +243,6 @@ public final class OmniToolUpgrades {
         return CombatModule.hasAntiHeal(entity);
     }
 
-    public static void applyAntiHeal(EntityLivingBase entity) {
-        CombatModule.applyAntiHeal(entity);
-    }
-
-    public static void clearAntiHeal(EntityLivingBase entity) {
-        CombatModule.clearAntiHeal(entity);
-    }
-
     // ==================== Travel Anchor Binding ====================
 
     public static boolean isTravelAnchorBound(ItemStack stack) {

@@ -6,7 +6,6 @@ import net.minecraft.item.ItemStack;
 import net.minecraft.util.ResourceLocation;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -15,7 +14,7 @@ import java.util.Locale;
 import java.util.Map;
 
 /**
- * 指南数据中枢 —— 页面表 + 导航树 + 物品索引 + 锚点表.
+ * 指南数据中枢 —— 页面表 + 导航树 + 物品索引.
  */
 public final class GuideBook {
 
@@ -24,14 +23,11 @@ public final class GuideBook {
     private final Map<String, GuidePage> pages;
     private final List<NavNode> navRoots;
     private final Map<Item, PageAnchor> itemIndex;
-    private final Map<String, Map<String, String>> anchors; // pageId -> (anchor -> 标题文本)
-
     private GuideBook(Map<String, GuidePage> pages, List<NavNode> navRoots,
-                      Map<Item, PageAnchor> itemIndex, Map<String, Map<String, String>> anchors) {
+                      Map<Item, PageAnchor> itemIndex) {
         this.pages = pages;
         this.navRoots = navRoots;
         this.itemIndex = itemIndex;
-        this.anchors = anchors;
     }
 
     public GuidePage getPage(String pageId) {
@@ -51,10 +47,6 @@ public final class GuideBook {
      */
     public PageAnchor getPageForItem(Item item) {
         return itemIndex.get(item);
-    }
-
-    public Map<String, String> getAnchors(String pageId) {
-        return anchors.getOrDefault(pageId, Collections.emptyMap());
     }
 
     /**
@@ -123,22 +115,7 @@ public final class GuideBook {
             }
         }
 
-        // 锚点表：标题文本 → anchor（小写、非字母数字转 -）
-        Map<String, Map<String, String>> anchors = new HashMap<>();
-        for (GuidePage page : pages.values()) {
-            Map<String, String> pageAnchors = new LinkedHashMap<>();
-            for (com.github.aeddddd.ae2enhanced.guide.md.element.BlockElement block : page.getBlocks()) {
-                if (block.getType() == com.github.aeddddd.ae2enhanced.guide.md.element.BlockElement.Type.HEADING) {
-                    String text = block.getPlainText().trim();
-                    if (!text.isEmpty()) {
-                        pageAnchors.putIfAbsent(toAnchor(text), text);
-                    }
-                }
-            }
-            anchors.put(page.getId(), pageAnchors);
-        }
-
-        return new GuideBook(pages, roots, itemIndex, anchors);
+        return new GuideBook(pages, roots, itemIndex);
     }
 
     /**

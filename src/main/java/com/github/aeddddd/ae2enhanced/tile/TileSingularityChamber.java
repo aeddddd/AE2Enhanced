@@ -40,6 +40,7 @@ import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -61,6 +62,8 @@ public class TileSingularityChamber extends TileAENetworkBase implements ITickab
     public static final int INPUT_TYPES = 27;
     public static final int OUTPUT_TYPES = 9;
     public static final int CARD_SLOTS = 5;
+    /** 活动任务上限 = GUI 任务槽位数,保证每个任务都有可见显示槽位 */
+    public static final int MAX_JOBS = 9;
     /** 卡片槽 0：虚拟并行卡；1-4：升级卡（加速/容量,接受 AE2 生态 IUpgradeModule） */
     public static final int SLOT_PARALLEL = 0;
 
@@ -315,7 +318,7 @@ public class TileSingularityChamber extends TileAENetworkBase implements ITickab
         return redstoneMode == RedstoneMode.HIGH ? !powered : powered;
     }
 
-    // ---- 配方过滤已移除：冲突由固定优先级解决（见 ChamberRecipeIndex） ----
+    // ---- 配方过滤已移除：冲突由固定优先级解决（见 ChamberRecipeIndex 与 startJobs） ----
 
     // ---- 任务调度 ----
 
@@ -454,43 +457,73 @@ public class TileSingularityChamber extends TileAENetworkBase implements ITickab
     }
 
     /**
-     * 扫描输入缓存,为可执行配方启动聚合任务.
-     * 批次上限 = 剩余通道 与 材料 与 当前能量可负担总量（energyPerBatch × batches ≤ energy）,
-     * 能耗不再启动时预付,而是随任务进度逐 tick 均摊支付.
+     * 扫描输入缓存,为可执行配方启动任务.
+     *
+     * <p><b>选配方</b>：每个输入 key 只归属一条配方——优先级列表中第一条
+     * "已有活动任务"或"材料可执行"的配方。高优先级配方已激活时,低优先级配方
+     * 不得抢料（合并链完全优先于单步电路板配方,避免原料被误做成电路板）.</p>
+     * <p><b>跨配方并行</b>：剩余通道在所有候选配方间水位均分（材料受限的配方
+     * 让出余额进入下一轮）,不再由单一配方独占全部通道.</p>
+     * <p><b>槽位分散</b>：任务数上限 = GUI 任务槽位数（{@link #MAX_JOBS}）,
+     * 保证每个活动任务都有可见的显示槽位.</p>
+     * <p>能耗不再启动时预付,而是随任务进度逐 tick 均摊支付;启动批次受
+     * 当前能量可负担总量约束（energyPerBatch × batches ≤ energy）.</p>
      */
     private void startJobs() {
         long free = getParallelChannels() - getUsedChannels();
-        if (free <= 0) {
+        if (free <= 0 || jobs.size() >= MAX_JOBS) {
             return;
         }
         int perBatch = AE2EnhancedConfig.chamber.energyPerBatch;
+        long remaining = Math.min(free, energy / perBatch);
+        if (remaining <= 0) {
+            return;
+        }
 
         Map<String, Long> available = new HashMap<>();
         for (LongItemStore.Entry entry : inputStore.getEntries()) {
             available.put(LongItemStore.keyOf(entry.getTemplate()), entry.getCount());
         }
 
+        // 每个输入 key 选定一条配方（优先级最高且 已激活/可执行）
+        List<ChamberRecipe> candidates = new ArrayList<>();
         for (LongItemStore.Entry entry : new ArrayList<>(inputStore.getEntries())) {
-            if (free <= 0) {
-                break;
-            }
             String key = LongItemStore.keyOf(entry.getTemplate());
-            // 每个输入 key 只启动优先级最高且可执行的一条配方（ExtendedAE：无逐配方开关,
-            // 冲突由注册顺序决定的固定优先级解决）
             for (ChamberRecipe recipe : ChamberRecipeIndex.recipesForInput(key, entry.getTemplate())) {
-                if (free <= 0) {
-                    return;
-                }
                 if (hasActiveJob(recipe)) {
-                    continue;
+                    break;
                 }
-                long batches = recipe.maxBatches(available);
-                batches = Math.min(batches, free);
-                batches = Math.min(batches, energy / perBatch);
-                if (batches <= 0) {
-                    continue;
+                if (recipe.maxBatches(available) > 0) {
+                    if (!candidates.contains(recipe)) {
+                        candidates.add(recipe);
+                    }
+                    break;
                 }
+            }
+        }
+        if (candidates.isEmpty()) {
+            return;
+        }
+        // 按全局优先级排序,槽位不足时高优先级配方先占位
+        candidates.sort(TileSingularityChamber::compareRecipePriority);
+        int slotsLeft = MAX_JOBS - jobs.size();
+        if (candidates.size() > slotsLeft) {
+            candidates = new ArrayList<>(candidates.subList(0, slotsLeft));
+        }
 
+        // 水位均分：每轮各配方分得 remaining/存活数,材料受限者让出余额进入下一轮
+        Map<ChamberRecipe, Long> allocated = new LinkedHashMap<>();
+        List<ChamberRecipe> pending = new ArrayList<>(candidates);
+        while (remaining > 0 && !pending.isEmpty()) {
+            long share = Math.max(1, remaining / pending.size());
+            boolean progressed = false;
+            for (Iterator<ChamberRecipe> it = pending.iterator(); it.hasNext() && remaining > 0; ) {
+                ChamberRecipe recipe = it.next();
+                long batches = Math.min(recipe.maxBatches(available), Math.min(share, remaining));
+                if (batches <= 0) {
+                    it.remove();
+                    continue;
+                }
                 // 按输入组消耗：组内替代按序抽取直至满足
                 for (ChamberRecipe.InputGroup group : recipe.getInputGroups()) {
                     long need = group.getCount() * batches;
@@ -503,15 +536,37 @@ public class TileSingularityChamber extends TileAENetworkBase implements ITickab
                         need -= got;
                     }
                 }
-                free -= batches;
-
-                long requiredTime = computeJobTime(recipe.getTimeTicks());
-                jobs.add(new Job(recipe, batches, requiredTime, (long) perBatch * batches));
-                inputsDirty = true;
+                allocated.merge(recipe, batches, Long::sum);
+                remaining -= batches;
+                progressed = true;
+                if (batches < share) {
+                    it.remove();
+                }
+            }
+            if (!progressed) {
                 break;
             }
         }
-        markDirty();
+
+        for (Map.Entry<ChamberRecipe, Long> entry : allocated.entrySet()) {
+            ChamberRecipe recipe = entry.getKey();
+            long batches = entry.getValue();
+            long requiredTime = computeJobTime(recipe.getTimeTicks());
+            jobs.add(new Job(recipe, batches, requiredTime, (long) perBatch * batches));
+        }
+        if (!allocated.isEmpty()) {
+            inputsDirty = true;
+            markDirty();
+        }
+    }
+
+    /**
+     * 配方全局优先级比较：与 {@link ChamberRecipeIndex} 的索引顺序一致.
+     */
+    private static int compareRecipePriority(ChamberRecipe a, ChamberRecipe b) {
+        int rankA = ChamberRecipeIndex.recipePriorityRank(a.getId());
+        int rankB = ChamberRecipeIndex.recipePriorityRank(b.getId());
+        return rankA != rankB ? Integer.compare(rankA, rankB) : a.getId().compareTo(b.getId());
     }
 
     // ---- 任务完成与输出 ----
@@ -841,6 +896,12 @@ public class TileSingularityChamber extends TileAENetworkBase implements ITickab
     private class MarkDirtyItemHandler extends ItemStackHandler {
         MarkDirtyItemHandler(int size) {
             super(size);
+        }
+
+        /** 卡片槽统一限 1 堆叠：并行卡按 NBT 档位计费,升级卡按槽位计数,堆叠无意义且误导 */
+        @Override
+        public int getSlotLimit(int slot) {
+            return 1;
         }
 
         @Override

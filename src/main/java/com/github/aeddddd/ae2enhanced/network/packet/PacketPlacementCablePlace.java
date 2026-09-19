@@ -1,7 +1,6 @@
 package com.github.aeddddd.ae2enhanced.network.packet;
 
 import io.netty.buffer.ByteBuf;
-import net.minecraft.util.EnumHand;
 import net.minecraft.util.math.BlockPos;
 import net.minecraftforge.fml.common.network.simpleimpl.IMessage;
 

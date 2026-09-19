@@ -11,9 +11,9 @@ import stanhebben.zenscript.annotations.ZenClass;
 import stanhebben.zenscript.annotations.ZenMethod;
 
 /**
- * CraftTweaker 集成：允许通过 ZenScript 添加/移除微型奇点燃料配方.
+ * CraftTweaker 集成: 允许通过 ZenScript 添加/移除微型奇点燃料配方.
  *
- * 用法示例：
+ * 用法示例:
  * <pre>
  *   mods.ae2enhanced.SingularityFuel.addFuel("my_fuel", &lt;minecraft:diamond&gt;, 6000);
  *   mods.ae2enhanced.SingularityFuel.addPermanentFuel("my_permanent", &lt;minecraft:nether_star&gt;);

@@ -3,20 +3,18 @@ package com.github.aeddddd.ae2enhanced.omnitool.module;
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
 import com.github.aeddddd.ae2enhanced.config.AE2EnhancedConfig;
 import com.github.aeddddd.ae2enhanced.item.ItemAdvancedMEOmniTool;
+import com.github.aeddddd.ae2enhanced.mixin.late.accessor.IEntityLivingBaseAccessor;
 import com.github.aeddddd.ae2enhanced.omnitool.OmniToolNBT;
 import com.github.aeddddd.ae2enhanced.util.BossDropHelper;
 import com.github.aeddddd.ae2enhanced.util.ForceKillHelper;
-import com.github.aeddddd.ae2enhanced.mixin.late.accessor.IEntityLivingBaseAccessor;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityLivingBase;
 import net.minecraft.entity.MultiPartEntityPart;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.item.ItemStack;
-import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.util.DamageSource;
 import net.minecraft.util.math.AxisAlignedBB;
 import net.minecraft.util.math.MathHelper;
-import net.minecraft.world.World;
 
 import java.util.List;
 
@@ -28,7 +26,6 @@ public class CombatModule implements IOmniToolModule {
 
     private static final double AOE_RADIUS = 4.0;
     private static final float CHAOS_DAMAGE_VALUE = 1000.0f;
-    private static final String DE_CHAOS_CRYSTAL_CLASS = "com.brandon3055.draconicevolution.blocks.ChaosCrystal";
 
     @Override
     public int getMode() {
@@ -250,9 +247,5 @@ public class CombatModule implements IOmniToolModule {
 
     public static boolean hasAntiHeal(EntityLivingBase entity) {
         return entity.getEntityData().getBoolean(OmniToolNBT.ANTI_HEAL);
-    }
-
-    public static void clearAntiHeal(EntityLivingBase entity) {
-        entity.getEntityData().removeTag(OmniToolNBT.ANTI_HEAL);
     }
 }

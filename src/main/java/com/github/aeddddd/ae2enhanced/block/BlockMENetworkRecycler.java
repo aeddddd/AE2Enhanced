@@ -9,7 +9,6 @@ import net.minecraft.block.properties.PropertyEnum;
 import net.minecraft.block.state.BlockStateContainer;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.entity.player.EntityPlayer;
-import net.minecraft.item.ItemStack;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.BlockRenderLayer;
 import net.minecraft.util.EnumFacing;
@@ -25,7 +24,7 @@ import javax.annotation.Nullable;
 /**
  * ME 网络回收节点方块.
  *
- * <p>远程、跨维度回收机器与容器产物,强制写入超维度仓储中枢.</p>
+ * <p>远程、跨维度回收机器与容器产物, 强制写入超维度仓储中枢.</p>
  */
 public class BlockMENetworkRecycler extends Block {
 

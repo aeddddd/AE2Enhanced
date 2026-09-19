@@ -29,18 +29,10 @@ import java.util.List;
 /**
  * JEI/HEI 配方查询助手.
  *
- * <p>通过 JEI 的 RecipeRegistry 查询目标方块对应的所有配方.</p>
- * <p>查询策略(两阶段催化剂匹配)：</p>
- * <ol>
- *   <li><b>精确匹配</b>：催化剂与目标方块物品 + meta 完全一致</li>
- *   <li><b>物品级匹配</b>：仅比较物品,忽略 meta.
- *       解决放置后 state meta 与物品 meta 不一致的机器(如 MMCE 控制器的 FACING 属性,
- *       其 state meta 为朝向索引 2~5,而 JEI 催化剂注册的是 meta 0)</li>
- * </ol>
- * <p>刻意不提供"目标作为输出"的回退查询：该语义是"如何合成这个方块",
- * 会把整个工作台类别误识别为绑定目标.</p>
- *
- * <p>注意：JEI 是纯客户端模组,此类必须在客户端调用.</p>
+ * <p>通过 JEI 的 RecipeRegistry 查询目标方块对应的所有配方. 查询分两阶段匹配催化剂:
+ * 先精确匹配物品 + meta, 再退回物品级匹配, 以适配放置后 state meta 与物品 meta
+ * 不一致的机器, 如 MMCE 控制器的 FACING 属性. 刻意不提供"目标作为输出"的回退查询,
+ * 该语义会把整个工作台类别误识别为绑定目标. JEI 是纯客户端模组, 此类必须在客户端调用.</p>
  */
 @SideOnly(Side.CLIENT)
 public class JEIRecipeHelper {
@@ -76,10 +68,10 @@ public class JEIRecipeHelper {
             return Collections.emptyList();
         }
 
-        // 阶段1：催化剂精确匹配(物品 + meta)
+        // 阶段1: 催化剂精确匹配, 物品 + meta
         List<IRecipeCategory> categories = findCategoriesByCatalyst(registry, targetStack, false);
         if (categories.isEmpty()) {
-            // 阶段2：催化剂物品级匹配(忽略 meta,适配 MMCE 控制器等 state meta ≠ 物品 meta 的机器)
+            // 阶段2: 催化剂物品级匹配, 忽略 meta, 适配 MMCE 控制器等 state meta 与物品 meta 不一致的机器
             categories = findCategoriesByCatalyst(registry, targetStack, true);
         }
 
@@ -99,7 +91,7 @@ public class JEIRecipeHelper {
                     SmartRecipe recipe = convertWrapper(wrapper, category);
                     if (recipe != null) {
                         result.add(recipe);
-                        // 过载保护：达到上限即停止转换,避免大类别全量解析
+                        // 过载保护: 达到上限即停止转换, 避免大类别全量解析
                         if (result.size() >= max) {
                             AE2Enhanced.LOGGER.warn("[AE2E] SmartPattern recipes truncated at {} for {}",
                                     max, blockRegistryName);
@@ -233,7 +225,7 @@ public class JEIRecipeHelper {
             IAEItemStack[] inputs = inputList.toArray(new IAEItemStack[0]);
             IAEItemStack[] outputs = outputList.toArray(new IAEItemStack[0]);
 
-            // 智能样板统一作为 processing 配方处理，不区分 crafting/processing
+            // 智能样板统一作为 processing 配方处理, 不区分 crafting/processing
             return new SmartRecipe(inputs, outputs, false);
         } catch (Exception e) {
             AE2Enhanced.LOGGER.warn("[AE2E] Failed to convert JEI recipe wrapper for category: {}",

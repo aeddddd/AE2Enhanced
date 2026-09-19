@@ -3,7 +3,6 @@ package com.github.aeddddd.ae2enhanced.storage.mana;
 import appeng.api.config.FuzzyMode;
 import appeng.api.storage.data.IItemList;
 
-import javax.annotation.Nullable;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;

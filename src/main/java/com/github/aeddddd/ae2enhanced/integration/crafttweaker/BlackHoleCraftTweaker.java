@@ -13,9 +13,9 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * CraftTweaker 集成：允许通过 ZenScript 添加/移除黑洞合成配方.
+ * CraftTweaker 集成: 允许通过 ZenScript 添加/移除黑洞合成配方.
  *
- * 用法示例：
+ * 用法示例:
  * <pre>
  *   mods.ae2enhanced.BlackHole.addRecipe(&lt;minecraft:obsidian&gt;, [&lt;minecraft:stone&gt; * 8, &lt;minecraft:diamond&gt;]);
  *   mods.ae2enhanced.BlackHole.removeRecipe("test_obsidian");

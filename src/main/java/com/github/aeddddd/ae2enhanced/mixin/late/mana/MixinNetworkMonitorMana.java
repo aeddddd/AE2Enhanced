@@ -12,11 +12,11 @@ import appeng.api.storage.data.IItemList;
 import appeng.me.cache.GridStorageCache;
 import appeng.me.cache.NetworkMonitor;
 import com.github.aeddddd.ae2enhanced.item.ItemManaDrop;
+import com.github.aeddddd.ae2enhanced.mixin.late.accessor.INetworkMonitorAccessor;
 import com.github.aeddddd.ae2enhanced.storage.mana.AEManaStack;
 import com.github.aeddddd.ae2enhanced.storage.mana.IAEManaStack;
 import com.github.aeddddd.ae2enhanced.storage.mana.IManaStorageChannel;
 import com.github.aeddddd.ae2enhanced.util.fakeitem.FakeMana;
-import com.github.aeddddd.ae2enhanced.mixin.late.accessor.INetworkMonitorAccessor;
 import net.minecraft.item.ItemStack;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
@@ -83,7 +83,7 @@ public class MixinNetworkMonitorMana {
         ItemStack mcStack = itemStack.createItemStack();
         if (!ItemManaDrop.isManaDrop(mcStack)) return;
 
-        // E2a：Mana 假物品仅用于终端展示,禁止作为真实物品被取出.
+        // Mana 假物品仅用于终端展示,禁止作为真实物品被取出.
         // 与 RF 假物品保持一致,玩家不能从 ME 终端将其拿到背包.
         cir.setReturnValue(request);
     }

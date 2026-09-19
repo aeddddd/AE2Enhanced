@@ -1,11 +1,9 @@
 package com.github.aeddddd.ae2enhanced.util.compat;
 
 import appeng.api.storage.data.IAEItemStack;
-import appeng.util.item.AEItemStack;
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
 import net.minecraft.item.ItemStack;
 import net.minecraftforge.fml.common.Loader;
-import net.minecraftforge.fml.common.Optional;
 
 import javax.annotation.Nullable;
 import java.lang.reflect.Method;

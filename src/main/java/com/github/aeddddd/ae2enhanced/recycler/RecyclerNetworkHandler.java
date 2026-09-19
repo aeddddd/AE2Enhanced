@@ -22,14 +22,10 @@ import com.github.aeddddd.ae2enhanced.tile.TileMENetworkRecycler;
 import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
 import net.minecraft.item.ItemStack;
 import net.minecraft.tileentity.TileEntity;
-import net.minecraft.util.EnumFacing;
-import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
 import net.minecraftforge.common.DimensionManager;
 
-import javax.annotation.Nonnull;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -66,10 +62,6 @@ public class RecyclerNetworkHandler implements IMEInventoryHandler<IAEItemStack>
         adapters.clear();
         snapshots.clear();
         index.clear();
-    }
-
-    public appeng.api.networking.security.IActionSource getActionSource() {
-        return actionSource;
     }
 
     /**
@@ -231,8 +223,7 @@ public class RecyclerNetworkHandler implements IMEInventoryHandler<IAEItemStack>
         snapshots.clear();
         for (Map.Entry<TargetManager.TargetRef, TargetAdapter> entry : adapters.entrySet()) {
             List<ItemStack> contents = entry.getValue().scan(true);
-            snapshots.put(entry.getKey(), new RecyclerIndex.TargetAdapterSnapshot(
-                    tile.getWorld().getTotalWorldTime(), contents));
+            snapshots.put(entry.getKey(), new RecyclerIndex.TargetAdapterSnapshot(contents));
         }
         index.rebuild(snapshots);
     }
@@ -240,7 +231,6 @@ public class RecyclerNetworkHandler implements IMEInventoryHandler<IAEItemStack>
     // ---- 回收逻辑 ----
 
     private void collectFromTargets() {
-        long currentTick = tile.getWorld().getTotalWorldTime();
         boolean heartbeat = tickCounter % AE2EnhancedConfig.recycler.heartbeatIntervalTicks == 0;
 
         for (Map.Entry<TargetManager.TargetRef, TargetAdapter> entry : adapters.entrySet()) {
@@ -265,7 +255,7 @@ public class RecyclerNetworkHandler implements IMEInventoryHandler<IAEItemStack>
 
             // 提取后重新扫描，更新快照
             List<ItemStack> afterExtract = adapter.scan(true);
-            snapshots.put(ref, new RecyclerIndex.TargetAdapterSnapshot(currentTick, afterExtract));
+            snapshots.put(ref, new RecyclerIndex.TargetAdapterSnapshot(afterExtract));
         }
     }
 
@@ -301,7 +291,7 @@ public class RecyclerNetworkHandler implements IMEInventoryHandler<IAEItemStack>
         syncHyperStorageAdapter(adapter);
 
         for (IAEItemStack stack : changes) {
-            adapter.injectItems(stack.copy(), Actionable.MODULATE, actionSource);
+            logDroppedByStorage(stack, adapter.injectItems(stack.copy(), Actionable.MODULATE, actionSource));
         }
 
         // 批量通知网络
@@ -323,14 +313,41 @@ public class RecyclerNetworkHandler implements IMEInventoryHandler<IAEItemStack>
     private void injectToNetwork(List<IAEItemStack> changes) {
         try {
             IStorageGrid storageGrid = tile.getProxy().getGrid().getCache(IStorageGrid.class);
-            if (storageGrid == null) return;
+            if (storageGrid == null) {
+                logDroppedBatch(changes, "storage grid unavailable");
+                return;
+            }
             IMEMonitor<IAEItemStack> inv = storageGrid.getInventory(
                     appeng.api.AEApi.instance().storage().getStorageChannel(IItemStorageChannel.class));
             for (IAEItemStack stack : changes) {
-                inv.injectItems(stack.copy(), Actionable.MODULATE, actionSource);
+                logDroppedByStorage(stack, inv.injectItems(stack.copy(), Actionable.MODULATE, actionSource));
             }
         } catch (GridAccessException e) {
-            // ignore
+            logDroppedBatch(changes, "grid access exception");
+        }
+    }
+
+    /**
+     * 记录被目标存储拒绝而丢弃的回收产物。
+     *
+     * <p>产物在 {@code collectFromTargets} 中已从机器取出且缓冲区已清空，
+     * 注入被拒绝时没有回注通道，只能丢弃；这里留下日志，避免静默丢失。</p>
+     */
+    private void logDroppedByStorage(IAEItemStack requested, IAEItemStack remainder) {
+        if (requested == null || remainder == null || remainder.getStackSize() <= 0) {
+            return;
+        }
+        AE2Enhanced.LOGGER.warn("[AE2E] Recycler dropped {} x{} rejected by storage",
+                requested.createItemStack().getDisplayName(), remainder.getStackSize());
+    }
+
+    private void logDroppedBatch(List<IAEItemStack> changes, String reason) {
+        long total = 0;
+        for (IAEItemStack stack : changes) {
+            total += stack.getStackSize();
+        }
+        if (total > 0) {
+            AE2Enhanced.LOGGER.warn("[AE2E] Recycler dropped {} item(s) because {}", total, reason);
         }
     }
 
@@ -369,10 +386,6 @@ public class RecyclerNetworkHandler implements IMEInventoryHandler<IAEItemStack>
         if (collected.isEmpty()) return null;
 
         IAEItemStack result = AEItemStack.fromItemStack(collected);
-        if (result != null && type == Actionable.MODULATE) {
-            // 更新缓存
-            rebuildIndexForRef(null); // 简化处理：下次心跳重建
-        }
         return result;
     }
 
@@ -449,9 +462,5 @@ public class RecyclerNetworkHandler implements IMEInventoryHandler<IAEItemStack>
 
     @Override
     public void removeListener(IMEMonitorHandlerReceiver<IAEItemStack> l) {
-    }
-
-    private void rebuildIndexForRef(TargetManager.TargetRef ref) {
-        // 简化：下次心跳重建
     }
 }

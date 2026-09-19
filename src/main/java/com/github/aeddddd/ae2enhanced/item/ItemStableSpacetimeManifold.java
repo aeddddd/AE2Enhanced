@@ -11,7 +11,7 @@ import javax.annotation.Nullable;
 import java.util.List;
 
 /**
- * 稳态时空流�?—�?黑洞退火产物,T1 材料�?
+ * 稳态时空流形,黑洞退火产物,T1 材料.
  */
 public class ItemStableSpacetimeManifold extends Item {
 

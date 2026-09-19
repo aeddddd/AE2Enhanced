@@ -10,9 +10,9 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
- * 拦截 {@link AppEngInternalInventory#setFilter}，自动包装原 filter，使频道接收卡能够放入。
- * 覆盖所有使用 {@link AppEngInternalInventory} 并设置自定义 filter 的升级槽
- * （如 CELLS 的 PartSubnetProxyFront、CustomCellUpgrades 等）。
+ * 拦截 AppEngInternalInventory.setFilter, 自动包装原 filter 使频道接收卡能够放入.
+ * 覆盖所有使用 AppEngInternalInventory 并设置自定义 filter 的升级槽, 如 CELLS 的
+ * PartSubnetProxyFront、CustomCellUpgrades 等.
  */
 @Mixin(value = AppEngInternalInventory.class, remap = false)
 public class MixinAppEngInternalInventory {

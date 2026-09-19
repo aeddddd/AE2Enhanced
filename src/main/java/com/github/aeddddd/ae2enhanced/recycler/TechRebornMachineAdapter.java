@@ -33,7 +33,8 @@ public class TechRebornMachineAdapter implements TargetAdapter {
     private static final boolean AVAILABLE;
     private static final Class<?> TILE_MACHINE_CLASS;
     private static final Class<?> TILE_GENERIC_MACHINE_CLASS;
-    private static final Field FIELD_INVENTORY;
+    private static final Field FIELD_INVENTORY_MACHINE;
+    private static final Field FIELD_INVENTORY_GENERIC;
     private static final Field FIELD_OUTPUT_SLOTS_TILE;
     private static final Field FIELD_CRAFTER;
     private static final Field FIELD_OUTPUT_SLOTS_CRAFTER;
@@ -42,7 +43,8 @@ public class TechRebornMachineAdapter implements TargetAdapter {
     static {
         Class<?> tileMachineClass = null;
         Class<?> tileGenericMachineClass = null;
-        Field inventoryField = null;
+        Field inventoryMachineField = null;
+        Field inventoryGenericField = null;
         Field outputSlotsTileField = null;
         Field crafterField = null;
         Field outputSlotsCrafterField = null;
@@ -52,10 +54,10 @@ public class TechRebornMachineAdapter implements TargetAdapter {
             tileMachineClass = Class.forName("techreborn.tiles.processing.TileMachine");
             tileGenericMachineClass = Class.forName("techreborn.tiles.TileGenericMachine");
 
-            inventoryField = findField(tileMachineClass, "inventory");
-            if (inventoryField == null) {
-                inventoryField = findField(tileGenericMachineClass, "inventory");
-            }
+            // 两个机器基类是兄弟关系（都继承 TilePowerAcceptor），各自声明自己的 inventory 字段，
+            // 必须分别解析：拿一个类的 Field 去读另一个类的实例会抛 IllegalArgumentException。
+            inventoryMachineField = findField(tileMachineClass, "inventory");
+            inventoryGenericField = findField(tileGenericMachineClass, "inventory");
             outputSlotsTileField = findField(tileMachineClass, "outputSlots");
             crafterField = findField(tileGenericMachineClass, "crafter");
             if (crafterField != null) {
@@ -67,7 +69,7 @@ public class TechRebornMachineAdapter implements TargetAdapter {
             contentsField = inventoryClass.getDeclaredField("contents");
             contentsField.setAccessible(true);
 
-            available = inventoryField != null && contentsField != null
+            available = (inventoryMachineField != null || inventoryGenericField != null) && contentsField != null
                     && (outputSlotsTileField != null || outputSlotsCrafterField != null);
         } catch (Exception e) {
             // Tech Reborn 未安装或版本不兼容，静默禁用
@@ -75,7 +77,8 @@ public class TechRebornMachineAdapter implements TargetAdapter {
         AVAILABLE = available;
         TILE_MACHINE_CLASS = tileMachineClass;
         TILE_GENERIC_MACHINE_CLASS = tileGenericMachineClass;
-        FIELD_INVENTORY = inventoryField;
+        FIELD_INVENTORY_MACHINE = inventoryMachineField;
+        FIELD_INVENTORY_GENERIC = inventoryGenericField;
         FIELD_OUTPUT_SLOTS_TILE = outputSlotsTileField;
         FIELD_CRAFTER = crafterField;
         FIELD_OUTPUT_SLOTS_CRAFTER = outputSlotsCrafterField;
@@ -182,14 +185,30 @@ public class TechRebornMachineAdapter implements TargetAdapter {
     @Nullable
     private ItemStack[] getContents() {
         if (tile == null || tile.isInvalid()) return null;
+        Field inventoryField = resolveInventoryField();
+        if (inventoryField == null) return null;
         try {
-            Object inventory = FIELD_INVENTORY.get(tile);
+            Object inventory = inventoryField.get(tile);
             if (inventory == null) return null;
             return (ItemStack[]) FIELD_CONTENTS.get(inventory);
         } catch (Exception e) {
             AE2Enhanced.LOGGER.warn("[AE2E] TechRebornMachineAdapter getContents failed", e);
             return null;
         }
+    }
+
+    /**
+     * 按目标实际所属的机器基类选择对应的 inventory 字段。
+     */
+    @Nullable
+    private Field resolveInventoryField() {
+        if (TILE_MACHINE_CLASS != null && TILE_MACHINE_CLASS.isInstance(tile)) {
+            return FIELD_INVENTORY_MACHINE;
+        }
+        if (TILE_GENERIC_MACHINE_CLASS != null && TILE_GENERIC_MACHINE_CLASS.isInstance(tile)) {
+            return FIELD_INVENTORY_GENERIC;
+        }
+        return null;
     }
 
     @Nullable

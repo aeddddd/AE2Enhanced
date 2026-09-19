@@ -46,10 +46,6 @@ public final class InlineElement {
         return new InlineElement(Kind.ITEM_LINK, null, false, null, stack);
     }
 
-    public static InlineElement lineBreak() {
-        return new InlineElement(Kind.BREAK, null, false, null, null);
-    }
-
     public Kind getKind() {
         return kind;
     }

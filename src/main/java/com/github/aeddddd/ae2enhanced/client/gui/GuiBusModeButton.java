@@ -34,10 +34,6 @@ public class GuiBusModeButton extends GuiButton implements ITooltip {
         }
     }
 
-    public void cycleMode() {
-        this.modeIndex = (this.modeIndex + 1) % ABBREVS.length;
-    }
-
     public int getModeIndex() {
         return this.modeIndex;
     }

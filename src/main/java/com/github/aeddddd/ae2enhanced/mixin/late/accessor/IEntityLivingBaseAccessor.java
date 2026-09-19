@@ -9,7 +9,7 @@ import org.spongepowered.asm.mixin.gen.Accessor;
 import org.spongepowered.asm.mixin.gen.Invoker;
 
 /**
- * EntityLivingBase 私有/受保护成员访问接口.MC 原生类,remap=true 使用 MCP 名.
+ * EntityLivingBase 私有/受保护成员访问接口. MC 原生类, remap=true 使用 MCP 名.
  */
 @Mixin(EntityLivingBase.class)
 public interface IEntityLivingBaseAccessor {

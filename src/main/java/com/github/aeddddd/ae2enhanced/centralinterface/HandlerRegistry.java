@@ -58,6 +58,8 @@ public class HandlerRegistry {
         tryLoad("enderio", "com.github.aeddddd.ae2enhanced.centralinterface.handler.enderio.EnderIOMachineHandler");
         tryLoad("thermalexpansion", "com.github.aeddddd.ae2enhanced.centralinterface.handler.thermalexpansion.ThermalExpansionMachineHandler");
         tryLoad("nuclearcraft", "com.github.aeddddd.ae2enhanced.centralinterface.handler.nuclearcraft.NuclearCraftLegacyMachineHandler");
+        // P10 - Tech Reborn:机器 Inventory 对所有面禁插禁取,只能通过反射直读内部库存与机器自身的槽位定义
+        tryLoad("techreborn", "com.github.aeddddd.ae2enhanced.centralinterface.handler.techreborn.TechRebornMachineHandler");
     }
 
     private static void tryLoad(String modId, String className) {

@@ -10,18 +10,15 @@ import net.minecraft.item.ItemStack;
 import org.lwjgl.opengl.GL11;
 import thaumcraft.api.aspects.Aspect;
 
-import java.awt.Color;
+import java.awt.*;
 
 /**
- * E2a：为 ItemEssentiaDrop 提供内置物品渲染器.
- *
- * 完全复制 Thaumic Energistics DummyAspectRenderer 的绘制逻辑,
- * 仅将 aspect 获取方式改为 ItemEssentiaDrop.getAspectTag.
+ * ItemEssentiaDrop 的内置物品渲染器.
+ * 完全复制 Thaumic Energistics DummyAspectRenderer 的绘制逻辑, 仅将 aspect 获取改为 ItemEssentiaDrop.getAspectTag.
  */
 public class EssentiaItemRenderer extends TileEntityItemStackRenderer {
 
     public static final EssentiaItemRenderer INSTANCE = new EssentiaItemRenderer();
-    private static final java.util.Set<String> loggedAspects = new java.util.HashSet<>();
 
     private EssentiaItemRenderer() {
     }

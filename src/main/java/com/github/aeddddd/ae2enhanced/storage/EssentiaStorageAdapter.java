@@ -3,11 +3,9 @@ package com.github.aeddddd.ae2enhanced.storage;
 import appeng.api.AEApi;
 import appeng.api.storage.IStorageChannel;
 
-import java.math.BigInteger;
-
 /**
  * 源质存储适配器,继承 {@link AbstractStorageAdapter}.
- * 内部使用 BigInteger 维护数量,突破 long 上限.
+ * 内部使用 {@link HugeCount} 混合精度计数,突破 long 上限.
  */
 public class EssentiaStorageAdapter extends AbstractStorageAdapter<thaumicenergistics.api.storage.IAEEssentiaStack, EssentiaDescriptor> {
 
@@ -15,7 +13,7 @@ public class EssentiaStorageAdapter extends AbstractStorageAdapter<thaumicenergi
         super(file);
         this.channel = AEApi.instance().storage().getStorageChannel(thaumicenergistics.api.storage.IEssentiaStorageChannel.class);
         file.loadEssentias(storage);
-        recalcTotal(); // 从文件加载后必须重新计算总数
+        file.registerPostLoadHook(this::recalcTotal); // 异步首加载完成后重算总数
     }
 
     @Override
@@ -29,13 +27,9 @@ public class EssentiaStorageAdapter extends AbstractStorageAdapter<thaumicenergi
     }
 
     @Override
-    protected thaumicenergistics.api.storage.IAEEssentiaStack createResult(thaumicenergistics.api.storage.IAEEssentiaStack request, BigInteger amount) {
+    protected thaumicenergistics.api.storage.IAEEssentiaStack createResult(thaumicenergistics.api.storage.IAEEssentiaStack request, HugeCount amount) {
         thaumicenergistics.api.storage.IAEEssentiaStack result = request.copy();
-        if (amount.compareTo(StorageConstants.LONG_MAX) > 0) {
-            result.setStackSize(Long.MAX_VALUE);
-        } else {
-            result.setStackSize(amount.longValueExact());
-        }
+        result.setStackSize(amount.toLongSaturated());
         return result;
     }
 

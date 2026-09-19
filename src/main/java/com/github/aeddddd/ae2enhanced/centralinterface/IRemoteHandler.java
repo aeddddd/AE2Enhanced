@@ -179,6 +179,24 @@ public interface IRemoteHandler {
     }
 
     /**
+     * 在发配前回收目标输出罐中的残留流体，防止残留产物阻塞新材料推送。
+     *
+     * <p>默认实现返回空列表。仅当处理器能从目标中区分出“输出罐”时才应覆盖此方法；
+     * 实现应通过机器自身声明的罐模式判断是否可抽取（不得使用 null 面绕过侧面配置），
+     * 并跳过本批将要推送的流体 {@code batchFluids}。</p>
+     *
+     * @param world       世界实例
+     * @param pos         方块位置
+     * @param source      AE 动作源
+     * @param session     当前会话
+     * @param batchFluids 本批将要推送的流体，任何一个都不得被回收
+     * @return 回收到的流体列表；无流体则返回空列表
+     */
+    default List<net.minecraftforge.fluids.FluidStack> clearOutputFluids(World world, BlockPos pos, IActionSource source, TargetSession session, List<net.minecraftforge.fluids.FluidStack> batchFluids) {
+        return java.util.Collections.emptyList();
+    }
+
+    /**
      * 当目标从中枢接口解绑时调用，用于清理 handler 侧可能存在的 per-target 缓存。
      *
      * <p>默认实现为空。若 handler 内部保存了按坐标索引的状态（如推料时间戳、

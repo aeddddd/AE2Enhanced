@@ -23,7 +23,7 @@ import javax.annotation.Nullable;
 /**
  * EMC 接口方块.
  *
- * <p>放置时自动绑定放置者,Shift+右键可重新绑定.</p>
+ * <p>放置时自动绑定放置者, Shift+右键可重新绑定.</p>
  */
 public class BlockEMCInterface extends Block {
 

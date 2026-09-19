@@ -8,7 +8,7 @@ import javax.annotation.Nullable;
 import appeng.api.storage.data.IAEItemStack;
 
 /**
- * 特殊计划显示信息（服务端计算 → 客户端渲染,移植自 1.20.1）.
+ * 特殊计划显示信息(服务端计算 → 客户端渲染).
  * <p>{@link #entries} 记录自增殖/循环链键的轮次与每轮产耗;{@link #callCounts}
  * 统计各主产出键的样板调用次数,客户端在合成确认界面显示"调用 N 次(约 R 轮发配)".</p>
  */
@@ -79,11 +79,10 @@ public final class SpecialPlanInfo {
     }
 
     /**
-     * 从合成树自恢复显示信息（纯函数,服务端调用,与 1.20.1 的 compute(ICraftingPlan) 对齐）.
-     * <p>1.12.2 没有独立计划对象——树即计划:patternTimes 遍历树收集,
-     * usedItems 经 populatePlan 取"有数量且非可请求"的条目.
-     * 自增殖样板经 {@link RecursiveCraftingHelper#isNetPositiveSelfRef} 识别;
-     * 循环链(含催化环)复用 {@link RoundQuotaScheduler#deriveQuota} 的闭包 + GCD 轮次推导.</p>
+     * 从合成树恢复显示信息(纯函数,服务端调用).
+     * <p>1.12.2 无独立计划对象,树即计划:patternTimes 遍历树收集,usedItems 取
+     * "有数量且非可请求"的条目.自增殖样板经 {@link RecursiveCraftingHelper#isNetPositiveSelfRef}
+     * 识别;循环链(含催化环)复用 {@link RoundQuotaScheduler#deriveQuota} 的闭包 + GCD 轮次推导.</p>
      */
     public static SpecialPlanInfo compute(appeng.crafting.CraftingJob job) {
         Map<IAEItemStack, Entry> entries = new LinkedHashMap<>();

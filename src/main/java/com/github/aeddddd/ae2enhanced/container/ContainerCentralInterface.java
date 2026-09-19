@@ -103,10 +103,6 @@ public class ContainerCentralInterface extends ContainerUpgradeable implements I
         return Platform.hasPermissions(this.tile.getWorld(), this.tile.getPos(), player);
     }
 
-    public DualityCentralInterface getDuality() {
-        return this.duality;
-    }
-
     @Override
     public void func_75142_b() {
         this.verifyPermissions(SecurityPermissions.BUILD, false);

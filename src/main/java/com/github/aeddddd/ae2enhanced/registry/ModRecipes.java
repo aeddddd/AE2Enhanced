@@ -1,17 +1,10 @@
 package com.github.aeddddd.ae2enhanced.registry;
 
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
-import com.github.aeddddd.ae2enhanced.registry.content.ItemRegistry;
-import com.github.aeddddd.ae2enhanced.registry.content.PartRegistry;
+import com.github.aeddddd.ae2enhanced.crafting.*;
 import com.github.aeddddd.ae2enhanced.item.ItemVirtualParallelCard;
-import com.github.aeddddd.ae2enhanced.crafting.BlackHoleRecipe;
-import com.github.aeddddd.ae2enhanced.crafting.BlackHoleRecipeRegistry;
-import com.github.aeddddd.ae2enhanced.crafting.SingularityFuelRecipe;
-import com.github.aeddddd.ae2enhanced.crafting.SingularityFuelRegistry;
-import com.github.aeddddd.ae2enhanced.crafting.SingularityRecipe;
-import com.github.aeddddd.ae2enhanced.crafting.SingularityRecipeRegistry;
+import com.github.aeddddd.ae2enhanced.registry.content.ItemRegistry;
 import net.minecraft.block.Block;
-import net.minecraft.init.Blocks;
 import net.minecraft.init.Items;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;

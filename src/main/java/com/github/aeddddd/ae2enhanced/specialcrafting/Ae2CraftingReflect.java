@@ -17,11 +17,10 @@ import appeng.crafting.MECraftingInventory;
 import it.unimi.dsi.fastutil.objects.Object2LongArrayMap;
 
 /**
- * AE2 合成计算内部成员的反射桥（1.12.2 版,对应 1.20.1 的 Ae2CraftingReflect）.
- * <p>1.12.2 的 {@code CraftingTreeNode.request} / {@code CraftingTreeProcess.request} /
- * {@code dive} 以及 {@code CraftingJob} 的多数成员均为包私有或私有,而本包不在
- * {@code appeng.crafting} 下,统一经本桥访问。所有成员名在初始化时一次性解析并校验,
- * AE2 升级导致签名变化时在首次调用即抛出明确异常（路由层捕获后回落原生行为）.</p>
+ * AE2 合成计算内部成员的反射桥.
+ * <p>{@code CraftingTreeNode} / {@code CraftingTreeProcess} / {@code CraftingJob} 的
+ * 关键成员均为包私有或私有,而本包不在 {@code appeng.crafting} 下,统一经本桥访问.
+ * 所有成员名在静态初始化时一次性解析并校验,AE2 签名变化会导致类初始化直接失败.</p>
  */
 public final class Ae2CraftingReflect {
 
@@ -262,23 +261,6 @@ public final class Ae2CraftingReflect {
         }
     }
 
-    public static void treeProcessRequest(CraftingTreeProcess pro, MECraftingInventory inv, long times,
-            IActionSource src) throws CraftBranchFailure, InterruptedException {
-        try {
-            PROCESS_REQUEST.invoke(pro, inv, times, src);
-        } catch (java.lang.reflect.InvocationTargetException e) {
-            if (e.getCause() instanceof CraftBranchFailure) {
-                throw (CraftBranchFailure) e.getCause();
-            }
-            if (e.getCause() instanceof InterruptedException) {
-                throw (InterruptedException) e.getCause();
-            }
-            throw new IllegalStateException("CraftingTreeProcess.request 执行异常", e.getCause());
-        } catch (ReflectiveOperationException e) {
-            throw new IllegalStateException("调用 CraftingTreeProcess.request 失败", e);
-        }
-    }
-
     @SuppressWarnings("unchecked")
     public static IItemList<IAEItemStack> getNodeUsed(CraftingTreeNode node) {
         try {
@@ -330,14 +312,6 @@ public final class Ae2CraftingReflect {
         }
     }
 
-    public static void setProcessParent(CraftingTreeProcess pro, CraftingTreeNode parent) {
-        try {
-            PROCESS_PARENT.set(pro, parent);
-        } catch (ReflectiveOperationException e) {
-            throw new IllegalStateException("写入 CraftingTreeProcess.parent 失败", e);
-        }
-    }
-
     public static void setProcessCrafts(CraftingTreeProcess pro, long crafts) {
         try {
             PROCESS_CRAFTS.setLong(pro, crafts);
@@ -383,98 +357,6 @@ public final class Ae2CraftingReflect {
             PROCESS_ADD_PROCESS.invoke(pro);
         } catch (ReflectiveOperationException e) {
             throw new IllegalStateException("调用 CraftingTreeProcess.addProcess 失败", e);
-        }
-    }
-
-    /** CraftingTreeNode.parent(包私有):该输入节点所属的样板 process,根请求节点为 null. */
-    @javax.annotation.Nullable
-    public static CraftingTreeProcess getNodeParent(CraftingTreeNode node) {
-        try {
-            return (CraftingTreeProcess) NODE_PARENT.get(node);
-        } catch (ReflectiveOperationException e) {
-            throw new IllegalStateException("访问 CraftingTreeNode.parent 失败", e);
-        }
-    }
-
-    /** CraftingTreeNode.howManyEmitted(私有):发射台免费满足的数量,populatePlan/setJob 读取. */
-    public static void setNodeEmitted(CraftingTreeNode node, long emitted) {
-        try {
-            NODE_EMITTED.setLong(node, emitted);
-        } catch (ReflectiveOperationException e) {
-            throw new IllegalStateException("写入 CraftingTreeNode.howManyEmitted 失败", e);
-        }
-    }
-
-    /** CraftingTreeNode.addNode(包私有,惰性):按 notRecursive 过滤构建候选 process 列表. */
-    public static void nodeAddNode(CraftingTreeNode node) {
-        try {
-            NODE_ADD_NODE.invoke(node);
-        } catch (ReflectiveOperationException e) {
-            throw new IllegalStateException("调用 CraftingTreeNode.addNode 失败", e);
-        }
-    }
-
-    /** CraftingTreeNode.bytes 为 int 字段(原生如此),读取当前值. */
-    public static long getNodeBytes(CraftingTreeNode node) {
-        try {
-            return NODE_BYTES.getInt(node);
-        } catch (ReflectiveOperationException e) {
-            throw new IllegalStateException("访问 CraftingTreeNode.bytes 失败", e);
-        }
-    }
-
-    /**
-     * CraftingTreeProcess.containers(私有)取出并清空:复刻原生 request 尾部
-     * "注入累积容器物并置 null"的语义.
-     */
-    @SuppressWarnings("unchecked")
-    public static ArrayList<IAEItemStack> processDrainContainers(CraftingTreeProcess pro) {
-        try {
-            ArrayList<IAEItemStack> containers = (ArrayList<IAEItemStack>) PROCESS_CONTAINERS.get(pro);
-            PROCESS_CONTAINERS.set(pro, null);
-            return containers;
-        } catch (ReflectiveOperationException e) {
-            throw new IllegalStateException("访问 CraftingTreeProcess.containers 失败", e);
-        }
-    }
-
-    /** CraftingTreeProcess.addContainers(包私有):子请求提取到带容器物时回记容器. */
-    public static void processAddContainer(CraftingTreeProcess pro, IAEItemStack container) {
-        try {
-            PROCESS_ADD_CONTAINERS.invoke(pro, container);
-        } catch (ReflectiveOperationException e) {
-            throw new IllegalStateException("调用 CraftingTreeProcess.addContainers 失败", e);
-        }
-    }
-
-    /**
-     * CraftingJob.checkUse(包私有):从 availableCheck 实取并返回记账用堆叠
-     *(不可用时返回 null,调用方不记 used).
-     */
-    @javax.annotation.Nullable
-    public static IAEItemStack jobCheckUse(CraftingJob job, IAEItemStack available) {
-        try {
-            return (IAEItemStack) JOB_CHECK_USE.invoke(job, available);
-        } catch (ReflectiveOperationException e) {
-            throw new IllegalStateException("调用 CraftingJob.checkUse 失败", e);
-        }
-    }
-
-    /** CraftingJob.refund(包私有):把堆叠退回 availableCheck(分支失败退款). */
-    public static void jobRefund(CraftingJob job, IAEItemStack stack) {
-        try {
-            JOB_REFUND.invoke(job, stack);
-        } catch (ReflectiveOperationException e) {
-            throw new IllegalStateException("调用 CraftingJob.refund 失败", e);
-        }
-    }
-
-    /** CraftingTreeNode.getSlot(包私有):该输入节点在父样板中的槽位(根节点为 -1). */
-    public static int getNodeSlot(CraftingTreeNode node) {
-        try {
-            return (Integer) NODE_GET_SLOT.invoke(node);
-        } catch (ReflectiveOperationException e) {
-            throw new IllegalStateException("调用 CraftingTreeNode.getSlot 失败", e);
         }
     }
 }

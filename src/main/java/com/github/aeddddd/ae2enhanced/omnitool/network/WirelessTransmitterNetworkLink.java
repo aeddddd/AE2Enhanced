@@ -24,7 +24,6 @@ import javax.annotation.Nullable;
  */
 public class WirelessTransmitterNetworkLink implements IOmniToolNetworkLink {
 
-    public static final String ID = "wireless_transmitter";
     public static final WirelessTransmitterNetworkLink INSTANCE = new WirelessTransmitterNetworkLink();
 
     private static final String NBT_AE_BOUND = "AEBound";
@@ -34,16 +33,6 @@ public class WirelessTransmitterNetworkLink implements IOmniToolNetworkLink {
     private static final String NBT_AE_DIM = "AEDim";
 
     private WirelessTransmitterNetworkLink() {}
-
-    @Override
-    public String getId() {
-        return ID;
-    }
-
-    @Override
-    public String getTooltipKey() {
-        return "item.ae2enhanced.me_omni_tool.ae_bound";
-    }
 
     @Override
     public boolean isLinked(ItemStack stack) {

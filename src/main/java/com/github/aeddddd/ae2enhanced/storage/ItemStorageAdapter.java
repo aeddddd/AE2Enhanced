@@ -3,30 +3,20 @@ package com.github.aeddddd.ae2enhanced.storage;
 import appeng.api.AEApi;
 import appeng.api.networking.security.IActionSource;
 import appeng.api.networking.storage.IBaseMonitor;
-import appeng.api.storage.IStorageChannel;
 import appeng.api.storage.IMEMonitorHandlerReceiver;
+import appeng.api.storage.IStorageChannel;
 import appeng.api.storage.channels.IItemStorageChannel;
 import appeng.api.storage.data.IAEItemStack;
-import appeng.util.Platform;
-import net.minecraft.item.ItemStack;
 import appeng.util.prioritylist.IPartitionList;
 import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.objects.ObjectOpenHashSet;
+import net.minecraft.item.ItemStack;
 
-import java.math.BigInteger;
-import java.util.ArrayList;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Set;
-import java.util.WeakHashMap;
+import java.util.*;
 
 /**
  * 物品存储适配器,继承 {@link AbstractStorageAdapter}.
- * 内部使用 BigInteger 维护数量,突破 long 上限.
+ * 内部使用 {@link HugeCount} 混合精度计数,突破 long 上限.
  *
  * <p>同时维护服务端搜索索引（nameIndex / modIndex），支持基于关键词的快速筛选。
  * 索引在物品存入/取出时增量更新，避免遍历时的 O(N) 分词开销。
@@ -43,9 +33,14 @@ public class ItemStorageAdapter extends AbstractStorageAdapter<IAEItemStack, Ite
     // R3: 已排序列表缓存
     private List<IAEItemStack> sortedList = new ArrayList<>();
     private boolean sortedListDirty = true;
+    /** 异步首加载完成后置位：索引在主线程首次搜索时惰性重建（fastutil 索引非线程安全） */
+    private volatile boolean indexDirty = true;
+    private final Object indexBuildLock = new Object();
     private int cachedSortBy = -1;
     private int cachedSortDir = -1;
     private int cachedViewMode = -1;
+    /** 上次全量重建时间戳（去抖：高频变更下避免每次翻页都全量重建+排序） */
+    private long lastSortedListRebuildMs = 0L;
 
     // R3: 打开的终端玩家列表（用于发送 UPDATE_NOTIFY）
     private final Set<net.minecraft.entity.player.EntityPlayerMP> openPlayers =
@@ -60,7 +55,7 @@ public class ItemStorageAdapter extends AbstractStorageAdapter<IAEItemStack, Ite
 
     private long lastExternalNotifyMs = 0;
 
-    // descriptor 快照，加速 containsItem()（避免每次查 ConcurrentHashMap）
+    // descriptor 快照，加速外部存储差集判定（避免每次查 ConcurrentHashMap）
     private java.util.HashSet<ItemDescriptor> descriptorSnapshot = null;
 
     // 搜索缓存：避免相同搜索词重复索引
@@ -97,8 +92,10 @@ public class ItemStorageAdapter extends AbstractStorageAdapter<IAEItemStack, Ite
         super(file);
         this.channel = AEApi.instance().storage().getStorageChannel(IItemStorageChannel.class);
         file.load(storage);
-        recalcTotal(); // 从文件加载后必须重新计算总数
-        rebuildIndex(); // 从文件加载后重建索引
+        file.registerPostLoadHook(() -> {
+            recalcTotal();      // IO 线程：仅遍历 ConcurrentHashMap，线程安全
+            indexDirty = true;  // 索引延迟到主线程首次搜索时重建（fastutil 索引非线程安全）
+        });
     }
 
     @Override
@@ -109,19 +106,16 @@ public class ItemStorageAdapter extends AbstractStorageAdapter<IAEItemStack, Ite
     @Override
     protected ItemDescriptor createDescriptor(IAEItemStack input) {
         // 使用 getDefinition() 避免 count=0 的 craftable 物品被识别为 air
+        // ItemDescriptor 构造器内部已做 NBT 深拷贝,此处无需再 copy
         ItemStack definition = input.getDefinition();
-        return new ItemDescriptor(definition != null ? definition.copy() : input.createItemStack());
+        return new ItemDescriptor(definition != null ? definition : input.createItemStack());
     }
 
     @Override
-    protected IAEItemStack createResult(IAEItemStack request, BigInteger amount) {
+    protected IAEItemStack createResult(IAEItemStack request, HugeCount amount) {
         IAEItemStack result = ((IItemStorageChannel) channel).createStack(request.createItemStack());
         if (result == null) return null;
-        if (amount.compareTo(StorageConstants.LONG_MAX) > 0) {
-            result.setStackSize(Long.MAX_VALUE);
-        } else {
-            result.setStackSize(amount.longValueExact());
-        }
+        result.setStackSize(amount.toLongSaturated());
         return result;
     }
 
@@ -187,17 +181,6 @@ public class ItemStorageAdapter extends AbstractStorageAdapter<IAEItemStack, Ite
         this.externalOnlyDirty = true;
         this.descriptorSnapshot = null;
         this.searchCache.clear();
-    }
-
-    /**
-     * 检查指定 AE 堆叠是否已在 adapter 的 storage 中。
-     * 使用 descriptorSnapshot（HashSet）加速，避免 ConcurrentHashMap 的锁开销。
-     */
-    public boolean containsItem(IAEItemStack stack) {
-        if (stack == null || this.storage.isEmpty()) return false;
-        ensureDescriptorSnapshot();
-        ItemDescriptor desc = createDescriptor(stack);
-        return this.descriptorSnapshot.contains(desc);
     }
 
     private void ensureDescriptorSnapshot() {
@@ -284,188 +267,14 @@ public class ItemStorageAdapter extends AbstractStorageAdapter<IAEItemStack, Ite
         }
     }
 
-    /**
-     * 根据搜索词快速筛选物品.
-     *
-     * @param query 搜索词（小写）
-     * @param isModSearch 是否为 @mod 搜索
-     * @param limit 最大返回数量
-     * @return 匹配的 IAEItemStack 列表（已设置数量）
-     */
-    public List<IAEItemStack> search(String query, boolean isModSearch, int limit) {
-        if (query == null || query.isEmpty()) {
-            return getAllItems(limit);
+    /** 首加载完成后索引待重建时，在主线程搜索路径上惰性重建一次。 */
+    private void ensureIndex() {
+        if (!indexDirty) return;
+        synchronized (indexBuildLock) {
+            if (!indexDirty) return;
+            rebuildIndex();
+            indexDirty = false;
         }
-
-        SearchCacheKey cacheKey = new SearchCacheKey(query, isModSearch ? (byte) 1 : (byte) 0, (byte) this.cachedViewMode);
-        List<IAEItemStack> cached = this.searchCache.get(cacheKey);
-        if (cached != null) {
-            return cached.size() > limit ? cached.subList(0, limit) : cached;
-        }
-
-        List<IAEItemStack> results = new ArrayList<>(Math.min(1000, limit));
-
-        if (isModSearch) {
-            boolean fuzzyEnabled = com.github.aeddddd.ae2enhanced.config.AE2EnhancedConfig.terminal.modSearchFuzzyThreshold <= 0
-                    || this.storage.size() <= com.github.aeddddd.ae2enhanced.config.AE2EnhancedConfig.terminal.modSearchFuzzyThreshold;
-
-            int added = 0;
-            if (fuzzyEnabled) {
-                outer:
-                for (java.util.Map.Entry<String, ObjectOpenHashSet<ItemDescriptor>> entry : this.modIndex.entrySet()) {
-                    if (!entry.getKey().contains(query)) continue;
-                    for (ItemDescriptor desc : entry.getValue()) {
-                        BigInteger count = storage.get(desc);
-                        if (count == null || count.signum() <= 0) continue;
-                        IAEItemStack stack = getAETemplate(desc);
-                        if (stack == null) continue;
-                        stack = stack.copy();
-                        if (count.compareTo(StorageConstants.LONG_MAX) > 0) {
-                            stack.setStackSize(Long.MAX_VALUE);
-                        } else {
-                            stack.setStackSize(count.longValue());
-                        }
-                        results.add(stack);
-                        if (++added >= limit) break outer;
-                    }
-                }
-            } else {
-                ObjectOpenHashSet<ItemDescriptor> set = this.modIndex.get(query);
-                if (set != null) {
-                    for (ItemDescriptor desc : set) {
-                        BigInteger count = storage.get(desc);
-                        if (count == null || count.signum() <= 0) continue;
-                        IAEItemStack stack = getAETemplate(desc);
-                        if (stack == null) continue;
-                        stack = stack.copy();
-                        if (count.compareTo(StorageConstants.LONG_MAX) > 0) {
-                            stack.setStackSize(Long.MAX_VALUE);
-                        } else {
-                            stack.setStackSize(count.longValue());
-                        }
-                        results.add(stack);
-                        if (++added >= limit) break;
-                    }
-                }
-            }
-
-            // externalOnlyCache MOD 搜索（通常只有几百个物品）
-            if (results.size() < limit) {
-                ensureExternalOnlyCache();
-                for (IAEItemStack stack : this.externalOnlyCache) {
-                    String modId = stack.asItemStackRepresentation().getItem().getRegistryName().getNamespace().toLowerCase();
-                    if (fuzzyEnabled ? !modId.contains(query) : !modId.equals(query)) continue;
-                    results.add(stack.copy());
-                    if (results.size() >= limit) break;
-                }
-            }
-        } else {
-            String[] terms = query.split(" ");
-            ObjectOpenHashSet<ItemDescriptor> candidates = null;
-            for (String term : terms) {
-                if (term.isEmpty()) continue;
-                ObjectOpenHashSet<ItemDescriptor> set = this.nameIndex.get(term);
-                if (set == null) {
-                    candidates = null;
-                    break;
-                }
-                if (candidates == null) {
-                    candidates = new ObjectOpenHashSet<>(set);
-                } else {
-                    candidates.retainAll(set);
-                    if (candidates.isEmpty()) {
-                        candidates = null;
-                        break;
-                    }
-                }
-            }
-            if (candidates != null) {
-                for (ItemDescriptor desc : candidates) {
-                    BigInteger count = storage.get(desc);
-                    if (count == null || count.signum() <= 0) continue;
-                    IAEItemStack stack = getAETemplate(desc);
-                    if (stack == null) continue;
-                    stack = stack.copy();
-                    if (count.compareTo(BigInteger.valueOf(Long.MAX_VALUE)) > 0) {
-                        stack.setStackSize(Long.MAX_VALUE);
-                    } else {
-                        stack.setStackSize(count.longValue());
-                    }
-                    results.add(stack);
-                    if (results.size() >= limit) break;
-                }
-            }
-
-            // externalOnlyCache NAME 搜索（通常只有几百个物品）
-            if (results.size() < limit) {
-                ensureExternalOnlyCache();
-                for (IAEItemStack stack : this.externalOnlyCache) {
-                    String name = stack.asItemStackRepresentation().getDisplayName().toLowerCase();
-                    boolean matches = true;
-                    for (String term : terms) {
-                        if (term.isEmpty()) continue;
-                        if (!name.contains(term)) {
-                            matches = false;
-                            break;
-                        }
-                    }
-                    if (!matches) continue;
-                    results.add(stack.copy());
-                    if (results.size() >= limit) break;
-                }
-            }
-        }
-
-        // 缓存结果（上限内避免内存爆炸）
-        if (results.size() <= 10000 && this.searchCache.size() < MAX_SEARCH_CACHE) {
-            this.searchCache.put(cacheKey, new ArrayList<>(results));
-        }
-
-        return results;
-    }
-
-    /**
-     * 获取所有物品（带数量），用于无搜索词时的回退.
-     */
-    public List<IAEItemStack> getAllItems(int limit) {
-        List<IAEItemStack> results = new ArrayList<>(Math.min(storage.size(), limit));
-        for (java.util.Map.Entry<ItemDescriptor, BigInteger> entry : storage.entrySet()) {
-            BigInteger count = entry.getValue();
-            if (count.signum() <= 0) continue;
-
-            IAEItemStack stack = getAETemplate(entry.getKey());
-            if (stack == null) continue;
-            stack = stack.copy();
-            if (count.compareTo(StorageConstants.LONG_MAX) > 0) {
-                stack.setStackSize(Long.MAX_VALUE);
-            } else {
-                stack.setStackSize(count.longValue());
-            }
-            results.add(stack);
-            if (results.size() >= limit) {
-                return results;
-            }
-        }
-        // 合并外部存储（使用差集缓存，避免遍历 50 万+ 物品）
-        if (this.externalMonitor != null) {
-            ensureExternalOnlyCache();
-            for (IAEItemStack stack : this.externalOnlyCache) {
-                if (!stack.isMeaningful()) continue;
-                results.add(stack.copy());
-                if (results.size() >= limit) {
-                    break;
-                }
-            }
-        }
-        return results;
-    }
-
-    public Object2ObjectOpenHashMap<String, ObjectOpenHashSet<ItemDescriptor>> getNameIndex() {
-        return nameIndex;
-    }
-
-    public Object2ObjectOpenHashMap<String, ObjectOpenHashSet<ItemDescriptor>> getModIndex() {
-        return modIndex;
     }
 
     // ---- 分词工具（与 OmniItemRegistry 保持逻辑一致） ----
@@ -558,6 +367,7 @@ public class ItemStorageAdapter extends AbstractStorageAdapter<IAEItemStack, Ite
                             byte sortDir, byte viewMode, int offset, int limit,
                             IPartitionList<IAEItemStack> viewCellFilter,
                             Set<ItemDescriptor> clientFilter) {
+        ensureIndex(); // 保留惰性索引重建：首次全量加载后由本活跃分页路径在主线程触发一次
         ensureSortedList(sortBy, sortDir, viewMode);
 
         if (search == null || search.isEmpty()) {
@@ -613,6 +423,17 @@ public class ItemStorageAdapter extends AbstractStorageAdapter<IAEItemStack, Ite
                 && sortDir == this.cachedSortDir && viewMode == this.cachedViewMode) {
             return;
         }
+        // 去抖：高频变更下避免每次翻页都全量重建+排序（N 极大时单次重建 O(N log N) 达数百 ms）。
+        // 仅在排序参数不变时生效（参数变更立即重建）；窗口内复用旧列表——无搜索词时
+        // 分页显示的成员与数量均可能滞后一个窗口（仅展示层，提取走 storage 实时校验，
+        // 不影响存取正确性）。首次构建（列表为空）不受去抖限制。
+        long debounceMs = com.github.aeddddd.ae2enhanced.config.AE2EnhancedConfig.terminal.terminalRebuildDebounceMs;
+        long nowMs = System.currentTimeMillis();
+        boolean sameParams = sortBy == this.cachedSortBy && sortDir == this.cachedSortDir && viewMode == this.cachedViewMode;
+        if (!this.sortedList.isEmpty() && sameParams && debounceMs > 0 && nowMs - this.lastSortedListRebuildMs < debounceMs) {
+            return;
+        }
+        this.lastSortedListRebuildMs = nowMs;
 
         this.sortedList.clear();
 
@@ -621,18 +442,14 @@ public class ItemStorageAdapter extends AbstractStorageAdapter<IAEItemStack, Ite
             externalList = this.externalMonitor.getStorageList();
         }
 
-        for (java.util.Map.Entry<ItemDescriptor, BigInteger> entry : storage.entrySet()) {
-            BigInteger count = entry.getValue();
-            if (count == null || count.signum() <= 0) continue;
+        for (java.util.Map.Entry<ItemDescriptor, HugeCount> entry : storage.entrySet()) {
+            HugeCount count = entry.getValue();
+            if (count == null || count.isZero()) continue;
 
             IAEItemStack stack = getAETemplate(entry.getKey());
             if (stack == null) continue;
             stack = stack.copy();
-            if (count.compareTo(StorageConstants.LONG_MAX) > 0) {
-                stack.setStackSize(Long.MAX_VALUE);
-            } else {
-                stack.setStackSize(count.longValue());
-            }
+            stack.setStackSize(count.toLongSaturated());
 
             // 合并外部 ME monitor 的 craftable 标记，确保存储中的物品也能中键下单/在 CRAFTABLE 视图中显示
             if (externalList != null) {
@@ -694,16 +511,12 @@ public class ItemStorageAdapter extends AbstractStorageAdapter<IAEItemStack, Ite
                     for (java.util.Map.Entry<String, ObjectOpenHashSet<ItemDescriptor>> entry : this.modIndex.entrySet()) {
                         if (!entry.getKey().contains(query)) continue;
                         for (ItemDescriptor desc : entry.getValue()) {
-                            BigInteger count = storage.get(desc);
-                            if (count == null || count.signum() <= 0) continue;
+                            HugeCount count = storage.get(desc);
+                            if (count == null || count.isZero()) continue;
                             IAEItemStack stack = getAETemplate(desc);
                             if (stack == null) continue;
                             stack = stack.copy();
-                            if (count.compareTo(StorageConstants.LONG_MAX) > 0) {
-                                stack.setStackSize(Long.MAX_VALUE);
-                            } else {
-                                stack.setStackSize(count.longValue());
-                            }
+                            stack.setStackSize(count.toLongSaturated());
                             allMatched.add(stack);
                         }
                     }
@@ -711,16 +524,12 @@ public class ItemStorageAdapter extends AbstractStorageAdapter<IAEItemStack, Ite
                     ObjectOpenHashSet<ItemDescriptor> set = this.modIndex.get(query);
                     if (set != null) {
                         for (ItemDescriptor desc : set) {
-                            BigInteger count = storage.get(desc);
-                            if (count == null || count.signum() <= 0) continue;
+                            HugeCount count = storage.get(desc);
+                            if (count == null || count.isZero()) continue;
                             IAEItemStack stack = getAETemplate(desc);
                             if (stack == null) continue;
                             stack = stack.copy();
-                            if (count.compareTo(StorageConstants.LONG_MAX) > 0) {
-                                stack.setStackSize(Long.MAX_VALUE);
-                            } else {
-                                stack.setStackSize(count.longValue());
-                            }
+                            stack.setStackSize(count.toLongSaturated());
                             allMatched.add(stack);
                         }
                     }
@@ -756,16 +565,12 @@ public class ItemStorageAdapter extends AbstractStorageAdapter<IAEItemStack, Ite
                 }
                 if (candidates != null) {
                     for (ItemDescriptor desc : candidates) {
-                        BigInteger count = storage.get(desc);
-                        if (count == null || count.signum() <= 0) continue;
+                        HugeCount count = storage.get(desc);
+                        if (count == null || count.isZero()) continue;
                         IAEItemStack stack = getAETemplate(desc);
                         if (stack == null) continue;
                         stack = stack.copy();
-                        if (count.compareTo(StorageConstants.LONG_MAX) > 0) {
-                            stack.setStackSize(Long.MAX_VALUE);
-                        } else {
-                            stack.setStackSize(count.longValue());
-                        }
+                        stack.setStackSize(count.toLongSaturated());
                         allMatched.add(stack);
                     }
                 }

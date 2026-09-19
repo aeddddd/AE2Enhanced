@@ -46,7 +46,6 @@ import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.common.Optional;
 import net.minecraftforge.fml.client.registry.ClientRegistry;
 import net.minecraftforge.fml.common.event.FMLInitializationEvent;
-import net.minecraftforge.fml.common.event.FMLPostInitializationEvent;
 import net.minecraftforge.fml.common.event.FMLPreInitializationEvent;
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
 import net.minecraftforge.common.MinecraftForge;
@@ -56,12 +55,6 @@ import org.lwjgl.input.Keyboard;
 
 @Mod.EventBusSubscriber(modid = AE2Enhanced.MOD_ID, value = Side.CLIENT)
 public class ClientProxy extends CommonProxy {
-
-    public static final KeyBinding JEI_SEARCH_KEY = new KeyBinding(
-            "key.ae2enhanced.jeiSearchTerminal",
-            Keyboard.KEY_F,
-            "key.categories.ae2enhanced"
-    );
 
     public static final KeyBinding OPEN_OMNI_TERMINAL_KEY = new KeyBinding(
             "key.ae2enhanced.openOmniTerminal",
@@ -82,10 +75,10 @@ public class ClientProxy extends CommonProxy {
     @Override
     public void preInit(FMLPreInitializationEvent event) {
         super.preInit(event);
-        ClientRegistry.registerKeyBinding(JEI_SEARCH_KEY);
         ClientRegistry.registerKeyBinding(OPEN_OMNI_TERMINAL_KEY);
         ClientRegistry.registerKeyBinding(TOGGLE_MAGNET_KEY);
         ClientRegistry.registerKeyBinding(com.github.aeddddd.ae2enhanced.guide.GuideHotkeyHandler.OPEN_GUIDE_KEY);
+        com.github.aeddddd.ae2enhanced.client.handler.UMCKeyBindings.register();
         KeyHandlerOmniTool.init();
         com.github.aeddddd.ae2enhanced.client.handler.KeyHandlerRing.init();
     }
@@ -160,11 +153,6 @@ public class ClientProxy extends CommonProxy {
             }, ItemRegistry.GAS_DROP);
         }
 
-    }
-
-    @Override
-    public void postInit(FMLPostInitializationEvent event) {
-        super.postInit(event);
     }
 
     @SideOnly(Side.CLIENT)

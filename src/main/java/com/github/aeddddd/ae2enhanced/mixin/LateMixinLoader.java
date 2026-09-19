@@ -10,10 +10,8 @@ import java.util.List;
 
 /**
  * Late Mixin 加载器.
- * 从 AssemblyMixinPlugin 中拆分出来,避免 IFMLLoadingPlugin(coremod)在过早阶段
- * 触发 JEI 内部类的加载,导致 CleanroomMC ActualClassLoader 标记 invalid.
- *
- * ae2fc 采用相同的架构：LateMixinLoader 仅实现 ILateMixinLoader,不作为 coremod.
+ * 从 AssemblyMixinPlugin 拆分出来, 避免 IFMLLoadingPlugin 过早触发 JEI 内部类加载,
+ * 导致 CleanroomMC ActualClassLoader 标记 invalid. ae2fc 采用相同的架构.
  */
 public class LateMixinLoader implements ILateMixinLoader {
 
@@ -24,15 +22,16 @@ public class LateMixinLoader implements ILateMixinLoader {
                 "mixins.ae2enhanced.late.tii.json",
                 "mixins.ae2enhanced.late.thaumic.json",
                 "mixins.ae2enhanced.late.gas.json"
-                // 注意: mixins.ae2enhanced.late.ring.json 目标全为 MC/Forge 原生类,
-                // 已移至 AssemblyMixinPlugin 的 early 注册(Cleanroom 下 late 注册
-                // 原生类目标会因 "loaded too early" 被静默拒绝).
+                // mixins.ae2enhanced.late.ring.json 目标全为 MC/Forge 原生类, 已移至
+                // AssemblyMixinPlugin 的 early 注册, Cleanroom 下 late 注册原生类会因 loaded too early 被静默拒绝
         ));
         if (!Ae2fcCompat.AE2FC_LOADED) {
             configs.add("mixins.ae2enhanced.late.fluid.json");
-            // ae2fc 缺失时接口热路径走原版 InventoryAdaptor.getAdaptor,启用其结果缓存
+            // ae2fc 缺失时接口热路径走原版 InventoryAdaptor.getAdaptor, 启用其结果缓存
             configs.add("mixins.ae2enhanced.late.vanillaadaptor.json");
-        } else {
+        } else if (Ae2fcCompat.AE2FC_WRAP_CACHE_SUPPORTED) {
+            // 该配置内的 FluidAdaptorCache 硬引用 2.7.x 的 FCDualityInterface 等接口,
+            // 旧版 ae2fc (官方 2.6.6-r) 加载后首次 wrap 会 NoClassDefFoundError, 跳过
             configs.add("mixins.ae2enhanced.late.ae2fc.json");
         }
         if (Loader.isModLoaded("storagedrawers")) {

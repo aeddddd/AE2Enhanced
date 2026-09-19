@@ -10,17 +10,13 @@ import net.minecraft.inventory.ClickType;
  */
 public class ResourceClickContext {
 
-    public final AEBaseGui gui;
     public final SlotME slot;
-    public final int slotId;
     public final int mouseButton;
     public final ClickType clickType;
     public final EntityPlayer player;
 
     public ResourceClickContext(AEBaseGui gui, SlotME slot, int slotId, int mouseButton, ClickType clickType) {
-        this.gui = gui;
         this.slot = slot;
-        this.slotId = slotId;
         this.mouseButton = mouseButton;
         this.clickType = clickType;
         this.player = gui.mc.player;

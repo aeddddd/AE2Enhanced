@@ -23,9 +23,9 @@ import com.github.aeddddd.ae2enhanced.diag.harvest.HarvestSnapshot.FurnaceEntry;
 import com.github.aeddddd.ae2enhanced.diag.harvest.HarvestSnapshot.MachineEntry;
 import com.github.aeddddd.ae2enhanced.diag.harvest.HarvestSnapshot.StackRef;
 import com.github.aeddddd.ae2enhanced.specialcrafting.RecursiveCraftingHelper;
-import com.github.aeddddd.ae2enhanced.test.specialcrafting.ProcessingPatternBuilder;
-import com.github.aeddddd.ae2enhanced.test.specialcrafting.ReusePatternBuilder;
-import com.github.aeddddd.ae2enhanced.test.specialcrafting.SimulationEnv;
+import com.github.aeddddd.ae2enhanced.test.support.ProcessingPatternBuilder;
+import com.github.aeddddd.ae2enhanced.test.support.ReusePatternBuilder;
+import com.github.aeddddd.ae2enhanced.test.support.SimulationEnv;
 
 /**
  * 整合包配方快照 → 虚拟测试环境（对应工作流规划文档阶段 2）.

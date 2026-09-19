@@ -1,8 +1,7 @@
 package com.github.aeddddd.ae2enhanced.guide.client;
 
 /**
- * 指南配色主题 —— 全部采用知名软件的真实配色方案：
- * VS Code Dark+、GitHub Light、Dracula、Nord。
+ * 指南配色主题, 全部采用知名软件的真实配色方案: VS Code Dark+, GitHub Light, Dracula, Nord.
  */
 public enum GuideTheme {
 

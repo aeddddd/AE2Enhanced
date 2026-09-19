@@ -14,18 +14,14 @@ import appeng.api.storage.data.IAEItemStack;
 import appeng.me.cluster.implementations.CraftingCPUCluster;
 
 /**
- * 超轮配额调度器（执行层,解决多消费者键的全批次种子依赖,移植自 1.20.1）.
- * <p><b>问题</b>:环计划中某键被 ≥2 个 pattern 消耗时,CPU 贪婪推送可让先行的
- * 消费者一次性耗尽库存、其余消费者饿死.</p>
- * <p><b>方案</b>:对被标记为特殊 job 的 CPU 集群,限制每个闭包 pattern 的推送
- * 不超过"最慢闭包 pattern 进度 + 1 个超轮"的配额——先行消费者最多领先一轮,
- * 多消费者键的并发消耗被闸在每轮总消耗以内,库存要求降回每轮种子.</p>
- * <p><b>配额自恢复</b>:计划 tasks 总次数 = 轮次 × 超轮比,对闭包内总次数求 GCD
- * 即恢复轮次;GCD=1(LP 最小执行计数互质)时退化为闭包最小总次数作轮数
- * (超轮比 ≈1,锁步推进);闭包 = 任务集中"既消耗又产出"的键所触及的
- * pattern（外部子合成 pattern 自动豁免）.</p>
- * <p><b>NBT 恢复</b>:配额快照随集群 NBT 持久化(见 MixinCraftingCPUClusterSpecial),
- * 重启/集群重组后按 pattern ItemStack 匹配重建;快照缺失时退化为原生推送.</p>
+ * 执行层配额调度器:限制环计划中各 pattern 的推送量,防止先行消费者一次性
+ * 耗尽共享库存、其余消费者饿死.
+ * <p>配额 = 闭包内各 pattern 每个超轮的可执行份额:闭包为任务集中"既消耗又产出
+ * 且成环"的键所触及的 pattern;轮次由闭包总次数的 GCD 恢复(GCD=1 时退化为
+ * 闭包最小总次数,锁步推进). 先行消费者最多领先最慢 pattern 一个超轮.</p>
+ * <p>配额与提交时的 tasks 次数快照以集群弱键存放,集群回收自动清理;快照随
+ * 集群 NBT 持久化(见 MixinCraftingCPUClusterSpecial),重启后按 pattern ItemStack
+ * 匹配重建;快照缺失时退化为原生推送.</p>
  */
 public final class RoundQuotaScheduler {
 
@@ -61,8 +57,8 @@ public final class RoundQuotaScheduler {
         if (totals == null || totals.isEmpty()) {
             return;
         }
-        // 剔除 value <= 0 的幽灵条目（多备选 pattern 分支中未被使用的样板，
-        // AE2 原生 isBusy() 同样剔除），否则推导配额时会出现 0 配额导致除零崩溃
+        // 剔除 value <= 0 的幽灵条目(多备选 pattern 分支中未被使用的样板),
+        // 否则推导配额时会出现 0 配额导致除零崩溃
         Map<ICraftingPatternDetails, Long> cleaned = new LinkedHashMap<>();
         for (Map.Entry<ICraftingPatternDetails, Long> entry : totals.entrySet()) {
             if (entry.getValue() != null && entry.getValue() > 0) {
@@ -93,38 +89,10 @@ public final class RoundQuotaScheduler {
     }
 
     /**
-     * 逐次推送否决（每次推送前由 executeCrafting 内 canCraft 调用的包装点调用）.
-     * <p>超配额时返回 true,包装点令 canCraft 返回 false——原生视同"输入不足"自然
-     * 跳过该 pattern,下一拍配额前进后自动恢复.</p>
-     * 非特殊集群 / 无快照 / 非自消耗 job / 闭包外 pattern 一律 false（零影响）.
-     */
-    public static boolean shouldVetoPush(CraftingCPUCluster cluster, ICraftingPatternDetails details,
-            Map<ICraftingPatternDetails, Long> remaining, IAEItemStack finalOutput) {
-        if (!SpecialCraftingRuntime.isSpecialCluster(cluster) || finalOutput == null) {
-            return false;
-        }
-        Map<ICraftingPatternDetails, Long> totals = TOTALS.get(cluster);
-        if (totals == null || !totals.containsKey(details)) {
-            return false; // NBT 恢复任务:退化原生推送
-        }
-        Quota quota = QUOTAS.get(cluster);
-        if (quota == null) {
-            quota = deriveQuota(totals, finalOutput);
-            QUOTAS.put(cluster, quota == null ? NO_QUOTA : quota);
-            quota = quota == null ? NO_QUOTA : quota;
-        }
-        if (quota == NO_QUOTA) {
-            return false;
-        }
-        return !isPushAllowed(quota, totals, remaining, details);
-    }
-
-    /**
      * 推导配额（纯函数）:任务集中"既消耗又产出"的键为候选闭包键;
-     * 候选键必须**真的成环**(沿闭包内样板能从自身回到自身)才纳入——
+     * 候选键必须真的成环(沿闭包内样板能从自身回到自身)才纳入——
      * 线性副产物复用(产出也被消耗但不成环)不调度,避免误伤死锁.
-     * 自 1.1.0 起不再要求最终产出在闭包内:深层循环(DAG 边界)计划的
-     * 最终产出是根物品,环在中间层,同样需要限推.
+     * 最终产出不必在闭包内:深层循环(DAG 边界)计划的环在中间层,同样需要限推.
      *
      * @return 配额;无真环/无法推导时返回 null（调用方退化原生推送）.
      */
@@ -186,9 +154,8 @@ public final class RoundQuotaScheduler {
         if (closureTotals.isEmpty() || gcd <= 0) {
             return null;
         }
-        // 轮数恢复:GCD>1 时按 GCD 约分;GCD=1(LP 最小执行计数常互质,如 49/49/48)
-        // 退化为闭包最小总次数——超轮比 ≈1,锁步推进(±1 次)防先行消费者吃光
-        // 共享种子;若沿用 GCD=1 则超轮 = 整个任务,闸门形同虚设
+        // 轮数恢复:GCD>1 时按 GCD 约分;GCD=1(LP 最小执行计数常互质)时
+        // 退化为闭包最小总次数——否则超轮等于整个任务,闸门形同虚设
         long rounds = gcd;
         if (rounds == 1) {
             rounds = Long.MAX_VALUE;
@@ -256,7 +223,7 @@ public final class RoundQuotaScheduler {
     /**
      * 单趟否决集合（执行层每 tick 一次性计算,O(闭包大小) 一次,趟内逐次查询 O(1)).
      * <p>趟内 totals/remaining 快照/quota 均不变,"最慢闭包进度"对全 pattern 共享,
-     * 逐次判定结果趟内稳定——与逐次调用 {@link #shouldVetoPush} 逐字节等价.</p>
+     * 逐次判定结果趟内稳定——与逐次调用 {@link #isPushAllowed} 的取反逐字节等价.</p>
      * 仅闭包内 pattern 可能被否决;totals 之外的 pattern(NBT 恢复任务)恒不否决.
      *
      * @return 本趟应否决的 pattern 集;无快照/非自消耗 job/无配额时返回空集.

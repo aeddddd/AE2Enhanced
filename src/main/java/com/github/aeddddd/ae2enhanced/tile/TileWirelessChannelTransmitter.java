@@ -223,18 +223,9 @@ public class TileWirelessChannelTransmitter extends TileAENetworkBase implements
             int dim = this.world.provider.getDimension();
             ItemChannelReceiverCard.bindToTransmitter(stack, tp, dim, this.forward);
             this.markDirty();
-        } else if (stack.getItem() instanceof ItemUniversalMemoryCard) {
-            if (ItemUniversalMemoryCard.hasBinding(stack)) {
-                NBTTagCompound binding = ItemUniversalMemoryCard.getBinding(stack);
-                BlockPos boundPos = BlockPos.fromLong(binding.getLong("pos"));
-                int boundDim = binding.getInteger("dim");
-                if (boundPos.equals(this.pos) && boundDim == this.world.provider.getDimension()) {
-                    return; // 已绑定到本发射器
-                }
-            }
-            ItemUniversalMemoryCard.setBinding(stack, this.pos, this.world.provider.getDimension());
-            this.markDirty();
         }
+        // 通用内存卡的网络绑定已迁移至 AE2 安全终端(右键绑定),
+        // 发射器卡槽不再处理 ItemUniversalMemoryCard
     }
 
     public void dropInventory(World world, BlockPos pos) {

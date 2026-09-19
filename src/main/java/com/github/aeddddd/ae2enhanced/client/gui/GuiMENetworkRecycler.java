@@ -8,9 +8,6 @@ import net.minecraft.client.resources.I18n;
 import net.minecraft.entity.player.InventoryPlayer;
 import net.minecraft.util.ResourceLocation;
 
-import javax.annotation.Nonnull;
-import java.io.IOException;
-
 /**
  * ME 网络回收节点的客户端 GUI.
  *

@@ -142,7 +142,4 @@ public class ContainerAssemblyFormed extends Container {
         return itemstack;
     }
 
-    public TileAssemblyController getTile() {
-        return tile;
-    }
 }

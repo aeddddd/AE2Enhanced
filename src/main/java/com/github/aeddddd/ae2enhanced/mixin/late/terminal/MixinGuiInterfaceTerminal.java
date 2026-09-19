@@ -2,7 +2,6 @@ package com.github.aeddddd.ae2enhanced.mixin.late.terminal;
 
 import appeng.client.gui.implementations.GuiInterfaceTerminal;
 import appeng.client.me.ClientDCInternalInv;
-import com.github.aeddddd.ae2enhanced.tile.TileAssemblyController;
 import net.minecraftforge.fml.relauncher.Side;
 import net.minecraftforge.fml.relauncher.SideOnly;
 import org.spongepowered.asm.mixin.Mixin;

@@ -6,11 +6,9 @@ import com.github.aeddddd.ae2enhanced.storage.starlight.AEStarlightStack;
 import com.github.aeddddd.ae2enhanced.storage.starlight.IAEStarlightStack;
 import com.github.aeddddd.ae2enhanced.storage.starlight.IStarlightStorageChannel;
 
-import java.math.BigInteger;
-
 /**
  * 超维度仓储枢纽的 Astral Sorcery Starlight 存储适配器,继承 {@link AbstractStorageAdapter}.
- * 内部使用 BigInteger 维护数量,突破 long 上限.
+ * 内部使用 {@link HugeCount} 混合精度计数,突破 long 上限.
  */
 public class StarlightStorageAdapter extends AbstractStorageAdapter<IAEStarlightStack, StarlightDescriptor> {
 
@@ -18,7 +16,7 @@ public class StarlightStorageAdapter extends AbstractStorageAdapter<IAEStarlight
         super(file);
         this.channel = AEApi.instance().storage().getStorageChannel(IStarlightStorageChannel.class);
         file.loadStarlight(storage);
-        recalcTotal();
+        file.registerPostLoadHook(this::recalcTotal); // 异步首加载完成后重算总数
     }
 
     @Override
@@ -32,11 +30,8 @@ public class StarlightStorageAdapter extends AbstractStorageAdapter<IAEStarlight
     }
 
     @Override
-    protected IAEStarlightStack createResult(IAEStarlightStack request, BigInteger amount) {
-        if (amount.compareTo(StorageConstants.LONG_MAX) > 0) {
-            return AEStarlightStack.create(Long.MAX_VALUE);
-        }
-        return AEStarlightStack.create(amount.longValueExact());
+    protected IAEStarlightStack createResult(IAEStarlightStack request, HugeCount amount) {
+        return AEStarlightStack.create(amount.toLongSaturated());
     }
 
     @Override

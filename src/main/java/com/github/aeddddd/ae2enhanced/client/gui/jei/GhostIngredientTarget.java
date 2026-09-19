@@ -17,12 +17,12 @@ import net.minecraftforge.fluids.capability.CapabilityFluidHandler;
 import net.minecraftforge.fluids.capability.IFluidHandlerItem;
 
 import javax.annotation.Nonnull;
-import java.awt.Rectangle;
+import java.awt.*;
 import java.io.IOException;
 
 /**
- * E1a：通用输入总线的 JEI Ghost Ingredient Target.
- * 支持 ItemStack(含流体/气体容器)、FluidStack、GasStack(反射)的拖放.
+ * E1a: 通用输入总线的 JEI ghost 拖放目标.
+ * 支持 ItemStack 含流体/气体容器, FluidStack 与 GasStack, 后两者经反射解析.
  */
 public class GhostIngredientTarget implements IGhostIngredientHandler.Target<Object> {
 

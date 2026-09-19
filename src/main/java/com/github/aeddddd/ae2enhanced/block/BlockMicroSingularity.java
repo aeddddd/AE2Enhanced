@@ -10,12 +10,7 @@ import net.minecraft.block.state.IBlockState;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.item.ItemStack;
 import net.minecraft.tileentity.TileEntity;
-import net.minecraft.util.ResourceLocation;
-import net.minecraft.util.SoundEvent;
-import net.minecraft.util.EnumFacing;
-import net.minecraft.util.EnumHand;
-import net.minecraft.util.EnumParticleTypes;
-import net.minecraft.util.SoundCategory;
+import net.minecraft.util.*;
 import net.minecraft.util.math.AxisAlignedBB;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.IBlockAccess;
@@ -25,10 +20,9 @@ import net.minecraft.world.WorldServer;
 import javax.annotation.Nullable;
 
 /**
- * 微型奇点 — 仪式召唤的临时黑洞方块.
- * 不可破坏,发光,有较小的碰撞箱,300 秒后自动坍缩.
- * 玩家右键可主动触发黑洞合成(配方不匹配时不销毁物品);
- * 手持燃料物品右键可延长存在时间或使奇点永久存在.
+ * 微型奇点, 仪式召唤的临时黑洞方块. 不可破坏, 发光, 有较小的碰撞箱, 300 秒后自动坍缩.
+ * 玩家右键主动触发黑洞合成, 配方不匹配时不销毁物品; 手持燃料物品右键可延长存在时间,
+ * 或使奇点永久存在.
  */
 public class BlockMicroSingularity extends Block {
 
@@ -99,7 +93,7 @@ public class BlockMicroSingularity extends Block {
     }
 
     /**
-     * 奇点约束器右键：移除方块,约束器转化为携带剩余寿命与永久标记的奇点物品.
+     * 奇点约束器右键: 移除方块, 约束器转化为携带剩余寿命与永久标记的奇点物品.
      */
     private static void convertToItem(World world, BlockPos pos, EntityPlayer player, ItemStack constrictor,
                                       TileMicroSingularity singularity) {
@@ -116,12 +110,10 @@ public class BlockMicroSingularity extends Block {
                 SoundCategory.BLOCKS, 1.0f, 0.6f);
     }
 
-    /**
-     * 喂入燃料：延长存在时间,或使奇点永久存在.
-     */
+    /** 喂入燃料: 延长存在时间, 或使奇点永久存在. */
     private static void feedFuel(World world, BlockPos pos, EntityPlayer player, ItemStack held,
                                  TileMicroSingularity singularity, SingularityFuelRecipe fuel) {
-        // 已永久存在的奇点无需再喂燃料,避免白白消耗
+        // 已永久存在的奇点无需再喂燃料, 避免白白消耗
         if (singularity.isPermanent()) {
             return;
         }

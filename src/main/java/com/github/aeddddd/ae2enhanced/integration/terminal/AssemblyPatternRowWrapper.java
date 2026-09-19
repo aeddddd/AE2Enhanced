@@ -1,6 +1,5 @@
 package com.github.aeddddd.ae2enhanced.integration.terminal;
 
-import com.github.aeddddd.ae2enhanced.tile.TileAssemblyController;
 import net.minecraft.item.ItemStack;
 import net.minecraftforge.items.IItemHandler;
 

@@ -8,12 +8,9 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 /**
- * E2a：阻止假物品(流体/气体/源质)进入玩家背包.
- * AE2 终端在提取时可能绕过 NetworkMonitor.extractItems 拦截,
- * 直接在容器层将假物品放入背包.此处兜底拦截.
- *
- * 本 mixin 使用 AbstractNbtDrop.isDrop 进行字符串类名比较,避免直接引用
- * 条件类(ItemGasDrop / ItemEssentiaDrop)导致 NoClassDefFoundError.
+ * 阻止假物品(流体/气体/源质等)进入玩家背包: AE2 终端提取时可能绕过
+ * NetworkMonitor.extractItems 拦截, 直接在容器层把假物品放入背包, 此处兜底拦截.
+ * 用字符串类名比较识别假物品, 避免直接引用条件类导致 NoClassDefFoundError.
  */
 @Mixin(value = InventoryPlayer.class, remap = false)
 public class MixinInventoryPlayer {

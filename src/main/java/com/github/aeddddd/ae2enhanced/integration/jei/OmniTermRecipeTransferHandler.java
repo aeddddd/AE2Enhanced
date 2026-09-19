@@ -13,19 +13,13 @@ import net.minecraft.item.ItemStack;
 import net.minecraftforge.fluids.FluidStack;
 import org.lwjgl.input.Keyboard;
 
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 /**
- * Omni Terminal JEI 配方快速转移 Handler
+ * Omni Terminal JEI 配方快速转移 Handler.
  *
- * 行为：
- * - 默认(无 modifier)：crafting 配方同时填充左 3×3 crafting grid 和右编码区；处理配方只填充编码区
- * - Shift(maxTransfer=true)：只填充右编码区
- * - Alt(Keyboard.KEY_LMENU)：只填充左 3×3 crafting grid(仅 crafting 配方有效)
+ * <p>行为: 默认同时填充左侧 3x3 合成格和右编码区, 处理配方只填充编码区;
+ * Shift 只填充编码区; Alt 只填充左侧合成格, 仅 crafting 配方有效.</p>
  */
 public class OmniTermRecipeTransferHandler implements IRecipeTransferHandler<ContainerOmniTerm> {
 
@@ -69,8 +63,8 @@ public class OmniTermRecipeTransferHandler implements IRecipeTransferHandler<Con
             return null;
         }
 
-        // Crafting recipe: 检测并修正 key 偏移(某些 recipe category 的 output 占用了 key 0,inputs 从 1 开始)
-        // 只有当 output 明确占用了 key 0 时才偏移,避免将 "第一个 input slot 为空" 误判为偏移
+        // Crafting 配方: 检测并修正 key 偏移, 某些 recipe category 的 output 占用了 key 0, inputs 从 1 开始.
+        // 只有 output 明确占用 key 0 时才偏移, 避免把"第一个 input slot 为空"误判为偏移
         if (isCrafting && outputs.containsKey(0)) {
             Map<Integer, ItemStack> shifted = new HashMap<>();
             for (Map.Entry<Integer, ItemStack> entry : inputs.entrySet()) {

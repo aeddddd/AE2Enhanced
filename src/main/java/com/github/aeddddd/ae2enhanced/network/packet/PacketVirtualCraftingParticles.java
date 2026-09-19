@@ -1,6 +1,5 @@
 package com.github.aeddddd.ae2enhanced.network.packet;
 
-import com.github.aeddddd.ae2enhanced.AE2Enhanced;
 import io.netty.buffer.ByteBuf;
 import net.minecraft.client.Minecraft;
 import net.minecraft.util.EnumParticleTypes;

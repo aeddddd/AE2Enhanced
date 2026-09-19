@@ -335,10 +335,6 @@ public class ThaumcraftHandler implements IRemoteHandler, IVirtualBatchCraftingH
         return matchInfusionRecipe(recipe, ingredients);
     }
 
-    public List<ItemStack> virtualCraft(World world, BlockPos pos, InventoryCrafting ingredients, IAEItemStack[] outputs, IActionSource source) {
-        return virtualCraftBatch(world, pos, ingredients, outputs, 1, source);
-    }
-
     @Override
     public List<EnumParticleTypes> getVirtualCraftingParticles(World world, BlockPos pos) {
         return Arrays.asList(

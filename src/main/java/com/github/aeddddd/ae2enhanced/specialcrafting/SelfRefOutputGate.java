@@ -15,15 +15,13 @@ import com.github.aeddddd.ae2enhanced.AE2Enhanced;
 import com.github.aeddddd.ae2enhanced.mixin.bridge.ISpecialCpuAccess;
 
 /**
- * 自消耗 job 的最终产出交付门控（执行层,移植自 1.20.1 的 SelfRefOutputGate）.
- * <p><b>问题</b>:原生 {@code CraftingCPUCluster.injectItems} 中,任何匹配 finalOutput 的回流
- * 物品会立即经 {@code myLastLink.injectItems} 交付并扣减 finalOutput.自引用/循环链计划中
- * 请求物既是产出又是输入——种子产出的第一批物品被直接交付而非喂给下一份合成,
- * 导致链条饿死:无法并行爬坡、多轮中断、任务永远无法完成.</p>
- * <p><b>门控策略</b>:仅对被 {@link SpecialCraftingRuntime} 标记的集群（= 正在执行特殊计划,
- * 构造上必然自消耗）,回流的最终产出先存入 CPU 库存（喂给后续合成）;当所有任务已推送
- * 且该 key 无在途量时,一次性从库存交付剩余 finalOutput 并完成 job
- * （语义与原生一致:link 拒收余量由 finishJob 后的 storeItems 返回网络）.</p>
+ * 自引用 job 的最终产出交付门控（执行层）.
+ * <p>原生 {@code CraftingCPUCluster.injectItems} 中,匹配 finalOutput 的回流物品会立即
+ * 经 {@code myLastLink.injectItems} 交付并扣减 finalOutput;自引用计划中请求物既是产出
+ * 又是输入,第一批产出被直接交付而非喂给下一份合成,链条会饿死.</p>
+ * <p>门控策略:仅对 {@link SpecialCraftingRuntime} 标记的集群,回流的最终产出先存入
+ * CPU 库存;当所有任务已推送且该 key 无在途量时,一次性从库存交付剩余 finalOutput
+ * 并完成 job(语义与原生一致:link 拒收余量由 finishJob 后的 storeItems 返回网络).</p>
  * <p>普通 job 与普通 CPU 的集群永不被标记,本门控对它们零影响.</p>
  */
 public final class SelfRefOutputGate {
@@ -61,10 +59,15 @@ public final class SelfRefOutputGate {
      */
     public static GateResult handleInsert(CraftingCPUCluster cluster, IAEItemStack input, Actionable type,
             IActionSource src) {
-        if (input == null || !SpecialCraftingRuntime.isSpecialCluster(cluster) || !cluster.isBusy()) {
+        if (input == null || !SpecialCraftingRuntime.isSpecialCluster(cluster)) {
             return NOT_HANDLED;
         }
         ISpecialCpuAccess acc = (ISpecialCpuAccess) (Object) cluster;
+        // 不得调用原生 cluster.isBusy():其 removeIf 会结构性修改 tasks,
+        // 本方法可能在 executeCrafting 迭代 tasks 期间经网络回流重入,会触发 CME
+        if (!isBusyReadOnly(acc)) {
+            return NOT_HANDLED;
+        }
         IAEItemStack finalOutput = acc.ae2e$finalOutput();
         if (finalOutput == null || !finalOutput.equals(input)) {
             return NOT_HANDLED;
@@ -108,20 +111,39 @@ public final class SelfRefOutputGate {
 
     /**
      * 每 tick 收官尝试（由 updateCraftingLogic HEAD 对被标记集群调用）.
-     * <p>必要性:executeCrafting 中 value 归零的 task 条目要到下一次迭代才移除,
-     * 最后一次门控回流时 tasks 可能仍含零值条目,导致 handleInsert 内的 trySettle
-     * 不触发;此后若无新的回流,收官将永远不会发生.每 tick 兜底确保收官.</p>
+     * executeCrafting 中 value 归零的 task 条目要下一次迭代才移除,最后一次门控回流时
+     * tasks 可能仍含零值条目,handleInsert 内的 trySettle 不触发;此后若无新回流,
+     * 收官不会发生.每 tick 兜底确保收官.
      */
     public static void tickSettle(CraftingCPUCluster cluster) {
-        if (!SpecialCraftingRuntime.isSpecialCluster(cluster) || !cluster.isBusy()) {
+        if (!SpecialCraftingRuntime.isSpecialCluster(cluster)) {
             return;
         }
         ISpecialCpuAccess acc = (ISpecialCpuAccess) (Object) cluster;
+        // 禁用原生 isBusy() 的 removeIf 副作用,改只读判定
+        if (!isBusyReadOnly(acc)) {
+            return;
+        }
         IAEItemStack finalOutput = acc.ae2e$finalOutput();
         if (finalOutput == null) {
             return;
         }
         trySettle(cluster, acc, finalOutput, cluster.getActionSource());
+    }
+
+    /**
+     * 无副作用的 isBusy 等价判定:存在 value > 0 的任务条目,或 waitingFor 非空.
+     * 原生 {@code isBusy()} 会先对 {@code tasks} 执行 {@code removeIf(value <= 0)}
+     * 结构性修改,在 executeCrafting 迭代期间的重入调用中会触发
+     * ConcurrentModificationException.语义差异:零值条目延迟移除,本方法将其视为
+     * "已完成",与原生 removeIf 后的判定一致;放弃的仅 updateElapsedTime 副作用
+     * （计时由 updateCraftingLogic 主路径维护,此处无需重复）.
+     */
+    private static boolean isBusyReadOnly(ISpecialCpuAccess acc) {
+        if (!acc.ae2e$waitingFor().isEmpty()) {
+            return true;
+        }
+        return !allTasksDone(acc);
     }
 
     /**
@@ -160,8 +182,8 @@ public final class SelfRefOutputGate {
         long held = heldStack == null ? 0 : heldStack.getStackSize();
         long deliver = Math.min(remaining, held);
         if (deliver <= 0) {
-            // 异常终态(产出丢失:机器 void/样板被破坏等)——与原生 stuck-craft 一致
-            // 保持等待由玩家手动取消;告警限频 30s,避免 tickSettle 每 tick 刷屏
+            // 产出丢失(机器 void/样板被破坏等)的异常终态:与原生 stuck-craft 一致保持等待,
+            // 由玩家手动取消;告警限频 30s,避免每 tick 刷屏
             long now = System.currentTimeMillis();
             Long lastWarn = LAST_STUCK_WARN.get(cluster);
             if (lastWarn == null || now - lastWarn >= STUCK_WARN_INTERVAL_MS) {
@@ -176,9 +198,8 @@ public final class SelfRefOutputGate {
         ICraftingLink link = acc.ae2e$myLastLink();
         long delivered = 0;
         // standalone(玩家终端提交)任务的原生 link 交付恒拒收;机器任务的 link 也可能已满.
-        // 先用 SIMULATE 探测:可收则提取直付;拒收则一律留在 CPU 库存,由 completeJob→
-        // storeItems 兜底送入网络存储(不能在此同步插网络:本方法运行在回流调用栈内,
-        // 同步插入有重入风险).
+        // 先 SIMULATE 探测:可收则提取直付;拒收则留在 CPU 库存,由 completeJob→storeItems
+        // 兜底送入网络存储(本方法运行在回流调用栈内,不能在此同步插网络,有重入风险).
         boolean linkAccepts = false;
         if (link != null) {
             IAEItemStack probeOne = finalOutput.copy();

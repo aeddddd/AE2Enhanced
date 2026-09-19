@@ -37,7 +37,7 @@ public class AE2Enhanced {
 
     public static final String MOD_ID = "ae2enhanced";
     public static final String MOD_NAME = "AE2Enhanced";
-    public static final String VERSION = "1.7.7.3";
+    public static final String VERSION = "1.7.8.0";
 
     public static final String CLIENT_PROXY = "com.github.aeddddd.ae2enhanced.proxy.ClientProxy";
     public static final String SERVER_PROXY = "com.github.aeddddd.ae2enhanced.proxy.CommonProxy";
@@ -90,6 +90,8 @@ public class AE2Enhanced {
         MinecraftForge.EVENT_BUS.register(new WirelessChannelTickHandler());
         // 服务器 TPS/tick 耗时采集（/ae2e perf tps,总开关 /ae2e debug perf off）
         MinecraftForge.EVENT_BUS.register(new com.github.aeddddd.ae2enhanced.diag.perf.TpsTracker());
+        // 超维度仓储会话注册表的闲置扫描（会话常驻 + 闲置落盘关闭）
+        com.github.aeddddd.ae2enhanced.storage.HyperdimensionalStorageManager.startIdleScanner();
     }
 
     @Mod.EventHandler
@@ -125,6 +127,8 @@ public class AE2Enhanced {
     public void serverStopping(net.minecraftforge.fml.common.event.FMLServerStoppingEvent event) {
         // 清理中枢接口目标所有权静态表，避免单机跨存档重载后旧实例残留锁死机器
         com.github.aeddddd.ae2enhanced.centralinterface.TargetOwnershipTracker.instance().clearAll();
+        // 全部超维度仓储会话落盘关闭（WAL 冲刷 + checkpoint），保证关服耐久
+        com.github.aeddddd.ae2enhanced.storage.HyperdimensionalStorageManager.closeAll();
     }
 
     private void checkMixinEnvironment() {

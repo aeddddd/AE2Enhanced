@@ -10,13 +10,12 @@ import mezz.jei.api.ingredients.IIngredients;
 import mezz.jei.api.recipe.IRecipeCategory;
 import net.minecraft.client.resources.I18n;
 import net.minecraft.item.ItemStack;
-import net.minecraft.util.ResourceLocation;
 
 import javax.annotation.Nullable;
 import java.util.List;
 
 /**
- * JEI 奇点处理仓配方类别：左侧 3×2 输入组（组内替代循环展示）,右侧输出,底部处理时间.
+ * JEI 奇点处理仓配方类别: 左侧 3×2 输入组(组内替代循环展示), 右侧输出, 底部处理时间.
  */
 public class ChamberRecipeCategory implements IRecipeCategory<ChamberRecipeWrapper> {
 
@@ -67,7 +66,8 @@ public class ChamberRecipeCategory implements IRecipeCategory<ChamberRecipeWrapp
     public void setRecipe(IRecipeLayout recipeLayout, ChamberRecipeWrapper recipeWrapper, IIngredients ingredients) {
         IGuiItemStackGroup stacks = recipeLayout.getItemStacks();
 
-        // 输入组：左侧 3×2 网格,槽位内容为一组替代物品（JEI 循环展示）
+        // 输入组：左侧 3×2 网格,槽位内容为一组替代物品（JEI 循环展示）,
+        // 自定义渲染器显示格式化计数（真实数量不截断）
         List<List<ItemStack>> inputGroups = ingredients.getInputs(ItemStack.class);
         for (int i = 0; i < inputGroups.size() && i < 6; i++) {
             if (inputGroups.get(i).isEmpty()) {
@@ -75,12 +75,12 @@ public class ChamberRecipeCategory implements IRecipeCategory<ChamberRecipeWrapp
             }
             int x = 8 + (i % 3) * 18;
             int y = 8 + (i / 3) * 18;
-            stacks.init(i, true, x, y);
+            stacks.init(i, true, ChamberIngredientRenderer.INSTANCE, x, y, 16, 16, 0, 0);
             stacks.set(i, inputGroups.get(i));
         }
 
         // 输出：右侧
-        stacks.init(9, false, 116, 19);
+        stacks.init(9, false, ChamberIngredientRenderer.INSTANCE, 116, 19, 16, 16, 0, 0);
         stacks.set(9, ingredients.getOutputs(ItemStack.class).get(0).get(0));
     }
 }

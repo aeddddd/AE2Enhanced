@@ -10,7 +10,7 @@ import org.spongepowered.asm.mixin.gen.Accessor;
 import org.spongepowered.asm.mixin.gen.Invoker;
 
 /**
- * GuiMEMonitorable 私有成员访问接口(仅客户端加载).
+ * GuiMEMonitorable 私有成员访问接口, 仅客户端加载.
  * 替代 GuiOmniTerm / JEISearchKeyHandler / MixinGuiMEMonitorableKeyHandler 中的反射.
  */
 @Mixin(value = GuiMEMonitorable.class, remap = false)

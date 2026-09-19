@@ -1,7 +1,5 @@
 package com.github.aeddddd.ae2enhanced.util.compat.botania;
 
-import net.minecraft.block.properties.IProperty;
-import net.minecraft.block.state.IBlockState;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
@@ -311,36 +309,5 @@ public final class BotaniaManaHelper {
         Integer required = getIntField(te, "manaRequired");
         if (required != null) return required;
         return 0;
-    }
-
-    /**
-     * 判断指定位置是否是 Botania 永恒魔力池(Creative / Everlasting Mana Pool).
-     */
-    @SuppressWarnings({"rawtypes", "unchecked"})
-    public static boolean isEverlastingManaPool(World world, BlockPos pos) {
-        if (!available || poolVariantPropertyField == null || poolVariantCreative == null) return false;
-        try {
-            IBlockState state = world.getBlockState(pos);
-            IProperty property = (IProperty) poolVariantPropertyField.get(null);
-            Object value = state.getValue(property);
-            return poolVariantCreative.equals(value);
-        } catch (Throwable t) {
-            return false;
-        }
-    }
-
-    /**
-     * 将指定位置的永恒魔力池变为神话魔力池(Fabulous Mana Pool).
-     */
-    @SuppressWarnings({"rawtypes", "unchecked"})
-    public static void convertEverlastingToFabulous(World world, BlockPos pos) {
-        if (!available || poolVariantPropertyField == null || poolVariantFabulous == null) return;
-        try {
-            IBlockState state = world.getBlockState(pos);
-            IProperty property = (IProperty) poolVariantPropertyField.get(null);
-            IBlockState newState = state.withProperty(property, (Comparable) poolVariantFabulous);
-            world.setBlockState(pos, newState);
-        } catch (Throwable ignored) {
-        }
     }
 }

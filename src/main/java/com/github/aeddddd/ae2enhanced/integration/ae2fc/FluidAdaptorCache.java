@@ -42,6 +42,8 @@ import java.util.Map;
  * <p>本类仅被 ae2fc 条件 mixin（MixinFluidConvertingInventoryAdaptor）引用，
  * 不得放入 mixin 包（Mixin 禁止直接引用 mixin 包内的类），
  * 也不得被无条件加载的类引用（硬引用 ae2fc 类）。
+ * 加载条件为 Ae2fcCompat.AE2FC_WRAP_CACHE_SUPPORTED（旧版 ae2fc 如官方 2.6.6-r
+ * 缺少 FCDualityInterface，进入本类即 NoClassDefFoundError）。
  * 仅限服务端线程访问（wrap 的调用方均在 tick 线程）。</p>
  */
 public final class FluidAdaptorCache {

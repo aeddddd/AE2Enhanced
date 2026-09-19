@@ -1,32 +1,33 @@
 package com.github.aeddddd.ae2enhanced.test.lp;
 
+import static com.github.aeddddd.ae2enhanced.test.support.LpTestSupport.buildMiniWeb;
+import static com.github.aeddddd.ae2enhanced.test.support.LpTestSupport.canon;
+import static com.github.aeddddd.ae2enhanced.test.support.LpTestSupport.execOf;
+import static com.github.aeddddd.ae2enhanced.test.support.LpTestSupport.solve;
+import static com.github.aeddddd.ae2enhanced.test.support.LpTestSupport.stockOf;
+import static com.github.aeddddd.ae2enhanced.test.support.LpTestSupport.totalExec;
+import static com.github.aeddddd.ae2enhanced.test.support.SimulationEnv.block;
+import static com.github.aeddddd.ae2enhanced.test.support.SimulationEnv.mult;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-
-import java.util.HashMap;
-import java.util.Map;
 
 import org.junit.jupiter.api.Test;
 
 import net.minecraft.block.Block;
 import net.minecraft.init.Blocks;
-import net.minecraft.item.ItemStack;
 
 import appeng.api.networking.crafting.ICraftingPatternDetails;
 import appeng.api.storage.data.IAEItemStack;
-import appeng.util.item.AEItemStack;
 
-import com.github.aeddddd.ae2enhanced.specialcrafting.CondensationPlanner;
 import com.github.aeddddd.ae2enhanced.specialcrafting.CondensationPlanner.LpPlanOutcome;
-import com.github.aeddddd.ae2enhanced.specialcrafting.NetworkPatternIndex;
-import com.github.aeddddd.ae2enhanced.specialcrafting.RecursiveCraftingHelper;
-import com.github.aeddddd.ae2enhanced.specialcrafting.lp.SccLpSolve;
-import com.github.aeddddd.ae2enhanced.test.specialcrafting.ProcessingPatternBuilder;
-import com.github.aeddddd.ae2enhanced.test.specialcrafting.SimulationEnv;
+import com.github.aeddddd.ae2enhanced.test.support.LpTestSupport.MiniWeb;
+import com.github.aeddddd.ae2enhanced.test.support.ProcessingPatternBuilder;
+import com.github.aeddddd.ae2enhanced.test.support.SimulationEnv;
 
 /**
  * 冷凝分层驱动器（M3）集成测试.
- * <p>覆盖:跨单元需求传播/输出共享合并/发射台/迷你蛛网/共享原料扇入.
+ * <p>覆盖:跨单元需求传播/输出共享合并/迷你蛛网/M4 种子校验/共享原料扇入.
+ * 发射台与"库存不抵交付"语义由物化层 LpPlanMaterializationTest 等价覆盖.
  * 断言 LP 语义解（含"无种子自举"松弛,M4 校验前）.</p>
  */
 public class CondensationPlannerTest {
@@ -69,18 +70,6 @@ public class CondensationPlannerTest {
         assertEquals(9.0, execOf(out, p2), EPS);
     }
 
-    /** 发射台键:需求 100 全由发射台供给,无执行、无赤字. */
-    @Test
-    public void emitterKeyCovered() {
-        SimulationEnv env = new SimulationEnv();
-        IAEItemStack e = block(Blocks.STONE);
-        env.addEmitable(e);
-        LpPlanOutcome out = solve(env, e, 100, stockOf());
-        assertTrue(out.allOptimal);
-        assertTrue(out.deficits.isEmpty(), "发射台键不应赤字: " + out.deficits);
-        assertTrue(out.executions.isEmpty(), "发射台键不应有执行: " + out.executions);
-    }
-
     /**
      * 迷你蛛网(50 键环 + 3 自增环)+ M4 种子校验:LP 首轮选无种子自举的 dup@45
      * (LP 语义最优 600),校验拦截 → 禁约束重解走有种子的 dup@25(种子 K25=1):
@@ -89,29 +78,14 @@ public class CondensationPlannerTest {
     @Test
     public void miniWebEndToEnd() {
         SimulationEnv env = new SimulationEnv();
-        IAEItemStack[] keys = new IAEItemStack[50];
-        Block[] palette = { Blocks.STONE, Blocks.COBBLESTONE, Blocks.DIRT, Blocks.PLANKS, Blocks.SAND,
-                Blocks.GRAVEL, Blocks.LOG, Blocks.GLASS, Blocks.CLAY, Blocks.BRICK_BLOCK };
-        for (int i = 0; i < keys.length; i++) {
-            keys[i] = AEItemStack.fromItemStack(new ItemStack(palette[i % palette.length], 1, i / palette.length));
-        }
-        ICraftingPatternDetails[] ring = new ICraftingPatternDetails[50];
-        for (int i = 0; i < 50; i++) {
-            ring[i] = env.addPattern(new ProcessingPatternBuilder(keys[(i + 1) % 50])
-                    .addPreciseInput(1, keys[i]).build());
-        }
-        env.addPattern(new ProcessingPatternBuilder(mult(keys[5], 2)).addPreciseInput(1, keys[5]).build());
-        ICraftingPatternDetails dup25 = env.addPattern(new ProcessingPatternBuilder(mult(keys[25], 2))
-                .addPreciseInput(1, keys[25]).build());
-        ICraftingPatternDetails dup45 = env.addPattern(new ProcessingPatternBuilder(mult(keys[45], 2))
-                .addPreciseInput(1, keys[45]).build());
-        LpPlanOutcome out = solve(env, keys[0], 100, stockOf(keys[25], 1));
+        MiniWeb web = buildMiniWeb(env);
+        LpPlanOutcome out = solve(env, web.keys[0], 100, stockOf(web.keys[25], 1));
         assertTrue(out.allOptimal);
         assertTrue(out.deficits.isEmpty(), "种子重解后应满足全部需求: " + out.deficits);
-        assertEquals(99.0, execOf(out, dup25), EPS);
-        assertEquals(0.0, execOf(out, dup45), EPS);
+        assertEquals(99.0, execOf(out, web.dup25), EPS);
+        assertEquals(0.0, execOf(out, web.dup45), EPS);
         for (int i = 25; i <= 49; i++) {
-            assertEquals(100.0, execOf(out, ring[i]), EPS, "交付环流 p" + i);
+            assertEquals(100.0, execOf(out, web.ring[i]), EPS, "交付环流 p" + i);
         }
         assertEquals(2599.0, totalExec(out), EPS);
     }
@@ -186,21 +160,6 @@ public class CondensationPlannerTest {
         assertTrue(out.allOptimal);
         assertEquals(1, out.deficits.size(), "唯一赤字键 R: " + out.deficits);
         assertEquals(6.0, out.deficits.get(canon(r)), EPS);
-    }
-
-    /** 全额生产(原生 ignore(output) 语义):请求物自身库存不抵交付,
-     * 需求 ≤ 库存也照常生产,零赤字. */
-    @Test
-    public void stockCoversDemand() {
-        SimulationEnv env = new SimulationEnv();
-        IAEItemStack x = block(Blocks.STONE);
-        IAEItemStack a = block(Blocks.COBBLESTONE);
-        ICraftingPatternDetails p = env.addPattern(
-                new ProcessingPatternBuilder(x).addPreciseInput(1, a).build());
-        LpPlanOutcome out = solve(env, x, 10, stockOf(x, 64, a, 64));
-        assertTrue(out.allOptimal);
-        assertTrue(out.deficits.isEmpty());
-        assertEquals(10.0, execOf(out, p), EPS, "库存不抵交付,全额生产: " + out.executions);
     }
 
     /**
@@ -282,51 +241,5 @@ public class CondensationPlannerTest {
         assertEquals(1.0, execOf(out, press), EPS, "应选压制×1: " + out.executions);
     }
 
-    // ===== 工具 =====
-
-    private static LpPlanOutcome solve(SimulationEnv env, IAEItemStack what, long target,
-            Map<IAEItemStack, Long> stock) {
-        return CondensationPlanner.solve(env.craftingGrid(), NetworkPatternIndex.of(env.craftingGrid()),
-                what, target, stock);
-    }
-
-    private static double execOf(LpPlanOutcome out, ICraftingPatternDetails pattern) {
-        double total = 0;
-        for (SccLpSolve.Execution e : out.executions) {
-            if (e.pattern == pattern) {
-                total += e.count;
-            }
-        }
-        return total;
-    }
-
-    private static double totalExec(LpPlanOutcome out) {
-        double total = 0;
-        for (SccLpSolve.Execution e : out.executions) {
-            total += e.count;
-        }
-        return total;
-    }
-
-    private static IAEItemStack canon(IAEItemStack stack) {
-        return RecursiveCraftingHelper.canon(stack);
-    }
-
-    private static Map<IAEItemStack, Long> stockOf(Object... kv) {
-        Map<IAEItemStack, Long> stock = new HashMap<>();
-        for (int i = 0; i < kv.length; i += 2) {
-            stock.put(canon((IAEItemStack) kv[i]), ((Number) kv[i + 1]).longValue());
-        }
-        return stock;
-    }
-
-    private static IAEItemStack block(Block block) {
-        return AEItemStack.fromItemStack(new ItemStack(block));
-    }
-
-    private static IAEItemStack mult(IAEItemStack template, long multiplier) {
-        IAEItemStack copy = template.copy();
-        copy.setStackSize(template.getStackSize() * multiplier);
-        return copy;
-    }
+    // ===== 工具(公共助手见 LpTestSupport) =====
 }

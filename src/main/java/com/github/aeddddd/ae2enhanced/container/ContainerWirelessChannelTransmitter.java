@@ -8,15 +8,12 @@ import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.entity.player.InventoryPlayer;
 
 /**
- * F1a：无线频道发生器 GUI 的 Container.
+ * F1a: 无线频道发生器 GUI 的 Container.
  */
 public class ContainerWirelessChannelTransmitter extends AEBaseContainer {
 
-    private final TileWirelessChannelTransmitter tile;
-
     public ContainerWirelessChannelTransmitter(InventoryPlayer ip, TileWirelessChannelTransmitter tile) {
         super(ip, tile, null);
-        this.tile = tile;
 
         this.addSlotToContainer(new AppEngSlot(tile.getInventory(), TileWirelessChannelTransmitter.SLOT_CARD, 81, 48));
 

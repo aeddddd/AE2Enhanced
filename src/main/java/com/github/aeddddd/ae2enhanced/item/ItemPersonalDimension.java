@@ -15,7 +15,7 @@ import net.minecraft.util.text.TextComponentTranslation;
 import net.minecraft.world.World;
 
 /**
- * 个人维度核心：右键空气打开配置，右键方块传送，Shift+右键方块绑定进入点。
+ * 个人维度核心: 右键空气打开配置, 右键方块传送, Shift+右键方块绑定进入点.
  */
 public class ItemPersonalDimension extends Item {
 
@@ -71,7 +71,7 @@ public class ItemPersonalDimension extends Item {
         }
 
         if (player.dimension == dimId) {
-            // 已在个人维度，返回上一次位置
+            // 已在个人维度, 返回上一次位置
             PersonalDimensionManager.teleportToReturnPoint(mp);
         } else {
             // 记录当前位置并进入个人维度
