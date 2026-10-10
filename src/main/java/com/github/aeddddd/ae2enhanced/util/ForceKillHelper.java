@@ -189,7 +189,7 @@ public final class ForceKillHelper {
     public static float getRawHealth(EntityLivingBase target) {
         try {
             net.minecraft.network.datasync.DataParameter<Float> healthParam =
-                    com.github.aeddddd.ae2enhanced.mixin.late.accessor.IEntityLivingBaseAccessor.ae2e$getHEALTH();
+                    com.github.aeddddd.ae2enhanced.util.reflection.VanillaReflectionHelper.getHealthParameter();
             if (healthParam != null) {
                 Float value = target.getDataManager().get(healthParam);
                 if (value != null) {
@@ -197,7 +197,7 @@ public final class ForceKillHelper {
                 }
             }
         } catch (Throwable ignored) {
-            // accessor mixin 未生效等场景,回退到 getHealth()
+            // 反射不可用等场景,回退到 getHealth()
         }
         return target.getHealth();
     }

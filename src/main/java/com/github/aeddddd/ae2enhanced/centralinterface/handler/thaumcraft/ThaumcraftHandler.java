@@ -6,6 +6,7 @@ import appeng.api.networking.security.IActionSource;
 import appeng.api.storage.data.IAEItemStack;
 import appeng.api.storage.data.IAEStack;
 import appeng.util.item.AEItemStack;
+import com.github.aeddddd.ae2enhanced.centralinterface.HandlerUtils;
 import com.github.aeddddd.ae2enhanced.centralinterface.IRemoteHandler;
 import com.github.aeddddd.ae2enhanced.centralinterface.IVirtualBatchCraftingHandler;
 import com.mojang.authlib.GameProfile;
@@ -21,23 +22,30 @@ import net.minecraft.world.WorldServer;
 import net.minecraft.util.EnumParticleTypes;
 import net.minecraftforge.common.util.FakePlayer;
 import net.minecraftforge.common.util.FakePlayerFactory;
-import net.minecraftforge.common.util.RecipeMatcher;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 
 /**
  * Thaumcraft 注魔矩阵远程处理器.
  *
- * <p>配方匹配策略：在 {@code canStart} 中通过输入物品种类+数量遍历注魔配方列表,
- * 找到匹配后缓存；{@code pushMaterials} 将主材放入矩阵正下方基座、辅材放入周围基座；
+ * <p>{@code canStart} 只做结构就绪检查(未在合成、位置合法、基座为空)；{@code pushMaterials}
+ * 按 AE 样板槽位约定把第一个非空物品放到矩阵正下方基座(主材)、其余放到周围基座(辅材)；
  * {@code startProcess} 使用 {@code FakePlayer} 调用 {@code craftingStart} 并临时授予研究,
  * 以跳过进度检查.</p>
+ *
+ * <p><b>配方策略</b>：物理路径上唯一的配方定位发生在 {@code startProcess} 的回退路径，
+ * 且以样板声明的主产物 {@code expectedOutputs[0]} 为索引，结果缓存到
+ * {@link TargetSession#getRecipeCache()}。
+ * 主材定位(main = 首个非空样板槽位 → 矩阵正下方基座)与辅材分配属于放置位置知识。</p>
+ *
+ * <p><b>取舍</b>：若样板声明的主产物与注魔配方输出不一致(例如输出带 NBT 差异)，
+ * 配方定位会失败，此时 {@code startProcess} 返回 false，材料由 {@link #revertMaterials}
+ * 取回，本次发配不产出。</p>
  */
 public class ThaumcraftHandler implements IRemoteHandler, IVirtualBatchCraftingHandler {
 
@@ -222,8 +230,8 @@ public class ThaumcraftHandler implements IRemoteHandler, IVirtualBatchCraftingH
                     return true;
                 }
 
-                // 未启动,可能是研究不足.从基座反查配方,临时授予研究后重试
-                Object recipe = findRecipeFromPedestals(world, pos, te);
+                // 未启动,可能是研究不足.按样板声明的主产物定位配方并缓存,临时授予研究后重试
+                Object recipe = resolveRecipe(session);
                 if (recipe != null) {
                     Object knowledge = ThaumcraftReflectionHelper.getKnowledge(fakePlayer);
                     String research = ThaumcraftReflectionHelper.infusionGetResearch(recipe);
@@ -242,7 +250,7 @@ public class ThaumcraftHandler implements IRemoteHandler, IVirtualBatchCraftingH
                     return forceStartCrafting(world, pos, te, recipe);
                 }
             } catch (Exception e) {
-                Object recipe = findRecipeFromPedestals(world, pos, te);
+                Object recipe = resolveRecipe(session);
                 if (recipe != null) {
                     return forceStartCrafting(world, pos, te, recipe);
                 }
@@ -352,7 +360,7 @@ public class ThaumcraftHandler implements IRemoteHandler, IVirtualBatchCraftingH
         Object recipe = ThaumcraftReflectionHelper.getInfusionRecipe(outputs[0].createItemStack());
         if (recipe == null) return costs;
 
-        List<ItemStack> available = collectNonEmpty(ingredients);
+        List<ItemStack> available = HandlerUtils.collectNonEmpty(ingredients);
 
         // 主材
         Ingredient mainInput = ThaumcraftReflectionHelper.infusionGetRecipeInput(recipe);
@@ -406,7 +414,7 @@ public class ThaumcraftHandler implements IRemoteHandler, IVirtualBatchCraftingH
     // ---- 批量虚拟合成辅助 ----
 
     private boolean matchInfusionRecipe(Object recipe, InventoryCrafting ingredients) {
-        List<ItemStack> available = collectNonEmpty(ingredients);
+        List<ItemStack> available = HandlerUtils.collectNonEmpty(ingredients);
         Ingredient mainInput = ThaumcraftReflectionHelper.infusionGetRecipeInput(recipe);
         if (mainInput != null) {
             boolean found = false;
@@ -435,15 +443,6 @@ public class ThaumcraftHandler implements IRemoteHandler, IVirtualBatchCraftingH
             }
         }
         return available.isEmpty();
-    }
-
-    private List<ItemStack> collectNonEmpty(InventoryCrafting ingredients) {
-        List<ItemStack> list = new ArrayList<>();
-        for (int i = 0; i < ingredients.getSizeInventory(); i++) {
-            ItemStack stack = ingredients.getStackInSlot(i);
-            if (!stack.isEmpty()) list.add(stack.copy());
-        }
-        return list;
     }
 
     @Override
@@ -499,57 +498,37 @@ public class ThaumcraftHandler implements IRemoteHandler, IVirtualBatchCraftingH
         return collectAllPedestalItems(world, pos);
     }
 
-    // ---- 配方查找(仅在 startProcess 回退路径中使用) ----
+    // ---- 配方定位(仅在 startProcess 回退路径中使用) ----
 
     /**
-     * 从已放置到基座的物品反查注魔配方.
-     * 用于 craftingStart 失败后的 FakePlayer research 授予和强制回退.
+     * 按样板声明的主产物定位注魔配方,结果缓存到 {@link TargetSession}.
+     *
+     * <p>配方只服务于两件事：给 FakePlayer 临时授予该配方的研究、以及在 craftingStart
+     * 仍然失败时走 {@link #forceStartCrafting} 强制完成。</p>
+     *
+     * <p>主产物取样板声明的首个产物 {@code expectedOutputs[0]}。缓存随
+     * {@link TargetSession#reset()} 清空，因此一次发配内只在首次需要时查一次。</p>
+     *
+     * @return 定位到的注魔配方；无声明产物或查不到时返回 null
      */
-    private static Object findRecipeFromPedestals(World world, BlockPos pos, TileEntity te) {
-        // 读取主材
-        BlockPos mainPos = pos.down(2);
-        TileEntity mainTe = world.getTileEntity(mainPos);
-        if (!CLASS_TILE_PEDESTAL.isInstance(mainTe)) return null;
-        ItemStack mainItem;
+    private static Object resolveRecipe(TargetSession session) {
+        if (session == null) return null;
+        Object cached = session.getRecipeCache();
+        if (cached != null) return cached;
+
+        IAEItemStack[] expected = session.getExpectedOutputs();
+        if (expected == null || expected.length == 0 || expected[0] == null) return null;
         try {
-            mainItem = (ItemStack) METHOD_PEDESTAL_GET_STACK.invoke(mainTe, 0);
+            ItemStack mainOutput = expected[0].createItemStack();
+            if (mainOutput.isEmpty()) return null;
+            Object recipe = ThaumcraftReflectionHelper.getInfusionRecipe(mainOutput);
+            if (recipe != null) {
+                session.setRecipeCache(recipe);
+            }
+            return recipe;
         } catch (Exception e) {
             return null;
         }
-        if (mainItem.isEmpty()) return null;
-
-        // 读取辅材
-        List<ItemStack> auxItems = new ArrayList<>();
-        try {
-            METHOD_GET_SURROUNDINGS.invoke(te);
-            @SuppressWarnings("unchecked")
-            List<BlockPos> pedestals = (List<BlockPos>) FIELD_PEDESTALS.get(te);
-            for (BlockPos pPos : pedestals) {
-                TileEntity pTe = world.getTileEntity(pPos);
-                if (!CLASS_TILE_PEDESTAL.isInstance(pTe)) continue;
-                ItemStack stack = (ItemStack) METHOD_PEDESTAL_GET_STACK.invoke(pTe, 0);
-                if (!stack.isEmpty()) {
-                    auxItems.add(stack);
-                }
-            }
-        } catch (Exception e) {
-            return null;
-        }
-
-        // 遍历配方匹配
-        Map<?, ?> recipes = ThaumcraftReflectionHelper.getCraftingRecipes();
-        for (Object recipe : recipes.values()) {
-            if (!ThaumcraftReflectionHelper.CLASS_INFUSION_RECIPE.isInstance(recipe)) continue;
-            Ingredient input = ThaumcraftReflectionHelper.infusionGetRecipeInput(recipe);
-            NonNullList<Ingredient> components = ThaumcraftReflectionHelper.infusionGetComponents(recipe);
-            if (input == null || components == null) continue;
-            if (!input.apply(mainItem)) continue;
-            if (auxItems.size() != components.size()) continue;
-            if (RecipeMatcher.findMatches(auxItems, components) != null) {
-                return recipe;
-            }
-        }
-        return null;
     }
 
     // ---- 辅助方法 ----

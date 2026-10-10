@@ -9,6 +9,7 @@ import appeng.util.item.AEItemStack;
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
 import com.github.aeddddd.ae2enhanced.centralinterface.IRemoteHandler;
 import com.github.aeddddd.ae2enhanced.centralinterface.IVirtualBatchCraftingHandler;
+import com.github.aeddddd.ae2enhanced.centralinterface.machine.EntityScanThrottle;
 import com.github.aeddddd.ae2enhanced.config.AE2EnhancedConfig;
 import com.mojang.authlib.GameProfile;
 import net.minecraft.entity.Entity;
@@ -28,10 +29,7 @@ import net.minecraft.util.EnumParticleTypes;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -39,20 +37,26 @@ import java.util.UUID;
  *
  * <p>支持中枢 ME 接口对坩埚的自动化：
  * <ul>
- *   <li>智能发配顺序：自动遍历 CrucibleRecipe 识别催化剂,确保催化剂最后投入</li>
+ *   <li>智能发配顺序：按样板声明的主产物定位 CrucibleRecipe 取得催化剂,确保催化剂最后投入</li>
  *   <li>催化剂自然投掷：源质来源直接分解,催化剂以 EntityItem 形式从坩埚上方自然落下</li>
  *   <li>研究绕过：使用 FakePlayer 临时授予所有坩埚配方研究</li>
  *   <li>源质残留管理：成功收集产物后才调用 spillRemnants 清空(可配置开关)</li>
  * </ul>
+ *
+ * <p><b>配方策略</b>：{@code canStart} 只检查是否还有未落下的催化剂；{@code pushMaterials}
+ * 以样板声明的主产物 {@code expectedOutputs[0]} 定位一次坩埚配方，用其中的 catalyst 字段
+ * 决定“哪个物品最后投”。
+ * 定位失败时退化为全部物品按源质来源处理(不投催化剂)。</p>
  */
 public class ThaumcraftCrucibleHandler implements IRemoteHandler, IVirtualBatchCraftingHandler {
 
     private static final String BLOCK_ID = "thaumcraft:crucible";
     private static final GameProfile CRUCIBLE_PROFILE = new GameProfile(
             UUID.nameUUIDFromBytes("ae2e-crucible".getBytes()), "[AE2E]");
-    private static final Set<String> GRANTED_RESEARCH = new HashSet<>();
     private static boolean researchGrantAttempted = false;
     private static final String TAG_CATALYST = "ae2eCatalyst";
+    /** 催化剂/产物的水平识别半径（格），用于排除相邻坩埚的实体。 */
+    private static final double CATALYST_RANGE = 0.8;
 
     private static Class<?> CLASS_TILE_CRUCIBLE;
     private static Class<?> CLASS_ENTITY_SPECIAL_ITEM;
@@ -124,8 +128,8 @@ public class ThaumcraftCrucibleHandler implements IRemoteHandler, IVirtualBatchC
             }
             if (items.isEmpty()) return false;
 
-            // 识别催化剂
-            ItemStack identifiedCatalyst = identifyCatalyst(items);
+            // 识别催化剂(以样板声明的主产物定位坩埚配方，取配方 catalyst)
+            ItemStack identifiedCatalyst = identifyCatalystFromOutput(items, session);
             ItemStack catalyst = ItemStack.EMPTY;
             List<ItemStack> sources = new ArrayList<>();
             if (!identifiedCatalyst.isEmpty()) {
@@ -148,10 +152,8 @@ public class ThaumcraftCrucibleHandler implements IRemoteHandler, IVirtualBatchC
 
             // 投入源质来源(直接 attemptSmelt)
             for (ItemStack stack : sources) {
-                ItemStack remaining = (ItemStack) METHOD_ATTEMPT_SMELT.invoke(te, stack, username);
-                if (remaining == null) {
-                    remaining = ItemStack.EMPTY;
-                }
+                // attemptSmelt 返回未消耗的余量,由调用方负责处理;中枢此处丢弃该返回值
+                METHOD_ATTEMPT_SMELT.invoke(te, stack, username);
             }
 
             // 催化剂以 EntityItem 形式从坩埚上方自然落下
@@ -184,7 +186,9 @@ public class ThaumcraftCrucibleHandler implements IRemoteHandler, IVirtualBatchC
     @Override
     public boolean isIdle(World world, BlockPos pos, List<ItemStack> inputs, TargetSession session) {
         initReflection();
-        return !hasPendingCatalyst(world, pos);
+        // isIdle 每 tick 调用一次，扫描走节流缓存；判定最多延迟 intervalTicks-1 tick（默认 3 tick）。
+        // 真正决定"是否收集"的 collectProducts 仍使用实时扫描，催化剂未落地时不会提前收集。
+        return !hasPendingCatalystThrottled(world, pos);
     }
 
     // ---- IVirtualCraftingHandler / IVirtualBatchCraftingHandler ----
@@ -288,13 +292,29 @@ public class ThaumcraftCrucibleHandler implements IRemoteHandler, IVirtualBatchC
     // ---- 内部方法 ----
 
     private static boolean hasPendingCatalyst(World world, BlockPos pos) {
-        AxisAlignedBB aabb = new AxisAlignedBB(
-                pos.getX() - 0.5, pos.getY() - 0.5, pos.getZ() - 0.5,
-                pos.getX() + 1.5, pos.getY() + 5.0, pos.getZ() + 1.5
-        );
-        for (EntityItem entity : world.getEntitiesWithinAABB(EntityItem.class, aabb)) {
+        return hasPendingCatalystIn(pos, world.getEntitiesWithinAABB(EntityItem.class, catalystScanBox(pos)));
+    }
+
+    /**
+     * isIdle 路径专用的<b>节流</b>扫描版本.
+     *
+     * <p>催化剂扫描范围较大（坩埚上方 6 格高的柱体），而 {@code isIdle} 每 tick 都会被调用，
+     * 因此复用 {@link EntityScanThrottle} 的缓存（默认每
+     * {@link EntityScanThrottle#DEFAULT_INTERVAL_TICKS} tick 才真扫一次）。</p>
+     *
+     * <p><b>语义影响</b>：空闲判定最多延迟 3 tick（催化剂已消失但缓存尚未刷新），
+     * 产物收集相应延后最多 3 tick；{@link #collectProducts} 仍用实时扫描，
+     * 催化剂真的还在半空时会返回空产物并等待下一 tick。</p>
+     */
+    private static boolean hasPendingCatalystThrottled(World world, BlockPos pos) {
+        return hasPendingCatalystIn(pos,
+                EntityScanThrottle.scan(world, pos, EntityItem.class, catalystScanBox(pos)));
+    }
+
+    private static boolean hasPendingCatalystIn(BlockPos pos, List<EntityItem> entities) {
+        for (EntityItem entity : entities) {
             if (entity.isDead) continue;
-            if (!isWithinHorizontalRange(entity, pos, 0.8)) continue;
+            if (!isWithinHorizontalRange(entity, pos, CATALYST_RANGE)) continue;
             if (entity.getEntityData().getBoolean(TAG_CATALYST)) {
                 return true;
             }
@@ -302,13 +322,17 @@ public class ThaumcraftCrucibleHandler implements IRemoteHandler, IVirtualBatchC
         return false;
     }
 
-    private static void killPendingCatalysts(World world, BlockPos pos) {
-        AxisAlignedBB aabb = new AxisAlignedBB(
+    /** 坩埚上方用于识别"未落下的催化剂"的扫描范围（水平 ±0.5，垂直 -0.5 ~ +5.0）。 */
+    private static AxisAlignedBB catalystScanBox(BlockPos pos) {
+        return new AxisAlignedBB(
                 pos.getX() - 0.5, pos.getY() - 0.5, pos.getZ() - 0.5,
                 pos.getX() + 1.5, pos.getY() + 5.0, pos.getZ() + 1.5
         );
-        for (EntityItem entity : world.getEntitiesWithinAABB(EntityItem.class, aabb)) {
-            if (!isWithinHorizontalRange(entity, pos, 0.8)) continue;
+    }
+
+    private static void killPendingCatalysts(World world, BlockPos pos) {
+        for (EntityItem entity : world.getEntitiesWithinAABB(EntityItem.class, catalystScanBox(pos))) {
+            if (!isWithinHorizontalRange(entity, pos, CATALYST_RANGE)) continue;
             if (entity.getEntityData().getBoolean(TAG_CATALYST)) {
                 entity.setDead();
             }
@@ -326,7 +350,7 @@ public class ThaumcraftCrucibleHandler implements IRemoteHandler, IVirtualBatchC
             Class<? extends Entity> clazz = (Class<? extends Entity>) CLASS_ENTITY_SPECIAL_ITEM;
             for (Entity entity : world.getEntitiesWithinAABB(clazz, aabb)) {
                 if (!CLASS_ENTITY_SPECIAL_ITEM.isInstance(entity)) continue;
-                if (!isWithinHorizontalRange(entity, pos, 0.8)) continue;
+                if (!isWithinHorizontalRange(entity, pos, CATALYST_RANGE)) continue;
 
                 ItemStack item = (ItemStack) METHOD_GET_ITEM.invoke(entity);
                 if (item != null && !item.isEmpty()) {
@@ -349,17 +373,39 @@ public class ThaumcraftCrucibleHandler implements IRemoteHandler, IVirtualBatchC
         return dx * dx + dz * dz <= range * range;
     }
 
-    private static ItemStack identifyCatalyst(List<ItemStack> items) {
-        Map<?, ?> recipes = ThaumcraftReflectionHelper.getCraftingRecipes();
-        for (Object recipe : recipes.values()) {
-            if (!ThaumcraftReflectionHelper.CLASS_CRUCIBLE_RECIPE.isInstance(recipe)) continue;
+    /**
+     * 用样板声明的主产物定位坩埚配方，并取出本批物品中匹配该配方催化剂的物品.
+     *
+     * <p>催化剂必须最后投入(源质来源先分解出源质，催化剂落下时配方才能成立)，
+     * 这一顺序知识来自配方的 catalyst 字段，因此这里按主产物
+     * {@code expectedOutputs[0]} 定位配方。
+     * 定位到的配方缓存到 {@link TargetSession}，随 session reset 清空。</p>
+     *
+     * @return 匹配到的催化剂物品；无声明产物、查不到配方或无匹配时返回 {@link ItemStack#EMPTY}
+     *         (此时全部物品按源质来源处理)
+     */
+    private static ItemStack identifyCatalystFromOutput(List<ItemStack> items, TargetSession session) {
+        try {
+            Object recipe = session != null ? session.getRecipeCache() : null;
+            if (recipe == null) {
+                IAEItemStack[] expected = session != null ? session.getExpectedOutputs() : null;
+                if (expected == null || expected.length == 0 || expected[0] == null) return ItemStack.EMPTY;
+                ItemStack mainOutput = expected[0].createItemStack();
+                if (mainOutput.isEmpty()) return ItemStack.EMPTY;
+                recipe = ThaumcraftReflectionHelper.getCrucibleRecipe(mainOutput);
+                if (recipe == null) return ItemStack.EMPTY;
+                session.setRecipeCache(recipe);
+            }
+
             Ingredient catalyst = ThaumcraftReflectionHelper.crucibleGetCatalyst(recipe);
-            if (catalyst == null) continue;
+            if (catalyst == null) return ItemStack.EMPTY;
             for (ItemStack item : items) {
                 if (catalyst.apply(item)) {
                     return item;
                 }
             }
+        } catch (Exception e) {
+            AE2Enhanced.LOGGER.warn("[AE2E] crucible catalyst lookup failed", e);
         }
         return ItemStack.EMPTY;
     }
@@ -371,6 +417,7 @@ public class ThaumcraftCrucibleHandler implements IRemoteHandler, IVirtualBatchC
         Object knowledge = ThaumcraftReflectionHelper.getKnowledge(fakePlayer);
         if (knowledge != null && !researchGrantAttempted) {
             researchGrantAttempted = true;
+            int granted = 0;
             for (Object recipe : ThaumcraftReflectionHelper.getCraftingRecipes().values()) {
                 if (ThaumcraftReflectionHelper.CLASS_CRUCIBLE_RECIPE.isInstance(recipe)) {
                     String research = ThaumcraftReflectionHelper.crucibleGetResearch(recipe);
@@ -380,14 +427,14 @@ public class ThaumcraftCrucibleHandler implements IRemoteHandler, IVirtualBatchC
                         // 因此这里额外 setResearchStage 到一个足够大的值.
                         ThaumcraftReflectionHelper.knowledgeAddResearch(knowledge, research);
                         ThaumcraftReflectionHelper.knowledgeSetResearchStage(knowledge, research, 100);
-                        GRANTED_RESEARCH.add(research);
+                        granted++;
                     }
                 }
             }
             // 同步给 FakePlayer,确保后续 attemptSmelt 中 knowsResearchStrict 能命中
             ThaumcraftReflectionHelper.knowledgeSync(knowledge, fakePlayer);
             AE2Enhanced.LOGGER.info("[AE2E] Granted {} crucible researches to FakePlayer [{}]",
-                    GRANTED_RESEARCH.size(), fakePlayer.getName());
+                    granted, fakePlayer.getName());
         }
         return fakePlayer.getName();
     }

@@ -1,6 +1,7 @@
 package com.github.aeddddd.ae2enhanced.centralinterface;
 
 import appeng.api.storage.data.IAEItemStack;
+import com.github.aeddddd.ae2enhanced.centralinterface.machine.PushLedger;
 import net.minecraft.item.ItemStack;
 import net.minecraftforge.fluids.FluidStack;
 
@@ -11,8 +12,7 @@ import java.util.List;
 /**
  * 单个远程绑定目标的运行时状态封装.
  *
- * <p>替代原本分散在 {@link DualityCentralInterface} 中的多个 map，
- * 把状态、输入快照、预期产物、启动时间、已推流体等全部收敛到一个对象里。</p>
+ * <p>把状态、输入快照、预期产物、启动时间、已推流体等全部收敛到一个对象里。</p>
  */
 public class TargetSession {
 
@@ -26,6 +26,11 @@ public class TargetSession {
     private List<FluidStack> pushedFluids;
     private List<FluidStack> inputFluids;
 
+    // 本批物理推料的逐槽台账（Frame 层 ItemTransferHelper 在真实插入阶段记录）。
+    // 只服务于本批发配的失败/超时回退：回退时按台账精确取回"我们实际放进去的量"，
+    // 避免把机器原有的同型物品一起取走。不写入 NBT，reset 时清空。
+    private PushLedger pushLedger;
+
     // 物理发配运行时的上下文，供 dispatcher 与 handler 判断 grace 期，
     // 避免 handler 实例保存 per-target 的 map 造成并行隔离问题。
     private long pushTick = -1;
@@ -35,6 +40,11 @@ public class TargetSession {
     // Handler 可在本 session 中临时缓存配方对象，替代 handler 实例中的 recipeCache map。
     // 该字段不持久化，session reset 时自动清空。
     private Object recipeCache;
+
+    // Handler 可在本 session 中缓存"非配方"类的临时对象（如龙研聚合核心的注入器列表），
+    // 与 recipeCache 分开存放，避免同一 handler 的两类缓存互相覆盖。
+    // 该字段不持久化，session reset 时自动清空。
+    private Object handlerCache;
 
     public TargetSession(TargetBinding binding, DualityCentralInterface owner) {
         this.binding = binding;
@@ -131,6 +141,9 @@ public class TargetSession {
         }
         this.state = TargetState.PUSHING;
         this.pushedFluids = pushedFluids != null ? new ArrayList<>(pushedFluids) : new ArrayList<>();
+        // 新一批开始：台账只能属于当前这一批，旧的（若有）必须丢弃，
+        // 否则本批推料失败时会按上一批的台账去取回物品。
+        this.pushLedger = null;
         return true;
     }
 
@@ -145,6 +158,25 @@ public class TargetSession {
             throw new IllegalStateException("Cannot pre-commit outputs from state " + this.state);
         }
         this.expectedOutputs = expectedOutputs != null ? expectedOutputs.clone() : null;
+    }
+
+    /**
+     * 记录本批物理推料的逐槽台账（{@code ItemTransferHelper.PushOutcome#ledger()}）。
+     *
+     * <p>与其它 {@code record*} 方法不同，这里<b>不做状态校验</b>：{@code pushMaterials} 由各
+     * handler 自行实现，有可能在非 {@code PUSHING} 状态下被调用；台账只服务于回退，为一个
+     * 辅助记录把整个发配失败是不划算的。台账跨 {@link #commitPush} 保留（处理中/收集中的超时
+     * 回退同样需要它），{@link #reset()} 时清空。</p>
+     */
+    public void recordPushLedger(PushLedger ledger) {
+        this.pushLedger = ledger;
+    }
+
+    /**
+     * 本批推料的逐槽台账；未记录（handler 自行推料、或尚未推料）时为 {@code null}。
+     */
+    public PushLedger getPushLedger() {
+        return this.pushLedger;
     }
 
     /**
@@ -217,10 +249,12 @@ public class TargetSession {
         this.inputs = null;
         this.pushedFluids = null;
         this.inputFluids = null;
+        this.pushLedger = null;
         this.pushTick = -1;
         this.lastStartProcessTick = -1;
         this.startProcessAttempts = 0;
         this.recipeCache = null;
+        this.handlerCache = null;
     }
 
     /**
@@ -260,6 +294,27 @@ public class TargetSession {
      */
     public void clearRecipeCache() {
         this.recipeCache = null;
+    }
+
+    /**
+     * 获取 handler 在本 session 中缓存的临时对象（非配方类，如注入器列表）。
+     */
+    public Object getHandlerCache() {
+        return handlerCache;
+    }
+
+    /**
+     * 设置 handler 在本 session 中缓存的临时对象（非配方类）。
+     */
+    public void setHandlerCache(Object handlerCache) {
+        this.handlerCache = handlerCache;
+    }
+
+    /**
+     * 清空本 session 的非配方类临时缓存。
+     */
+    public void clearHandlerCache() {
+        this.handlerCache = null;
     }
 
     /**

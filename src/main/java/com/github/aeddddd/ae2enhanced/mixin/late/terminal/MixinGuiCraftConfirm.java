@@ -5,10 +5,11 @@ import appeng.api.storage.data.IItemList;
 import appeng.client.gui.implementations.GuiCraftConfirm;
 import appeng.core.localization.GuiText;
 import appeng.util.ReadableNumberConverter;
+import com.github.aeddddd.ae2enhanced.AE2Enhanced;
+import com.github.aeddddd.ae2enhanced.client.gui.GuiButtonListHelper;
 import com.github.aeddddd.ae2enhanced.client.gui.planview.IPlanViewHost;
 import com.github.aeddddd.ae2enhanced.client.gui.planview.PlanViewHelper;
 import com.github.aeddddd.ae2enhanced.client.specialcrafting.SpecialPlanClientCache;
-import com.github.aeddddd.ae2enhanced.mixin.late.accessor.IGuiScreenAccessor;
 import com.github.aeddddd.ae2enhanced.specialcrafting.SpecialPlanInfo;
 import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
 import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
@@ -93,18 +94,25 @@ public abstract class MixinGuiCraftConfirm implements IPlanViewHost {
 
     @Inject(method = "func_73866_w_", at = @At("TAIL"))
     private void ae2enhanced$onInitGui(CallbackInfo ci) {
-        GuiContainer self = (GuiContainer) (Object) this;
-        int guiLeft = self.getGuiLeft();
-        int guiTop = self.getGuiTop();
-        FontRenderer fr = Minecraft.getMinecraft().fontRenderer;
-        // 底部按钮行空位(Cancel 与 Start 之间)
-        this.ae2enhanced$sortButton = new GuiButton(3090, guiLeft + 60, guiTop + 181, 100, 20, "");
-        ((IGuiScreenAccessor) self).ae2enhanced$getButtonList().add(this.ae2enhanced$sortButton);
-        // 宽度收窄至右缘 208: 与 GuiCraftingStatus 一致, 避开右上角(滚动条列 218/窗口右缘 238)
-        this.ae2enhanced$searchField = new GuiTextField(3091, fr, guiLeft + 154, guiTop + 4, 54, 12);
-        this.ae2enhanced$searchField.setMaxStringLength(64);
-        this.ae2enhanced$searchField.setText(this.ae2enhanced$searchText);
-        ae2enhanced$updateSortButtonText();
+        // 此处异常绝不能逃出 initGui: 中断 GuiCraftConfirm/GuiCraftingStatus 的初始化会让屏幕
+        // 以未初始化状态留在屏幕上, 并在下一帧渲染时崩溃.
+        try {
+            GuiContainer self = (GuiContainer) (Object) this;
+            int guiLeft = self.getGuiLeft();
+            int guiTop = self.getGuiTop();
+            FontRenderer fr = Minecraft.getMinecraft().fontRenderer;
+            // 底部按钮行空位(Cancel 与 Start 之间)
+            GuiButton sortButton = new GuiButton(3090, guiLeft + 60, guiTop + 181, 100, 20, "");
+            // 按钮列表不可访问时置 null, 其余钩子均按 null 跳过
+            this.ae2enhanced$sortButton = GuiButtonListHelper.addButton(self, sortButton) ? sortButton : null;
+            // 宽度收窄至右缘 208: 与 GuiCraftingStatus 一致, 避开右上角(滚动条列 218/窗口右缘 238)
+            this.ae2enhanced$searchField = new GuiTextField(3091, fr, guiLeft + 154, guiTop + 4, 54, 12);
+            this.ae2enhanced$searchField.setMaxStringLength(64);
+            this.ae2enhanced$searchField.setText(this.ae2enhanced$searchText);
+            ae2enhanced$updateSortButtonText();
+        } catch (Throwable t) {
+            AE2Enhanced.LOGGER.warn("[AE2E] 计划视图控件初始化失败, 已跳过", t);
+        }
     }
 
     @Inject(method = "func_146284_a", at = @At("HEAD"))
@@ -292,6 +300,13 @@ public abstract class MixinGuiCraftConfirm implements IPlanViewHost {
                     -78, 39, 0xAAAAAA);
             fr.drawString(I18n.format("gui.ae2enhanced.plan_summary.missing", this.ae2enhanced$stats.third),
                     -78, 49, this.ae2enhanced$stats.third > 0 ? 0xFF5555 : 0xAAAAAA);
+            // 未解出单元(降级/截断)单独成红色行:规划未完成的提示,不计入缺料数
+            int unresolved = com.github.aeddddd.ae2enhanced.client.specialcrafting.SpecialPlanClientCache
+                    .currentUnresolvedUnits();
+            if (unresolved > 0) {
+                fr.drawString(I18n.format("gui.ae2enhanced.plan_summary.unresolved", unresolved),
+                        -78, 59, 0xFF5555);
+            }
         } catch (Throwable ignored) {
             // 渲染增强失败静默
         }

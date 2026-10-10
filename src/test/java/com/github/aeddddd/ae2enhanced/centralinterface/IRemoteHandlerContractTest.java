@@ -1,7 +1,6 @@
 package com.github.aeddddd.ae2enhanced.centralinterface;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatCode;
 
 import java.util.Collections;
 import java.util.EnumSet;
@@ -20,8 +19,8 @@ import net.minecraft.world.World;
  * {@link IRemoteHandler} 接口默认方法契约测试。
  *
  * <p>用仅实现抽象方法的最小 fake 验证：
- * hasFinished 默认委托 isIdle；revertMaterials / clearOutputs 默认返回空列表（非 null）；
- * onBindingRemoved 默认为不抛异常的空实现。默认实现均不触碰入参，故传 null 验证。</p>
+ * hasFinished 默认委托 isIdle；revertMaterials / clearOutputs 默认返回空列表（非 null）。
+ * 默认实现均不触碰入参，故传 null 验证。</p>
  */
 public class IRemoteHandlerContractTest {
 
@@ -63,14 +62,6 @@ public class IRemoteHandlerContractTest {
         List<ItemStack> result = handler.clearOutputs(null, null, null, null);
 
         assertThat(result).isNotNull().isEmpty();
-    }
-
-    /** onBindingRemoved 默认为空实现，调用不抛异常。 */
-    @Test
-    public void testOnBindingRemovedDefaultIsNoOp() {
-        MinimalHandler handler = new MinimalHandler();
-
-        assertThatCode(() -> handler.onBindingRemoved(null, null)).doesNotThrowAnyException();
     }
 
     /** 仅实现抽象方法的最小 fake，isIdle 行为可由测试控制并记录调用次数。 */

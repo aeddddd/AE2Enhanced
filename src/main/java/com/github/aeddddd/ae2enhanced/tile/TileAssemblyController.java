@@ -939,19 +939,19 @@ public class TileAssemblyController extends TileAENetworkBase implements ICrafti
     }
 
     /**
-     * 供 Mixin 调用：为本次结算索取能量，返回网络实际可支付的份数（0 = 无电,调用方放弃该样板）.
+     * 供 Mixin 调用：为本次结算计费（只计费不限流,不影响本次结算份数）.
      *
-     * <p>计费口径：单价按能量优化模块递减，单 tick 总额不超过额定上限（2.1G），
-     * 超出上限的合成不再额外计费。欠电时按实付比例降载（不会出现付了电却一份不做），
-     * 支付路径为 ME 网络 FE 存量 → AE 能源网（见 {@link FeEnergyPayment}）.</p>
+     * <p>单价按能量优化模块递减，单 tick 总额不超过额定上限（2.1G），超出上限的合成不再
+     * 额外计费；网络能付多少付多少（部分支付遵循存储语义）。支付路径为 ME 网络 FE 存量 →
+     * AE 能源网（见 {@link FeEnergyPayment}）.</p>
      */
-    public long chargeCraftEnergy(long ops) {
+    public void chargeCraftEnergy(long ops) {
         if (ops <= 0L) {
-            return 0L;
+            return;
         }
         long perCraft = getEnergyPerCraft();
         if (perCraft <= 0L) {
-            return ops; // 满级能量优化模块：不耗能
+            return; // 满级能量优化模块：不耗能
         }
         long now = parallelClock();
         if (now != energyTick) {
@@ -960,28 +960,14 @@ public class TileAssemblyController extends TileAENetworkBase implements ICrafti
         }
         long room = Math.max(0L, getEnergyCapPerTick() - energyUsedThisTick);
         if (room <= 0L) {
-            return ops; // 本 tick 已达额定功耗上限：超出部分不计费
+            return; // 本 tick 已达额定功耗上限：超出部分不计费
         }
         long demand = AssemblyHubEnergy.demand(ops, perCraft, room);
         if (demand <= 0L) {
-            return ops;
+            return;
         }
-        long affordable = FeEnergyPayment.pay(this, demand, true);
-        if (affordable <= 0L) {
-            return 0L;
-        }
-        long granted = AssemblyHubEnergy.grantedOps(ops, demand, affordable);
-        if (granted <= 0L) {
-            return 0L;
-        }
-        // 确认可付后再实际扣费：按获准份数计费（含上限截断），避免付了电却一份不做
-        long charge = AssemblyHubEnergy.demand(granted, perCraft, room);
-        long paid = charge <= 0L ? 0L : FeEnergyPayment.pay(this, charge, false);
+        long paid = FeEnergyPayment.pay(this, demand, false);
         energyUsedThisTick = saturatedAddEnergy(energyUsedThisTick, paid);
-        if (paid < charge) {
-            return AssemblyHubEnergy.grantedOps(ops, charge, paid);
-        }
-        return granted;
     }
 
     private long parallelClock() {

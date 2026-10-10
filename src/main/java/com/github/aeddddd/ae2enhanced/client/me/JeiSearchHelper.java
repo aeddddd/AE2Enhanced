@@ -26,6 +26,81 @@ public final class JeiSearchHelper {
     private static Boolean available = null;
 
     /**
+     * 读取 HEI/JEI 搜索框当前文本（不可用时返回 {@code null}）。
+     *
+     * <p>AE2 的 {@code SearchBoxMode.JEI_*} 语义就是"终端搜索框与 JEI 搜索同步"：旧终端在
+     * {@code GuiMEMonitorable.initGui} 里用 {@code Integrations.jei().getSearchText()} 把 JEI 的
+     * 搜索词写进 {@code memoryText}，KEEP 模式下再套用到搜索框与 repo。本方法给可拼接终端
+     * 提供同一条读取路径（走反射，JEI 不在场时返回 null 而不是抛错）。</p>
+     */
+    public static String getJeiFilterText() {
+        if (!isAvailable()) {
+            return null;
+        }
+        IJeiRuntime runtime = JEISearchKeyHandler.getJeiRuntime();
+        if (runtime == null) {
+            return null;
+        }
+        try {
+            Object filter = runtime.getIngredientFilter();
+            if (filter == null) {
+                return null;
+            }
+            Method m = filter.getClass().getMethod("getFilterText");
+            m.setAccessible(true);
+            Object text = m.invoke(filter);
+            return text instanceof String ? (String) text : null;
+        } catch (Exception e) {
+            AE2Enhanced.LOGGER.debug("[AE2E] Failed to read HEI/JEI filter text", e);
+            return null;
+        }
+    }
+
+    /**
+     * A4 取证：当前打开的容器在 JEI 里有没有可用的配方转移处理器（返回可读描述）。
+     *
+     * <p>JEI 按容器<b>精确类</b>查表（{@code RecipeRegistry.getRecipeTransferHandler}），
+     * 所以这里用同一个 API 查一次，能直接暴露"忘了给某个容器注册处理器"这类问题。</p>
+     */
+    public static String describeTransferHandler(Object container) {
+        if (container == null) {
+            return "容器=null";
+        }
+        if (!isAvailable()) {
+            return "JEI 未就绪（无法查转移处理器）";
+        }
+        IJeiRuntime runtime = JEISearchKeyHandler.getJeiRuntime();
+        try {
+            Object registry = runtime.getRecipeRegistry();
+            Method getCategories = registry.getClass().getMethod("getRecipeCategories");
+            Object categories = getCategories.invoke(registry);
+            Object crafting = null;
+            if (categories instanceof List) {
+                for (Object category : (List<?>) categories) {
+                    if (category == null) {
+                        continue;
+                    }
+                    Object uid = category.getClass().getMethod("getUid").invoke(category);
+                    if ("minecraft.crafting".equals(uid)) {
+                        crafting = category;
+                        break;
+                    }
+                }
+            }
+            if (crafting == null) {
+                return "找不到 minecraft.crafting 类别";
+            }
+            Method lookup = registry.getClass().getMethod("getRecipeTransferHandler", Class.forName("net.minecraft.inventory.Container"), Class.forName("mezz.jei.api.recipe.IRecipeCategory"));
+            Object handler = lookup.invoke(registry, container, crafting);
+            return container.getClass().getSimpleName() + " × minecraft.crafting → "
+                    + (handler == null ? "无处理器（[+] 会不可用）" : handler.getClass().getSimpleName() + "（可用）");
+        } catch (Exception e) {
+            AE2Enhanced.LOGGER.debug("[AE2E] Failed to query JEI transfer handler", e);
+            return "查询失败: " + e;
+        }
+    }
+
+    /**
      * 判断当前是否可以通过 HEI/JEI 进行高级搜索。
      * 如果之前初始化失败，会再次尝试（因为 JEI 可能在游戏过程中才就绪）。
      */

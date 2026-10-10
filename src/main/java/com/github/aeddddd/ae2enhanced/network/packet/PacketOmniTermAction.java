@@ -2,6 +2,7 @@ package com.github.aeddddd.ae2enhanced.network.packet;
 
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
 import com.github.aeddddd.ae2enhanced.container.ContainerOmniTerm;
+import com.github.aeddddd.ae2enhanced.container.ContainerSplicedTerm;
 import io.netty.buffer.ByteBuf;
 import net.minecraft.entity.player.EntityPlayerMP;
 import net.minecraftforge.fml.common.network.ByteBufUtils;
@@ -90,6 +91,20 @@ public class PacketOmniTermAction implements IMessage {
                         } catch (NumberFormatException e) {
                             AE2Enhanced.LOGGER.error("处理 Scroll 动作时数值解析失败: {}", message.value, e);
                         }
+                        break;
+                    case "PanelVisibility":
+                        // 可拼接终端专用：客户端改布局后回写可见性位掩码。
+                        // 旧终端的容器不是 ContainerSplicedTerm，永远不会发这个动作，
+                        // 这里也必须先判类型，绝不能把可见性概念泄漏到旧终端。
+                        if (c instanceof ContainerSplicedTerm) {
+                            try {
+                                ((ContainerSplicedTerm) c).setPanelMask(Integer.parseInt(message.value));
+                            } catch (NumberFormatException e) {
+                                AE2Enhanced.LOGGER.error("处理 PanelVisibility 动作时数值解析失败: {}", message.value, e);
+                            }
+                        }
+                        break;
+                    default:
                         break;
                 }
             });

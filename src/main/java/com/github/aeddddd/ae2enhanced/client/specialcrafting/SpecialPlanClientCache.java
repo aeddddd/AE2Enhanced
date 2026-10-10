@@ -29,6 +29,11 @@ public final class SpecialPlanClientCache {
         info = SpecialPlanInfo.EMPTY;
     }
 
+    /** 当前缓存计划的未解出单元数(无缓存/无未解为 0). */
+    public static int currentUnresolvedUnits() {
+        return info.unresolvedUnits;
+    }
+
     @Nullable
     public static SpecialPlanInfo infoFor(ItemStack stack) {
         if (stack.isEmpty()) {

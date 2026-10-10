@@ -60,6 +60,7 @@ public final class GameRegistryManager {
         ItemRegistry.CHANNEL_RECEIVER_CARD = new ItemChannelReceiverCard();
         ItemRegistry.UNIVERSAL_MEMORY_CARD = new ItemUniversalMemoryCard();
         ItemRegistry.OMNI_WIRELESS_TERMINAL = new ItemOmniWirelessTerminal();
+        ItemRegistry.OMNI_WIRELESS_TERMINAL_II = new com.github.aeddddd.ae2enhanced.item.ItemOmniWirelessTerminalV2();
         ItemRegistry.OMNI_UPGRADE_CARD = new ItemOmniUpgradeCard();
         ItemRegistry.SMART_BLANK_PATTERN = new ItemSmartBlankPattern();
         ItemRegistry.SMART_PATTERN = new ItemSmartPattern();
@@ -216,6 +217,7 @@ public final class GameRegistryManager {
         event.getRegistry().register(ItemRegistry.CHANNEL_RECEIVER_CARD);
         event.getRegistry().register(ItemRegistry.UNIVERSAL_MEMORY_CARD);
         event.getRegistry().register(ItemRegistry.OMNI_WIRELESS_TERMINAL);
+        event.getRegistry().register(ItemRegistry.OMNI_WIRELESS_TERMINAL_II);
         event.getRegistry().register(ItemRegistry.OMNI_UPGRADE_CARD);
         event.getRegistry().register(ItemRegistry.SMART_BLANK_PATTERN);
         event.getRegistry().register(ItemRegistry.SMART_PATTERN);
@@ -278,6 +280,9 @@ public final class GameRegistryManager {
         // 智能样板合并配方（动态：智能样板 + 已编码样板 → 追加配方）
         event.getRegistry().register(new com.github.aeddddd.ae2enhanced.crafting.smartpattern.RecipeSmartPatternMerge()
                 .setRegistryName(AE2Enhanced.MOD_ID, "smart_pattern_merge"));
+
+        // 转换配方（旧终端 → V2）与弃用提示不在本 fix 版本发布：V2 仅 dev 可见，
+        // RecipeOmniTerminalV2Conversion 类与单测保留，下个版本再启用注册。
 
         // 指环飞升配方（指环 + 无限时间被约束微型奇点 → 进度+1,共 16 次,要求阶段 III）
         if (AE2EnhancedConfig.ring.enableAscendRecipe) {

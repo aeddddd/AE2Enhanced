@@ -30,6 +30,27 @@ import com.github.aeddddd.ae2enhanced.test.support.SimulationEnv;
  */
 public class ComplexScenarioTest {
 
+    /** 复现反馈:第一层样板部分原料被库存覆盖、其余缺失时,库存覆盖的原料必须出现在
+     * 已用列表(库存提取),缺失原料记缺料;计划不得几乎为空. */
+    @Test
+    public void testStockCoveredInputShownWhenSiblingMissing() {
+        SimulationEnv env = new SimulationEnv();
+        IAEItemStack belt = block(Blocks.STONE); // 库存覆盖,无生产者
+        IAEItemStack missingItem = block(Blocks.DIRT); // 无库存无生产者
+        IAEItemStack machine = block(Blocks.COBBLESTONE); // 根请求
+        env.addPattern(new ProcessingPatternBuilder(machine)
+                .addPreciseInput(1, belt)
+                .addPreciseInput(1, missingItem)
+                .build());
+        env.addStoredItem(mult(belt, 4));
+
+        PlanView plan = PlanView.of(env.runLp(machine.copy()));
+        assertThatPlan(plan)
+                .failed() // 有缺料(缺 missingItem)
+                .usedContains(belt) // 库存覆盖的 belt 必须从库存提取并入账(used 视图含 missing 泄漏,故用包含断言)
+                .missingMatch(missingItem); // 缺失的 missingItem 记缺料
+    }
+
     /** H1:自引用样板与循环链并存时,自引用(净产最优)接管.
      * 全额生产语义:根库存不抵交付,净需 10 → dup×10(库存 1 作点火种子,期末返还). */
     @Test

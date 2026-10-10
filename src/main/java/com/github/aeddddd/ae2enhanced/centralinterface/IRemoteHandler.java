@@ -16,7 +16,7 @@ import java.util.List;
  * 每个 {@link TargetBinding} 对应的目标方块,在合成推送和产物收集阶段
  * 会由匹配的 IRemoteHandler 处理实际物品交互.
  *
- * <p>P2 完整生命周期：</p>
+ * <p>完整生命周期：</p>
  * <pre>
  * canHandle(blockId) ──→ isValidTarget(world, pos) ──→ canStart(world, pos, ingredients)
  *        ↓
@@ -194,17 +194,5 @@ public interface IRemoteHandler {
      */
     default List<net.minecraftforge.fluids.FluidStack> clearOutputFluids(World world, BlockPos pos, IActionSource source, TargetSession session, List<net.minecraftforge.fluids.FluidStack> batchFluids) {
         return java.util.Collections.emptyList();
-    }
-
-    /**
-     * 当目标从中枢接口解绑时调用，用于清理 handler 侧可能存在的 per-target 缓存。
-     *
-     * <p>默认实现为空。若 handler 内部保存了按坐标索引的状态（如推料时间戳、
-     * 配方缓存等），应覆盖此方法并在目标解绑时清除，避免内存泄漏。</p>
-     *
-     * @param world 世界实例
-     * @param pos   方块位置
-     */
-    default void onBindingRemoved(World world, BlockPos pos) {
     }
 }

@@ -24,6 +24,18 @@ public final class MachineDumps {
                     "com.github.aeddddd.ae2enhanced.diag.harvest.machine.ThaumcraftDump" },
             { "modularmachinery",
                     "com.github.aeddddd.ae2enhanced.diag.harvest.machine.ModularMachineryDump" },
+            { "nuclearcraft",
+                    "com.github.aeddddd.ae2enhanced.diag.harvest.machine.NuclearCraftDump" },
+            { "enderio",
+                    "com.github.aeddddd.ae2enhanced.diag.harvest.machine.EnderIoDump" },
+            { "thermalexpansion",
+                    "com.github.aeddddd.ae2enhanced.diag.harvest.machine.ThermalExpansionDump" },
+            { "techreborn",
+                    "com.github.aeddddd.ae2enhanced.diag.harvest.machine.TechRebornDump" },
+            { "draconicevolution",
+                    "com.github.aeddddd.ae2enhanced.diag.harvest.machine.DraconicEvolutionDump" },
+            { "actuallyadditions",
+                    "com.github.aeddddd.ae2enhanced.diag.harvest.machine.ActuallyAdditionsDump" },
     };
 
     public static void dumpAll(HarvestSnapshot snapshot) {
@@ -43,6 +55,24 @@ public final class MachineDumps {
                 snapshot.stats.adapters.put(modid, "error:" + t.getClass().getSimpleName());
                 AE2Enhanced.LOGGER.warn("[harvest] 机器配方 dump 失败: {} ({})", modid, t.toString());
             }
+        }
+        // 通用 JEI/HEI 注册表 dump:覆盖全部 JEI 可见机器配方(含流体),
+        // 只在物理客户端可用(注册表是客户端结构;专用服务器无)。
+        // 注意必须用 getSide()(物理侧):getEffectiveSide() 按线程名判断,
+        // 命令在整合式服务器的 "Server thread" 上执行会误判为 SERVER。
+        if (!Loader.isModLoaded("jei")
+                || !net.minecraftforge.fml.common.FMLCommonHandler.instance().getSide().isClient()) {
+            snapshot.stats.adapters.put("jei", "skipped:unavailable");
+            return;
+        }
+        try {
+            Class.forName("com.github.aeddddd.ae2enhanced.diag.harvest.machine.JeiDump")
+                    .getMethod("dump", HarvestSnapshot.class)
+                    .invoke(null, snapshot);
+            snapshot.stats.adapters.put("jei", "ok");
+        } catch (Throwable t) {
+            snapshot.stats.adapters.put("jei", "error:" + t.getClass().getSimpleName());
+            AE2Enhanced.LOGGER.warn("[harvest] jei dump 失败: {}", t.toString());
         }
     }
 }

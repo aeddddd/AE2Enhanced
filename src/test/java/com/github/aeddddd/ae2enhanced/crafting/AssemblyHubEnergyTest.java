@@ -8,7 +8,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * {@link AssemblyHubEnergy} 测试。
  *
  * <p>覆盖：能量优化模块的每级减半与满级归零、单 tick 额定上限（2.1G）截断、
- * 欠电时的按比例降载、以及 0 份/0 单价/0 额度的边界。</p>
+ * 以及 0 份/0 单价/0 额度的边界。</p>
  */
 public class AssemblyHubEnergyTest {
 
@@ -84,39 +84,4 @@ public class AssemblyHubEnergyTest {
         assertThat(AssemblyHubEnergy.demand(Long.MAX_VALUE, Long.MAX_VALUE, 1000L)).isEqualTo(1000L);
     }
 
-    // ------------------------------------------------------------------
-    // 欠电降载
-    // ------------------------------------------------------------------
-
-    /** 足额支付（含额度截断）时全量放行。 */
-    @Test
-    public void testGrantedOpsWhenFullyPaid() {
-        long demand = AssemblyHubEnergy.demand(64L, BASE, AssemblyHubEnergy.RATED_CAP_PER_TICK);
-        assertThat(AssemblyHubEnergy.grantedOps(64L, demand, demand)).isEqualTo(64L);
-        // 需求被上限截断时，付满截断额即视为放行（超出上限部分不计费）
-        assertThat(AssemblyHubEnergy.grantedOps(64L, 1000L, 1000L)).isEqualTo(64L);
-    }
-
-    /** 部分支付按比例降载。 */
-    @Test
-    public void testGrantedOpsScalesWithPayment() {
-        long demand = 64L * BASE;
-        assertThat(AssemblyHubEnergy.grantedOps(64L, demand, demand / 2)).isEqualTo(32L);
-        assertThat(AssemblyHubEnergy.grantedOps(64L, demand, 1L)).isZero();
-    }
-
-    /** 无电时不放行任何份数；免费（需求 0）时全量放行。 */
-    @Test
-    public void testGrantedOpsEdgeCases() {
-        assertThat(AssemblyHubEnergy.grantedOps(64L, 100L, 0L)).isZero();
-        assertThat(AssemblyHubEnergy.grantedOps(64L, 0L, 0L)).isEqualTo(64L);
-        assertThat(AssemblyHubEnergy.grantedOps(0L, 100L, 100L)).isZero();
-    }
-
-    /** 降载结果恒不超过请求份数。 */
-    @Test
-    public void testGrantedOpsNeverExceedsRequest() {
-        assertThat(AssemblyHubEnergy.grantedOps(10L, 1000L, 999L)).isEqualTo(9L);
-        assertThat(AssemblyHubEnergy.grantedOps(Long.MAX_VALUE, 1000L, 999L)).isLessThanOrEqualTo(Long.MAX_VALUE);
-    }
 }

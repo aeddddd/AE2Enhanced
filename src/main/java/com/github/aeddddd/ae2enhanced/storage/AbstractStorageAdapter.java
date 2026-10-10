@@ -170,7 +170,9 @@ public abstract class AbstractStorageAdapter<T extends IAEStack<T>, D extends De
             if (aeStack == null) continue;
 
             T copy = aeStack.copy();
-            copy.setStackSize(entry.getValue().toLongSaturated());
+            // 聚合视图上报封顶 AE2_VIEW_CAP：AE2 多来源聚合为裸 long 加法，
+            // 上报满 long 会与第二个来源回绕为负数（详见 HugeCount.AE2_VIEW_CAP）
+            copy.setStackSize(entry.getValue().toLongViewCapped());
             out.add(copy);
         }
         return out;

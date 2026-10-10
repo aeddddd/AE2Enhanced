@@ -115,6 +115,33 @@ public final class LpTestSupport {
         return SimulationEnv.mult(template, multiplier);
     }
 
+    /** 键构造调色板(10 种方块;键 = 方块 × metadata 分段,互不相同).
+     * 注意:不得做成静态字段——{@code Blocks} 须在 MC 引导后访问(类初始化期读会崩). */
+    private static Block[] palette() {
+        return new Block[] { Blocks.STONE, Blocks.COBBLESTONE, Blocks.DIRT, Blocks.PLANKS,
+                Blocks.SAND, Blocks.GRAVEL, Blocks.LOG, Blocks.GLASS, Blocks.CLAY,
+                Blocks.BRICK_BLOCK };
+    }
+
+    /** 第 i 个互不相同的键(10 种方块 × metadata 分段;W 组压测与确定性测试共用). */
+    public static IAEItemStack key(int i) {
+        Block[] palette = palette();
+        return AEItemStack.fromItemStack(new ItemStack(palette[i % palette.length], 1,
+                i / palette.length));
+    }
+
+    /** 构造 N 键弦环网:主环 1:1 + 指定偏移的弦,全部互链成一个大 SCC(W 组/确定性测试共用). */
+    public static void buildChordWeb(SimulationEnv env, int n, int... chordOffsets) {
+        for (int i = 0; i < n; i++) {
+            env.addPattern(new ProcessingPatternBuilder(key((i + 1) % n))
+                    .addPreciseInput(1, key(i)).build());
+            for (int off : chordOffsets) {
+                env.addPattern(new ProcessingPatternBuilder(key((i + off) % n))
+                        .addPreciseInput(1, key(i)).build());
+            }
+        }
+    }
+
     /** 迷你蛛网夹具的句柄(键数组/环样板/三个 dup 样板). */
     public static final class MiniWeb {
         public IAEItemStack[] keys;

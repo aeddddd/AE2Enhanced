@@ -64,7 +64,10 @@ public class LpMultiPatternParityTest {
         }
     }
 
-    /** R(stone) ← M(cobble);M 有两个干净分支:C1(sand)、C2(dirt). */
+    /** R(stone) ← M(cobble);M 有两个干净分支:C1(sand)、C2(dirt).
+     * <p>两分支显式给定优先级(branch1=1 &gt; branch2=0):LP 阶段③的 ε·rank 以
+     * 样板定序下标为秩(优先级降序 → 内容签名升序),优先级决定"谁先被用满"——
+     * 不显式指定时按内容签名(注册名)决胜,分支序会与原生 getCraftingFor 序脱钩.</p> */
     private static Env multiEnv(long stockC1, long stockC2) {
         SimulationEnv env = new SimulationEnv();
         IAEItemStack r = block(Blocks.STONE);
@@ -72,9 +75,9 @@ public class LpMultiPatternParityTest {
         IAEItemStack c1 = block(Blocks.SAND);
         IAEItemStack c2 = block(Blocks.DIRT);
         ICraftingPatternDetails p1 = env.addPattern(
-                new ProcessingPatternBuilder(m).addPreciseInput(1, c1).build());
+                new ProcessingPatternBuilder(m).addPreciseInput(1, c1).withPriority(1).build());
         ICraftingPatternDetails p2 = env.addPattern(
-                new ProcessingPatternBuilder(m).addPreciseInput(1, c2).build());
+                new ProcessingPatternBuilder(m).addPreciseInput(1, c2).withPriority(0).build());
         env.addPattern(new ProcessingPatternBuilder(r).addPreciseInput(1, m).build());
         env.addStoredItem(mult(c1, stockC1));
         env.addStoredItem(mult(c2, stockC2));
@@ -197,6 +200,8 @@ public class LpMultiPatternParityTest {
     /**
      * 返还输入 + 容量封顶:分支 1(A 只有 3 个库存,容量封顶)溢出到分支 2(普通消耗),
      * 两分支的返还/消耗各自记账.
+     * <p>分支序显式给定优先级(分支 1 优先):LP 样板定序 = 优先级降序 → 内容签名升序,
+     * 不再依赖注册序.</p>
      */
     @Test
     public void testMultiBranchCapacitySpillover() {
@@ -206,9 +211,9 @@ public class LpMultiPatternParityTest {
         IAEItemStack y = block(Blocks.COBBLESTONE);
         // 分支 1:1A(reuse)→1Y(A 容量封顶);分支 2:1C→1Y
         ICraftingPatternDetails p1 = new ReusePatternBuilder(y)
-                .addPreciseInput(1, a).reused(a).build();
+                .addPreciseInput(1, a).reused(a).withPriority(1).build();
         ICraftingPatternDetails p2 = new ReusePatternBuilder(y)
-                .addPreciseInput(1, c).build();
+                .addPreciseInput(1, c).withPriority(0).build();
         env.addPattern(p1);
         env.addPattern(p2);
         env.addStoredItem(mult(a, 3));

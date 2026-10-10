@@ -38,7 +38,10 @@ public class PacketOpenOmniTerminal implements IMessage {
                 }
                 int slot = OmniTerminalFinder.findSlotIndex(player, target);
                 boolean isBauble = OmniTerminalFinder.isInBaublesSlot(player, target);
-                player.openGui(AE2Enhanced.instance, GuiHandler.GUI_OMNI_TERMINAL, player.world, slot, isBauble ? 1 : 0, 0);
+                // 分发收口:旧物品回旧 GUI(11),可拼接终端回新 GUI(15)
+                player.openGui(AE2Enhanced.instance,
+                        com.github.aeddddd.ae2enhanced.util.OmniTerminalResolver.resolveOmniGuiId(target),
+                        player.world, slot, isBauble ? 1 : 0, 0);
             });
             return null;
         }

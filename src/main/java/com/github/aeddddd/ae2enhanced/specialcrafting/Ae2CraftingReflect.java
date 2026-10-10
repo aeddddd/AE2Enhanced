@@ -3,6 +3,7 @@ package com.github.aeddddd.ae2enhanced.specialcrafting;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
+import java.util.List;
 
 import appeng.api.networking.crafting.ICraftingGrid;
 import appeng.api.networking.crafting.ICraftingPatternDetails;
@@ -56,6 +57,7 @@ public final class Ae2CraftingReflect {
     private static final Method JOB_CHECK_USE;
     private static final Method JOB_REFUND;
     private static final Method NODE_GET_SLOT;
+    private static final Field NODE_DEPTH;
 
     static {
         try {
@@ -126,6 +128,8 @@ public final class Ae2CraftingReflect {
             JOB_REFUND.setAccessible(true);
             NODE_GET_SLOT = CraftingTreeNode.class.getDeclaredMethod("getSlot");
             NODE_GET_SLOT.setAccessible(true);
+            NODE_DEPTH = CraftingTreeNode.class.getDeclaredField("depth");
+            NODE_DEPTH.setAccessible(true);
         } catch (ReflectiveOperationException e) {
             throw new ExceptionInInitializerError(e);
         }
@@ -302,6 +306,69 @@ public final class Ae2CraftingReflect {
         } catch (ReflectiveOperationException e) {
             throw new IllegalStateException("访问 CraftingTreeProcess.details 失败", e);
         }
+    }
+
+    /** 节点在合成树中的深度(确定性遍历序的次级判据). */
+    public static int getNodeDepth(CraftingTreeNode node) {
+        try {
+            return NODE_DEPTH.getInt(node);
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException("读取 CraftingTreeNode.depth 失败", e);
+        }
+    }
+
+    /**
+     * 子节点的确定性遍历序:canon 键 → 深度 → 需求数量升序.
+     * <p>{@code CraftingTreeProcess.nodes} 是 fastutil 数组映射,内部序随插入路径漂移;
+     * 计划物化/缺料回填/显示聚合的遍历不得依赖该内部序,否则同一逻辑计划在不同
+     * JVM 启动下物化到不同节点.</p>
+     */
+    public static List<CraftingTreeNode> sortedProcessNodes(CraftingTreeProcess pro) {
+        Object2LongArrayMap<CraftingTreeNode> nodes = getProcessNodes(pro);
+        List<CraftingTreeNode> children = new ArrayList<>(nodes.size());
+        for (CraftingTreeNode child : nodes.keySet()) {
+            children.add(child);
+        }
+        if (children.size() > 1) {
+            children.sort((a, b) -> {
+                int cmp = nodeKeyOf(a).compareTo(nodeKeyOf(b));
+                if (cmp != 0) {
+                    return cmp;
+                }
+                cmp = Integer.compare(getNodeDepth(a), getNodeDepth(b));
+                if (cmp != 0) {
+                    return cmp;
+                }
+                return Long.compare(nodes.getLong(a), nodes.getLong(b));
+            });
+        }
+        return children;
+    }
+
+    /**
+     * 节点样板表的确定性遍历序:样板内容签名 → 执行次数升序.
+     * <p>原生路径的 {@code CraftingTreeNode.nodes} 由 {@code getCraftingFor} 返回序决定,
+     * 该序跨 JVM 启动不定;显示/统计遍历按签名定序.</p>
+     */
+    public static List<CraftingTreeProcess> sortedNodeProcesses(CraftingTreeNode node) {
+        List<CraftingTreeProcess> processes = new ArrayList<>(getNodeProcesses(node));
+        if (processes.size() > 1) {
+            processes.sort((a, b) -> {
+                int cmp = StableOrder.signatureOf(getProcessDetails(a))
+                        .compareTo(StableOrder.signatureOf(getProcessDetails(b)));
+                if (cmp != 0) {
+                    return cmp;
+                }
+                return Long.compare(getProcessCrafts(a), getProcessCrafts(b));
+            });
+        }
+        return processes;
+    }
+
+    /** 节点所在键的 canon 串(节点无 what 时为空串). */
+    private static String nodeKeyOf(CraftingTreeNode node) {
+        IAEItemStack what = getNodeWhat(node);
+        return what == null ? "" : StableOrder.keyOf(what);
     }
 
     public static IAEItemStack getNodeWhat(CraftingTreeNode node) {

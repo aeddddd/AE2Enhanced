@@ -64,4 +64,16 @@ public final class PlanAssert {
     public PlanAssert usedMatch(IAEItemStack... stacks) {
         return listMatches(plan.usedItems(), stacks);
     }
+
+    /** used 列表应包含这些键及数量(不要求精确相等——populatePlan 平铺列表
+     * 会把 missing 条目混入 used 视图,显示层由容器按网络实存再分离). */
+    public PlanAssert usedContains(IAEItemStack... stacks) {
+        Map<IAEItemStack, Long> actual = plan.usedItems();
+        for (IAEItemStack stack : stacks) {
+            IAEItemStack key = com.github.aeddddd.ae2enhanced.specialcrafting.RecursiveCraftingHelper.canon(stack);
+            assertThat(actual.getOrDefault(key, 0L)).as("used 应含 %s×%s", key, stack.getStackSize())
+                    .isGreaterThanOrEqualTo(stack.getStackSize());
+        }
+        return this;
+    }
 }

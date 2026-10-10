@@ -164,4 +164,57 @@ public class LpSubstituteParityTest {
         assertThat(view.missingItems().getOrDefault(a, 0L)).isEqualTo(5L);
         assertThat(view.missingItems().getOrDefault(alt, 0L)).as("缺料记编码物,不记候选").isEqualTo(0L);
     }
+
+    /**
+     * P4 变体候选可达性:候选键的生产者在另一单元时,候选需求必须传播过去。
+     * <p>编码物无生产者时 LP 走变体列,候选键是变体列的环外输入;修复前步 2 BFS 只走
+     * {@code getCondensedInputs()},候选键的单元不在求解序内 ⇒ 该 externalDemand 被静默
+     * 丢弃:候选不被合成、重演缺料也不记账(提取缺口不记 missing),计划既不提交也无
+     * 缺料线索(线上正确性缺口)。</p>
+     * <p>断言面 = 驱动器产物(P4 的作用面是"需求传播/单元发现");物化树只按样板编码输入
+     * 展开子节点,变体候选分支不进树(物化层既有口径,不在本任务范围)——故此处只对驱动器
+     * 产物断言候选生产者的执行数,计划面用既有 parity 口径(simulation/missing)加验。</p>
+     */
+    @Test
+    public void testSubstituteCandidateReachesForeignUnit() {
+        SimulationEnv env = new SimulationEnv();
+        IAEItemStack a = block(Blocks.STONE);       // 编码输入:无生产者、无库存
+        IAEItemStack alt = block(Blocks.DIRT);      // 替代候选:由另一单元合成
+        IAEItemStack y = block(Blocks.SAND);        // 候选的原料
+        IAEItemStack b = block(Blocks.COBBLESTONE); // 根产物
+        appeng.api.networking.crafting.ICraftingPatternDetails altPattern =
+                env.addPattern(new ProcessingPatternBuilder(alt).addPreciseInput(1, y).build());
+        env.addPattern(substitutePattern(b, 1, a, alt).build());
+        env.addStoredItem(mult(y, 100));
+
+        // 驱动器产物:候选需求必须传播到其生产者单元
+        appeng.api.networking.crafting.ICraftingGrid cc = env.craftingGrid();
+        com.github.aeddddd.ae2enhanced.specialcrafting.NetworkPatternIndex index =
+                com.github.aeddddd.ae2enhanced.specialcrafting.NetworkPatternIndex.of(cc);
+        java.util.Map<IAEItemStack, Long> stock = new java.util.HashMap<>();
+        for (IAEItemStack stack : env.networkStorage()) {
+            if (stack.getStackSize() > 0) {
+                stock.merge(com.github.aeddddd.ae2enhanced.specialcrafting.RecursiveCraftingHelper
+                        .canon(stack), stack.getStackSize(), Long::sum);
+            }
+        }
+        com.github.aeddddd.ae2enhanced.specialcrafting.CondensationPlanner.LpPlanOutcome out =
+                com.github.aeddddd.ae2enhanced.specialcrafting.CondensationPlanner.solve(cc, index, b, 5,
+                        stock);
+        assertThat(out.deficits).as("候选可达后不应误报缺料").isEmpty();
+        double altCrafts = 0;
+        for (com.github.aeddddd.ae2enhanced.specialcrafting.lp.SccLpSolve.Execution e : out.executions) {
+            if (e.pattern == altPattern && e.count > 0) {
+                altCrafts += e.count;
+            }
+        }
+        assertThat(altCrafts).as("候选键需求必须传播到其生产者单元(修复前被静默丢弃)")
+                .isCloseTo(5.0, org.assertj.core.api.Assertions.within(1e-4));
+
+        // 计划面(既有 parity 口径):不可提交性/缺料不得被静默掩盖
+        CraftingJob job = env.runLp(mult(b, 5));
+        PlanView view = PlanView.of(job);
+        assertThat(view.simulation()).isFalse();
+        assertThat(view.missingItems()).isEmpty();
+    }
 }

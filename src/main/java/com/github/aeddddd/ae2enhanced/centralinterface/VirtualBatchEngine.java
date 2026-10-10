@@ -26,6 +26,8 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * 虚拟批量合成引擎.
@@ -49,11 +51,29 @@ public class VirtualBatchEngine {
 
     private final DualityCentralInterface owner;
 
-    // 虚拟合成粒子效果：目标位置 + 剩余 tick（仅本引擎使用，从 Duality 内聚至此）
+    // 虚拟合成粒子效果：目标位置 + 剩余 tick
     private final List<VirtualParticleTarget> activeParticleTargets = new ArrayList<>();
+
+    /**
+     * 已就“返回空成本”告警过的 handler 类名。空成本 handler 无法用资源量约束并行，
+     * 只告警一次以避免每次虚拟批都刷屏。
+     */
+    private static final Set<String> ZERO_COST_WARNED =
+            Collections.newSetFromMap(new ConcurrentHashMap<String, Boolean>());
 
     public VirtualBatchEngine(DualityCentralInterface owner) {
         this.owner = owner;
+    }
+
+    /**
+     * 对“{@link IVirtualBatchCraftingHandler#getVirtualCost} 返回空列表”的 handler 每类告警一次。
+     */
+    private static void warnZeroCostOnce(IVirtualBatchCraftingHandler handler) {
+        if (ZERO_COST_WARNED.add(handler.getClass().getName())) {
+            AE2Enhanced.LOGGER.warn("[AE2E] Virtual handler {} reports an empty cost for a craftable recipe; "
+                            + "it will execute at the requested parallel. Return null instead if the recipe cannot be priced.",
+                    handler.getClass().getName());
+        }
     }
 
     /**
@@ -265,8 +285,7 @@ public class VirtualBatchEngine {
     /**
      * 计算当前资源可支撑的最大虚拟并行数。
      *
-     * <p>直接按“单份成本 × 可用量”计算，不再使用 binary search，
-     * 因此对 Long.MAX_VALUE 级别的并行卡也没有性能问题。</p>
+     * <p>直接按“单份成本 × 可用量”计算，因此对 Long.MAX_VALUE 级别的并行卡也没有性能问题。</p>
      *
      * <p>物品可用量取自 CPU 内部缓存（任务已预留整单材料），并额外加 1
      * （CPU 已预提取 1 份到 InventoryCrafting）；非物品可用量取自网络，
@@ -286,7 +305,15 @@ public class VirtualBatchEngine {
                                        IMEInventory<IAEItemStack> itemSource) {
         IActionSource source = NetworkAccess.machineSource(owner.host);
         List<IAEStack> perCopy = handler.getVirtualCost(world, target.pos, virtualTable, outputs, 1, details);
-        if (perCopy == null || perCopy.isEmpty()) {
+        if (perCopy == null) {
+            // 契约：null = 无法计价（例如目标 mod 的源质/魔力通道缺失），必须视为失败。
+            logFail(world, target, "computeActualParallel returned 0: getVirtualCost returned null (cost unavailable)");
+            return 0;
+        }
+        if (perCopy.isEmpty()) {
+            // 契约：空列表 = 该配方确实零消耗（仅限真正无投入的设备）。
+            // 这类 handler 无法用资源量约束并行，只能受能量上限钳制；每个 handler 类只告警一次。
+            warnZeroCostOnce(handler);
             long actual = maxParallel;
             double perOp = AE2EnhancedConfig.centralInterface.virtualParallelEnergyCost;
             if (perOp > 0) {

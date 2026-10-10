@@ -72,7 +72,7 @@ public final class SpecialPlanDisplayHook {
         if (node == null) {
             return;
         }
-        for (CraftingTreeProcess pro : Ae2CraftingReflect.getNodeProcesses(node)) {
+        for (CraftingTreeProcess pro : Ae2CraftingReflect.sortedNodeProcesses(node)) {
             long crafts = Ae2CraftingReflect.getProcessCrafts(pro);
             if (crafts > 0) {
                 ICraftingPatternDetails details = Ae2CraftingReflect.getProcessDetails(pro);
@@ -82,7 +82,7 @@ public final class SpecialPlanDisplayHook {
                     callCounts.merge(key, crafts, Long::sum);
                 }
             }
-            for (CraftingTreeNode child : Ae2CraftingReflect.getProcessNodes(pro).keySet()) {
+            for (CraftingTreeNode child : Ae2CraftingReflect.sortedProcessNodes(pro)) {
                 collectCallCounts(child, callCounts);
             }
         }

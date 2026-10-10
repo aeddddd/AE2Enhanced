@@ -1,0 +1,96 @@
+Applied Energistics 2 GUI assets used by AE2Enhanced
+====================================================
+
+Source mod:  Applied Energistics 2 (AE2)
+Source version: 19.2.17 (Minecraft 1.21.1) — the version MEST depends on
+               (see research/mest-src/gradle.properties: ae2_version=19.2.17)
+Upstream:    https://github.com/AppliedEnergistics/Applied-Energistics-2
+
+Copyright
+---------
+
+Textures and Models:
+    (c) 2020, Ridanisaurus Rid (https://github.com/Ridanisaurus/)
+    (c) 2013 - 2020, AlgorithmX2 et al
+
+License of the copied files
+---------------------------
+
+    Creative Commons Attribution-NonCommercial-ShareAlike 3.0 Unported
+    (CC BY-NC-SA 3.0)
+    https://creativecommons.org/licenses/by-nc-sa/3.0/
+    Full legal code: https://creativecommons.org/licenses/by-nc-sa/3.0/legalcode
+
+Key terms of CC BY-NC-SA 3.0 (summary, not a substitute for the licence text):
+  * Attribution — you must give appropriate credit, provide a link to the
+    licence, and indicate if changes were made.
+  * NonCommercial — you may not use the material for commercial purposes.
+  * ShareAlike — if you remix, transform, or build upon the material, you must
+    distribute your contributions under the same licence as the original.
+
+This matches AE2's own asset statement (README "License" section:
+"Textures and Models ... CC BY-NC-SA 3.0").
+
+Non-commercial scope of this project
+------------------------------------
+
+AE2Enhanced is a non-commercial fan project: it is distributed free of charge,
+accepts no payment or donations, contains no advertising, and its source is
+published for free. No part of this project is sold or bundled with any
+commercial product. The CC BY-NC-SA "NonCommercial" term is therefore satisfied.
+
+Files copied (verbatim, unmodified)
+-----------------------------------
+
+All files are byte-identical copies of the corresponding entries of
+appliedenergistics2-19.2.17.jar (verified by checksum). They are used at their
+original filenames.
+
+  From assets/ae2/textures/guis/ (jar)  ->  assets/ae2enhanced/textures/gui/ae2modern/
+
+    background.png        256x256  9-slice window frame (4px border, 248x248 tileable middle)
+    states.png            256x256  GUI sprite sheet (16x16 icons, slot background,
+                                   toolbar button background, tab backgrounds)
+    crafting.png          256x256  crafting-terminal background sheet; AE2Enhanced blits only
+                                   the crafting arrow region from it
+    pattern_modes.png     256x256  pattern-encoding mode backgrounds (craft 0,0 / process 0,70,
+                                   stonecutting 0,140 - each 124x66)
+    craft_amt.png         256x256  "set amount" dialog frame
+    text_field.png        128x128  text field / search box frame
+
+  From assets/ae2/textures/gui/sprites/ (jar)  ->  assets/ae2enhanced/textures/gui/ae2modern/
+
+    button.png            200x20  nine-slice (border 3) button face
+    button_highlighted.png 200x20 nine-slice (border 3) button face, hovered/pressed
+    button_disabled.png   200x20  nine-slice (border 3) button face, disabled
+    small_scroller.png      7x15  scrollbar handle (small style)
+    big_scroller.png       12x15  scrollbar handle (big style; used by the reclaimed terminal)
+    small_scroller_disabled.png 7x15  scrollbar handle, empty list
+    big_scroller_disabled.png  12x15  scrollbar handle, empty list
+
+  Upstream nine-slice metadata (documented here because 1.12.2 cannot read
+  .mcmeta; the same numbers are hard-coded in ChromeLayout/Ae2ModernArt):
+
+    button*.png       -> { "type": "nine_slice", "width": 200, "height": 20, "border": 3 }
+    (vertical_buttons_bg.png is NOT copied)
+
+Derivative works
+----------------
+
+Any file in this repository that is derived from, remixed from, or built upon
+these AE2 assets (for example a recoloured or recomposed variant of
+background.png / states.png / crafting.png / pattern_modes.png / craft_amt.png /
+text_field.png / button*.png / *scroller*.png) is itself distributed under
+CC BY-NC-SA 3.0, as required by the ShareAlike term, and remains subject to the
+Attribution and NonCommercial terms above. Reusers of such derivative files must
+credit AE2 (Ridanisaurus Rid, AlgorithmX2 et al) and link to the licence, state
+that changes were made, and keep the NonCommercial and ShareAlike terms intact.
+
+Files NOT copied (used only as pixel references during development, kept out of
+the shipped jar): every other texture of AE2, in particular terminal.png and the
+per-machine GUI sheets other than the files listed above.
+
+Unmodified upstream code is not covered by this notice: AE2's Java code is
+LGPL-3.0 and its API is MIT (see AE2's LICENSE / the mod jar's NOTICE file).
+AE2Enhanced does not copy AE2 code; it compiles against ae2-uel v0.56.7
+(Minecraft 1.12.2) as a runtime dependency.

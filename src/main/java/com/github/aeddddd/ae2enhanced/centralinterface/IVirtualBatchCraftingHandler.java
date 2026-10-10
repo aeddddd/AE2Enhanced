@@ -29,7 +29,9 @@ public interface IVirtualBatchCraftingHandler extends IRemoteHandler {
 
     /**
      * 默认能力：虚拟批量 + 物理发配（大多数设备两者都支持）。
-     * 纯虚拟设备应覆盖此方法并只返回 {@link HandlerCapabilities#VIRTUAL_BATCH}。
+     * 纯虚拟设备（不存在物理交互空间的工作台类）必须覆盖此方法并只返回
+     * {@link HandlerCapabilities#VIRTUAL_BATCH}，否则会被 {@link ExecutionMode} 判定为
+     * 双能力设备，在未装虚拟卡时误走物理发配。
      */
     @Override
     default EnumSet<HandlerCapabilities> getCapabilities() {
@@ -68,13 +70,22 @@ public interface IVirtualBatchCraftingHandler extends IRemoteHandler {
      * <p>返回值应包含完整 {@code count} 份所需的所有 AE 存储栈(物品、流体、RF、
      * Mana、Starlight、源质、气体等).调用方会自行决定如何从网络提取.</p>
      *
+     * <p><b>返回值语义（由引擎强制）</b>：</p>
+     * <ul>
+     *   <li>{@code null} —— <b>无法计价</b>，例如目标 mod 的源质 / 魔力 / 星光通道缺失。
+     *       引擎视为失败并放弃本次虚拟合成；</li>
+     *   <li>空列表 —— 该配方<b>确实零消耗</b>（仅限真正无投入的设备）。引擎按请求的并行数执行、
+     *       仅受 AE 能量上限钳制，并对该 handler <b>每个类告警一次</b>；</li>
+     *   <li>非空列表 —— 正常计价结果。</li>
+     * </ul>
+     *
      * @param world       目标世界
      * @param pos         目标位置
      * @param ingredients 单份配方的输入物品(来自 {@link InventoryCrafting})
      * @param outputs     单份配方的预期产物
      * @param count       虚拟合成份数
      * @param details     完整的配方详情（可为 null）
-     * @return 资源清单；若无法计算则返回空列表或 null（均视为失败）
+     * @return 资源清单；无法计价时必须返回 {@code null}（不得返回空列表）
      */
     default List<IAEStack> getVirtualCost(World world, BlockPos pos,
                                           InventoryCrafting ingredients,
@@ -90,12 +101,14 @@ public interface IVirtualBatchCraftingHandler extends IRemoteHandler {
      * <p>返回值应包含完整 {@code count} 份所需的所有 AE 存储栈(物品、流体、RF、
      * Mana、Starlight、源质、气体等).调用方会自行决定如何从网络提取.</p>
      *
+     * <p>{@code null} 与空列表的语义区别见上方带 {@code patternDetails} 参数的重载。</p>
+     *
      * @param world       目标世界
      * @param pos         目标位置
      * @param ingredients 单份配方的输入物品(来自 {@link InventoryCrafting})
      * @param outputs     单份配方的预期产物
      * @param count       虚拟合成份数
-     * @return 资源清单；若无法计算则返回空列表或 null（均视为失败）
+     * @return 资源清单；无法计价时必须返回 {@code null}（不得返回空列表）
      */
     List<IAEStack> getVirtualCost(World world, BlockPos pos,
                                   InventoryCrafting ingredients,
@@ -156,11 +169,16 @@ public interface IVirtualBatchCraftingHandler extends IRemoteHandler {
     }
 
     /**
-     * 未安装虚拟并行卡时，该 handler 是否仍应以多少并行进入虚拟批量模式.
-     * <p>
-     * 返回大于 1 的值可使该 handler 在无虚拟并行卡时也走虚拟批量路径。
-     * 默认值 1 表示必须由虚拟并行卡触发。
-     * </p>
+     * 本设备自带的虚拟并行度.
+     *
+     * <p>仅对 {@link ExecutionMode#VIRTUAL_NATIVE}（不存在物理交互空间的工作台类设备）生效：
+     * 这类设备不装卡也走虚拟批量，本方法给出其固有并行度（例如 Extended Crafting 工作台为 8），
+     * 装卡时再被卡等级抬高。</p>
+     *
+     * <p>对 {@link ExecutionMode#VIRTUAL_CARDED} 不生效——并行度由卡等级直接决定；
+     * 对 {@link ExecutionMode#PHYSICAL} 不生效——完全不经过虚拟路径。</p>
+     *
+     * <p>默认值 1 表示无固有并行度（仅单份）。</p>
      */
     default long getDefaultParallel() {
         return 1;
@@ -172,6 +190,9 @@ public interface IVirtualBatchCraftingHandler extends IRemoteHandler {
      * 某些设备（如 Extended Crafting 工作台）希望“未成功应用并行”时
      * 表现得和普通物理发配一样：不进入虚拟冷却，使后续 CPU 调度可以
      * 继续立即尝试其它目标或同目标的下一次合成。</p>
+     *
+     * <p>仅在虚拟路径（{@link ExecutionMode#VIRTUAL_NATIVE} /
+     * {@link ExecutionMode#VIRTUAL_CARDED}）下被查询。</p>
      *
      * @return true 表示当实际并行数为 1 时不设置冷却；默认 false
      */

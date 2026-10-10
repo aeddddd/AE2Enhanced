@@ -15,6 +15,7 @@ import appeng.api.storage.data.IAEItemStack;
 
 import com.github.aeddddd.ae2enhanced.specialcrafting.FlowReconciler;
 import com.github.aeddddd.ae2enhanced.specialcrafting.NetworkPatternIndex;
+import com.github.aeddddd.ae2enhanced.specialcrafting.PruneSettings;
 import com.github.aeddddd.ae2enhanced.specialcrafting.RecursiveCraftingHelper;
 
 
@@ -36,6 +37,16 @@ public final class SccLpSolve {
     private static final double EXTRACT_TOL = 1e-6;
 
     private SccLpSolve() {
+    }
+
+    /**
+     * 求解器后端档位({@code ae2e.lpSolver = auto|dual|exact|...},默认 {@code auto}).
+     * <p>约定:整单求解在入口解析一次并向下传参({@link #solve(ICraftingGrid, NetworkPatternIndex,
+     * List, Map, Map, Map, Map, PruneSettings, LpHotStart.Chain, String)});
+     * 直接调用本类的旧入口才在此解析——中途改系统属性不得让同一次求解混用多后端。</p>
+     */
+    public static String solverModeFromSystemProperties() {
+        return System.getProperty("ae2e.lpSolver", "auto");
     }
 
     /**
@@ -87,10 +98,12 @@ public final class SccLpSolve {
         public final Map<IAEItemStack, Double> seedDemands;
         /** 各阶段累计迭代数, 诊断用. */
         public final int iterations;
+        /** 本次结果由平凡单元闭式(P2)给出而非单纯形(诊断/审计用). */
+        public final boolean closedForm;
 
         private SccSolution(LpResult.Status status, String reason, List<Execution> executions,
                 Map<IAEItemStack, Double> deficits, Map<IAEItemStack, Double> externalDemands,
-                Map<IAEItemStack, Double> seedDemands, int iterations) {
+                Map<IAEItemStack, Double> seedDemands, int iterations, boolean closedForm) {
             this.status = status;
             this.reason = reason;
             this.executions = executions;
@@ -98,11 +111,13 @@ public final class SccLpSolve {
             this.externalDemands = externalDemands;
             this.seedDemands = seedDemands;
             this.iterations = iterations;
+            this.closedForm = closedForm;
         }
 
         static SccSolution failure(LpResult result, int iterations) {
             return new SccSolution(result.status, result.reason, Collections.emptyList(),
-                    Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(), iterations);
+                    Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(), iterations,
+                    false);
         }
     }
 
@@ -117,11 +132,63 @@ public final class SccLpSolve {
             Map<IAEItemStack, Long> stock, Map<IAEItemStack, Double> demands,
             Map<ICraftingPatternDetails, Double> upperCaps,
             Map<ICraftingPatternDetails, Double> committed) {
+        return solve(cc, index, keys, stock, demands, upperCaps, committed,
+                PruneSettings.fromSystemProperties(), null);
+    }
+
+    /**
+     * 求解单个 SCC 分量, 字典序三阶段(剪枝开关由调用方一次性解析后传入).
+     *
+     * @see #solve(ICraftingGrid, NetworkPatternIndex, List, Map, Map, Map, Map)
+     */
+    public static SccSolution solve(ICraftingGrid cc, NetworkPatternIndex index, List<IAEItemStack> keys,
+            Map<IAEItemStack, Long> stock, Map<IAEItemStack, Double> demands,
+            Map<ICraftingPatternDetails, Double> upperCaps,
+            Map<ICraftingPatternDetails, Double> committed, PruneSettings settings) {
+        return solve(cc, index, keys, stock, demands, upperCaps, committed, settings, null);
+    }
+
+    /**
+     * 求解单个 SCC 分量, 字典序三阶段。
+     *
+     * @param chain P-A 热启动链(自举轮之间复用基/因子化/缩放); null = 全程冷启动.
+     *              链由编排层按整单持有并向下传参, 求解器内不得自建(否则跨轮无法复用)。
+     */
+    public static SccSolution solve(ICraftingGrid cc, NetworkPatternIndex index, List<IAEItemStack> keys,
+            Map<IAEItemStack, Long> stock, Map<IAEItemStack, Double> demands,
+            Map<ICraftingPatternDetails, Double> upperCaps,
+            Map<ICraftingPatternDetails, Double> committed, PruneSettings settings,
+            LpHotStart.Chain chain) {
+        return solve(cc, index, keys, stock, demands, upperCaps, committed, settings, chain,
+                solverModeFromSystemProperties());
+    }
+
+    /**
+     * 求解单个 SCC 分量, 字典序三阶段(求解器后端由调用方在整单入口一次性解析后传入).
+     *
+     * @param solverMode 求解器后端({@code ae2e.lpSolver} 的入口快照):同一次整单求解
+     *                   恒用同一后端(中途改系统属性不得让轨迹混合), 该值同时是计划
+     *                  结果缓存的键组成部分(见 {@code LpPlanCache})
+     */
+    public static SccSolution solve(ICraftingGrid cc, NetworkPatternIndex index, List<IAEItemStack> keys,
+            Map<IAEItemStack, Long> stock, Map<IAEItemStack, Double> demands,
+            Map<ICraftingPatternDetails, Double> upperCaps,
+            Map<ICraftingPatternDetails, Double> committed, PruneSettings settings,
+            LpHotStart.Chain chain, String solverMode) {
         SccLpModelBuilder.Built built = SccLpModelBuilder.build(cc, index, keys, stock, demands, upperCaps,
                 committed, true);
 
+        // P2 平凡单元闭式化(最大杠杆):单列、无耦合行、无内化原料行、未压界且列净
+        // 系数非负/需供给行为正时, LP 最优角点有闭式, 不必进单纯形
+        if (settings.closedForm()) {
+            SccSolution closed = solveTrivialClosedForm(built, upperCaps, settings);
+            if (closed != null) {
+                return closed;
+            }
+        }
+
         // 阶段①: 赤字和最小化. c≥0 ⇒ y=0 对偶可行起步, 无需人工变量 Phase-1, 上界由界翻转处理
-        LpResult phase1 = solveLp(built.lp);
+        LpResult phase1 = solveLp(built.lp, solverMode, chain);
         if (phase1.status != LpResult.Status.OPTIMAL) {
             dumpOnFailure(phase1, built.lp, "阶段1");
             return SccSolution.failure(phase1, phase1.iterations);
@@ -142,7 +209,7 @@ public final class SccLpSolve {
         // 缺料时原生口径是分支序贪心显示语义, 去掉内化行重解让阶段③秩贪心复刻它
         if (obj1 > 1e-6 && built.rawRows > 0) {
             built = SccLpModelBuilder.build(cc, index, keys, stock, demands, upperCaps, committed, false);
-            phase1 = solveLp(built.lp);
+            phase1 = solveLp(built.lp, solverMode, chain);
             if (phase1.status != LpResult.Status.OPTIMAL) {
                 dumpOnFailure(phase1, built.lp, "阶段1-去内化");
                 return SccSolution.failure(phase1, phase1.iterations);
@@ -199,7 +266,8 @@ public final class SccLpSolve {
             double[] upper2 = java.util.Arrays.copyOf(built.lp.upper, n2);
             upper2[n2 - 1] = LpModel.INF;
             phase2 = solveLp(
-                    new LpModel(SparseMatrix.fromColumns(rows2, columns2), b2, cost2, lower2, upper2));
+                    new LpModel(SparseMatrix.fromColumns(rows2, columns2), b2, cost2, lower2, upper2),
+                    solverMode, chain);
             iterations += phase2.iterations;
             if (phase2.status != LpResult.Status.OPTIMAL) {
                 dumpOnFailure(phase2, new LpModel(
@@ -259,7 +327,7 @@ public final class SccLpSolve {
         upper[n - 1] = LpModel.INF;
         LpModel phase3Model = new LpModel(SparseMatrix.fromColumns(oldRows + 2, columns), b, cost, lower, upper);
 
-        LpResult phase3 = solveLp(phase3Model);
+        LpResult phase3 = solveLp(phase3Model, solverMode, chain);
         iterations += phase3.iterations;
         if (phase3.status != LpResult.Status.OPTIMAL) {
             dumpOnFailure(phase3, phase3Model, "阶段3");
@@ -309,7 +377,7 @@ public final class SccLpSolve {
         Map<IAEItemStack, Double> seedDemands = seedDemandsOf(executions,
                 new java.util.HashSet<>(built.keys));
         return new SccSolution(LpResult.Status.OPTIMAL, null, executions, deficits, externalDemands,
-                seedDemands, iterations);
+                seedDemands, iterations, false);
     }
 
     /**
@@ -343,17 +411,162 @@ public final class SccLpSolve {
         Map<IAEItemStack, Double> seedDemands = seedDemandsOf(executions,
                 new java.util.HashSet<>(built.keys));
         return new SccSolution(LpResult.Status.OPTIMAL, null, executions, deficits, externalDemands,
-                seedDemands, iterations);
+                seedDemands, iterations, false);
     }
 
     /**
-     * LP 后端选择, 调用时读取, 允许基准测试在同 JVM 内切换: dual(默认, 界变量对偶
-     * 单纯形) 或 legacy(修正单纯形).
+     * 平凡单元闭式解(P2)。
+     * <p>适用条件(全部满足才闭式,否则返回 null 回落 LP):单列(无变体列)、无耦合行、
+     * {@code rawRows == 0}(有内化原料行时原料行赤字由阶段③秩贪心表达)、该样板未被
+     * 压界(upperCaps 无条目)、全部行的列净系数非负且需供给行(右端 > TOL)严格为正。
+     * 此时 LP 的字典序最优角点有闭式:</p>
+     * <pre>
+     *   reps(i)  = b_i / coeff_i       (需供给行)
+     *   x        = max_i reps(i) − 1e-7/coeff_w   (w = 最紧行;末项 = 阶段③禁行松弛泄漏)
+     *   deficits = { i : max(0, b_i − coeff_i·x) > 提取阈 }
+     * </pre>
+     * <p>口径全部复用现有函数/矩阵:{@code coeff} 取 {@link SccLpModelBuilder.Built#columns}
+     * 的列净系数(含 +产出 +返还 −输入),右端取构建后模型的 b(已含 committed 折算与
+     * 重复行差分),环外折算用 {@link SccLpModelBuilder.VarInfo#externalInputs},
+     * 种子需求走 {@link #seedDemandsOf}——禁止改写这些口径,否则闭式与 LP 分叉。</p>
      */
-    private static LpResult solveLp(LpModel model) {
-        return "legacy".equals(System.getProperty("ae2e.lpSolver"))
-                ? RevisedSimplex.solve(model)
-                : DualSimplex.solve(model);
+    @Nullable
+    private static SccSolution solveTrivialClosedForm(SccLpModelBuilder.Built built,
+            Map<ICraftingPatternDetails, Double> upperCaps, PruneSettings settings) {
+        if (built.vars.size() != 1) {
+            return null; // 多列(含变体)/无列:走 LP
+        }
+        SccLpModelBuilder.VarInfo info = built.vars.get(0);
+        if (info.isVariant() || upperCaps.containsKey(info.pattern)) {
+            traceClosedForm(settings, info, "变体列或已压界");
+            return null;
+        }
+        if (built.rawRows != 0) {
+            traceClosedForm(settings, info, "含内化原料行");
+            return null;
+        }
+        double[] b = built.lp.b;
+        int rows = b.length;
+        Map<Integer, Double> column = built.columns.get(0);
+        double reps = 0;
+        int worstRow = -1;
+        for (int i = 0; i < rows; i++) {
+            Double c = column.get(i);
+            double coeff = c == null ? 0.0 : c;
+            if (coeff < 0) {
+                // 负净系数行:x 增长会给该行制造赤字,最优角点不再是 max 比率点
+                traceClosedForm(settings, info, "行 " + i + " 净系数为负(" + coeff + ")");
+                return null;
+            }
+            if (b[i] > EXTRACT_TOL) {
+                if (coeff <= 0) {
+                    // 需供给却无净产出:该行赤字与 x 无关,阶段③会把 x 压回 0
+                    traceClosedForm(settings, info, "行 " + i + " 需供给但净系数为 0");
+                    return null;
+                }
+                double need = b[i] / coeff;
+                if (need > reps) {
+                    reps = need;
+                    worstRow = i;
+                }
+            }
+        }
+        double upper = info.upper;
+        if (reps > upper + EXTRACT_TOL) {
+            // 闭式解超出变量上界:LP 会被上界截断(交付缺口转赤字),不得按闭式越过
+            traceClosedForm(settings, info, "reps " + reps + " 超执行数上界 " + upper);
+            return null;
+        }
+        // 阶段③禁行松弛泄漏:Σd ≤ obj1+s1(单列下 obj1 = 0, s1 = 1e-7)允许 x 比
+        // 最紧需求行低 1e-7/coeff_w——LP 返回的正是该角点,闭式按同口径复现,
+        // 整数化 ⌈x−1e-6⌉ 不受影响(断言守住)。无需求行(reps=0)时 x=0,不吃泄漏。
+        double count = 0;
+        if (reps > 0) {
+            double coeffW = column.get(worstRow);
+            count = reps - 1e-7 / coeffW;
+            if (count < 0) {
+                count = 0;
+            }
+        }
+        assert Math.ceil(reps - EXTRACT_TOL) == Math.ceil(count - EXTRACT_TOL)
+                : "闭式松弛泄漏改变了整数化: reps=" + reps + " count=" + count;
+        List<Execution> executions = new ArrayList<>(1);
+        // 零计数执行记录同样保留(对账层整数化守恒修复需要执行记录身份在场)
+        executions.add(new Execution(info.pattern, info.variantInputs, count));
+        Map<IAEItemStack, Double> externalDemands = new LinkedHashMap<>();
+        if (count > EXTRACT_TOL) {
+            for (Map.Entry<IAEItemStack, Double> ext : info.externalInputs.entrySet()) {
+                externalDemands.merge(ext.getKey(), ext.getValue() * count, Double::sum);
+            }
+        }
+        // 行赤字 = max(0, b − coeff·x);提取阈值与 LP 同口径(本分支 obj1 = obj2 = 0)
+        double deficitTol = Math.max(EXTRACT_TOL, 8 * 1e-7);
+        Map<IAEItemStack, Double> deficits = new LinkedHashMap<>();
+        for (int i = 0; i < rows; i++) {
+            Double c = column.get(i);
+            double deficit = b[i] - (c == null ? 0.0 : c) * count;
+            if (deficit > deficitTol) {
+                deficits.put(built.keys.get(i), deficit);
+            }
+        }
+        Map<IAEItemStack, Double> seedDemands = seedDemandsOf(executions,
+                new java.util.HashSet<>(built.keys));
+        if (settings.trace) {
+            System.out.println("[PRUNE] 闭式命中 样板=" + info.pattern + " 行数=" + rows
+                    + " reps=" + reps + " count=" + count + " 环外=" + externalDemands.size()
+                    + " 赤字=" + deficits.size());
+        }
+        return new SccSolution(LpResult.Status.OPTIMAL, null, executions, deficits, externalDemands,
+                seedDemands, 0, true);
+    }
+
+    /** 闭式回落原因(仅 pruneTrace 门控;回落说明该单元仍需真 LP). */
+    private static void traceClosedForm(PruneSettings settings, SccLpModelBuilder.VarInfo info,
+            String reason) {
+        if (settings.trace) {
+            System.out.println("[PRUNE] 闭式回落(" + reason + ") 样板=" + info.pattern);
+        }
+    }
+
+    /**
+     * LP 后端选择:由 {@link #solve} 入口一次性解析后传入(调用方不得中途改系统属性——
+     * 同一次求解的三阶段必须走同一后端)。auto(默认: 小模型走精确有理数路径,
+     * 超限回落浮点对偶单纯形)、dual(恒浮点对偶单纯形)、exact(恒精确)、
+     * legacy(修正单纯形, 对照用).
+     *
+     * <p>P-A: 走对偶单纯形的阶段按 (rows, cols) 从 {@code chain} 取旧基热启动,
+     * 并把本次产生的状态写回槽位; 走精确/legacy 的阶段不参与链(链只在相关阶段
+     * 都走对偶单纯形时才真正串起来, {@code ExactSimplex.fits} 跨阈值时逐阶段独立).</p>
+     */
+    private static LpResult solveLp(LpModel model, String mode, LpHotStart.Chain chain) {
+        switch (mode) {
+            case "legacy":
+                return RevisedSimplex.solve(model);
+            case "dual":
+                return solveDual(model, chain);
+            case "exact":
+                return ExactSimplex.solve(model);
+            default:
+                if (ExactSimplex.fits(model)) {
+                    LpResult r = ExactSimplex.solve(model);
+                    if (r.status == LpResult.Status.OPTIMAL || r.status == LpResult.Status.INFEASIBLE) {
+                        return r; // 精确答案/精确不可行证明: 直接采用, 不回落
+                    }
+                    // 精确路径超限(位数/主元/预算): 回落浮点对偶单纯形
+                }
+                return solveDual(model, chain);
+        }
+    }
+
+    /** 对偶单纯形(带 P-A 热启动链): 取旧状态 → 求解 → 回写新状态. */
+    private static LpResult solveDual(LpModel model, LpHotStart.Chain chain) {
+        if (chain == null || !chain.enabled()) {
+            return DualSimplex.solve(model);
+        }
+        LpHotStart prior = chain.peek(model.a.rows, model.a.cols);
+        DualSimplex.Outcome out = DualSimplex.solveHot(model, prior, chain);
+        chain.put(out.next);
+        return out.result;
     }
 
     /**

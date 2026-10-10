@@ -1,6 +1,7 @@
 package com.github.aeddddd.ae2enhanced.centralinterface.handler.bloodmagic;
 
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
+import com.github.aeddddd.ae2enhanced.centralinterface.reflection.ReflectionCache;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.crafting.Ingredient;
 
@@ -13,148 +14,85 @@ import java.util.Set;
  * Blood Magic Handler 的反射辅助类.
  *
  * 缓存对 Blood Magic 全部使用到的类/方法/字段的反射引用,避免重复反射带来的性能损耗.
- * 所有缓存均在静态初始化块中完成,失败时记录警告但不应导致崩溃
- * (对应 handler 会在 isValidTarget 中回退到类型检查).
+ * 查找统一走 {@link ReflectionCache}:全部缓存由静态字段初始化一次性完成,失败时只记一条警告、
+ * 不抛异常,未命中的缓存项保持 null,由对应 handler 自行降级
+ * (isValidTarget 回退到类型检查 / 配方无法计价).
  *
  * 本类自身不引用任何 WayofTime.bloodmagic 类型,因此可以安全地被无条件加载.
  */
 public class BloodMagicReflectionHelper {
 
     // ---- TileAlchemyTable ----
-    public static final Class<?> CLASS_TILE_ALCHEMY_TABLE;
-    public static final Method METHOD_ALCHEMY_TABLE_IS_SLAVE;
-    public static final Method METHOD_ALCHEMY_TABLE_GET_BURN_TIME;
-    public static final Method METHOD_ALCHEMY_TABLE_IS_INPUT_SLOT_ACCESSIBLE;
+    public static final Class<?> CLASS_TILE_ALCHEMY_TABLE =
+            ReflectionCache.clazz("WayofTime.bloodmagic.tile.TileAlchemyTable");
+    public static final Method METHOD_ALCHEMY_TABLE_IS_SLAVE =
+            ReflectionCache.method(CLASS_TILE_ALCHEMY_TABLE, "isSlave");
+    public static final Method METHOD_ALCHEMY_TABLE_GET_BURN_TIME =
+            ReflectionCache.method(CLASS_TILE_ALCHEMY_TABLE, "getBurnTime");
+    public static final Method METHOD_ALCHEMY_TABLE_IS_INPUT_SLOT_ACCESSIBLE =
+            ReflectionCache.method(CLASS_TILE_ALCHEMY_TABLE, "isInputSlotAccessible", int.class);
 
     // ---- TileSoulForge ----
-    public static final Class<?> CLASS_TILE_SOUL_FORGE;
-    public static final Field FIELD_SOUL_FORGE_BURN_TIME;
+    public static final Class<?> CLASS_TILE_SOUL_FORGE =
+            ReflectionCache.clazz("WayofTime.bloodmagic.tile.TileSoulForge");
+    public static final Field FIELD_SOUL_FORGE_BURN_TIME =
+            ReflectionCache.field(CLASS_TILE_SOUL_FORGE, "burnTime");
 
     // ---- TileAltar ----
-    public static final Class<?> CLASS_TILE_ALTAR;
-    public static final Method METHOD_ALTAR_START_CYCLE;
-    public static final Method METHOD_ALTAR_IS_ACTIVE;
-    public static final Method METHOD_ALTAR_GET_PROGRESS;
+    public static final Class<?> CLASS_TILE_ALTAR =
+            ReflectionCache.clazz("WayofTime.bloodmagic.tile.TileAltar");
+    public static final Method METHOD_ALTAR_START_CYCLE =
+            ReflectionCache.method(CLASS_TILE_ALTAR, "startCycle");
+    public static final Method METHOD_ALTAR_IS_ACTIVE =
+            ReflectionCache.method(CLASS_TILE_ALTAR, "isActive");
+    public static final Method METHOD_ALTAR_GET_PROGRESS =
+            ReflectionCache.method(CLASS_TILE_ALTAR, "getProgress");
 
     // ---- BloodMagicAPI / RecipeRegistrar ----
-    public static final Field FIELD_API_INSTANCE;
-    public static final Method METHOD_API_GET_RECIPE_REGISTRAR;
-    public static final Method METHOD_REGISTRAR_GET_ALCHEMY_RECIPES;
-    public static final Method METHOD_REGISTRAR_GET_ALTAR_RECIPES;
+    private static final Class<?> CLASS_BLOOD_MAGIC_API =
+            ReflectionCache.clazz("WayofTime.bloodmagic.api.impl.BloodMagicAPI");
+    private static final Class<?> CLASS_RECIPE_REGISTRAR =
+            ReflectionCache.clazz("WayofTime.bloodmagic.api.impl.BloodMagicRecipeRegistrar");
+    public static final Field FIELD_API_INSTANCE =
+            ReflectionCache.field(CLASS_BLOOD_MAGIC_API, "INSTANCE");
+    public static final Method METHOD_API_GET_RECIPE_REGISTRAR =
+            ReflectionCache.method(CLASS_BLOOD_MAGIC_API, "getRecipeRegistrar");
+    public static final Method METHOD_REGISTRAR_GET_ALCHEMY_RECIPES =
+            ReflectionCache.method(CLASS_RECIPE_REGISTRAR, "getAlchemyRecipes");
+    public static final Method METHOD_REGISTRAR_GET_ALTAR_RECIPES =
+            ReflectionCache.method(CLASS_RECIPE_REGISTRAR, "getAltarRecipes");
 
     // ---- RecipeAlchemyTable ----
-    public static final Method METHOD_RECIPE_ALCHEMY_TABLE_GET_INPUT;
-    public static final Method METHOD_RECIPE_ALCHEMY_TABLE_GET_OUTPUT;
-    public static final Method METHOD_RECIPE_ALCHEMY_TABLE_GET_SYPHON;
+    private static final Class<?> CLASS_RECIPE_ALCHEMY_TABLE =
+            ReflectionCache.clazz("WayofTime.bloodmagic.api.impl.recipe.RecipeAlchemyTable");
+    public static final Method METHOD_RECIPE_ALCHEMY_TABLE_GET_INPUT =
+            ReflectionCache.method(CLASS_RECIPE_ALCHEMY_TABLE, "getInput");
+    public static final Method METHOD_RECIPE_ALCHEMY_TABLE_GET_OUTPUT =
+            ReflectionCache.method(CLASS_RECIPE_ALCHEMY_TABLE, "getOutput");
+    public static final Method METHOD_RECIPE_ALCHEMY_TABLE_GET_SYPHON =
+            ReflectionCache.method(CLASS_RECIPE_ALCHEMY_TABLE, "getSyphon");
 
     // ---- RecipeBloodAltar ----
-    public static final Method METHOD_RECIPE_BLOOD_ALTAR_GET_INPUT;
-    public static final Method METHOD_RECIPE_BLOOD_ALTAR_GET_OUTPUT;
-    public static final Method METHOD_RECIPE_BLOOD_ALTAR_GET_SYPHON;
+    private static final Class<?> CLASS_RECIPE_BLOOD_ALTAR =
+            ReflectionCache.clazz("WayofTime.bloodmagic.api.impl.recipe.RecipeBloodAltar");
+    public static final Method METHOD_RECIPE_BLOOD_ALTAR_GET_INPUT =
+            ReflectionCache.method(CLASS_RECIPE_BLOOD_ALTAR, "getInput");
+    public static final Method METHOD_RECIPE_BLOOD_ALTAR_GET_OUTPUT =
+            ReflectionCache.method(CLASS_RECIPE_BLOOD_ALTAR, "getOutput");
+    public static final Method METHOD_RECIPE_BLOOD_ALTAR_GET_SYPHON =
+            ReflectionCache.method(CLASS_RECIPE_BLOOD_ALTAR, "getSyphon");
 
     static {
-        Class<?> tileAlchemyTable = null;
-        Method alchemyTableIsSlave = null;
-        Method alchemyTableGetBurnTime = null;
-        Method alchemyTableIsInputSlotAccessible = null;
-
-        Class<?> tileSoulForge = null;
-        Field soulForgeBurnTime = null;
-
-        Class<?> tileAltar = null;
-        Method altarStartCycle = null;
-        Method altarIsActive = null;
-        Method altarGetProgress = null;
-
-        Field apiInstance = null;
-        Method apiGetRecipeRegistrar = null;
-        Method registrarGetAlchemyRecipes = null;
-        Method registrarGetAltarRecipes = null;
-
-        Method recipeAlchemyTableGetInput = null;
-        Method recipeAlchemyTableGetOutput = null;
-        Method recipeAlchemyTableGetSyphon = null;
-
-        Method recipeBloodAltarGetInput = null;
-        Method recipeBloodAltarGetOutput = null;
-        Method recipeBloodAltarGetSyphon = null;
-
-        try {
-            tileAlchemyTable = Class.forName("WayofTime.bloodmagic.tile.TileAlchemyTable");
-            alchemyTableIsSlave = tileAlchemyTable.getMethod("isSlave");
-            alchemyTableGetBurnTime = tileAlchemyTable.getMethod("getBurnTime");
-            alchemyTableIsInputSlotAccessible = tileAlchemyTable.getMethod("isInputSlotAccessible", int.class);
-        } catch (Exception e) {
-            AE2Enhanced.LOGGER.warn("[AE2E] BloodMagicReflectionHelper failed to cache TileAlchemyTable", e);
+        // 查找失败只 warn 不抛 —— 缺 Blood Magic / 版本不匹配时各缓存项保持 null,
+        // 由 handler 自行降级(类型检查 / 拒绝计价);逐项未命中的原因由 ReflectionCache 按 debug 记录。
+        if (CLASS_TILE_ALCHEMY_TABLE == null || METHOD_ALCHEMY_TABLE_GET_BURN_TIME == null
+                || CLASS_TILE_SOUL_FORGE == null || CLASS_TILE_ALTAR == null
+                || FIELD_API_INSTANCE == null || METHOD_REGISTRAR_GET_ALCHEMY_RECIPES == null
+                || METHOD_RECIPE_ALCHEMY_TABLE_GET_OUTPUT == null
+                || METHOD_RECIPE_BLOOD_ALTAR_GET_OUTPUT == null) {
+            AE2Enhanced.LOGGER.warn("[AE2E] BloodMagicReflectionHelper: Blood Magic 反射缓存不完整"
+                    + "(未安装或版本不匹配),相关方块将退化为类型检查且无法计价");
         }
-
-        try {
-            tileSoulForge = Class.forName("WayofTime.bloodmagic.tile.TileSoulForge");
-            soulForgeBurnTime = tileSoulForge.getField("burnTime");
-        } catch (Exception e) {
-            AE2Enhanced.LOGGER.warn("[AE2E] BloodMagicReflectionHelper failed to cache TileSoulForge", e);
-        }
-
-        try {
-            tileAltar = Class.forName("WayofTime.bloodmagic.tile.TileAltar");
-            altarStartCycle = tileAltar.getMethod("startCycle");
-            altarIsActive = tileAltar.getMethod("isActive");
-            altarGetProgress = tileAltar.getMethod("getProgress");
-        } catch (Exception e) {
-            AE2Enhanced.LOGGER.warn("[AE2E] BloodMagicReflectionHelper failed to cache TileAltar", e);
-        }
-
-        try {
-            Class<?> api = Class.forName("WayofTime.bloodmagic.api.impl.BloodMagicAPI");
-            apiInstance = api.getField("INSTANCE");
-            apiGetRecipeRegistrar = api.getMethod("getRecipeRegistrar");
-
-            Class<?> registrar = Class.forName("WayofTime.bloodmagic.api.impl.BloodMagicRecipeRegistrar");
-            registrarGetAlchemyRecipes = registrar.getMethod("getAlchemyRecipes");
-            registrarGetAltarRecipes = registrar.getMethod("getAltarRecipes");
-        } catch (Exception e) {
-            AE2Enhanced.LOGGER.warn("[AE2E] BloodMagicReflectionHelper failed to cache BloodMagicAPI", e);
-        }
-
-        try {
-            Class<?> recipeAlchemyTable = Class.forName("WayofTime.bloodmagic.api.impl.recipe.RecipeAlchemyTable");
-            recipeAlchemyTableGetInput = recipeAlchemyTable.getMethod("getInput");
-            recipeAlchemyTableGetOutput = recipeAlchemyTable.getMethod("getOutput");
-            recipeAlchemyTableGetSyphon = recipeAlchemyTable.getMethod("getSyphon");
-
-            Class<?> recipeBloodAltar = Class.forName("WayofTime.bloodmagic.api.impl.recipe.RecipeBloodAltar");
-            recipeBloodAltarGetInput = recipeBloodAltar.getMethod("getInput");
-            recipeBloodAltarGetOutput = recipeBloodAltar.getMethod("getOutput");
-            recipeBloodAltarGetSyphon = recipeBloodAltar.getMethod("getSyphon");
-        } catch (Exception e) {
-            AE2Enhanced.LOGGER.warn("[AE2E] BloodMagicReflectionHelper failed to cache recipe classes", e);
-        }
-
-        CLASS_TILE_ALCHEMY_TABLE = tileAlchemyTable;
-        METHOD_ALCHEMY_TABLE_IS_SLAVE = alchemyTableIsSlave;
-        METHOD_ALCHEMY_TABLE_GET_BURN_TIME = alchemyTableGetBurnTime;
-        METHOD_ALCHEMY_TABLE_IS_INPUT_SLOT_ACCESSIBLE = alchemyTableIsInputSlotAccessible;
-
-        CLASS_TILE_SOUL_FORGE = tileSoulForge;
-        FIELD_SOUL_FORGE_BURN_TIME = soulForgeBurnTime;
-
-        CLASS_TILE_ALTAR = tileAltar;
-        METHOD_ALTAR_START_CYCLE = altarStartCycle;
-        METHOD_ALTAR_IS_ACTIVE = altarIsActive;
-        METHOD_ALTAR_GET_PROGRESS = altarGetProgress;
-
-        FIELD_API_INSTANCE = apiInstance;
-        METHOD_API_GET_RECIPE_REGISTRAR = apiGetRecipeRegistrar;
-        METHOD_REGISTRAR_GET_ALCHEMY_RECIPES = registrarGetAlchemyRecipes;
-        METHOD_REGISTRAR_GET_ALTAR_RECIPES = registrarGetAltarRecipes;
-
-        METHOD_RECIPE_ALCHEMY_TABLE_GET_INPUT = recipeAlchemyTableGetInput;
-        METHOD_RECIPE_ALCHEMY_TABLE_GET_OUTPUT = recipeAlchemyTableGetOutput;
-        METHOD_RECIPE_ALCHEMY_TABLE_GET_SYPHON = recipeAlchemyTableGetSyphon;
-
-        METHOD_RECIPE_BLOOD_ALTAR_GET_INPUT = recipeBloodAltarGetInput;
-        METHOD_RECIPE_BLOOD_ALTAR_GET_OUTPUT = recipeBloodAltarGetOutput;
-        METHOD_RECIPE_BLOOD_ALTAR_GET_SYPHON = recipeBloodAltarGetSyphon;
     }
 
     // ---- 通用调用封装 ----

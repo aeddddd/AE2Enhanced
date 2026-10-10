@@ -4,10 +4,11 @@ import appeng.api.storage.data.IAEItemStack;
 import appeng.api.storage.data.IItemList;
 import appeng.client.gui.implementations.GuiCraftingCPU;
 import appeng.client.gui.implementations.GuiCraftingStatus;
+import com.github.aeddddd.ae2enhanced.AE2Enhanced;
+import com.github.aeddddd.ae2enhanced.client.gui.GuiButtonListHelper;
 import com.github.aeddddd.ae2enhanced.client.gui.planview.CraftingDurationTracker;
 import com.github.aeddddd.ae2enhanced.client.gui.planview.IPlanViewHost;
 import com.github.aeddddd.ae2enhanced.client.gui.planview.PlanViewHelper;
-import com.github.aeddddd.ae2enhanced.mixin.late.accessor.IGuiScreenAccessor;
 import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
 import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
 import net.minecraft.client.Minecraft;
@@ -103,24 +104,31 @@ public abstract class MixinGuiCraftingCPU implements IPlanViewHost {
 
     @Inject(method = "func_73866_w_", at = @At("TAIL"))
     private void ae2enhanced$onInitGui(CallbackInfo ci) {
-        GuiContainer self = (GuiContainer) (Object) this;
-        int guiLeft = self.getGuiLeft();
-        int guiTop = self.getGuiTop();
-        FontRenderer fr = Minecraft.getMinecraft().fontRenderer;
-        if (ae2enhanced$isStatusScreen()) {
-            // GuiCraftingStatus(CPU 选择界面)底行无空位: 排序按钮置于左侧 CPU 面板顶部,
-            // 搜索框收窄避开右上角 tab 按钮(标题截断相应收窄)
-            this.ae2enhanced$sortButton = new GuiButton(3092, guiLeft - 85, guiTop + 4, 76, 13, "");
-            ((IGuiScreenAccessor) self).ae2enhanced$getButtonList().add(this.ae2enhanced$sortButton);
-            this.ae2enhanced$searchField = new GuiTextField(3093, fr, guiLeft + 126, guiTop + 4, 82, 12);
-        } else {
-            this.ae2enhanced$sortButton = new GuiButton(3092, guiLeft + 6, guiTop + 159, 100, 20, "");
-            ((IGuiScreenAccessor) self).ae2enhanced$getButtonList().add(this.ae2enhanced$sortButton);
-            this.ae2enhanced$searchField = new GuiTextField(3093, fr, guiLeft + 154, guiTop + 4, 78, 12);
+        // 此处异常绝不能逃出 initGui: GuiCraftingStatus.initGui 在 super 调用之后才创建
+        // cpuScrollbar, 一旦中断, 屏幕会以未初始化状态留在屏幕上, 下一帧渲染即 AE2 侧 NPE.
+        try {
+            GuiContainer self = (GuiContainer) (Object) this;
+            int guiLeft = self.getGuiLeft();
+            int guiTop = self.getGuiTop();
+            FontRenderer fr = Minecraft.getMinecraft().fontRenderer;
+            GuiButton sortButton;
+            if (ae2enhanced$isStatusScreen()) {
+                // GuiCraftingStatus(CPU 选择界面)底行无空位: 排序按钮置于左侧 CPU 面板顶部,
+                // 搜索框收窄避开右上角 tab 按钮(标题截断相应收窄)
+                sortButton = new GuiButton(3092, guiLeft - 85, guiTop + 4, 76, 13, "");
+                this.ae2enhanced$searchField = new GuiTextField(3093, fr, guiLeft + 126, guiTop + 4, 82, 12);
+            } else {
+                sortButton = new GuiButton(3092, guiLeft + 6, guiTop + 159, 100, 20, "");
+                this.ae2enhanced$searchField = new GuiTextField(3093, fr, guiLeft + 154, guiTop + 4, 78, 12);
+            }
+            // 按钮列表不可访问时置 null, 其余钩子均按 null 跳过
+            this.ae2enhanced$sortButton = GuiButtonListHelper.addButton(self, sortButton) ? sortButton : null;
+            this.ae2enhanced$searchField.setMaxStringLength(64);
+            this.ae2enhanced$searchField.setText(this.ae2enhanced$searchText);
+            ae2enhanced$updateSortButtonText();
+        } catch (Throwable t) {
+            AE2Enhanced.LOGGER.warn("[AE2E] 计划视图控件初始化失败, 已跳过", t);
         }
-        this.ae2enhanced$searchField.setMaxStringLength(64);
-        this.ae2enhanced$searchField.setText(this.ae2enhanced$searchText);
-        ae2enhanced$updateSortButtonText();
     }
 
     @Inject(method = "func_146284_a", at = @At("HEAD"))

@@ -50,8 +50,14 @@ import java.util.Map;
  * 某个样板剩余量/材料/供电不足时，用不完的额度会在同趟后续轮次回流给其他样板。</p>
  *
  * <h3>能耗</h3>
- * <p>材料预检通过、MODULATE 扣料之前调用 {@code chargeCraftEnergy} 计费；欠电时按实付
- * 比例降低本次结算份数（0 = 本 tick 跳过该样板），因此产物/进度/并行占用与实付能量一致。</p>
+ * <p>材料预检通过、MODULATE 扣料之前调用 {@code chargeCraftEnergy} 计费（只计费不限流,
+ * 网络能付多少付多少,不阻塞合成）。</p>
+ *
+ * <h3>产物回收（必须与原生同口径）</h3>
+ * <p>结算产物<b>不得</b>直接写 CPU 库存：必须先 {@code waitingFor.add(...)} 登记预期,
+ * 再让产物经 {@code cpu.injectItems(...)}（虚拟分支）或 pendingOutputs → 网络回流
+ * （真实/流体分支）进入 CPU。只有这条路径会递减 {@code finalOutput} 与剩余计数、
+ * 交付合成链并在到达 0 时收官；绕过它会让合成监视器残留"正在合成"。</p>
  *
  * <p>注意：批量结算<b>不得</b>扣减 {@code remainingOperations}（原生每 tick 发配配额）。
  * 原生的 {@code usedOps[3]} 环形记账把它当作「本拍消耗」，一旦批量把配额扣成负数，
@@ -66,9 +72,6 @@ public abstract class MixinCraftingCPUClusterBatch {
 
     @Shadow
     private Map<ICraftingPatternDetails, Object> tasks;
-
-    @Shadow
-    private long remainingItemCount;
 
     @Shadow
     private IItemList<IAEItemStack> waitingFor;
@@ -279,7 +282,6 @@ public abstract class MixinCraftingCPUClusterBatch {
                             controller.setCurrentActionSource(source);
                             try {
                                 appeng.crafting.MECraftingInventory meInv = (appeng.crafting.MECraftingInventory) cpu.getInventory();
-                                IItemList<IAEItemStack> itemList = meInv.getItemList();
                                 appeng.api.config.Actionable SIMULATE = appeng.api.config.Actionable.SIMULATE;
                                 appeng.api.config.Actionable MODULATE = appeng.api.config.Actionable.MODULATE;
 
@@ -368,10 +370,8 @@ public abstract class MixinCraftingCPUClusterBatch {
                                 }
                                 if (!canExtract || actualBatchSize <= 0) break;
 
-                                // 能耗：按实际结算份数计费,欠电时按实付比例降载（0 = 本 tick 无电）
-                                long energyGrant = controller.chargeCraftEnergy(actualBatchSize);
-                                if (energyGrant <= 0) continue;
-                                actualBatchSize = Math.min(actualBatchSize, energyGrant);
+                                // 能耗：按实际结算份数计费（只计费不限流,不阻塞合成）
+                                controller.chargeCraftEnergy(actualBatchSize);
 
                                 // MODULATE 实际扣料(Drop 扣 mB,物品扣个数)
                                 for (int i = 0; i < 9; i++) {
@@ -389,29 +389,23 @@ public abstract class MixinCraftingCPUClusterBatch {
                                     }
                                 }
 
-                                // 产物：物品形态直接入 CPU 物品栏(与虚拟批量一致,保证嵌套配方 canCraft 可见)
+                                // 产物：与原生发配同口径(登记预期 → 经网络回流 → cpu.injectItems 递减
+                                // finalOutput/剩余计数); 直接写 itemList 会导致监视器残留"正在合成"
+                                if (waitingFor != null) {
+                                    for (IAEItemStack outTemplate : details.getCondensedOutputs()) {
+                                        if (outTemplate == null || outTemplate.getStackSize() <= 0) continue;
+                                        IAEItemStack expect = outTemplate.copy();
+                                        expect.setStackSize(outTemplate.getStackSize() * actualBatchSize);
+                                        waitingFor.add(expect);
+                                    }
+                                }
                                 for (IAEItemStack outputTemplate : details.getCondensedOutputs()) {
                                     if (outputTemplate == null || outputTemplate.getStackSize() <= 0) continue;
                                     long totalCount = outputTemplate.getStackSize() * actualBatchSize;
                                     if (totalCount <= 0) continue;
-
                                     IAEItemStack product = outputTemplate.copy();
                                     product.setStackSize(totalCount);
-                                    itemList.add(product);
-                                    // 直接写入底层 IItemList,绕过 injectItems,需显式递增库存注入版本号
-                                    ((IMeInventoryVersionAccess) meInv).ae2e$bumpInjectVersion();
-                                    this.postChange(product.copy(), source);
-                                    this.postCraftingStatusChange(product.copy());
-
-                                    if (waitingFor != null) {
-                                        IAEItemStack waiting = waitingFor.findPrecise(outputTemplate);
-                                        if (waiting != null) {
-                                            waiting.decStackSize(totalCount);
-                                            if (waiting.getStackSize() <= 0) {
-                                                waiting.setStackSize(0);
-                                            }
-                                        }
-                                    }
+                                    controller.addPendingOutput(product.createItemStack());
                                 }
 
                                 // 空容器返还：仅非 Drop 的容器槽,Drop 槽流体被直接消耗无空桶
@@ -420,16 +414,17 @@ public abstract class MixinCraftingCPUClusterBatch {
                                     ItemStack rem = recipeRemaining.get(i).copy();
                                     rem.setCount(returnCounts[i] * (int) actualBatchSize);
                                     controller.addPendingOutput(rem);
+                                    if (waitingFor != null) {
+                                        IAEItemStack expectRem =
+                                                appeng.util.item.AEItemStack.fromItemStack(rem);
+                                        if (expectRem != null) {
+                                            waitingFor.add(expectRem);
+                                        }
+                                    }
                                 }
 
                                 long newRemaining = remaining - actualBatchSize;
                                 ((ITaskProgressAccessor) progress).ae2e$setValue(newRemaining);
-
-                                long totalOutputCount = 0;
-                                for (IAEItemStack out : details.getCondensedOutputs()) {
-                                    if (out != null) totalOutputCount += out.getStackSize() * actualBatchSize;
-                                }
-                                this.remainingItemCount = this.remainingItemCount - totalOutputCount;
 
                                 controller.setBatchBusy(true);
                                 controller.claimParallel(details, actualBatchSize);
@@ -515,10 +510,8 @@ public abstract class MixinCraftingCPUClusterBatch {
                                 }
                                 if (!canExtract || actualBatchSize <= 0) break;
 
-                                // 能耗：按实际结算份数计费,欠电时按实付比例降载（0 = 本 tick 无电）
-                                long energyGrant = controller.chargeCraftEnergy(actualBatchSize);
-                                if (energyGrant <= 0) continue;
-                                actualBatchSize = Math.min(actualBatchSize, energyGrant);
+                                // 能耗：按实际结算份数计费（只计费不限流,不阻塞合成）
+                                controller.chargeCraftEnergy(actualBatchSize);
 
                                 for (int i = 0; i < info.slotTemplates.length; i++) {
                                     if (info.slotTemplates[i] == null) continue;
@@ -555,6 +548,16 @@ public abstract class MixinCraftingCPUClusterBatch {
                                 ItemStack output = info.recipe.getCraftingResult(ic);
                                 NonNullList<ItemStack> recipeRemaining = info.recipe.getRemainingItems(ic);
 
+                                // 产物经 pendingOutputs → 网络回流, 与原生发配同口径登记预期:
+                                // 回流时递减 finalOutput / 剩余计数, 否则监视器残留"正在合成"
+                                if (waitingFor != null) {
+                                    for (IAEItemStack outTemplate : details.getCondensedOutputs()) {
+                                        if (outTemplate == null || outTemplate.getStackSize() <= 0) continue;
+                                        IAEItemStack expect = outTemplate.copy();
+                                        expect.setStackSize(outTemplate.getStackSize() * actualBatchSize);
+                                        waitingFor.add(expect);
+                                    }
+                                }
                                 if (!output.isEmpty()) {
                                     ItemStack batchOutput = output.copy();
                                     batchOutput.setCount(output.getCount() * (int) actualBatchSize);
@@ -572,18 +575,18 @@ public abstract class MixinCraftingCPUClusterBatch {
                                         ItemStack batchRem = rem.copy();
                                         batchRem.setCount(rem.getCount() * (int) actualBatchSize);
                                         controller.addPendingOutput(batchRem);
+                                        if (waitingFor != null) {
+                                            IAEItemStack expectRem =
+                                                    appeng.util.item.AEItemStack.fromItemStack(batchRem);
+                                            if (expectRem != null) {
+                                                waitingFor.add(expectRem);
+                                            }
+                                        }
                                     }
                                 }
 
                                 long newRemaining = remaining - actualBatchSize;
                                 ((ITaskProgressAccessor) progress).ae2e$setValue(newRemaining);
-
-                                long oldRemItemCount = this.remainingItemCount;
-                                long totalOutputCount = 0;
-                                for (IAEItemStack out : details.getCondensedOutputs()) {
-                                    if (out != null) totalOutputCount += out.getStackSize() * actualBatchSize;
-                                }
-                                this.remainingItemCount = oldRemItemCount - totalOutputCount;
 
                                 controller.setBatchBusy(true);
                                 controller.claimParallel(details, actualBatchSize);
@@ -654,12 +657,8 @@ public abstract class MixinCraftingCPUClusterBatch {
                                 continue;
                             }
 
-                            // 能耗：按实际结算份数计费,欠电时按实付比例降载（0 = 本 tick 无电）
-                            long energyGrant = controller.chargeCraftEnergy(batchSize);
-                            if (energyGrant <= 0) {
-                                continue;
-                            }
-                            batchSize = Math.min(batchSize, energyGrant);
+                            // 能耗：按实际结算份数计费（只计费不限流,不阻塞合成）
+                            controller.chargeCraftEnergy(batchSize);
 
                             for (IAEItemStack inputTemplate : details.getCondensedInputs()) {
                                 if (inputTemplate == null || inputTemplate.getStackSize() <= 0) continue;
@@ -676,37 +675,31 @@ public abstract class MixinCraftingCPUClusterBatch {
                                 }
                             }
 
-                            long totalOutputItems = 0;
                             for (IAEItemStack outputTemplate : details.getCondensedOutputs()) {
                                 if (outputTemplate == null || outputTemplate.getStackSize() <= 0) continue;
                                 long totalCount = outputTemplate.getStackSize() * batchSize;
                                 if (totalCount <= 0) continue;
-                                totalOutputItems += totalCount;
 
                                 IAEItemStack product = outputTemplate.copy();
                                 product.setStackSize(totalCount);
-                                itemList.add(product);
-                                // 直接写入底层 IItemList,绕过 injectItems,需显式递增库存注入版本号
-                                ((IMeInventoryVersionAccess) meInv).ae2e$bumpInjectVersion();
-                                this.postChange(product.copy(), source);
-                                this.postCraftingStatusChange(product.copy());
-
+                                // 与原生发配同口径: 先登记 waitingFor 预期, 再经 cpu.injectItems 回流。
+                                // 最终产物由此递减 finalOutput 并交付合成链, 中间产物进入 CPU 库存并
+                                // 递增注入版本号; 不得直接写 itemList(否则监视器残留"正在合成")。
                                 if (waitingFor != null) {
-                                    IAEItemStack waiting = waitingFor.findPrecise(outputTemplate);
-                                    if (waiting != null) {
-                                        waiting.decStackSize(totalCount);
-                                        if (waiting.getStackSize() <= 0) {
-                                            waiting.setStackSize(0);
-                                        }
-                                    }
+                                    waitingFor.add(product.copy());
+                                }
+                                IAEItemStack leftover = cpu.injectItems(product.copy(), MODULATE, source);
+                                if (leftover != null && leftover.getStackSize() > 0) {
+                                    // 预期被其它路径消耗等极端情况: 退回直接入栏, 保证产物不丢
+                                    itemList.add(leftover);
+                                    ((IMeInventoryVersionAccess) meInv).ae2e$bumpInjectVersion();
+                                    this.postChange(leftover.copy(), source);
+                                    this.postCraftingStatusChange(leftover.copy());
                                 }
                             }
 
                             long newRemaining = remaining - batchSize;
                             ((ITaskProgressAccessor) progress).ae2e$setValue(newRemaining);
-                            // 产物直接写入 CPU 库存,不回流(injectItems) → 剩余计数须在结算侧递减,
-                            // 与真实/流体批量分支同口径(原生发配走回流路径,故不得在发配侧递减).
-                            this.remainingItemCount = this.remainingItemCount - totalOutputItems;
 
                             controller.setBatchBusy(true);
                             controller.claimParallel(details, batchSize);

@@ -54,8 +54,8 @@ public class SpecialPlanInfoTest {
         assertThat(info.callCountOf(RecursiveCraftingHelper.canon(stone))).isEqualTo(10);
     }
 
-    /** θ 循环计划:kind=CYCLE,轮次=GCD 恢复,每轮消耗/产出精确.
-     * 全额生产语义:净需 8 → 4 轮(种子 2 点火,期末返还). */
+    /** θ 循环计划:kind=CYCLE,轮次=配额推导(闭包 GCD,退化时取最小总次数),每轮消耗/产出精确.
+     * 全额生产语义:净需 8 → 3 轮配额(种子 2 点火,期末返还). */
     @Test
     public void testCycleInfo() {
         SimulationEnv env = new SimulationEnv();
@@ -76,7 +76,10 @@ public class SpecialPlanInfoTest {
         SpecialPlanInfo.Entry stoneEntry = info.entryFor(RecursiveCraftingHelper.canon(stone));
         assertThat(stoneEntry).isNotNull();
         assertThat(stoneEntry.kind).isEqualTo(SpecialPlanInfo.KIND_CYCLE);
-        assertThat(stoneEntry.rounds).isEqualTo(4); // 净产 2/轮,全额生产 8 → 4 轮
+        // 轮次 = RoundQuotaScheduler.deriveQuota 的推导值(闭包总次数 GCD;
+        // GCD=1 时退化为闭包最小总次数——本夹具 tree crafts = {stone:4, cobble:4, sand:3}).
+        // 旧实现取 perRound 首条目反推,得到 4 是遍历序依赖的巧合.
+        assertThat(stoneEntry.rounds).isEqualTo(3);
         assertThat(stoneEntry.perRoundConsume).isEqualTo(2); // crush 1 + charge 1
         assertThat(stoneEntry.perRoundProduce).isEqualTo(4); // back ×1
         assertThat(stoneEntry.initialExtract).isEqualTo(2);

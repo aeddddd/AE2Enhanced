@@ -30,7 +30,11 @@ import java.util.List;
  *
  * <p>突破压缩机输入限制,直接将所需全部材料注入内部,
  * 绕过 {@code inputLimit} 和逐次堆叠限制.</p>
- */
+ *
+ * <p><b>配方策略</b>：物理路径上唯一的配方查找是“按样板声明的主产物
+ * ({@code expectedOutputs[0]}) 定位配方”，用于确定主材料必须匹配哪一种 input
+ * (TileCompressor 按 {@code materialStack} 反查配方，注错材料不会启动)。
+ * {@code canStart} 只检查进度归零并关闭 inputLimit，不查配方。</p> */
 public class CompressorHandler implements IRemoteHandler, IVirtualBatchCraftingHandler {
 
     private static final String BLOCK_ID = "extendedcrafting:compressor";
@@ -133,11 +137,9 @@ public class CompressorHandler implements IRemoteHandler, IVirtualBatchCraftingH
         }
         if (inputs.isEmpty()) return false;
 
-        // 通过产物反查配方
-        // 注意：ingredients slot 0 通常是主要材料,我们用它来找配方
-        // 但更可靠的方式是：已经有一个 recipe 在压缩机里,或者通过 expected output 查找
-        // 由于 pushMaterials 不知道 expected output,我们用 slot 0 的物品 + 所有输入来匹配
-        Object recipe = findRecipeByInputs(inputs);
+        // 配方知识只用于确定“哪一种输入是压缩机的主材料”(TileCompressor 按 materialStack 匹配配方)，
+        // 因此主产物取样板声明的首个产物来定位配方。
+        Object recipe = findRecipeByMainOutput(session);
         if (recipe == null) return false;
 
         // 主材料：取第一个匹配 recipe input 的物品
@@ -439,31 +441,20 @@ public class CompressorHandler implements IRemoteHandler, IVirtualBatchCraftingH
         return ItemStack.EMPTY;
     }
 
-    @SuppressWarnings("unchecked")
-    private static Object findRecipeByInputs(List<ItemStack> inputs) {
-        try {
-            List<Object> recipes = (List<Object>) METHOD_GET_RECIPES.invoke(RECIPE_MANAGER_INSTANCE);
-            if (recipes == null) return null;
-
-            for (Object recipe : recipes) {
-                net.minecraft.item.crafting.Ingredient recipeInput = getRecipeInput(recipe);
-
-                // 检查是否有输入匹配 recipe input
-                boolean hasInput = false;
-                for (ItemStack stack : inputs) {
-                    if (recipeInput.apply(stack)) {
-                        hasInput = true;
-                        break;
-                    }
-                }
-                if (!hasInput) continue;
-
-                return recipe;
-            }
-        } catch (Exception e) {
-            AE2Enhanced.LOGGER.error("[AE2E] findRecipeByInputs failed", e);
-        }
-        return null;
+    /**
+     * 用样板声明的主产物定位压缩机配方.
+     *
+     * <p>样板声明的首个产物即主产物；压缩机的主材料必须与该配方的 input 一致，
+     * 因此这里按输出定位配方，再从中取 input 去挑主材料。</p>
+     *
+     * @return 匹配到的配方；无声明产物或查不到配方时返回 null
+     */
+    private static Object findRecipeByMainOutput(TargetSession session) {
+        IAEItemStack[] expected = session != null ? session.getExpectedOutputs() : null;
+        if (expected == null || expected.length == 0 || expected[0] == null) return null;
+        ItemStack mainOutput = expected[0].createItemStack();
+        if (mainOutput.isEmpty()) return null;
+        return findRecipeByOutput(mainOutput);
     }
 
     private static ItemStack findMatchingStack(List<ItemStack> inputs, net.minecraft.item.crafting.Ingredient recipeInput) {

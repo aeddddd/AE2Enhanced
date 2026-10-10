@@ -59,6 +59,17 @@ import com.github.aeddddd.ae2enhanced.test.util.AE2TestBootstrap;
  */
 public class SimulationEnv {
 
+    /**
+     * 单次 job 执行的墙钟预算(秒)：存活性闸门，超出即认为 job 未在预算内收敛.
+     *
+     * <p>取值保持与历史行为一致（30s）。整机满负载下该值会被 GC/JIT/CPU 争用击穿，
+     * 因此它不再是唯一的判定：见 {@link #runWithLoadRetry}。</p>
+     */
+    private static final long JOB_BUDGET_SECONDS = 30;
+
+    /** 负载性超时的重试预算(秒)：只有第一次超时后才会用到. */
+    private static final long JOB_RETRY_BUDGET_SECONDS = 180;
+
     // ===== 共享键构造助手(合成计划测试各包共用) =====
 
     public static IAEItemStack item(net.minecraft.item.Item item) {
@@ -126,7 +137,7 @@ public class SimulationEnv {
      * 以原生 {@link CraftingJob} 运行模拟（回归基线）.
      */
     public CraftingJob runNative(IAEItemStack what) {
-        return this.runJob(this.newNativeJob(what));
+        return this.runWithLoadRetry(what, this::newNativeJob);
     }
 
     /**
@@ -134,7 +145,7 @@ public class SimulationEnv {
      * （M7 起默认计划路径：LP 冷凝分层求解）.
      */
     public CraftingJob runLp(IAEItemStack what) {
-        return this.runJob(this.newLpJob(what));
+        return this.runWithLoadRetry(what, this::newLpJob);
     }
 
     /** 构造原生 {@link CraftingJob}（不执行,供基准测试自行计时）. */
@@ -176,14 +187,52 @@ public class SimulationEnv {
         return this.world;
     }
 
-    private CraftingJob runJob(CraftingJob job) {
-        ExecutorService executor = Executors.newSingleThreadExecutor();
+    /**
+     * 带"负载性超时"重试的 job 执行（{@link #runNative}/{@link #runLp} 的公共实现）.
+     *
+     * <p>首次仍按 {@link #JOB_BUDGET_SECONDS} 的窄预算执行：求解器真的不收敛 / 死锁时，
+     * 窄预算第一时间把用例判红。但整机满负载跑全量套件（760+ 用例 + GC/JIT 争用）时，
+     * 同一个 job 也可能只是被拖慢——两种超时无法从一次超时里区分，故此时用<b>运行前</b>的输入
+     * 快照重建 job 重试一次，预算放宽到 {@link #JOB_RETRY_BUDGET_SECONDS}。</p>
+     *
+     * <p>真故障会在第二次同样超时并抛出，断言与存活性检测强度不变；被吸收的只是负载抖动。
+     * 代价：仅"慢"（而非卡死）的 job 不再被窄预算判红——这一取舍与直接放宽预算等价，
+     * 但保留了"卡死"仍会在窄预算内暴露的能力。</p>
+     */
+    private CraftingJob runWithLoadRetry(IAEItemStack what,
+            java.util.function.Function<IAEItemStack, CraftingJob> factory) {
+        // 首次执行可能被中断在途中,重试必须基于运行前的输入快照,避免复用被改写的请求栈
+        IAEItemStack retryInput = what.copy();
+        try {
+            return this.runJob(factory.apply(what), JOB_BUDGET_SECONDS);
+        } catch (java.util.concurrent.TimeoutException first) {
+            System.out.println("[SimulationEnv] job 首次执行超过 " + JOB_BUDGET_SECONDS
+                    + "s(疑似负载性超时),以运行前输入快照重试一次(预算 "
+                    + JOB_RETRY_BUDGET_SECONDS + "s)");
+            try {
+                return this.runJob(factory.apply(retryInput), JOB_RETRY_BUDGET_SECONDS);
+            } catch (java.util.concurrent.TimeoutException second) {
+                throw new RuntimeException("job 在 " + JOB_BUDGET_SECONDS + "s 与 " + JOB_RETRY_BUDGET_SECONDS
+                        + "s 两次预算内都未完成,按求解未收敛处理", second);
+            }
+        }
+    }
+
+    private CraftingJob runJob(CraftingJob job, long budgetSeconds) throws java.util.concurrent.TimeoutException {
+        ExecutorService executor = Executors.newSingleThreadExecutor(r -> {
+            // 守护线程:超时后被中断仍不退出的残留 job 不阻止 JVM 退出(与 runJobTimed 同款)
+            Thread t = new Thread(r, "ae2e-job");
+            t.setDaemon(true);
+            return t;
+        });
         try {
             Future<?> future = executor.submit(job);
             // 机器源请求需要 simulateFor 唤醒(模拟 TickHandler 的时间片调度)
             job.simulateFor(Integer.MAX_VALUE);
-            future.get(30, TimeUnit.SECONDS);
+            future.get(budgetSeconds, TimeUnit.SECONDS);
             return job;
+        } catch (java.util.concurrent.TimeoutException e) {
+            throw e;
         } catch (Exception e) {
             throw new RuntimeException(e);
         } finally {

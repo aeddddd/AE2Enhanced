@@ -27,6 +27,7 @@ import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.nbt.NBTTagList;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
+import net.minecraftforge.fluids.FluidStack;
 import net.minecraftforge.items.IItemHandler;
 
 import javax.annotation.Nonnull;
@@ -35,10 +36,10 @@ import java.util.*;
 /**
  * 中枢 ME 接口的核心逻辑类,复刻 AE2 {@link appeng.helpers.DualityInterface} 的结构.
  *
- * <p>职责边界（重构后）：</p>
+ * <p>职责边界：</p>
  * <ul>
  *   <li>库存持有（config / patterns / storage）与库存回调</li>
- *   <li>pushPattern 调度：虚拟批量优先、混合栈类型回退物理、全局冷却管理</li>
+ *   <li>pushPattern 调度：按 {@link ExecutionMode} 分派（物理 / 工作台常驻虚拟 / 装卡纯虚拟）与全局冷却管理</li>
  *   <li>绑定目标与 {@link TargetSession} 生命周期管理</li>
  *   <li>tick 编排：物理 session 推进、虚拟产物注入、storage 回推网络</li>
  *   <li>NBT 持久化（委托 {@link PendingProductQueue} / {@link CraftingPatternList}）</li>
@@ -78,6 +79,9 @@ public class DualityCentralInterface implements appeng.util.inv.IAEAppEngInvento
     final Map<TargetBinding, TargetSession> sessions = new HashMap<>();
     // 虚拟合成产物暂存队列(等待 waitingFor 注册后再注入网络)
     final PendingProductQueue pendingProducts = new PendingProductQueue();
+
+    // 流体缓冲：流体通道暂时收不下的流体产物在这里等重试（每 tick 一次，仍走流体通道）
+    private final CentralFluidBuffer fluidBuffer = new CentralFluidBuffer();
 
     // 虚拟合成冷却：每个目标成功执行一批后进入冷却
     final Map<TargetBinding, Integer> virtualCooldowns = new HashMap<>();
@@ -213,15 +217,11 @@ public class DualityCentralInterface implements appeng.util.inv.IAEAppEngInvento
             return false;
         }
 
-        World world = this.host.getTileEntity().getWorld();
-        IAEItemStack[] outputs = patternDetails.getOutputs();
-        long baseVirtualParallel = getVirtualParallel();
-        if (pendingLimit > 0) {
-            baseVirtualParallel = Math.min(baseVirtualParallel, pendingLimit);
-        }
+        // 虚拟卡 = 模式开关：dual 设备无卡走物理，装卡后整台接口进入纯虚拟。
+        boolean hasCard = hasVirtualCard();
+        long cardParallel = hasCard ? getVirtualParallel() : 1L;
         boolean globalVirtualCooling = isOnGlobalVirtualCooldown();
         List<TargetBinding> candidates = findIdleTargets();
-        boolean attemptedVirtual = false;
         boolean attemptedNonSkippableVirtual = false;
 
         for (TargetBinding target : candidates) {
@@ -230,58 +230,39 @@ public class DualityCentralInterface implements appeng.util.inv.IAEAppEngInvento
                 continue;
             }
 
-            long handlerDefaultParallel = 1;
-            if (handler instanceof IVirtualBatchCraftingHandler) {
-                handlerDefaultParallel = ((IVirtualBatchCraftingHandler) handler).getDefaultParallel();
-            }
-            long virtualParallel = Math.max(baseVirtualParallel, handlerDefaultParallel);
-            if (pendingLimit > 0) {
-                virtualParallel = Math.min(virtualParallel, pendingLimit);
-            }
-            boolean canUseVirtual = handler.hasCapability(HandlerCapabilities.VIRTUAL_BATCH)
-                    && handler instanceof IVirtualBatchCraftingHandler;
+            ExecutionMode mode = ExecutionMode.resolve(handler, hasCard);
+            AE2Enhanced.LOGGER.debug("[AE2E-Diag] pushPattern target={} handler={} mode={} cardParallel={} pendingLimit={} globalCooldown={}",
+                    target.pos, handler.getClass().getSimpleName(), mode, cardParallel, pendingLimit, globalVirtualCooling);
 
-            AE2Enhanced.LOGGER.debug("[AE2E-Diag] pushPattern target={} handler={} baseParallel={} pendingLimit={} virtualParallel={} globalCooldown={}",
-                    target.pos, handler.getClass().getSimpleName(), baseVirtualParallel, pendingLimit, virtualParallel, globalVirtualCooling);
-
-            // 优先尝试虚拟批量合成（handler 支持虚拟批量即可，virtualParallel 仅限制最大并行数）。
-            // 包含非物品 IAEStack 成本（Mana、源质、LP、星光、流体、气体等）的配方同样走此路径：
-            // VirtualBatchEngine 的双池模型对非物品资源从网络全额核算提取，无需物理优先。
-            // 注意：纯虚拟 handler（如 Extended Crafting 工作台）即使 virtualParallel=1 也必须走此路径，
-            // 否则订单剩余 1 份时会因无物理能力而直接失败。
-            if (canUseVirtual
-                    && !globalVirtualCooling) {
-                attemptedVirtual = true;
-                IVirtualBatchCraftingHandler vh = (IVirtualBatchCraftingHandler) handler;
-                if (!vh.skipCooldownOnSingleBatch()) {
-                    attemptedNonSkippableVirtual = true;
-                }
-                long actualParallel = this.virtualBatchEngine.execute(grid, patternDetails, table, target, vh, virtualParallel);
-                if (actualParallel > 0) {
-                    this.lastVirtualBatchSize = actualParallel;
-                    if (actualParallel > 1 || !vh.skipCooldownOnSingleBatch()) {
-                        this.globalVirtualCooldown = AE2EnhancedConfig.centralInterface.virtualCooldownGlobalTicks;
-                    }
-                    tryWakeTickDevice();
+            if (mode == ExecutionMode.PHYSICAL) {
+                if (handler.hasCapability(HandlerCapabilities.PHYSICAL)
+                        && this.physicalDispatcher.dispatch(grid, patternDetails, table, target, handler)) {
+                    this.lastVirtualBatchSize = 1;
                     return true;
-                }
-
-                // 虚拟合成失败时，若该目标同时支持物理发配，则回退到同目标物理发配
-                if (handler.hasCapability(HandlerCapabilities.PHYSICAL)) {
-                    if (this.physicalDispatcher.dispatch(grid, patternDetails, table, target, handler)) {
-                        this.lastVirtualBatchSize = 1;
-                        return true;
-                    }
                 }
                 continue;
             }
 
-            // 否则尝试物理发配
-            if (handler.hasCapability(HandlerCapabilities.PHYSICAL)) {
-                if (this.physicalDispatcher.dispatch(grid, patternDetails, table, target, handler)) {
-                    this.lastVirtualBatchSize = 1;
-                    return true;
+            // 虚拟路径（VIRTUAL_NATIVE / VIRTUAL_CARDED）。两者都不回退物理：
+            // NATIVE 设备没有物理交互空间；CARDED 是“装卡就纯虚拟”的语义要求。
+            if (globalVirtualCooling) {
+                continue;
+            }
+
+            IVirtualBatchCraftingHandler vh = (IVirtualBatchCraftingHandler) handler;
+            long virtualParallel = resolveVirtualParallel(mode, vh, cardParallel, pendingLimit);
+            if (!vh.skipCooldownOnSingleBatch()) {
+                attemptedNonSkippableVirtual = true;
+            }
+
+            long actualParallel = this.virtualBatchEngine.execute(grid, patternDetails, table, target, vh, virtualParallel);
+            if (actualParallel > 0) {
+                this.lastVirtualBatchSize = actualParallel;
+                if (actualParallel > 1 || !vh.skipCooldownOnSingleBatch()) {
+                    this.globalVirtualCooldown = AE2EnhancedConfig.centralInterface.virtualCooldownGlobalTicks;
                 }
+                tryWakeTickDevice();
+                return true;
             }
         }
 
@@ -292,6 +273,42 @@ public class DualityCentralInterface implements appeng.util.inv.IAEAppEngInvento
             tryWakeTickDevice();
         }
         return false;
+    }
+
+    /**
+     * 是否装有虚拟并行卡.
+     *
+     * <p>卡的最低等级（tier 1）并行数即为 8，而 {@link #getVirtualParallel()} 在无卡时返回 1，
+     * 因此 {@code > 1} 精确等价于“升级槽中存在虚拟并行卡”。</p>
+     */
+    boolean hasVirtualCard() {
+        return getVirtualParallel() > 1;
+    }
+
+    /**
+     * 计算本次虚拟合成的并行上限.
+     *
+     * @param mode         虚拟模式（调用方已排除 {@link ExecutionMode#PHYSICAL}）
+     * @param handler      虚拟批量 handler
+     * @param cardParallel 卡等级并行数（无卡时为 1）
+     * @param pendingLimit 由 CPU 传入的任务剩余数上限，0 表示未设置
+     * @return 至少为 1 的并行上限
+     */
+    private static long resolveVirtualParallel(ExecutionMode mode, IVirtualBatchCraftingHandler handler,
+                                               long cardParallel, long pendingLimit) {
+        long parallel;
+        if (mode == ExecutionMode.VIRTUAL_NATIVE) {
+            // 设备自带的并行度（如工作台 8）；装卡时可被卡等级抬高
+            parallel = Math.max(1L, handler.getDefaultParallel());
+            parallel = Math.max(parallel, cardParallel);
+        } else {
+            // VIRTUAL_CARDED：卡等级即上限，getDefaultParallel 不参与
+            parallel = cardParallel;
+        }
+        if (pendingLimit > 0) {
+            parallel = Math.min(parallel, pendingLimit);
+        }
+        return Math.max(parallel, 1L);
     }
 
     /**
@@ -401,6 +418,16 @@ public class DualityCentralInterface implements appeng.util.inv.IAEAppEngInvento
 
     TargetSession getOrCreateSession(TargetBinding binding) {
         return this.sessions.computeIfAbsent(binding, b -> new TargetSession(b, this));
+    }
+
+    /**
+     * 流体缓冲（{@link PhysicalDispatcher} 里网络暂时收不下的流体的落脚点）.
+     *
+     * <p>留在这里的流体逐 tick 重试流体通道，不转成物品：一旦离开流体通道，
+     * 玩家在流体终端里就看不到它。</p>
+     */
+    CentralFluidBuffer fluidBuffer() {
+        return this.fluidBuffer;
     }
 
     /**
@@ -530,6 +557,11 @@ public class DualityCentralInterface implements appeng.util.inv.IAEAppEngInvento
             didWork = true;
         }
 
+        // 流体缓冲重试：仍走流体通道，成功即出队
+        if (this.physicalDispatcher.retryBufferedFluids(grid)) {
+            didWork = true;
+        }
+
         // 虚拟产物注入 + 粒子包
         if (this.virtualBatchEngine.tick(grid)) {
             didWork = true;
@@ -568,6 +600,10 @@ public class DualityCentralInterface implements appeng.util.inv.IAEAppEngInvento
             return true;
         }
         if (!this.pendingProducts.isEmpty()) {
+            return true;
+        }
+        // 流体缓冲里还有待重试的产物：必须保持 tick，否则缓冲永远不会被重试
+        if (!this.fluidBuffer.isEmpty()) {
             return true;
         }
         for (TargetSession session : this.sessions.values()) {
@@ -641,6 +677,25 @@ public class DualityCentralInterface implements appeng.util.inv.IAEAppEngInvento
         return Collections.unmodifiableList(this.bindings);
     }
 
+    /**
+     * 用客户端描边快照替换绑定列表（<b>仅客户端</b>调用）.
+     *
+     * <p>服务端的绑定列表由 {@link #addBinding}/{@link #removeBinding}/{@link #clearBindings} 维护；
+     * 客户端不再接收 duality 全量 NBT，绑定坐标改由
+     * {@code PacketCentralBindingOutline} 与瘦身后的 {@code getUpdateTag} 下发，
+     * 通过本方法写回同一个 {@link #getBindings()} 列表，使描边渲染（BindingLineRenderer）
+     * 与记忆卡 tooltip 的绑定计数继续读取同一处数据。</p>
+     *
+     * <p>快照里的 {@code blockId} 允许为 null（描边与计数都不使用它）；本方法不创建
+     * {@link TargetSession}，客户端不会用这些绑定发起发配。</p>
+     */
+    public void setBindingSnapshot(List<TargetBinding> snapshot) {
+        this.bindings.clear();
+        if (snapshot != null) {
+            this.bindings.addAll(snapshot);
+        }
+    }
+
     public void addBinding(TargetBinding binding) {
         if (this.boundBlockId == null) {
             this.boundBlockId = binding.blockId;
@@ -669,9 +724,6 @@ public class DualityCentralInterface implements appeng.util.inv.IAEAppEngInvento
             session.reset();
         }
 
-        // 通知 handler 清理 per-target 缓存
-        notifyBindingRemoved(binding);
-
         this.bindings.remove(binding);
         this.sessions.remove(binding);
         if (this.bindings.isEmpty()) {
@@ -687,10 +739,6 @@ public class DualityCentralInterface implements appeng.util.inv.IAEAppEngInvento
                 tryEmergencyCollect(session.getBinding());
                 session.reset();
             }
-        }
-        // 通知所有 handler 清理 per-target 缓存
-        for (TargetBinding binding : new ArrayList<>(this.bindings)) {
-            notifyBindingRemoved(binding);
         }
         this.bindings.clear();
         this.sessions.clear();
@@ -712,22 +760,6 @@ public class DualityCentralInterface implements appeng.util.inv.IAEAppEngInvento
     /** 紧急收集指定目标的产物(用于移除绑定前清理),收集失败则暂存到 storage slots */
     private void tryEmergencyCollect(TargetBinding binding) {
         this.physicalDispatcher.emergencyCollect(binding);
-    }
-
-    /** 通知 handler 目标已解绑，并捕获 handler 异常避免扩散 */
-    private void notifyBindingRemoved(TargetBinding binding) {
-        try {
-            World world = this.host.getTileEntity().getWorld();
-            if (world == null || world.provider.getDimension() != binding.dimension) return;
-            if (!world.isBlockLoaded(binding.pos)) return;
-            IRemoteHandler handler = HandlerRegistry.findHandler(binding.blockId);
-            if (handler != null) {
-                handler.onBindingRemoved(world, binding.pos);
-            }
-        } catch (Exception e) {
-            AE2Enhanced.LOGGER.warn("[AE2E] onBindingRemoved threw for {} at {}: {}",
-                    binding.blockId, binding.pos, e.toString());
-        }
     }
 
     private void postPatternChangeEvent() {
@@ -778,7 +810,10 @@ public class DualityCentralInterface implements appeng.util.inv.IAEAppEngInvento
         // 恢复待注入的虚拟合成产物
         this.pendingProducts.readFromNBT(data);
 
-        // 旧版运行时状态（processingState）按用户要求直接丢弃，session 重置为 IDLE
+        // 恢复流体缓冲（chunk 卸载 / 服务器重启后继续重试注入流体通道）
+        this.fluidBuffer.readFromNBT(data);
+
+        // 旧版运行时状态（processingState）不再读取，session 一律从 IDLE 开始
 
         // 注意：不在 readFromNBT 时重建配方列表,
         // 因为 SmartPattern 展开需要 world 对象,而 NBT 读取阶段 world 可能为 null.
@@ -804,6 +839,9 @@ public class DualityCentralInterface implements appeng.util.inv.IAEAppEngInvento
 
         // 持久化待注入的虚拟合成产物
         this.pendingProducts.writeToNBT(data);
+
+        // 持久化流体缓冲
+        this.fluidBuffer.writeToNBT(data);
     }
 
     // ---- Cleanup ----
@@ -825,6 +863,46 @@ public class DualityCentralInterface implements appeng.util.inv.IAEAppEngInvento
                 NetworkAccess.spawnDrops(world, pos, Collections.singletonList(stack));
                 this.storage.setStackInSlot(i, ItemStack.EMPTY);
             }
+        }
+        // 流体缓冲里还留着的流体：设备即将消失，缓冲没有别的落脚点，
+        // 趁网格节点在 breakBlock 阶段仍然有效，先送进 ME 流体通道。
+        injectBufferedFluids();
+    }
+
+    /**
+     * 把流体缓冲的内容送进 ME 流体通道（仅在方块被拆掉时调用）.
+     *
+     * <p>缓冲随方块一并消失，所以这里只做一次注入尝试；送不走的量会真正损失，按数量与流体名
+     * 留下 warn。不转成流体假物品：那会让流体离开流体通道，玩家在流体终端里看不到它。</p>
+     */
+    private void injectBufferedFluids() {
+        if (this.fluidBuffer.isEmpty()) {
+            return;
+        }
+        List<FluidStack> buffered = new ArrayList<>();
+        for (CentralFluidBuffer.Entry entry : this.fluidBuffer.entries()) {
+            if (entry.fluid() != null && entry.fluid().amount > 0) {
+                buffered.add(entry.fluid().copy());
+            }
+        }
+        this.fluidBuffer.clear();
+        if (buffered.isEmpty()) {
+            return;
+        }
+        IGridConnection grid = gridConnection();
+        if (!grid.isActive()) {
+            long lost = 0;
+            for (FluidStack fluid : buffered) {
+                lost += fluid.amount;
+            }
+            AE2Enhanced.LOGGER.warn("[AE2E] CentralInterface broken with {} fluid stack(s) buffered and no active grid; {} mb lost",
+                    buffered.size(), lost);
+            return;
+        }
+        List<FluidStack> rejected = NetworkAccess.injectFluidsToNetwork(grid, this.host, buffered);
+        for (FluidStack fluid : rejected) {
+            AE2Enhanced.LOGGER.warn("[AE2E] CentralInterface broken: {} mb of {} could not enter the ME fluid channel",
+                    fluid.amount, fluid.getFluid() != null ? fluid.getFluid().getName() : "unknown");
         }
     }
 

@@ -7,6 +7,7 @@ import java.io.File;
 import org.junit.jupiter.api.Test;
 
 import com.github.aeddddd.ae2enhanced.specialcrafting.lp.DualSimplex;
+import com.github.aeddddd.ae2enhanced.specialcrafting.lp.ExactSimplex;
 import com.github.aeddddd.ae2enhanced.specialcrafting.lp.LpModel;
 import com.github.aeddddd.ae2enhanced.specialcrafting.lp.LpModelDump;
 import com.github.aeddddd.ae2enhanced.specialcrafting.lp.LpResult;
@@ -120,23 +121,50 @@ public class DualSimplexTest {
         for (File file : dumps()) {
             LpModel model = LpModelDump.read(file);
             double[] upper = model.upper.clone();
+            boolean relaxedAny = false;
             for (int j = 0; j < upper.length; j++) {
                 if (upper[j] >= 1e17 && upper[j] < LpModel.INF) {
                     upper[j] = LpModel.INF;
+                    relaxedAny = true;
                 }
             }
             LpModel relaxed = new LpModel(model.a, model.b, model.cost, model.lower, upper);
             long t0 = System.nanoTime();
+            LpResult asIs = DualSimplex.solve(model);
             LpResult r = DualSimplex.solve(relaxed);
             long ms = (System.nanoTime() - t0) / 1_000_000;
             System.out.println("[DUAL] 放开 " + file.getName() + " → " + r.status
-                    + " obj=" + r.objective + " 迭代=" + r.iterations + " " + ms + "ms"
+                    + " obj=" + r.objective + "(原样 " + asIs.objective + ") 迭代=" + r.iterations + " " + ms + "ms"
                     + (r.reason != null ? " (" + r.reason + ")" : ""));
             assertThat(r.status).as("放开 %s (%s)", file.getName(), r.reason)
                     .isEqualTo(LpResult.Status.OPTIMAL);
-            // HiGHS 基准:obj=0(该订单流平衡意义不缺料;含禁行的阶段②③模型亦应 ≈0)
-            assertThat(r.objective).as("放开 %s 目标 ≈0", file.getName())
-                    .isBetween(-1e-6, 1e-2);
+            assertThat(r.objective).as("放开 %s 目标非负", file.getName())
+                    .isGreaterThanOrEqualTo(-1e-6);
+            // 松弛单调性: 可行集只扩大, 最优目标不得变差(比原样解高)。这条对全部转储成立,
+            // 是"放开上界"语义的充要数值校验。
+            double mono = 1e-6 + 1e-9 * Math.abs(asIs.objective);
+            assertThat(r.objective).as("放开 %s 目标不得高于原样 %s", file.getName(), asIs.objective)
+                    .isLessThanOrEqualTo(asIs.objective + mono);
+            // HiGHS 基准:obj=0(该订单流平衡意义不缺料)。该断言只对"原样已 ≈0"的转储成立——
+            // 目录中另有若干真实非零最优的转储(根需求/缺料场景, 如 3×5 转储的真实最优
+            // 2.04964110133e8 已由 ExactSimplex 精确有理数交叉验证), 对它们只能断言单调性。
+            if (asIs.objective <= 0.01) {
+                assertThat(r.objective).as("放开 %s 目标 ≈0", file.getName())
+                        .isBetween(-1e-6, 1e-2);
+            }
+            if (relaxedAny) {
+                assertThat(r.objective).as("确有界被放开的 %s 应回到 ≈0", file.getName())
+                        .isBetween(-1e-6, 1e-2);
+            }
+            // 小模型与精确有理数解交叉验证: 尺度感知容差不得改变真实最优(而只吸收噪声)
+            if (ExactSimplex.fits(model)) {
+                LpResult exact = ExactSimplex.solve(model);
+                if (exact.status == LpResult.Status.OPTIMAL) {
+                    assertThat(r.objective).as("%s 与精确解目标不一致", file.getName())
+                            .isCloseTo(exact.objective,
+                                    org.assertj.core.data.Offset.offset(Math.max(1e-6, 1e-9 * Math.abs(exact.objective))));
+                }
+            }
         }
     }
 

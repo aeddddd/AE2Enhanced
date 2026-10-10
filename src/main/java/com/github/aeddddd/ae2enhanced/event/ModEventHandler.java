@@ -10,7 +10,7 @@ import com.github.aeddddd.ae2enhanced.dimension.PresetLoader;
 import com.github.aeddddd.ae2enhanced.item.ItemAdvancedMEOmniTool;
 import com.github.aeddddd.ae2enhanced.item.ItemConformalCharge;
 import com.github.aeddddd.ae2enhanced.item.ItemMEPlacementTool;
-import com.github.aeddddd.ae2enhanced.mixin.late.accessor.IEntityLivingBaseAccessor;
+import com.github.aeddddd.ae2enhanced.util.reflection.VanillaReflectionHelper;
 import com.github.aeddddd.ae2enhanced.network.packet.PacketPlacementUndo;
 import com.github.aeddddd.ae2enhanced.omnitool.OmniToolUpgrades;
 import com.github.aeddddd.ae2enhanced.omnitool.module.CombatModule;
@@ -276,21 +276,17 @@ public final class ModEventHandler {
             }
         }
 
-        // ② 处决伤害：通过 invoker 调用 damageEntity 绕过 Forge 事件系统
-        try {
-            DamageSource exec = new DamageSource("ae2enhanced_conformal");
-            exec.setDamageIsAbsolute();
-            ((IEntityLivingBaseAccessor) entity).ae2e$damageEntity(exec, Float.MAX_VALUE);
-        } catch (Exception e) {
-            AE2Enhanced.LOGGER.warn("[AE2E] Conformal damage invoker failed, falling back", e);
+        // ② 处决伤害：直接调用 damageEntity 绕过 Forge 事件系统
+        DamageSource exec = new DamageSource("ae2enhanced_conformal");
+        exec.setDamageIsAbsolute();
+        if (!VanillaReflectionHelper.damageEntity(entity, exec, Float.MAX_VALUE)) {
+            AE2Enhanced.LOGGER.warn("[AE2E] Conformal damage invoker unavailable, falling back to setHealth");
             entity.setHealth(0.0f);
         }
 
         // ③ 虚空伤害
-        try {
-            ((IEntityLivingBaseAccessor) entity).ae2e$damageEntity(DamageSource.OUT_OF_WORLD, Float.MAX_VALUE);
-        } catch (Exception e) {
-            AE2Enhanced.LOGGER.warn("[AE2E] Void damage invoker failed", e);
+        if (!VanillaReflectionHelper.damageEntity(entity, DamageSource.OUT_OF_WORLD, Float.MAX_VALUE)) {
+            AE2Enhanced.LOGGER.warn("[AE2E] Void damage invoker unavailable");
         }
 
         // ④ 击退

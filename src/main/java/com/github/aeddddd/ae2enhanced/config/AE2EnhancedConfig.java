@@ -52,7 +52,7 @@ public class AE2EnhancedConfig {
         "the cap are not charged extra, so a maxed parallel card cannot drain an",
         "unbounded amount of energy per tick. Each Energy Optimization Module halves",
         "the price, and a full stack (5) makes crafting completely free.",
-        "Short power throttles the hub proportionally (fewer crafts that tick)."
+        "Energy is only metered: it never throttles or blocks crafting."
     })
     public static AssemblyHub assemblyHub = new AssemblyHub();
 
@@ -697,6 +697,10 @@ public class AE2EnhancedConfig {
     }
 
     public static class Terminal {
+        /** repo 模块允许的最小/最大列数（与客户端 {@code RepoPanel} 的钳制范围一致）。 */
+        public static final int REPO_MIN_COLUMNS = 9;
+        public static final int REPO_MAX_COLUMNS = 26;
+
         @Config.Comment({
             "Maximum number of stored item types before disabling fuzzy @ mod search.",
             "When the network stores more than this many distinct item types,",
@@ -740,6 +744,49 @@ public class AE2EnhancedConfig {
         })
         @Config.RangeInt(min = 0, max = 60000)
         public int terminalRebuildDebounceMs = 200;
+
+        @Config.Comment({
+            "Maximum column count of the storage repo module in the spliced terminal.",
+            "The repo module derives its column count from its own content width",
+            "(one column per 18 pixels, clamped to [9, maxRepoColumns]), so resizing the",
+            "panel changes how many items are shown per row.",
+            "Higher values mean wider panels and larger paged requests.",
+            "Range: 9 ~ 26, Default: 26"
+        })
+        @Config.RangeInt(min = REPO_MIN_COLUMNS, max = REPO_MAX_COLUMNS)
+        public int maxRepoColumns = REPO_MAX_COLUMNS;
+
+        @Config.Comment({
+            "DEV ONLY: spliced terminal (GUI 15) self-check harness.",
+            "When enabled on a client that hosts its own world (single player /",
+            "integrated server), logging in makes the harness",
+            "  1) place a 4-block AE2 network next to the player",
+            "     (creative energy cell, ME drive with a 64k cell, security station,",
+            "      wireless access point) and fill the cell with test items,",
+            "  2) give the player a charged + linked Omni Wireless Terminal and a",
+            "     charged + linked deprecated Omni Wireless Terminal,",
+            "  3) open the spliced terminal GUI through the real right-click path,",
+            "  4) type 'iron' into the search box, scroll the repo and cycle the sort",
+            "     order, then write SPLICED_TERM_HARNESS_DONE to the log.",
+            "It writes blocks and inventory contents into whatever world you log",
+            "into, so keep it disabled outside development. Default: false",
+            "(The player used for the run is the one who logs in first.)"
+        })
+        public boolean splicedTerminalTestHarness = false;
+
+        @Config.Comment({
+            "DEV ONLY: auto-join an integrated (single player) world for the spliced",
+            "terminal harness (A table). Needs splicedTerminalTestHarness = true as well.",
+            "After a few seconds on the main menu the client calls",
+            "Minecraft.launchIntegratedServer for the 'New World' save (folder",
+            "'New World-'; if that folder is missing the world is created as",
+            "creative + cheats from the same WorldSettings), so the A table can run",
+            "without any OS-level mouse input. While this switch is on, the",
+            "dedicated-server auto-connect is skipped: the two are the A and E",
+            "entries and cannot both apply. A missing/unreadable/occupied save is",
+            "logged and skipped instead of failing the main menu. Default: false"
+        })
+        public boolean splicedTerminalHarnessAutoWorld = false;
     }
 
     public static class OmniTool {

@@ -1,6 +1,6 @@
 package com.github.aeddddd.ae2enhanced.omnitool;
 
-import com.github.aeddddd.ae2enhanced.mixin.late.accessor.IEntityAccessor;
+import com.github.aeddddd.ae2enhanced.util.reflection.VanillaReflectionHelper;
 import net.minecraft.entity.item.EntityItem;
 import net.minecraft.item.ItemStack;
 
@@ -16,7 +16,7 @@ public final class ConformalChargeHandler {
         if (OmniToolUpgrades.hasConformalCharge(stack)) {
             if (!entityItem.getEntityData().getBoolean(OmniToolNBT.CONFORMAL_INIT)) {
                 entityItem.getEntityData().setBoolean(OmniToolNBT.CONFORMAL_INIT, true);
-                ((IEntityAccessor) entityItem).ae2e$setImmuneToFire(true);
+                VanillaReflectionHelper.setImmuneToFire(entityItem, true);
                 entityItem.setEntityInvulnerable(true);
                 entityItem.setNoDespawn();
             }

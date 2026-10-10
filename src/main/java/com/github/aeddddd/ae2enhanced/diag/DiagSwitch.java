@@ -31,6 +31,13 @@ public final class DiagSwitch {
     public static final String PERF = "perf";
     /** 合成计划守恒校验（每个 job 计算完成时自动执行 populatePlan 不变量检查） */
     public static final String PLAN_VERIFY = "planverify";
+    /**
+     * 中枢 ME 接口流体生命周期诊断日志（逐节点：抽取 → 流体通道注入 → 兜底各级）.
+     *
+     * <p>节点名出现在每行日志前缀里（{@code [AE2E-Fluid][节点]}），按 (节点, 流体) 节流，
+     * 默认关闭。开启方式：{@code /ae2e debug centralfluid on}。</p>
+     */
+    public static final String CENTRAL_FLUID = "centralfluid";
 
     /** 开关名 → 内置默认状态（reset 时恢复） */
     private static final Map<String, Boolean> DEFAULTS = new LinkedHashMap<>();
@@ -44,6 +51,8 @@ public final class DiagSwitch {
         DEFAULTS.put(PERF, true);
         // 计划校验仅在 job 完成时执行一次，开销与合成频率成正比，默认开启
         DEFAULTS.put(PLAN_VERIFY, true);
+        // 流体生命周期诊断只在玩家显式开启后才有输出（默认关闭）
+        DEFAULTS.put(CENTRAL_FLUID, false);
     }
 
     private DiagSwitch() {

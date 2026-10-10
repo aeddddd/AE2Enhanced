@@ -7,6 +7,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -43,6 +44,13 @@ public final class NetworkPatternIndex {
     private final Map<Integer, List<IAEItemStack>> sccKeys;
     private final Map<IAEItemStack, Boolean> detectorMemo = new ConcurrentHashMap<>();
     private final Map<ICraftingPatternDetails, Boolean> cycleStepMemo = new ConcurrentHashMap<>();
+    /** 替代候选键 memo(样板 → canon 候选键集;P4 单元发现扩边用). */
+    private final Map<ICraftingPatternDetails, List<IAEItemStack>> variantCandidateMemo =
+            new ConcurrentHashMap<>();
+    /** 求解单元划分 memo(P3;惰性构建,随索引重建一并失效——索引不可变). */
+    private volatile CondensationPlanner.UnitPartition unitPartitionMemo;
+    /** 计划结果缓存(C3 闭包 + C1 计划;生命周期与索引绑定,重建即整体失效). */
+    private final LpPlanCache planCache = new LpPlanCache();
 
     /** 构建时的一致性样板快照(canon 键 → 主索引样板表),求解期 patternsFor 用. */
     private final Map<IAEItemStack, List<ICraftingPatternDetails>> patternSnapshot;
@@ -65,8 +73,13 @@ public final class NetworkPatternIndex {
             sizes.merge(entry.getValue(), 1, Integer::sum);
             keys.computeIfAbsent(entry.getValue(), k -> new ArrayList<>()).add(entry.getKey());
         }
+        // 分量键表按 canon 键升序(构建期一次排序:LP 模型构建器/键表消费方拿到确定序)
+        Map<Integer, List<IAEItemStack>> orderedKeys = new HashMap<>();
+        for (Map.Entry<Integer, List<IAEItemStack>> entry : keys.entrySet()) {
+            orderedKeys.put(entry.getKey(), StableOrder.sortedKeys(entry.getValue()));
+        }
         this.sccSizes = sizes;
-        this.sccKeys = keys;
+        this.sccKeys = orderedKeys;
     }
 
     /**
@@ -99,9 +112,11 @@ public final class NetworkPatternIndex {
             Map<IAEItemStack, List<ICraftingPatternDetails>> snapshot, ICraftingGridCacheAccess access) {
         Map<IAEItemStack, Set<ICraftingPatternDetails>> byproductSets = new HashMap<>();
         Map<IAEItemStack, Set<ICraftingPatternDetails>> consumerSets = new HashMap<>();
-        Map<IAEItemStack, Set<IAEItemStack>> adj = new HashMap<>();
+        // 键图邻接表:插入序 = canon 键升序(样板顺序扰动不影响边集,SCC 编号确定)
+        Map<IAEItemStack, Set<IAEItemStack>> adj = new LinkedHashMap<>();
         Set<ICraftingPatternDetails> seen = Collections.newSetFromMap(new IdentityHashMap<>());
-        for (Map.Entry<IAEItemStack, List<ICraftingPatternDetails>> snapshotEntry : snapshot.entrySet()) {
+        for (Map.Entry<IAEItemStack, List<ICraftingPatternDetails>> snapshotEntry
+                : StableOrder.sortedEntries(snapshot)) {
             IAEItemStack craftableKey = snapshotEntry.getKey();
             for (ICraftingPatternDetails pattern : snapshotEntry.getValue()) {
                 if (seen.add(pattern)) {
@@ -142,25 +157,56 @@ public final class NetworkPatternIndex {
                 }
             }
         }
+        // 邻接表内容也排成 canon 序:样板表顺序扰动不应改变邻接遍历序(⇒ SCC 编号)
+        Map<IAEItemStack, Set<IAEItemStack>> orderedAdj = new LinkedHashMap<>();
+        for (Map.Entry<IAEItemStack, Set<IAEItemStack>> entry : adj.entrySet()) {
+            orderedAdj.put(entry.getKey(),
+                    new LinkedHashSet<>(StableOrder.sortedKeys(entry.getValue())));
+        }
         Map<IAEItemStack, List<ICraftingPatternDetails>> byproduct = new HashMap<>();
         for (Map.Entry<IAEItemStack, Set<ICraftingPatternDetails>> entry : byproductSets.entrySet()) {
-            List<ICraftingPatternDetails> list = new ArrayList<>(entry.getValue());
-            list.sort(PATTERN_CONTENT_ORDER); // 确定性序:避免身份桶序随重建漂移传导到 LP 访问序
+            List<ICraftingPatternDetails> list = StableOrder.sortedPatterns(entry.getValue());
             byproduct.put(entry.getKey(), Collections.unmodifiableList(list));
         }
         Map<IAEItemStack, List<ICraftingPatternDetails>> consumers = new HashMap<>();
         for (Map.Entry<IAEItemStack, Set<ICraftingPatternDetails>> entry : consumerSets.entrySet()) {
-            List<ICraftingPatternDetails> list = new ArrayList<>(entry.getValue());
-            list.sort(PATTERN_CONTENT_ORDER);
+            List<ICraftingPatternDetails> list = StableOrder.sortedPatterns(entry.getValue());
             consumers.put(entry.getKey(), Collections.unmodifiableList(list));
         }
-        return new NetworkPatternIndex(byproduct, consumers, tarjanScc(adj), snapshot, access);
+        assertNoSignatureTies(snapshot);
+        return new NetworkPatternIndex(byproduct, consumers, tarjanScc(orderedAdj), snapshot, access);
     }
 
-    /** 按内容(凝聚输出+输入)排序:同网络状态下跨索引重建保持稳定. */
-    private static final java.util.Comparator<ICraftingPatternDetails> PATTERN_CONTENT_ORDER =
-            java.util.Comparator.comparing(p -> java.util.Arrays.toString(p.getCondensedOutputs())
-                    + "|" + java.util.Arrays.toString(p.getCondensedInputs()));
+    /** 同键样板表内是否有同签名并列(门控 {@code -Dae2e.assertOrder=true}). */
+    private static final boolean ASSERT_ORDER = Boolean.getBoolean("ae2e.assertOrder");
+
+    /**
+     * 门控断言:同键样板表内不得出现同签名并列——并列会让排序退化回输入序,
+     * 列序随 JVM 启动漂移(确定性排序的前提被破坏),开发期用本断言显式暴露.
+     */
+    private static void assertNoSignatureTies(
+            Map<IAEItemStack, List<ICraftingPatternDetails>> snapshot) {
+        if (!ASSERT_ORDER) {
+            return;
+        }
+        for (Map.Entry<IAEItemStack, List<ICraftingPatternDetails>> entry : snapshot.entrySet()) {
+            List<ICraftingPatternDetails> list = entry.getValue();
+            if (list == null || list.size() < 2) {
+                continue;
+            }
+            Map<String, ICraftingPatternDetails> bySig = new HashMap<>();
+            for (ICraftingPatternDetails pattern : list) {
+                String sig = StableOrder.signatureOf(pattern);
+                ICraftingPatternDetails prev = bySig.put(sig, pattern);
+                if (prev != null && prev != pattern) {
+                    String msg = "[AE2E-Order] 同键样板签名并列(排序退化,请检查样板内容/优先级): 键="
+                            + entry.getKey() + " 签名=" + sig;
+                    com.github.aeddddd.ae2enhanced.AE2Enhanced.LOGGER.warn(msg);
+                    throw new IllegalStateException(msg);
+                }
+            }
+        }
+    }
 
     /** 副产物生产者倒排（只读）. */
     public Map<IAEItemStack, List<ICraftingPatternDetails>> byproductMap() {
@@ -186,6 +232,70 @@ public final class NetworkPatternIndex {
     /** 消费某 canon 输入键的全部样板（只读;无消费者返回空表）. */
     public List<ICraftingPatternDetails> consumersOf(IAEItemStack canonKey) {
         return this.consumers.getOrDefault(canonKey, Collections.emptyList());
+    }
+
+    /**
+     * 样板的替代候选键(P4 单元发现扩边用):{@code canSubstitute && isCraftable} 时,
+     * 逐槽取 {@code getSubstituteInputs(slot)} 的 canon 并集(含编码键自身)。
+     * <p><b>安全超集</b>:不做 {@code expandVariants} 的槽位可展开性/组合数上限判定,
+     * 只用于"哪些键可能成为本样板的上游",不参与 LP 建模(多出的单元由需求门控
+     * 或零需求自然消化)。返回表按 canon 键升序(确定序),缓存于索引(样板集不变)。</p>
+     */
+    public List<IAEItemStack> variantCandidateKeys(ICraftingPatternDetails pattern) {
+        if (pattern == null || !pattern.isCraftable() || !pattern.canSubstitute()) {
+            return Collections.emptyList();
+        }
+        List<IAEItemStack> cached = this.variantCandidateMemo.get(pattern);
+        if (cached != null) {
+            return cached;
+        }
+        Set<IAEItemStack> canonKeys = new java.util.HashSet<>();
+        IAEItemStack[] slots = pattern.getInputs();
+        for (int slot = 0; slot < slots.length; slot++) {
+            if (slots[slot] == null || slots[slot].getStackSize() <= 0) {
+                continue;
+            }
+            List<IAEItemStack> subs = pattern.getSubstituteInputs(slot);
+            if (subs == null) {
+                continue;
+            }
+            for (IAEItemStack sub : subs) {
+                if (sub == null) {
+                    continue;
+                }
+                canonKeys.add(RecursiveCraftingHelper.canon(sub));
+            }
+        }
+        List<IAEItemStack> keys = Collections.unmodifiableList(StableOrder.sortedKeys(canonKeys));
+        this.variantCandidateMemo.put(pattern, keys);
+        return keys;
+    }
+
+    /**
+     * 计划结果缓存(C3 闭包 + C1 计划;与索引同生命周期).
+     * <p>缓存产物的等价性由指纹 + 逐元素精确复核保证,故对外只读暴露(测试/诊断读
+     * {@link LpPlanCache#stats()}).</p>
+     */
+    public LpPlanCache planCache() {
+        return this.planCache;
+    }
+
+    /**
+     * 求解单元划分(P3 memo):只依赖本索引的键图与样板表,构造后不可变,
+     * 故按 volatile 双检缓存,随索引重建一并失效(索引重建 = 新对象)。
+     */
+    public CondensationPlanner.UnitPartition unitPartition() {
+        CondensationPlanner.UnitPartition partition = this.unitPartitionMemo;
+        if (partition == null) {
+            synchronized (this) {
+                partition = this.unitPartitionMemo;
+                if (partition == null) {
+                    partition = CondensationPlanner.buildUnitPartition(this);
+                    this.unitPartitionMemo = partition;
+                }
+            }
+        }
+        return partition;
     }
 
     /** 键所属 SCC 编号（不在键图中返回 null）;供环枚举的同 SCC 剪枝. */
@@ -260,6 +370,8 @@ public final class NetworkPatternIndex {
 
     /**
      * 迭代 Tarjan SCC（合成线程无大栈保证，递归实现在大网络上会爆栈）.
+     * <p>顶点序/邻接遍历序由调用方传入的 canon 有序邻接表决定,故 SCC 编号
+     * 跨 JVM 启动确定;返回表按 canon 键升序插入({@link #keyGraphKeys} 的迭代序).</p>
      */
     private static Map<IAEItemStack, Integer> tarjanScc(Map<IAEItemStack, Set<IAEItemStack>> adj) {
         Set<IAEItemStack> vertices = new LinkedHashSet<>(adj.keySet());
@@ -321,6 +433,10 @@ public final class NetworkPatternIndex {
                 }
             }
         }
-        return scc;
+        Map<IAEItemStack, Integer> ordered = new LinkedHashMap<>();
+        for (IAEItemStack key : StableOrder.sortedKeys(scc.keySet())) {
+            ordered.put(key, scc.get(key));
+        }
+        return ordered;
     }
 }

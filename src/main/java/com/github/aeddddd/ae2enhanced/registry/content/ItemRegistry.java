@@ -20,6 +20,8 @@ public final class ItemRegistry {
     public static ItemChannelReceiverCard CHANNEL_RECEIVER_CARD;
     public static ItemUniversalMemoryCard UNIVERSAL_MEMORY_CARD;
     public static ItemOmniWirelessTerminal OMNI_WIRELESS_TERMINAL;
+    /** 第二代全能无线终端(可拼接面板,阶段 2a 起)。 */
+    public static com.github.aeddddd.ae2enhanced.item.ItemOmniWirelessTerminalV2 OMNI_WIRELESS_TERMINAL_II;
     public static ItemOmniUpgradeCard OMNI_UPGRADE_CARD;
     public static ItemSmartBlankPattern SMART_BLANK_PATTERN;
     public static ItemSmartPattern SMART_PATTERN;

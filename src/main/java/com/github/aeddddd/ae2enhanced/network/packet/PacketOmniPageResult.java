@@ -93,8 +93,9 @@ public class PacketOmniPageResult implements IMessage {
         public IMessage onMessage(PacketOmniPageResult message, MessageContext ctx) {
             net.minecraft.client.Minecraft.getMinecraft().addScheduledTask(() -> {
                 net.minecraft.client.gui.GuiScreen gui = net.minecraft.client.Minecraft.getMinecraft().currentScreen;
-                if (gui instanceof com.github.aeddddd.ae2enhanced.client.gui.GuiOmniTerm) {
-                    ((com.github.aeddddd.ae2enhanced.client.gui.GuiOmniTerm) gui).handlePageResult(message);
+                // 接口判定:旧 GUI 与可拼接终端(GuiSplicedTerm)都要收到 R3 分页回调
+                if (gui instanceof com.github.aeddddd.ae2enhanced.client.gui.terminal.IOmniTerminalGui) {
+                    ((com.github.aeddddd.ae2enhanced.client.gui.terminal.IOmniTerminalGui) gui).handlePageResult(message);
                 }
             });
             return null;

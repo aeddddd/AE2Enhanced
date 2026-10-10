@@ -432,6 +432,22 @@ public class ThermalExpansionMachineHandler implements IMemoryCardHandler {
     public String getDisplayName(Object target) {
         if (target instanceof TileEntity) {
             TileEntity tile = (TileEntity) target;
+            // TE 机型 + 等级存于物品 NBT(Type/Level),光有 meta 的堆默认 0 级,
+            // 聊天栏会误报"基础";pickBlock 形态带完整 NBT(CoFH 实现不使用 player,
+            // 服务端安全)。tile 无 world 时回退 meta 堆。
+            try {
+                if (tile.getWorld() != null) {
+                    net.minecraft.block.Block block = tile.getBlockType();
+                    net.minecraft.block.state.IBlockState state = tile.getWorld().getBlockState(tile.getPos());
+                    ItemStack pick = block.getPickBlock(state,
+                            new net.minecraft.util.math.RayTraceResult(net.minecraft.util.math.RayTraceResult.Type.BLOCK,
+                                    new net.minecraft.util.math.Vec3d(tile.getPos().getX() + 0.5, tile.getPos().getY() + 0.5, tile.getPos().getZ() + 0.5),
+                                    net.minecraft.util.EnumFacing.UP, tile.getPos()),
+                            tile.getWorld(), tile.getPos(), null);
+                    if (pick != null && !pick.isEmpty()) return pick.getDisplayName();
+                }
+            } catch (Exception ignored) {
+            }
             // TE 是单方块多机型:方块级翻译键不存在(会得到原始 lang key),
             // 必须用带真实 meta 的物品堆取名(meta = 机型变体)
             try {

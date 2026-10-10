@@ -1,7 +1,7 @@
 package com.github.aeddddd.ae2enhanced.mixin.late.entity;
 
-import com.github.aeddddd.ae2enhanced.mixin.late.accessor.IEntityLivingBaseAccessor;
 import com.github.aeddddd.ae2enhanced.omnitool.OmniToolUpgrades;
+import com.github.aeddddd.ae2enhanced.util.reflection.VanillaReflectionHelper;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityLivingBase;
 import net.minecraft.network.datasync.DataParameter;
@@ -24,9 +24,12 @@ public class MixinEntityDataManager {
     private Entity entity;
 
     @Inject(method = "set", at = @At("HEAD"), cancellable = true)
-    private void ae2e$onSet(Object key, Object value, CallbackInfo ci) {
-        DataParameter<Float> healthParam = IEntityLivingBaseAccessor.ae2e$getHEALTH();
-        if (key != healthParam) return;
+    private void ae2e$onSet(DataParameter<?> key, Object value, CallbackInfo ci) {
+        // 第一个参数类型必须与目标方法一致（DataParameter，而不是 Object）：写宽了会
+        // InvalidInjectionException "Invalid descriptor … Expected (Lnet/minecraft/network/datasync/
+        // DataParameter;Ljava/lang/Object;…)" —— 历史 bug 让这个反治疗拦截一直没生效。
+        DataParameter<Float> healthParam = VanillaReflectionHelper.getHealthParameter();
+        if (healthParam == null || key != healthParam) return;
 
         if (!(this.entity instanceof EntityLivingBase)) return;
         EntityLivingBase living = (EntityLivingBase) this.entity;

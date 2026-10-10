@@ -37,6 +37,8 @@ public class ReusePatternBuilder {
     private final List<IAEItemStack> inputs = new ArrayList<>();
     private final Set<IAEItemStack> reusedKeys = new HashSet<>();
     private boolean canSubstituteFlag;
+    /** 样板优先级(默认 0;LP 阶段③ ε·rank 的定序依据,与 ProcessingPatternBuilder 同义). */
+    private int priority;
     /** 模拟原生 PatternHelper:getSubstituteInputs 恒返回 [编码输入, ...候选](不看 canSubstitute). */
     private boolean nativeStyleSubstituteList;
     private final Map<IAEItemStack, List<IAEItemStack>> substituteAlts = new java.util.LinkedHashMap<>();
@@ -49,6 +51,12 @@ public class ReusePatternBuilder {
         IAEItemStack in = input.copy();
         in.setStackSize(count);
         this.inputs.add(in);
+        return this;
+    }
+
+    /** 设置样板优先级（AE2-UEL:getCraftingFor 按优先级降序;LP 样板定序同口径）. */
+    public ReusePatternBuilder withPriority(int priority) {
+        this.priority = priority;
         return this;
     }
 
@@ -97,7 +105,8 @@ public class ReusePatternBuilder {
         final Set<IAEItemStack> reused = new HashSet<>(this.reusedKeys);
         final IRecipe recipe = new TestRecipe(reused);
         return new TestReusePattern(condensedInputs, condensedOutputs, template, recipe,
-                this.canSubstituteFlag, this.nativeStyleSubstituteList, this.substituteAlts);
+                this.canSubstituteFlag, this.nativeStyleSubstituteList, this.substituteAlts,
+                this.priority);
     }
 
     /**
@@ -160,10 +169,12 @@ public class ReusePatternBuilder {
         private final boolean canSubstitute;
         private final boolean nativeStyleSubstituteList;
         private final Map<IAEItemStack, List<IAEItemStack>> substituteAlts;
+        private final int priority;
 
         TestReusePattern(IAEItemStack[] condensedInputs, IAEItemStack[] condensedOutputs,
                 InventoryCrafting template, IRecipe recipe, boolean canSubstitute,
-                boolean nativeStyleSubstituteList, Map<IAEItemStack, List<IAEItemStack>> substituteAlts) {
+                boolean nativeStyleSubstituteList, Map<IAEItemStack, List<IAEItemStack>> substituteAlts,
+                int priority) {
             this.condensedInputs = condensedInputs;
             this.condensedOutputs = condensedOutputs;
             this.template = template;
@@ -171,6 +182,7 @@ public class ReusePatternBuilder {
             this.canSubstitute = canSubstitute;
             this.nativeStyleSubstituteList = nativeStyleSubstituteList;
             this.substituteAlts = substituteAlts;
+            this.priority = priority;
         }
 
         @Override
@@ -243,7 +255,7 @@ public class ReusePatternBuilder {
 
         @Override
         public int getPriority() {
-            return 0;
+            return this.priority;
         }
 
         @Override

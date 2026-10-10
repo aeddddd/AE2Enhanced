@@ -477,10 +477,9 @@ public class ItemStorageAdapter extends AbstractStorageAdapter<IAEItemStack, Ite
             }
         }
 
-        Comparator<IAEItemStack> comparator = getComparator(sortBy);
-        appeng.util.ItemSorters.setDirection(sortDir == 1 ? appeng.api.config.SortDir.DESCENDING : appeng.api.config.SortDir.ASCENDING);
-        appeng.util.ItemSorters.init();
-        this.sortedList.sort(comparator);
+        // 排序统一走安全入口（见 TerminalItemSort 的说明）
+        com.github.aeddddd.ae2enhanced.util.TerminalItemSort.sort(this.sortedList, sortOrderOf(sortBy),
+                sortDir == 1 ? appeng.api.config.SortDir.DESCENDING : appeng.api.config.SortDir.ASCENDING);
 
         this.cachedSortBy = sortBy;
         this.cachedSortDir = sortDir;
@@ -592,11 +591,9 @@ public class ItemStorageAdapter extends AbstractStorageAdapter<IAEItemStack, Ite
                 }
             }
 
-            // 统一排序
-            Comparator<IAEItemStack> comparator = getComparator((byte) this.cachedSortBy);
-            appeng.util.ItemSorters.setDirection(this.cachedSortDir == 1 ? appeng.api.config.SortDir.DESCENDING : appeng.api.config.SortDir.ASCENDING);
-            appeng.util.ItemSorters.init();
-            allMatched.sort(comparator);
+            // 统一排序（安全入口）
+            com.github.aeddddd.ae2enhanced.util.TerminalItemSort.sort(allMatched, sortOrderOf((byte) this.cachedSortBy),
+                    this.cachedSortDir == 1 ? appeng.api.config.SortDir.DESCENDING : appeng.api.config.SortDir.ASCENDING);
 
             // 缓存完整匹配列表（避免上限过大导致内存爆炸）
             if (allMatched.size() <= 10000 && this.searchCache.size() < MAX_SEARCH_CACHE) {
@@ -630,16 +627,18 @@ public class ItemStorageAdapter extends AbstractStorageAdapter<IAEItemStack, Ite
         return new PageResult(total, offset, page);
     }
 
-    private static Comparator<IAEItemStack> getComparator(byte sortBy) {
+    /** sortBy（0=NAME / 1=AMOUNT / 2=MOD / 3=INVTWEAKS）→ SortOrder 映射（安全排序入口用）。 */
+    private static appeng.api.config.SortOrder sortOrderOf(byte sortBy) {
         if (sortBy == 2) {
-            return appeng.util.ItemSorters.CONFIG_BASED_SORT_BY_MOD;
+            return appeng.api.config.SortOrder.MOD;
         } else if (sortBy == 1) {
-            return appeng.util.ItemSorters.CONFIG_BASED_SORT_BY_SIZE;
+            return appeng.api.config.SortOrder.AMOUNT;
         } else if (sortBy == 3) {
-            return appeng.util.ItemSorters.CONFIG_BASED_SORT_BY_INV_TWEAKS;
+            return appeng.api.config.SortOrder.INVTWEAKS;
         }
-        return appeng.util.ItemSorters.CONFIG_BASED_SORT_BY_NAME;
+        return appeng.api.config.SortOrder.NAME;
     }
+
 
     // 用于同一 tick 内去重通知，避免多玩家开终端时 N×N 网络包
     private long lastNotifyTick = -1;

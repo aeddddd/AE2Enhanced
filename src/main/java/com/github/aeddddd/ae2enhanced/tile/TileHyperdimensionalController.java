@@ -62,6 +62,18 @@ public class TileHyperdimensionalController extends TileAENetworkBase implements
     private int cellArrayRetry = 0;
     private int delayedNotifyTick = 0;
 
+    /**
+     * CellArrayUpdate 重发窗口长度（2 分钟）.
+     * 成型/网络启动/频道变化后低频重发 CellArrayUpdate，覆盖 ME 接口 chunk 晚加载等
+     * 时序竞争；窗口外不再重发，避免永久每秒触发 GridStorageCache 全量重建存储视图
+     * （大仓库下是可观的主线程开销，且扰动网络监听者，如 AE2-PowerTools 缓存指令器）。
+     */
+    private static final long CELL_ARRAY_NOTIFY_WINDOW_TICKS = 20L * 120;
+    /** 窗口内重发间隔（5 秒）：每次重发都会引发全网络存储视图重建，不宜过密 */
+    private static final long CELL_ARRAY_NOTIFY_INTERVAL_TICKS = 100L;
+    private long cellArrayNotifyDeadline = Long.MIN_VALUE;
+    private long lastCellArrayNotifyTick = Long.MIN_VALUE;
+
     // 缓存 MachineSource,避免每次 postAlteration 都重新创建
     private final appeng.me.helpers.MachineSource machineSource = new appeng.me.helpers.MachineSource(this);
 
@@ -197,14 +209,8 @@ public class TileHyperdimensionalController extends TileAENetworkBase implements
             notifyMeInterfacesOfStateChange();
             updateCableConnections();
             // 强制触发 GridStorageCache 重新扫描 handlers,确保物品/流体都被正确注册
-            try {
-                appeng.api.networking.IGrid grid = getProxy().getGrid();
-                if (grid != null) {
-                    grid.postEvent(new appeng.api.networking.events.MENetworkCellArrayUpdate());
-                }
-            } catch (appeng.me.GridAccessException e) {
-                // grid 尚未就绪,下次 tick 的 update() 会重试
-            }
+            postCellArrayUpdate();
+            armCellArrayNotify();
         }
     }
 
@@ -556,17 +562,41 @@ public class TileHyperdimensionalController extends TileAENetworkBase implements
                 }
             }
         }
-        // 当网络活跃时,强制触发 GridStorageCache 重新扫描存储,修复因时序导致 storageNetworks 未构建的问题
-        if (itemAdapter != null) {
-            try {
-                appeng.api.networking.IGrid grid = getProxy().getGrid();
-                if (grid != null) {
-                    grid.postEvent(new appeng.api.networking.events.MENetworkCellArrayUpdate());
-                }
-            } catch (appeng.me.GridAccessException e) {
-                // ignore
+    }
+
+    /**
+     * 通知 AE2 重新扫描本控制器提供的存储元件（成型/网络拓扑变化后调用）.
+     * 会触发 GridStorageCache 全量重建存储视图，属于重操作，调用频率由
+     * {@link #armCellArrayNotify()} 的重发窗口约束。
+     */
+    private void postCellArrayUpdate() {
+        if (itemAdapter == null) return;
+        try {
+            appeng.api.networking.IGrid grid = getProxy().getGrid();
+            if (grid != null) {
+                grid.postEvent(new appeng.api.networking.events.MENetworkCellArrayUpdate());
             }
+        } catch (appeng.me.GridAccessException e) {
+            // 网格尚未就绪，由重发窗口内的下一次重发覆盖
         }
+    }
+
+    /** 开启 CellArrayUpdate 重发窗口（成型/网络启动/频道变化后调用）. */
+    private void armCellArrayNotify() {
+        if (world != null && !world.isRemote) {
+            cellArrayNotifyDeadline = world.getTotalWorldTime() + CELL_ARRAY_NOTIFY_WINDOW_TICKS;
+        }
+    }
+
+    // 网络启动/频道变化后重新武装重发窗口，覆盖网格重组导致的时序竞争
+    @appeng.api.networking.events.MENetworkEventSubscribe
+    public void onBootingStateChange(appeng.api.networking.events.MENetworkBootingStatusChange event) {
+        armCellArrayNotify();
+    }
+
+    @appeng.api.networking.events.MENetworkEventSubscribe
+    public void onChannelStateChange(appeng.api.networking.events.MENetworkChannelsChanged event) {
+        armCellArrayNotify();
     }
 
     private void closeStorage() {
@@ -626,6 +656,7 @@ public class TileHyperdimensionalController extends TileAENetworkBase implements
             initStorage();
             getProxy().onReady();
             cellArrayRetry = 5; // 5 秒内重试发送 CellArrayUpdate
+            armCellArrayNotify();
             notifyMeInterfacesOfStateChange();
             updateCableConnections();
             delayedNotifyTick = 5;
@@ -669,6 +700,13 @@ public class TileHyperdimensionalController extends TileAENetworkBase implements
 
         if (formed && world.getTotalWorldTime() % 20 == 0) {
             updateCableConnections();
+            // CellArrayUpdate 重发窗口：仅在成型/网络事件后的一小段时间内低频重发，
+            // 窗口外不再触发 GridStorageCache 全量重建（避免每秒重建整网存储视图）
+            long now = world.getTotalWorldTime();
+            if (now < cellArrayNotifyDeadline && now - lastCellArrayNotifyTick >= CELL_ARRAY_NOTIFY_INTERVAL_TICKS) {
+                lastCellArrayNotifyTick = now;
+                postCellArrayUpdate();
+            }
         }
         if (tickCounter % 20 == 0) {
             boolean newActive = false;

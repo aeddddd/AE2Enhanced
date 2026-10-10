@@ -1,7 +1,7 @@
 package com.github.aeddddd.ae2enhanced.mixin.late.terminal;
 
 import appeng.client.gui.implementations.GuiMEMonitorable;
-import com.github.aeddddd.ae2enhanced.client.gui.GuiOmniTerm;
+import com.github.aeddddd.ae2enhanced.client.gui.terminal.IOmniTerminalGui;
 import com.github.aeddddd.ae2enhanced.mixin.bridge.TerminalTooltipBridge;
 import com.github.aeddddd.ae2enhanced.util.compat.Ae2fcCompat;
 import net.minecraft.client.gui.inventory.GuiContainer;
@@ -20,8 +20,9 @@ public abstract class MixinGuiMEMonitorableTooltip {
 
     @Inject(method = "func_191948_b", at = @At("HEAD"), cancellable = true)
     public void ae2enhanced$onRenderHoveredToolTip(int mouseX, int mouseY, CallbackInfo ci) {
-        // ae2fc 已加载时，标准 AE2 终端交给 ae2fc 处理；但 Omni Terminal 仍需走 AE2E 自己的桥接。
-        if (Ae2fcCompat.AE2FC_LOADED && !((Object) this instanceof GuiOmniTerm)) {
+        // ae2fc 已加载时，标准 AE2 终端交给 ae2fc 处理；但 Omni 终端（旧 GUI 与可拼接终端，
+        // 后者在自身 renderHoveredToolTip 中直接调用本桥接）仍需走 AE2E 自己的桥接。
+        if (Ae2fcCompat.AE2FC_LOADED && !((Object) this instanceof IOmniTerminalGui)) {
             return;
         }
 

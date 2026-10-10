@@ -1,6 +1,7 @@
 package com.github.aeddddd.ae2enhanced.specialcrafting;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
@@ -45,6 +46,12 @@ public final class FlowReconciler {
     public static final class Reconciled {
         /** 逐执行记录整数次数(与 {@link LpPlanOutcome#executions} 同序对齐;物化 crafts 用). */
         public final Map<Execution, Long> times;
+        /**
+         * 整数化后的活跃执行记录(原 outcome.executions + 守恒修复回补的零计数记录;
+         * 物化与成环判定按此遍历).R1:该列表是本层局部新建的,不是 outcome 的字段——
+         * outcome 由 C1 计划缓存跨请求共享,不得就地追加(会污染缓存产物).
+         */
+        public final List<Execution> executions;
         /** 缺料(canon 键 → 数量;LP 赤字整数化 + 重演缺口). */
         public final Map<IAEItemStack, Long> missing;
         /** 网络实取(canon 键 → 数量;诊断——实际记账在根节点 used 列表). */
@@ -52,9 +59,11 @@ public final class FlowReconciler {
         /** 初始提取总量(bytes 近似). */
         public final long totalExtracted;
 
-        Reconciled(Map<Execution, Long> times, Map<IAEItemStack, Long> missing,
-                Map<IAEItemStack, Long> networkSourced, long totalExtracted) {
+        Reconciled(Map<Execution, Long> times, List<Execution> executions,
+                Map<IAEItemStack, Long> missing, Map<IAEItemStack, Long> networkSourced,
+                long totalExtracted) {
             this.times = times;
+            this.executions = executions;
             this.missing = missing;
             this.networkSourced = networkSourced;
             this.totalExtracted = totalExtracted;
@@ -64,14 +73,17 @@ public final class FlowReconciler {
     /**
      * 整数化并重演对账.
      *
-     * @param inv 模拟库存(调用方新建,含请求物自身库存——与驱动器根库存语义一致)
+     * @param inv 模拟库存(调用方新建,含请求物自身库存——与驱动器根库存语义一致);
+     *            仅在存在正计数执行记录时被读取(见下方 R5 快路径),此时可传 {@code null}
      * @param rootNode 物化根节点(used 记账宿主)
      */
     public static Reconciled reconcile(ICraftingGrid cc, NetworkPatternIndex index, IAEItemStack what,
             long target, LpPlanOutcome outcome, MECraftingInventory inv, CraftingTreeNode rootNode,
             IActionSource src) {
         // 1) 整数化(只增)
-        Map<Execution, Long> times = new IdentityHashMap<>();
+        // Execution 未覆写 equals/hashCode,LinkedHashMap 与 IdentityHashMap 语义等价,
+        // 但迭代序 = 插入序(跨 JVM 启动确定) —— 下游对账遍历序随之稳定
+        Map<Execution, Long> times = new LinkedHashMap<>();
         for (Execution exec : outcome.executions) {
             long t = toLong(exec.count);
             if (t > 0) {
@@ -82,15 +94,24 @@ public final class FlowReconciler {
         // 1.5) 整数化守恒修复:独立上取整会破坏分数速率环的配比(如 2C→3A 的
         // 1.5 轮取整后中间键失衡)——逐单元检查内部键净平衡,负平衡时按产出系数
         // 回补该键的生产者,级联收敛.只增不减,交付能力不受损;不修则重演/执行层
-        // 在失衡键上断料死锁
-        repairIntegralBalance(cc, index, outcome, times, inv);
+        // 在失衡键上断料死锁.
+        // R5 快路径:times 为空(无正计数执行)时逐单元净平衡恒 = 库存 ≥ 0,
+        // 修复必然无操作且不改任何状态(不会回补、不会读库存以外的量)——直接跳过,
+        // 使该路径完全不触碰 inv(调用方可跳过库存副本构建并传 null).
+        if (!times.isEmpty()) {
+            repairIntegralBalance(cc, index, outcome, times, inv);
+        }
 
-        // 守恒修复回补激活的零计数执行记录补入扁平列表(物化/成环判定按
-        // outcome.executions 遍历;身份判等,已在表中的活跃执行不重复加入)
+        // 守恒修复回补激活的零计数执行记录补入活跃列表(物化/成环判定按执行记录
+        // 遍历;身份判等,已在列表中的活跃执行不重复加入).R1:构造局部列表而非
+        // 就地追加 outcome.executions——后者被 C1 计划缓存跨请求共享.
+        List<Execution> activeExecutions = new ArrayList<>(outcome.executions);
+        Set<Execution> activeSeen = Collections.newSetFromMap(new IdentityHashMap<>());
+        activeSeen.addAll(activeExecutions);
         for (UnitSolution unit : outcome.unitSolutions) {
             for (Execution exec : unit.executions) {
-                if (times.getOrDefault(exec, 0L) > 0 && !outcome.executions.contains(exec)) {
-                    outcome.executions.add(exec);
+                if (times.getOrDefault(exec, 0L) > 0 && activeSeen.add(exec)) {
+                    activeExecutions.add(exec);
                 }
             }
         }
@@ -120,6 +141,33 @@ public final class FlowReconciler {
             }
             unitVars.add(vars);
         }
+
+        // used 预登记(与重演脱钩):每个活跃执行记录的每个输入按
+        // "整数化次数 × 单次消耗"从期初网络库存预登记 used(封顶期初实存量)——
+        // 否则某批因兄弟输入缺失跑不动时,其库存覆盖输入会从 used 整个消失,
+        // 计划显示不完整(原生语义:库存覆盖的输入应显示为从库存提取)。
+        // 发射台键照常登记库存部分(网络实存先取、剩余免费满足,实取部分记 used).
+        Map<IAEItemStack, Long> usedPlanned = new LinkedHashMap<>();
+        for (List<ReplayVar> vars : unitVars) {
+            for (ReplayVar v : vars) {
+                for (Map.Entry<IAEItemStack, Long> in : v.inputs.entrySet()) {
+                    long plannedAmount = SaturatedMath.multiply(in.getValue(), v.remaining);
+                    if (plannedAmount > 0) {
+                        usedPlanned.merge(in.getKey(), plannedAmount, SaturatedMath::add);
+                    }
+                }
+            }
+        }
+        for (Map.Entry<IAEItemStack, Long> e : usedPlanned.entrySet()) {
+            long fromNetwork = Math.min(e.getValue(), invAmount(inv, e.getKey()));
+            if (fromNetwork <= 0) {
+                continue;
+            }
+            IAEItemStack usedStack = e.getKey().copy();
+            usedStack.setStackSize(fromNetwork);
+            Ae2CraftingReflect.getNodeUsed(rootNode).add(usedStack);
+        }
+
         boolean anyProgress = true;
         for (int pass = 0; anyProgress && pass < 64; pass++) {
             anyProgress = false;
@@ -157,7 +205,7 @@ public final class FlowReconciler {
             }
         }
 
-        return new Reconciled(times, missing, networkSourced, totalExtracted);
+        return new Reconciled(times, activeExecutions, missing, networkSourced, totalExtracted);
     }
 
     /** 重演变量:整数剩余次数 + 输入/输出表 + 单元净增益(分相序用). */
@@ -603,9 +651,10 @@ public final class FlowReconciler {
         }
         boolean bumpedAny = false;
         for (int round = 0; round < 64; round++) {
-            // 净平衡用 double 累计(同内部修复;SaturatedMath 不适用于负数域)
-            Map<IAEItemStack, Double> balance = new HashMap<>();
-            Map<IAEItemStack, Double> gross = new HashMap<>();
+            // 净平衡用 double 累计(同内部修复;SaturatedMath 不适用于负数域);
+            // 插入序 = times 插入序(确定),故 tie-break 之外还有稳定的遍历基线
+            Map<IAEItemStack, Double> balance = new LinkedHashMap<>();
+            Map<IAEItemStack, Double> gross = new LinkedHashMap<>();
             for (Map.Entry<Execution, Long> entry : times.entrySet()) {
                 Execution exec = entry.getKey();
                 long t = entry.getValue();
@@ -638,7 +687,11 @@ public final class FlowReconciler {
                 }
                 double net = entry.getValue() + invAmount(inv, entry.getKey());
                 double tol = Math.max(1e-6, 1e-9 * gross.getOrDefault(entry.getKey(), 0.0));
-                if (net < -tol && net < worstBalance && producerExecs.containsKey(entry.getKey())) {
+                if (net < -tol && producerExecs.containsKey(entry.getKey())
+                        && (worst == null || net < worstBalance
+                                || (net == worstBalance
+                                        && StableOrder.KEY_COMPARATOR.compare(entry.getKey(), worst) < 0))) {
+                    // 平局决胜:canon 键较小者(遍历序不得影响选择)
                     worst = entry.getKey();
                     worstBalance = net;
                 }
@@ -675,7 +728,7 @@ public final class FlowReconciler {
     private static void repairInternalBalance(LpPlanOutcome outcome, Map<Execution, Long> times,
             MECraftingInventory inv) {
         for (UnitSolution unit : outcome.unitSolutions) {
-            Set<IAEItemStack> keySet = new LinkedHashSet<>(unit.keys);
+            Set<IAEItemStack> keySet = new LinkedHashSet<>(StableOrder.sortedKeys(unit.keys));
             List<Execution> execs = new ArrayList<>();
             List<Map<IAEItemStack, Long>> netCoefs = new ArrayList<>();
             for (Execution exec : unit.executions) {
@@ -780,9 +833,7 @@ public final class FlowReconciler {
             }
             if (fromNetwork > 0) {
                 networkSourced.merge(key, fromNetwork, Long::sum);
-                IAEItemStack usedStack = key.copy();
-                usedStack.setStackSize(fromNetwork);
-                Ae2CraftingReflect.getNodeUsed(rootNode).add(usedStack);
+                // used 显示记账由重演前的预登记统一负责(与重演脱钩),此处不再写树
             }
         }
         return new ExtractOutcome(extracted, fromNetwork);

@@ -3,7 +3,7 @@ package com.github.aeddddd.ae2enhanced.omnitool.module;
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
 import com.github.aeddddd.ae2enhanced.config.AE2EnhancedConfig;
 import com.github.aeddddd.ae2enhanced.item.ItemAdvancedMEOmniTool;
-import com.github.aeddddd.ae2enhanced.mixin.late.accessor.IEntityLivingBaseAccessor;
+import com.github.aeddddd.ae2enhanced.util.reflection.VanillaReflectionHelper;
 import com.github.aeddddd.ae2enhanced.omnitool.OmniToolNBT;
 import com.github.aeddddd.ae2enhanced.util.BossDropHelper;
 import com.github.aeddddd.ae2enhanced.util.ForceKillHelper;
@@ -231,12 +231,11 @@ public class CombatModule implements IOmniToolModule {
     }
 
     /**
-     * 通过 accessor 设置 EntityLivingBase 的玩家击杀标记，帮助依赖该标记的 Boss 掉落逻辑正常触发。
+     * 通过反射设置 EntityLivingBase 的玩家击杀标记，帮助依赖该标记的 Boss 掉落逻辑正常触发。
      */
     private static void markAsPlayerKill(EntityLivingBase target, EntityPlayer player) {
-        IEntityLivingBaseAccessor acc = (IEntityLivingBaseAccessor) target;
-        acc.ae2e$setAttackingPlayer(player);
-        acc.ae2e$setRecentlyHit(100);
+        VanillaReflectionHelper.setAttackingPlayer(target, player);
+        VanillaReflectionHelper.setRecentlyHit(target, 100);
     }
 
     // ==================== Anti-Heal ====================

@@ -4,6 +4,7 @@ import com.github.aeddddd.ae2enhanced.AE2Enhanced;
 import com.github.aeddddd.ae2enhanced.network.packet.PacketSetSlotAmount;
 import net.minecraft.client.gui.GuiButton;
 import net.minecraft.client.gui.GuiScreen;
+import net.minecraft.client.resources.I18n;
 import net.minecraft.client.gui.GuiTextField;
 import net.minecraft.client.renderer.GlStateManager;
 import net.minecraft.util.ResourceLocation;
@@ -18,7 +19,8 @@ import java.io.IOException;
  */
 public class GuiOmniAmount extends GuiScreen {
 
-    private static final ResourceLocation BG = new ResourceLocation("appliedenergistics2", "textures/guis/craft_amt.png");
+    /** 数量弹窗底：AE2 19.2.17 的官方 craft_amt.png（源矩形 0,0,176,107 与其 craft_amount.json 一致）。 */
+    private static final ResourceLocation BG = com.github.aeddddd.ae2enhanced.client.gui.dock.Ae2ModernArt.CRAFT_AMT;
 
     private final GuiScreen parent;
     private final int invType;
@@ -62,10 +64,10 @@ public class GuiOmniAmount extends GuiScreen {
         this.minus1000 = new GuiButton(7, cx + 120, cy + 75, 38, 20, "-1k");
         this.buttonList.add(this.minus1000);
 
-        this.confirmBtn = new GuiButton(8, cx + 128, cy + 51, 38, 20, "确认");
+        this.confirmBtn = new GuiButton(8, cx + 128, cy + 51, 38, 20, I18n.format("gui.ae2enhanced.omni_amount.confirm"));
         this.buttonList.add(this.confirmBtn);
 
-        this.cancelBtn = new GuiButton(9, cx + 10, cy + 51, 46, 20, "取消");
+        this.cancelBtn = new GuiButton(9, cx + 10, cy + 51, 46, 20, I18n.format("gui.ae2enhanced.omni_amount.cancel"));
         this.buttonList.add(this.cancelBtn);
 
         this.amountField = new GuiTextField(0, this.fontRenderer, cx + 62, cy + 57, 59, this.fontRenderer.FONT_HEIGHT);
@@ -85,16 +87,15 @@ public class GuiOmniAmount extends GuiScreen {
         int cx = (this.width - 176) / 2;
         int cy = (this.height - 107) / 2;
 
-        // 绘制 AE2 craft_amt.png 背景
-        this.mc.getTextureManager().bindTexture(BG);
-        GlStateManager.color(1.0F, 1.0F, 1.0F, 1.0F);
-        this.drawTexturedModalRect(cx, cy, 0, 0, 176, 107);
+        // 绘制 AE2 19.x craft_amt.png 背景（176x107）
+        com.github.aeddddd.ae2enhanced.client.gui.dock.NinePatch.drawAmountDialog(cx, cy, 0.0F);
 
         // 绘制文本框
         this.amountField.drawTextBox();
 
         // 绘制标题
-        this.fontRenderer.drawString("设置数量", cx + 8, cy + 6, 0x404040);
+        this.fontRenderer.drawString(I18n.format("gui.ae2enhanced.omni_amount.title"), cx + 8, cy + 6,
+                com.github.aeddddd.ae2enhanced.client.gui.dock.ChromeLayout.COLOR_TITLE_TEXT);
 
         super.drawScreen(mouseX, mouseY, partialTicks);
     }

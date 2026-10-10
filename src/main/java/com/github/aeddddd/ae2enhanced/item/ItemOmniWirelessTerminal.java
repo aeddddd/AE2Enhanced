@@ -38,11 +38,16 @@ import java.util.UUID;
 public class ItemOmniWirelessTerminal extends AEBasePoweredItem implements IWirelessTermHandler, baubles.api.IBauble {
 
     public ItemOmniWirelessTerminal() {
+        this("omni_wireless_terminal");
+    }
+
+    /** 供子类（V2）指定自己的注册名——setRegistryName 只能调用一次，父类不得先占。 */
+    protected ItemOmniWirelessTerminal(String registryName) {
         super(AEConfig.instance().getWirelessTerminalBattery());
         setMaxStackSize(1);
         setCreativeTab(AE2Enhanced.CREATIVE_TAB);
-        setTranslationKey("ae2enhanced.omni_wireless_terminal");
-        setRegistryName("omni_wireless_terminal");
+        setTranslationKey("ae2enhanced." + registryName);
+        setRegistryName(registryName);
         AEApi.instance().registries().wireless().registerWirelessHandler(this);
     }
 

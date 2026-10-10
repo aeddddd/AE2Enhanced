@@ -4,17 +4,16 @@ import appeng.api.networking.crafting.ICraftingPatternDetails;
 import appeng.api.networking.security.IActionSource;
 import appeng.api.storage.data.IAEItemStack;
 import appeng.api.storage.data.IAEStack;
-import appeng.util.item.AEItemStack;
 import com.github.aeddddd.ae2enhanced.centralinterface.HandlerCapabilities;
 import com.github.aeddddd.ae2enhanced.centralinterface.IVirtualBatchCraftingHandler;
 import com.github.aeddddd.ae2enhanced.centralinterface.TargetSession;
+import com.github.aeddddd.ae2enhanced.centralinterface.recipe.IngredientMatcher;
+import com.github.aeddddd.ae2enhanced.centralinterface.recipe.RecipeCosts;
 import net.minecraft.inventory.InventoryCrafting;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.crafting.IRecipe;
-import net.minecraft.item.crafting.Ingredient;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.EnumParticleTypes;
-import net.minecraft.util.NonNullList;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
 
@@ -22,9 +21,7 @@ import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumSet;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 /**
  * Extended Crafting 工作台虚拟合成处理器.
@@ -128,7 +125,7 @@ public class ExtendedCraftingTableHandler implements IVirtualBatchCraftingHandle
         return Collections.emptyList();
     }
 
-    // ---- IVirtualBatchCraftingHandler（旧签名兼容） ----
+    // ---- IVirtualBatchCraftingHandler（兼容重载） ----
 
     @Override
     public boolean canCraftVirtually(World world, BlockPos pos, InventoryCrafting ingredients, IAEItemStack[] outputs) {
@@ -152,7 +149,9 @@ public class ExtendedCraftingTableHandler implements IVirtualBatchCraftingHandle
     @Override
     public boolean canCraftVirtually(World world, BlockPos pos, InventoryCrafting ingredients,
                                      IAEItemStack[] outputs, ICraftingPatternDetails details) {
-        return findRecipe(world, pos, outputs) != null;
+        // 要求样板声明的输入真的能构成配方：只检查"配方表里存在同输出的配方"会让
+        // "任意输入 + 真产物样板"凭空刷出真产物（成本却按配方计算 —— 用料与产物脱钩）。
+        return IngredientMatcher.matches(ingredients, findRecipe(world, pos, outputs));
     }
 
     @Override
@@ -160,7 +159,7 @@ public class ExtendedCraftingTableHandler implements IVirtualBatchCraftingHandle
                                          IAEItemStack[] outputs, long count, ICraftingPatternDetails details) {
         IRecipe recipe = findRecipe(world, pos, outputs);
         if (recipe == null) return Collections.emptyList();
-        return recipeToCosts(recipe, count);
+        return RecipeCosts.fromIngredients(recipe.getIngredients(), count);
     }
 
     @Override
@@ -211,41 +210,13 @@ public class ExtendedCraftingTableHandler implements IVirtualBatchCraftingHandle
             for (IRecipe recipe : recipes) {
                 int tier = getRecipeTier(recipe);
                 if (tier > 0 && tier != gridTier) continue;
-                if (outputsMatch(recipe.getRecipeOutput(), output)) {
+                if (RecipeCosts.outputMatches(recipe.getRecipeOutput(), output)) {
                     matches.add(recipe);
                 }
             }
         } catch (Exception ignored) {
         }
         return matches;
-    }
-
-    private static List<IAEStack> recipeToCosts(IRecipe recipe, long count) {
-        NonNullList<Ingredient> ingredients = recipe.getIngredients();
-        if (ingredients == null) return Collections.emptyList();
-
-        Map<ItemKey, Long> merged = new HashMap<>();
-        for (Ingredient ing : ingredients) {
-            if (ing == null || ing == Ingredient.EMPTY) continue;
-            ItemStack[] matching = ing.getMatchingStacks();
-            if (matching == null || matching.length == 0) continue;
-            for (ItemStack stack : matching) {
-                if (stack != null && !stack.isEmpty()) {
-                    merged.merge(new ItemKey(stack), count, Long::sum);
-                    break;
-                }
-            }
-        }
-
-        List<IAEStack> costs = new ArrayList<>();
-        for (Map.Entry<ItemKey, Long> entry : merged.entrySet()) {
-            IAEItemStack cost = AEItemStack.fromItemStack(entry.getKey().representative.copy());
-            if (cost != null) {
-                cost.setStackSize(entry.getValue());
-                costs.add(cost);
-            }
-        }
-        return costs;
     }
 
     // ---- 辅助方法 ----
@@ -271,52 +242,5 @@ public class ExtendedCraftingTableHandler implements IVirtualBatchCraftingHandle
         if (size < 26) return 2;
         if (size < 50) return 3;
         return 4;
-    }
-
-    /**
-     * 输出匹配：比较 Item + Metadata + Count + NBT。
-     * 若 expected 有 NBT 则必须完全一致，否则仍可能匹配到 NBT 不同的配方。
-     */
-    private static boolean outputsMatch(ItemStack recipeOutput, ItemStack expected) {
-        if (recipeOutput.isEmpty() || expected.isEmpty()) return false;
-        if (recipeOutput.getItem() != expected.getItem()) return false;
-        if (recipeOutput.getMetadata() != expected.getMetadata()) return false;
-        if (recipeOutput.getCount() != expected.getCount()) return false;
-        if (expected.hasTagCompound() && !ItemStack.areItemStackTagsEqual(recipeOutput, expected)) {
-            return false;
-        }
-        return true;
-    }
-
-    private static final class ItemKey {
-        final net.minecraft.item.Item item;
-        final int meta;
-        final net.minecraft.nbt.NBTTagCompound nbt;
-        final ItemStack representative;
-
-        ItemKey(ItemStack stack) {
-            this.item = stack.getItem();
-            this.meta = stack.getMetadata();
-            this.nbt = stack.hasTagCompound() ? stack.getTagCompound().copy() : null;
-            this.representative = stack.copy();
-            this.representative.setCount(1);
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (!(o instanceof ItemKey)) return false;
-            ItemKey other = (ItemKey) o;
-            return this.item == other.item && this.meta == other.meta &&
-                    (this.nbt == null ? other.nbt == null : this.nbt.equals(other.nbt));
-        }
-
-        @Override
-        public int hashCode() {
-            int result = item.hashCode();
-            result = 31 * result + meta;
-            result = 31 * result + (nbt != null ? nbt.hashCode() : 0);
-            return result;
-        }
     }
 }

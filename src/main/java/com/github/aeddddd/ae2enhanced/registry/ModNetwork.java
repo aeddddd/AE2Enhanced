@@ -15,6 +15,7 @@ import com.github.aeddddd.ae2enhanced.network.packet.PacketOmniTermAction;
 import com.github.aeddddd.ae2enhanced.network.packet.PacketLoadOmniRecipe;
 import com.github.aeddddd.ae2enhanced.network.packet.PacketOmniCraftingUpdate;
 import com.github.aeddddd.ae2enhanced.network.packet.PacketOmniPageRequest;
+import com.github.aeddddd.ae2enhanced.network.packet.PacketOmniLayout;
 import com.github.aeddddd.ae2enhanced.network.packet.PacketOmniPageResult;
 import com.github.aeddddd.ae2enhanced.network.packet.PacketOmniUpdateNotify;
 import com.github.aeddddd.ae2enhanced.network.packet.PacketOpenOmniTerminal;
@@ -63,7 +64,7 @@ import net.minecraftforge.fml.relauncher.Side;
  *
  * <p>discriminator 维护说明：全部包 ID 已从 0 起重排为单调递增的连续编号。
  * 新增网络包请从末尾递增分配，并同步更新此注释中的下一个可用 ID。
- * 下一个可用 ID：58</p>
+ * 下一个可用 ID：60（47 为预留空号）</p>
  */
 public final class ModNetwork {
 
@@ -142,5 +143,8 @@ public final class ModNetwork {
                 com.github.aeddddd.ae2enhanced.network.packet.PacketChunkPowerNodeAction.class, 57, Side.SERVER);
         nw.registerMessage(com.github.aeddddd.ae2enhanced.network.packet.PacketEMCInterfaceMode.Handler.class,
                 com.github.aeddddd.ae2enhanced.network.packet.PacketEMCInterfaceMode.class, 58, Side.SERVER);
+        nw.registerMessage(com.github.aeddddd.ae2enhanced.network.packet.PacketCentralBindingOutline.Handler.class,
+                com.github.aeddddd.ae2enhanced.network.packet.PacketCentralBindingOutline.class, 59, Side.CLIENT);
+        nw.registerMessage(PacketOmniLayout.Handler.class, PacketOmniLayout.class, 60, Side.SERVER);
     }
 }

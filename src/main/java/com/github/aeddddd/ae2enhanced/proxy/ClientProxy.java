@@ -96,6 +96,11 @@ public class ClientProxy extends CommonProxy {
         MinecraftForge.EVENT_BUS.register(new ChunkPowerHighlightRenderer());
         MinecraftForge.EVENT_BUS.register(new com.github.aeddddd.ae2enhanced.client.render.BindingLineRenderer());
 
+        // 停靠引擎开发演示屏：/ae2edockdemo 打开 GuiDockDemo（阶段 1 手工验证入口）
+        // TODO(AE2E): 正式发布前移除或加配置开关
+        net.minecraftforge.client.ClientCommandHandler.instance
+                .registerCommand(new com.github.aeddddd.ae2enhanced.client.gui.dock.DockDemoCommand());
+
         // 指南系统：资源重载加载页面 + 按住 G 热键
         if (AE2EnhancedConfig.guide.enabled) {
             com.github.aeddddd.ae2enhanced.guide.GuideManager.init();
@@ -311,6 +316,9 @@ public class ClientProxy extends CommonProxy {
 
         // Omni 无线终端物品模型
         registerItemModel(ItemRegistry.OMNI_WIRELESS_TERMINAL);
+        // 第二代(可拼接终端):模型 JSON 复用同一张图标
+        // TODO(AE2E): 阶段 5 换独立美术(第二代终端图标)
+        registerItemModel(ItemRegistry.OMNI_WIRELESS_TERMINAL_II);
         registerItemModel(ItemRegistry.SMART_BLANK_PATTERN);
         registerItemModel(ItemRegistry.SMART_PATTERN);
         registerItemModel(ItemRegistry.ENERGY_DROP);

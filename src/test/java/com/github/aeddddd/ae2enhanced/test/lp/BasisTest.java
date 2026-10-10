@@ -10,6 +10,7 @@ import java.util.TreeMap;
 
 import org.junit.jupiter.api.Test;
 
+import com.github.aeddddd.ae2enhanced.specialcrafting.lp.LpModel;
 import com.github.aeddddd.ae2enhanced.specialcrafting.lp.SparseMatrix;
 
 /**
@@ -123,6 +124,126 @@ public class BasisTest {
             invokeVec("ftran", basis, x);
             assertEquals(0, residual(a, x, b), EPS * m, "FTRAN 残差 case " + t);
         }
+    }
+
+    /**
+     * FTRAN/BTRAN 不得改变因子化状态(可重复调用) — P-A 热启动复用旧基的前提:
+     * 同一个 {@code Basis} 在不同右端上反复使用, 每次都必须给出与物化基一致的结果.
+     */
+    @Test
+    public void testFactorIsReusableAcrossRightHandSides() throws Exception {
+        Random rnd = new Random(20261011L);
+        for (int t = 0; t < 30; t++) {
+            int m = 5 + rnd.nextInt(60);
+            SparseMatrix a = randomBasis(rnd, m);
+            Object basis = factorizeBasis(m, a);
+            double[] b1 = new double[m];
+            double[] b2 = new double[m];
+            for (int i = 0; i < m; i++) {
+                b1[i] = -50 + rnd.nextDouble() * 100;
+                b2[i] = -50 + rnd.nextDouble() * 100;
+            }
+            double[] x1 = b1.clone();
+            double[] x1again = b1.clone();
+            invokeVec("ftran", basis, x1);
+            invokeVec("ftran", basis, x1again);
+            for (int i = 0; i < m; i++) {
+                assertEquals(Double.doubleToLongBits(x1[i]), Double.doubleToLongBits(x1again[i]),
+                        "同一 Basis 重复 FTRAN 结果不逐位一致 case " + t);
+            }
+            double[] x2 = b2.clone();
+            invokeVec("ftran", basis, x2);
+            assertEquals(0, residual(a, x1, b1), EPS * m, "复用后第一次 FTRAN 残差 case " + t);
+            assertEquals(0, residual(a, x2, b2), EPS * m, "复用后第二次 FTRAN 残差 case " + t);
+            // BTRAN 同样可重复且不破坏后续 FTRAN
+            double[] y = new double[m];
+            double[] yAgain = new double[m];
+            for (int i = 0; i < m; i++) {
+                y[i] = -50 + rnd.nextDouble() * 100;
+                yAgain[i] = y[i];
+            }
+            invokeVec("btran", basis, y);
+            invokeVec("btran", basis, yAgain);
+            for (int i = 0; i < m; i++) {
+                assertEquals(Double.doubleToLongBits(y[i]), Double.doubleToLongBits(yAgain[i]),
+                        "同一 Basis 重复 BTRAN 结果不逐位一致 case " + t);
+            }
+            double[] x3 = b1.clone();
+            invokeVec("ftran", basis, x3);
+            assertEquals(0, residual(a, x3, b1), EPS * m, "BTRAN 之后 FTRAN 残差 case " + t);
+        }
+    }
+
+    /**
+     * P-C 前提: 对逐位相同的系数矩阵, 记录的逐轮 Ruiz 因子必须能"重放"出与首次计算
+     * 逐位相同的缩放结果(a/b/cost/lower/upper 全部逐位比对) — 热启动与冷启动因此
+     * 在同一缩放空间里求解, 等价性才可能成立.
+     */
+    @Test
+    public void testScalingPlanReplayIsBitIdentical() throws Exception {
+        Random rnd = new Random(31337L);
+        Class<?> dualClass = Class.forName(
+                "com.github.aeddddd.ae2enhanced.specialcrafting.lp.DualSimplex");
+        Class<?> planClass = Class.forName(
+                "com.github.aeddddd.ae2enhanced.specialcrafting.lp.DualSimplex$ScalingPlan");
+        java.lang.reflect.Method compute = dualClass.getDeclaredMethod("computeScaling",
+                SparseMatrix.class, double[].class, double[].class, double[].class, double[].class,
+                long.class, boolean.class);
+        compute.setAccessible(true);
+        java.lang.reflect.Method apply = dualClass.getDeclaredMethod("applyScaling", planClass,
+                SparseMatrix.class, double[].class, double[].class, double[].class, double[].class);
+        apply.setAccessible(true);
+        for (int t = 0; t < 20; t++) {
+            int m = 4 + rnd.nextInt(30);
+            SparseMatrix a = randomBasis(rnd, m);
+            int n = a.cols;
+            double[] b = new double[m];
+            double[] cost = new double[n];
+            double[] lower = new double[n];
+            double[] upper = new double[n];
+            for (int i = 0; i < m; i++) {
+                b[i] = -20 + rnd.nextDouble() * 40; // 含 0 与负值, 覆盖符号规整
+            }
+            for (int j = 0; j < n; j++) {
+                cost[j] = rnd.nextDouble() < 0.3 ? 1 : 0;
+                lower[j] = 0;
+                upper[j] = rnd.nextDouble() < 0.3 ? 5 + rnd.nextInt(20) : LpModel.INF;
+            }
+            SparseMatrix a1 = copy(a);
+            double[] b1 = b.clone();
+            double[] c1 = cost.clone();
+            double[] lo1 = lower.clone();
+            double[] up1 = upper.clone();
+            Object plan = compute.invoke(null, a1, b1, c1, lo1, up1, 0L, Boolean.TRUE);
+
+            SparseMatrix a2 = copy(a);
+            double[] b2 = b.clone();
+            double[] c2 = cost.clone();
+            double[] lo2 = lower.clone();
+            double[] up2 = upper.clone();
+            apply.invoke(null, plan, a2, b2, c2, lo2, up2);
+
+            for (int p = 0; p < a1.values.length; p++) {
+                assertEquals(Double.doubleToLongBits(a1.values[p]),
+                        Double.doubleToLongBits(a2.values[p]), "重放后系数不逐位一致 case " + t);
+            }
+            for (int i = 0; i < m; i++) {
+                assertEquals(Double.doubleToLongBits(b1[i]), Double.doubleToLongBits(b2[i]),
+                        "重放后右端不逐位一致 case " + t);
+            }
+            for (int j = 0; j < n; j++) {
+                assertEquals(Double.doubleToLongBits(c1[j]), Double.doubleToLongBits(c2[j]),
+                        "重放后成本不逐位一致 case " + t);
+                assertEquals(Double.doubleToLongBits(lo1[j]), Double.doubleToLongBits(lo2[j]),
+                        "重放后下界不逐位一致 case " + t);
+                assertEquals(Double.doubleToLongBits(up1[j]), Double.doubleToLongBits(up2[j]),
+                        "重放后上界不逐位一致 case " + t);
+            }
+        }
+    }
+
+    private static SparseMatrix copy(SparseMatrix a) {
+        return SparseMatrix.of(a.rows, a.cols, a.colPtr.clone(), a.rowIdx.clone(), a.values.clone());
     }
 
     /**

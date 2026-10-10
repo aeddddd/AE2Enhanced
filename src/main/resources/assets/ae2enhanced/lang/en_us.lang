@@ -73,6 +73,7 @@ gui.ae2enhanced.plan_summary.total=Total: %s
 gui.ae2enhanced.plan_summary.stored=Available: %s
 gui.ae2enhanced.plan_summary.to_craft=To Craft: %s
 gui.ae2enhanced.plan_summary.missing=Missing: %s
+gui.ae2enhanced.plan_summary.unresolved=Unresolved units: %s (plan incomplete; not a shortage)
 gui.ae2enhanced.unformed.subtitle=Supercausal Assembly Hub
 gui.ae2enhanced.unformed.ready=Structure Complete — Ready to Assemble
 gui.ae2enhanced.unformed.hint=Click the button below to assemble
@@ -929,3 +930,83 @@ chat.ae2enhanced.plan.unnamed_cpu=(unnamed CPU)
 chat.ae2enhanced.plan.running_line=  %s output=%s progress=%s(%d/%d) coProcessors=%d elapsed=%ss
 chat.ae2enhanced.plan.running_line_no_elapsed=  %s output=%s progress=%s(%d/%d) coProcessors=%d
 chat.ae2enhanced.plan.running_none=  (no busy crafting CPUs)
+
+# Spliced Terminal dock panels
+gui.ae2enhanced.dock.float_window=Float this window
+gui.ae2enhanced.dock.combine_window=Make this window a combined module (click to pick 1, 2 or 3)
+gui.ae2enhanced.dock.combine_window.set=Combined module %s (click for the next slot, past 3 to release)
+gui.ae2enhanced.dock.pin_panel=Keep above anchored panels
+gui.ae2enhanced.dock.unpin_panel=Unpin
+gui.ae2enhanced.dock.content_edit.close=Exit panel editing
+gui.ae2enhanced.dock.content_edit.reset=Reset content position
+
+# Spliced Terminal dock demo (/ae2edockdemo)
+gui.ae2enhanced.dock.demo.repo=Storage Repo
+gui.ae2enhanced.dock.demo.crafting=Crafting Grid
+gui.ae2enhanced.dock.demo.pattern=Pattern Access
+gui.ae2enhanced.dock.demo.storage=Storage Monitor
+gui.ae2enhanced.dock.demo.inventory=Player Inventory
+gui.ae2enhanced.dock.demo.undo=Undo layout
+gui.ae2enhanced.dock.demo.save=Save layout
+gui.ae2enhanced.dock.demo.hint=Drag a title bar to move; drop on a leaf edge to splice; drag a divider to resize; Alt+drag a section title to split it out
+
+# Spliced Terminal (stage 2a)
+item.ae2enhanced.omni_wireless_terminal_ii.name=Omni Wireless Terminal II
+gui.ae2enhanced.spliced_term.playerinv=Inventory
+gui.ae2enhanced.spliced_term.viewcell=View Cells
+gui.ae2enhanced.spliced_term.repo=Storage Repo
+gui.ae2enhanced.spliced_term.crafting=Crafting
+gui.ae2enhanced.spliced_term.storage=Storage
+gui.ae2enhanced.spliced_term.upgrade=Upgrades
+gui.ae2enhanced.spliced_term.pattern=Pattern Encoding
+gui.ae2enhanced.spliced_term.pattern.mode.crafting=Crafting
+gui.ae2enhanced.spliced_term.pattern.mode.processing=Processing
+gui.ae2enhanced.spliced_term.module_switch.on=Visible - click to hide
+gui.ae2enhanced.spliced_term.module_switch.off=Hidden - click to show
+# Spliced terminal: layout editor (stage 4b)
+gui.ae2enhanced.spliced_editor.open=Edit layout
+gui.ae2enhanced.spliced_editor.title=Layout editor - drag windows, splice on edges, resize with the bottom-right grip
+gui.ae2enhanced.spliced_editor.undo=Undo
+gui.ae2enhanced.spliced_editor.reset=Defaults
+gui.ae2enhanced.spliced_editor.import=Import
+gui.ae2enhanced.spliced_editor.export=Copy
+gui.ae2enhanced.spliced_editor.share=Share
+gui.ae2enhanced.spliced_editor.done=Done
+gui.ae2enhanced.spliced_editor.cancel=Cancel
+gui.ae2enhanced.spliced_editor.rename=Rename
+gui.ae2enhanced.spliced_editor.preset.tab=Preset %s
+gui.ae2enhanced.spliced_editor.modules=Modules
+gui.ae2enhanced.spliced_editor.properties=Properties
+gui.ae2enhanced.spliced_editor.properties.none=Click a window or a module to edit it
+gui.ae2enhanced.spliced_editor.property.visible=Visible
+gui.ae2enhanced.spliced_editor.property.movable=Movable
+gui.ae2enhanced.spliced_editor.property.resizable=Resizable
+gui.ae2enhanced.spliced_editor.property.floating=Floating window
+gui.ae2enhanced.spliced_editor.property.visible.tip=Hides or shows this module. Hidden modules keep their contents.
+gui.ae2enhanced.spliced_editor.property.movable.tip=When off, this module cannot be dragged or detached.
+gui.ae2enhanced.spliced_editor.property.resizable.tip=When off, the window cannot be resized with the bottom-right grip.
+gui.ae2enhanced.spliced_editor.property.floating.tip=Makes the whole window a floating one that can be pinned on top.
+gui.ae2enhanced.spliced_editor.yes=on
+gui.ae2enhanced.spliced_editor.no=off
+gui.ae2enhanced.spliced_editor.module.hide=Click to hide
+gui.ae2enhanced.spliced_editor.module.show=Click to show
+gui.ae2enhanced.spliced_editor.module.drag=Drag into the canvas to place it
+gui.ae2enhanced.spliced_editor.hint.palette=Drag a module from the list into the canvas
+gui.ae2enhanced.spliced_editor.hint.drag=Drag a title bar to move; drop on a leaf edge to splice
+gui.ae2enhanced.spliced_editor.hint.splice=Alt+drag a section title to split it out
+gui.ae2enhanced.spliced_editor.hint.resize=Drag the bottom-right grip or a divider to resize
+gui.ae2enhanced.spliced_editor.status.cannot_hide=Cannot hide: the terminal needs this module
+gui.ae2enhanced.spliced_editor.status.cannot_float=Cannot float: at least one docked window must stay visible
+gui.ae2enhanced.spliced_editor.status.nothing_to_undo=Nothing to undo
+gui.ae2enhanced.spliced_editor.status.reset=Restored the default layout
+gui.ae2enhanced.spliced_editor.import.ok=Imported layout from the clipboard
+gui.ae2enhanced.spliced_editor.import.empty=Clipboard is empty
+gui.ae2enhanced.spliced_editor.import.invalid=Clipboard does not contain a valid layout
+gui.ae2enhanced.spliced_editor.import.fail=Layout presets are unavailable
+gui.ae2enhanced.spliced_editor.export.ok=Exported the presets to
+gui.ae2enhanced.spliced_editor.export.copied=Layout copied to the clipboard
+gui.ae2enhanced.spliced_editor.export.fail=Export failed
+
+gui.ae2enhanced.omni_amount.title=Select amount
+gui.ae2enhanced.omni_amount.confirm=Confirm
+gui.ae2enhanced.omni_amount.cancel=Cancel

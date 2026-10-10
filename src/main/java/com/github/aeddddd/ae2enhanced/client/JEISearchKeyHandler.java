@@ -45,54 +45,33 @@ public class JEISearchKeyHandler {
 
     /**
      * 执行 JEI 搜索,携带鼠标 GUI 坐标以支持 fallback 检测(HEI 收藏栏等).
-     * @return true 表示成功设置了搜索文本并应拦截原按键事件；false 表示未执行搜索
+     * @return true 表示成功设置了搜索文本并应拦截原按键事件; false 表示未执行搜索
      */
     public static boolean performSearch(GuiMEMonitorable gui, int mouseX, int mouseY) {
         MEGuiTextField searchField = ((IGuiMEMonitorableAccessor) gui).ae2e$getSearchField();
-        if (searchField == null) return false;
-        if (searchField.isFocused()) return false; // 搜索栏已聚焦时不触发,避免打断输入
+        if (searchField == null || searchField.isFocused()) return false;
+        IGuiMEMonitorableAccessor acc = (IGuiMEMonitorableAccessor) gui;
+        return performSearch(searchField, acc.ae2e$getRepo(), acc::ae2e$invokeSetScrollBar, mouseX, mouseY);
+    }
 
-        // 获取 JEI 悬停物品：先查物品列表,再查收藏栏
+    /**
+     * 通用重载：不依赖 {@code GuiMEMonitorable}，供可拼接终端（{@code GuiSplicedTerm}）这类
+     * 自持搜索框/repo 的 GUI 复用同一套 JEI/HEI 悬停物品解析逻辑。
+     *
+     * @param searchField      目标搜索框（已聚焦时不触发,避免打断输入）
+     * @param repo             终端 repo（可为 null）
+     * @param scrollBarRefresh 搜索词写入后的滚动条刷新回调（可为 null）
+     * @return true 表示成功设置了搜索文本并应拦截原按键事件
+     */
+    public static boolean performSearch(MEGuiTextField searchField, ItemRepo repo,
+            Runnable scrollBarRefresh, int mouseX, int mouseY) {
+        if (searchField == null || searchField.isFocused()) return false;
         if (jeiRuntime == null) {
             AE2Enhanced.LOGGER.debug("[AE2E] JEI runtime is null, skipping search");
             return false;
         }
-        Object ingredient = null;
 
-        IIngredientListOverlay listOverlay = jeiRuntime.getIngredientListOverlay();
-        if (listOverlay != null) {
-            ingredient = listOverlay.getIngredientUnderMouse();
-            if (ingredient != null) {
-                AE2Enhanced.LOGGER.debug("[AE2E] Found ingredient in IngredientListOverlay");
-            }
-        }
-        if (ingredient == null) {
-            IBookmarkOverlay bookmarkOverlay = jeiRuntime.getBookmarkOverlay();
-            if (bookmarkOverlay != null) {
-                ingredient = bookmarkOverlay.getIngredientUnderMouse();
-                if (ingredient != null) {
-                    AE2Enhanced.LOGGER.debug("[AE2E] Found ingredient in BookmarkOverlay (no-arg)");
-                } else if (mouseX != 0 || mouseY != 0) {
-                    // Fallback: HEI 的 BookmarkOverlay 在某些情况下无参方法返回 null,
-                    // 但 getIngredientUnderMouse(int, int) 可以正常工作
-                    try {
-                        java.lang.reflect.Method method = bookmarkOverlay.getClass()
-                                .getMethod("getIngredientUnderMouse", int.class, int.class);
-                        Object clickedIngredient = method.invoke(bookmarkOverlay, mouseX, mouseY);
-                        if (clickedIngredient != null) {
-                            java.lang.reflect.Method getValue = clickedIngredient.getClass()
-                                    .getMethod("getValue");
-                            ingredient = getValue.invoke(clickedIngredient);
-                            if (ingredient != null) {
-                                AE2Enhanced.LOGGER.debug("[AE2E] Found ingredient in BookmarkOverlay via fallback (int,int) at ({}, {})", mouseX, mouseY);
-                            }
-                        }
-                    } catch (Exception e) {
-                        AE2Enhanced.LOGGER.debug("[AE2E] BookmarkOverlay fallback reflection failed", e);
-                    }
-                }
-            }
-        }
+        Object ingredient = findHoveredIngredient(mouseX, mouseY);
         if (ingredient == null) {
             AE2Enhanced.LOGGER.debug("[AE2E] No JEI ingredient found under mouse at ({}, {})", mouseX, mouseY);
             return false;
@@ -105,10 +84,7 @@ public class JEISearchKeyHandler {
         try {
             searchField.setText(searchText);
 
-            IGuiMEMonitorableAccessor acc = (IGuiMEMonitorableAccessor) gui;
-
             // 更新 repo 搜索字符串(立即生效,无需等待 drawScreen)
-            ItemRepo repo = acc.ae2e$getRepo();
             if (repo != null) {
                 repo.setSearchString(searchText);
             }
@@ -117,7 +93,9 @@ public class JEISearchKeyHandler {
             IGuiMEMonitorableAccessor.ae2e$setMemoryText(searchText);
 
             // 调整滚动条以匹配新的搜索结果数量
-            acc.ae2e$invokeSetScrollBar();
+            if (scrollBarRefresh != null) {
+                scrollBarRefresh.run();
+            }
 
             AE2Enhanced.LOGGER.debug("[AE2E] JEI search key pressed: set terminal search to '{}'", searchText);
         } catch (Exception e) {
@@ -125,6 +103,51 @@ public class JEISearchKeyHandler {
             return false;
         }
         return true;
+    }
+
+    /** 取光标下的 JEI 物品：先查物品列表,再查收藏栏(含 HEI 的 (int,int) fallback). */
+    private static Object findHoveredIngredient(int mouseX, int mouseY) {
+        Object ingredient = null;
+        IIngredientListOverlay listOverlay = jeiRuntime.getIngredientListOverlay();
+        if (listOverlay != null) {
+            ingredient = listOverlay.getIngredientUnderMouse();
+            if (ingredient != null) {
+                AE2Enhanced.LOGGER.debug("[AE2E] Found ingredient in IngredientListOverlay");
+            }
+        }
+        if (ingredient != null) {
+            return ingredient;
+        }
+        IBookmarkOverlay bookmarkOverlay = jeiRuntime.getBookmarkOverlay();
+        if (bookmarkOverlay == null) {
+            return null;
+        }
+        ingredient = bookmarkOverlay.getIngredientUnderMouse();
+        if (ingredient != null) {
+            AE2Enhanced.LOGGER.debug("[AE2E] Found ingredient in BookmarkOverlay (no-arg)");
+            return ingredient;
+        }
+        if (mouseX == 0 && mouseY == 0) {
+            return null;
+        }
+        // Fallback: HEI 的 BookmarkOverlay 在某些情况下无参方法返回 null,
+        // 但 getIngredientUnderMouse(int, int) 可以正常工作
+        try {
+            java.lang.reflect.Method method = bookmarkOverlay.getClass()
+                    .getMethod("getIngredientUnderMouse", int.class, int.class);
+            Object clickedIngredient = method.invoke(bookmarkOverlay, mouseX, mouseY);
+            if (clickedIngredient != null) {
+                java.lang.reflect.Method getValue = clickedIngredient.getClass()
+                        .getMethod("getValue");
+                ingredient = getValue.invoke(clickedIngredient);
+                if (ingredient != null) {
+                    AE2Enhanced.LOGGER.debug("[AE2E] Found ingredient in BookmarkOverlay via fallback (int,int) at ({}, {})", mouseX, mouseY);
+                }
+            }
+        } catch (Exception e) {
+            AE2Enhanced.LOGGER.debug("[AE2E] BookmarkOverlay fallback reflection failed", e);
+        }
+        return ingredient;
     }
 
     private static String extractSearchText(Object ingredient) {

@@ -30,14 +30,17 @@ public final class RoundQuotaScheduler {
      */
     public static final class Quota {
         public final Map<ICraftingPatternDetails, Long> perRound;
+        /** 闭包总轮次(GCD 约分;GCD=1 时退化为闭包最小总次数);无配额恒 0. */
+        public final long rounds;
 
-        Quota(Map<ICraftingPatternDetails, Long> perRound) {
+        Quota(Map<ICraftingPatternDetails, Long> perRound, long rounds) {
             this.perRound = perRound;
+            this.rounds = rounds;
         }
     }
 
     /** 无配额标记（非自消耗 job:所有 pattern 自由推送）. */
-    private static final Quota NO_QUOTA = new Quota(Collections.emptyMap());
+    private static final Quota NO_QUOTA = new Quota(Collections.emptyMap(), 0L);
 
     /** cluster → 提交时的 tasks 次数快照（弱键,集群回收自动清理）. */
     private static final Map<CraftingCPUCluster, Map<ICraftingPatternDetails, Long>> TOTALS = Collections
@@ -167,7 +170,7 @@ public final class RoundQuotaScheduler {
         for (Map.Entry<ICraftingPatternDetails, Long> entry : closureTotals.entrySet()) {
             perRound.put(entry.getKey(), Math.max(1L, entry.getValue() / rounds));
         }
-        return new Quota(perRound);
+        return new Quota(perRound, rounds);
     }
 
     /**

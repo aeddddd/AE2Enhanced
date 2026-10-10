@@ -73,6 +73,7 @@ gui.ae2enhanced.plan_summary.total=总计: %s
 gui.ae2enhanced.plan_summary.stored=库存: %s
 gui.ae2enhanced.plan_summary.to_craft=待合成: %s
 gui.ae2enhanced.plan_summary.missing=缺料: %s
+gui.ae2enhanced.plan_summary.unresolved=未解出单元: %s (规划未完整,非缺料)
 gui.ae2enhanced.unformed.subtitle=超因果装配枢纽
 gui.ae2enhanced.unformed.ready=结构完整 - 可以组装
 gui.ae2enhanced.unformed.hint=点击下方按钮进行组装
@@ -928,3 +929,83 @@ chat.ae2enhanced.plan.unnamed_cpu=(未命名CPU)
 chat.ae2enhanced.plan.running_line=  %s 输出=%s 进度=%s(%d/%d) 协处理器=%d 已运行=%ss
 chat.ae2enhanced.plan.running_line_no_elapsed=  %s 输出=%s 进度=%s(%d/%d) 协处理器=%d
 chat.ae2enhanced.plan.running_none=  (无忙碌中的合成 CPU)
+
+# Spliced Terminal dock panels
+gui.ae2enhanced.dock.float_window=让该窗口浮动
+gui.ae2enhanced.dock.combine_window=把该窗口设为组合模块（点击可切换 1、2、3）
+gui.ae2enhanced.dock.combine_window.set=组合模块 %s（点击切到下一个槽位，超过 3 则释放）
+gui.ae2enhanced.dock.pin_panel=保持在固定面板之上
+gui.ae2enhanced.dock.unpin_panel=取消置顶
+gui.ae2enhanced.dock.content_edit.close=退出面板编辑
+gui.ae2enhanced.dock.content_edit.reset=重置内容位置
+
+# Spliced Terminal dock demo (/ae2edockdemo)
+gui.ae2enhanced.dock.demo.repo=存储仓库
+gui.ae2enhanced.dock.demo.crafting=合成网格
+gui.ae2enhanced.dock.demo.pattern=样板访问
+gui.ae2enhanced.dock.demo.storage=存储监视器
+gui.ae2enhanced.dock.demo.inventory=玩家背包
+gui.ae2enhanced.dock.demo.undo=撤销布局
+gui.ae2enhanced.dock.demo.save=保存布局
+gui.ae2enhanced.dock.demo.hint=拖标题栏移动；拖到面板边缘释放可拼接；拖分隔条调整大小；Alt+拖区段标题可拆出独立窗口
+
+# Spliced Terminal (stage 2a)
+item.ae2enhanced.omni_wireless_terminal_ii.name=全能无线终端 II
+gui.ae2enhanced.spliced_term.playerinv=背包
+gui.ae2enhanced.spliced_term.viewcell=视图元件
+gui.ae2enhanced.spliced_term.repo=物品仓库
+gui.ae2enhanced.spliced_term.crafting=合成
+gui.ae2enhanced.spliced_term.storage=存储
+gui.ae2enhanced.spliced_term.upgrade=升级卡
+gui.ae2enhanced.spliced_term.pattern=样板编码
+gui.ae2enhanced.spliced_term.pattern.mode.crafting=合成
+gui.ae2enhanced.spliced_term.pattern.mode.processing=处理
+gui.ae2enhanced.spliced_term.module_switch.on=显示中 - 点击关闭
+gui.ae2enhanced.spliced_term.module_switch.off=已关闭 - 点击显示
+# 可拼接终端：布局编辑器（阶段 4b）
+gui.ae2enhanced.spliced_editor.open=编辑布局
+gui.ae2enhanced.spliced_editor.title=布局编辑器 - 拖窗口移动、贴边缘拼接、右下握把缩放
+gui.ae2enhanced.spliced_editor.undo=撤销
+gui.ae2enhanced.spliced_editor.reset=恢复默认
+gui.ae2enhanced.spliced_editor.import=导入
+gui.ae2enhanced.spliced_editor.export=复制
+gui.ae2enhanced.spliced_editor.share=分享
+gui.ae2enhanced.spliced_editor.done=完成
+gui.ae2enhanced.spliced_editor.cancel=取消
+gui.ae2enhanced.spliced_editor.rename=命名
+gui.ae2enhanced.spliced_editor.preset.tab=预设 %s
+gui.ae2enhanced.spliced_editor.modules=模块
+gui.ae2enhanced.spliced_editor.properties=属性
+gui.ae2enhanced.spliced_editor.properties.none=点一个窗口或模块来编辑它
+gui.ae2enhanced.spliced_editor.property.visible=可见
+gui.ae2enhanced.spliced_editor.property.movable=可移动
+gui.ae2enhanced.spliced_editor.property.resizable=可缩放
+gui.ae2enhanced.spliced_editor.property.floating=浮动窗口
+gui.ae2enhanced.spliced_editor.property.visible.tip=显示或隐藏该模块；隐藏不会丢内容。
+gui.ae2enhanced.spliced_editor.property.movable.tip=关闭后该模块不能被拖动，也不能被拆出来。
+gui.ae2enhanced.spliced_editor.property.resizable.tip=关闭后不能用右下握把缩放该窗口。
+gui.ae2enhanced.spliced_editor.property.floating.tip=把整个窗口变成可置顶的浮动窗口。
+gui.ae2enhanced.spliced_editor.yes=开
+gui.ae2enhanced.spliced_editor.no=关
+gui.ae2enhanced.spliced_editor.module.hide=点击隐藏
+gui.ae2enhanced.spliced_editor.module.show=点击显示
+gui.ae2enhanced.spliced_editor.module.drag=拖进画布即可摆放
+gui.ae2enhanced.spliced_editor.hint.palette=从模块清单拖进画布即可摆放
+gui.ae2enhanced.spliced_editor.hint.drag=拖标题栏移动；丢到叶子边缘即可拼接
+gui.ae2enhanced.spliced_editor.hint.splice=Alt+拖区段标题可拆出成独立窗口
+gui.ae2enhanced.spliced_editor.hint.resize=拖右下握把或分隔条缩放
+gui.ae2enhanced.spliced_editor.status.cannot_hide=不能隐藏：终端需要这个模块
+gui.ae2enhanced.spliced_editor.status.cannot_float=不能浮动：至少要保留一个停靠窗口可见
+gui.ae2enhanced.spliced_editor.status.nothing_to_undo=没有可撤销的操作
+gui.ae2enhanced.spliced_editor.status.reset=已恢复默认布局
+gui.ae2enhanced.spliced_editor.import.ok=已从剪贴板导入布局
+gui.ae2enhanced.spliced_editor.import.empty=剪贴板是空的
+gui.ae2enhanced.spliced_editor.import.invalid=剪贴板里没有可用的布局
+gui.ae2enhanced.spliced_editor.import.fail=预设银行不可用
+gui.ae2enhanced.spliced_editor.export.ok=预设已导出到
+gui.ae2enhanced.spliced_editor.export.copied=布局已复制到剪贴板
+gui.ae2enhanced.spliced_editor.export.fail=导出失败
+
+gui.ae2enhanced.omni_amount.title=设置数量
+gui.ae2enhanced.omni_amount.confirm=确认
+gui.ae2enhanced.omni_amount.cancel=取消

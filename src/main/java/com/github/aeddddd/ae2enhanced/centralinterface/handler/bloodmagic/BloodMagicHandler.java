@@ -7,6 +7,7 @@ import appeng.api.storage.data.IAEItemStack;
 import appeng.api.storage.data.IAEStack;
 import appeng.fluids.util.AEFluidStack;
 import appeng.util.item.AEItemStack;
+import com.github.aeddddd.ae2enhanced.centralinterface.HandlerUtils;
 import com.github.aeddddd.ae2enhanced.centralinterface.IRemoteHandler;
 import com.github.aeddddd.ae2enhanced.centralinterface.IVirtualBatchCraftingHandler;
 import net.minecraft.inventory.InventoryCrafting;
@@ -26,6 +27,9 @@ import net.minecraftforge.items.IItemHandler;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
+import java.util.function.Function;
+import java.util.function.Supplier;
 
 /**
  * Blood Magic 远程处理器.
@@ -180,7 +184,7 @@ public class BloodMagicHandler implements IRemoteHandler, IVirtualBatchCraftingH
         if (outputs == null || outputs.length == 0 || outputs[0] == null) return false;
         Object recipe = findAlchemyRecipeByOutput(outputs[0].createItemStack());
         if (recipe == null) return false;
-        return matchIngredients(BloodMagicReflectionHelper.alchemyRecipeGetInput(recipe), collectNonEmpty(ingredients));
+        return matchIngredients(BloodMagicReflectionHelper.alchemyRecipeGetInput(recipe), HandlerUtils.collectNonEmpty(ingredients));
     }
 
     private List<IAEStack> getVirtualCostAlchemyTable(InventoryCrafting ingredients, IAEItemStack[] outputs, long count) {
@@ -189,7 +193,7 @@ public class BloodMagicHandler implements IRemoteHandler, IVirtualBatchCraftingH
         Object recipe = findAlchemyRecipeByOutput(outputs[0].createItemStack());
         if (recipe == null) return costs;
 
-        List<ItemStack> available = collectNonEmpty(ingredients);
+        List<ItemStack> available = HandlerUtils.collectNonEmpty(ingredients);
         for (Object ingObj : BloodMagicReflectionHelper.alchemyRecipeGetInput(recipe)) {
             Ingredient ing = (Ingredient) ingObj;
             if (ing == null || ing == Ingredient.EMPTY) continue;
@@ -247,10 +251,16 @@ public class BloodMagicHandler implements IRemoteHandler, IVirtualBatchCraftingH
         return costs;
     }
 
-    private Object findAlchemyRecipeByOutput(ItemStack output) {
+    /**
+     * 按输出物品(item + metadata)在配方集合中查找配方.
+     *
+     * <p>{@code recipesSupplier} 与 {@code outputGetter} 是唯一差异点：炼金术桌 / 祭坛各自的配方集合
+     * 与输出访问器。配方集合延迟到确认输出非空后才获取,避免无谓的反射调用。</p>
+     */
+    private Object findRecipeByOutput(ItemStack output, Supplier<Set<?>> recipesSupplier, Function<Object, ItemStack> outputGetter) {
         if (output.isEmpty()) return null;
-        for (Object recipe : BloodMagicReflectionHelper.getAlchemyRecipes()) {
-            ItemStack recipeOutput = BloodMagicReflectionHelper.alchemyRecipeGetOutput(recipe);
+        for (Object recipe : recipesSupplier.get()) {
+            ItemStack recipeOutput = outputGetter.apply(recipe);
             if (!recipeOutput.isEmpty()
                     && recipeOutput.getItem() == output.getItem()
                     && recipeOutput.getMetadata() == output.getMetadata()) {
@@ -260,17 +270,12 @@ public class BloodMagicHandler implements IRemoteHandler, IVirtualBatchCraftingH
         return null;
     }
 
+    private Object findAlchemyRecipeByOutput(ItemStack output) {
+        return findRecipeByOutput(output, BloodMagicReflectionHelper::getAlchemyRecipes, BloodMagicReflectionHelper::alchemyRecipeGetOutput);
+    }
+
     private Object findAltarRecipeByOutput(ItemStack output) {
-        if (output.isEmpty()) return null;
-        for (Object recipe : BloodMagicReflectionHelper.getAltarRecipes()) {
-            ItemStack recipeOutput = BloodMagicReflectionHelper.bloodAltarRecipeGetOutput(recipe);
-            if (!recipeOutput.isEmpty()
-                    && recipeOutput.getItem() == output.getItem()
-                    && recipeOutput.getMetadata() == output.getMetadata()) {
-                return recipe;
-            }
-        }
-        return null;
+        return findRecipeByOutput(output, BloodMagicReflectionHelper::getAltarRecipes, BloodMagicReflectionHelper::bloodAltarRecipeGetOutput);
     }
 
     private IAEStack createLPCost(int syphon, long count) {
@@ -286,15 +291,6 @@ public class BloodMagicHandler implements IRemoteHandler, IVirtualBatchCraftingH
         }
         if (fluid == null) return null;
         return AEFluidStack.fromFluidStack(new FluidStack(fluid, (int) ((long) syphon * count)));
-    }
-
-    private List<ItemStack> collectNonEmpty(InventoryCrafting ingredients) {
-        List<ItemStack> list = new ArrayList<>();
-        for (int i = 0; i < ingredients.getSizeInventory(); i++) {
-            ItemStack stack = ingredients.getStackInSlot(i);
-            if (!stack.isEmpty()) list.add(stack.copy());
-        }
-        return list;
     }
 
     private boolean matchIngredients(List<?> required, List<ItemStack> available) {
@@ -515,19 +511,24 @@ public class BloodMagicHandler implements IRemoteHandler, IVirtualBatchCraftingH
     @Override
     public List<ItemStack> revertMaterials(World world, BlockPos pos, IActionSource source, TargetSession session) {
         TileEntity te = world.getTileEntity(pos);
-        if (BloodMagicReflectionHelper.isInstance(BloodMagicReflectionHelper.CLASS_TILE_ALCHEMY_TABLE, te)) {
-            return revertMaterialsAlchemyTable(te);
-        } else if (BloodMagicReflectionHelper.isInstance(BloodMagicReflectionHelper.CLASS_TILE_SOUL_FORGE, te)) {
-            return revertMaterialsSoulForge(te);
+        if (BloodMagicReflectionHelper.isInstance(BloodMagicReflectionHelper.CLASS_TILE_ALCHEMY_TABLE, te)
+                || BloodMagicReflectionHelper.isInstance(BloodMagicReflectionHelper.CLASS_TILE_SOUL_FORGE, te)) {
+            return revertAllSlots(te);
         } else if (BloodMagicReflectionHelper.isInstance(BloodMagicReflectionHelper.CLASS_TILE_ALTAR, te)) {
             return revertMaterialsAltar(te);
         }
         return java.util.Collections.emptyList();
     }
 
-    private List<ItemStack> revertMaterialsAlchemyTable(TileEntity table) {
+    /**
+     * 回退:抽取全部槽位.
+     *
+     * <p>炼金术桌与狱火锻炉都通过 {@code null} 面的 IItemHandler 暴露其全部输入/输出槽,
+     * 回退策略完全一致,因此共用此实现.</p>
+     */
+    private List<ItemStack> revertAllSlots(TileEntity te) {
         List<ItemStack> reverted = new ArrayList<>();
-        IItemHandler handler = table.getCapability(CapabilityItemHandler.ITEM_HANDLER_CAPABILITY, null);
+        IItemHandler handler = te.getCapability(CapabilityItemHandler.ITEM_HANDLER_CAPABILITY, null);
         if (handler != null) {
             for (int i = 0; i < handler.getSlots(); i++) {
                 ItemStack stack = handler.extractItem(i, 64, false);
@@ -537,18 +538,7 @@ public class BloodMagicHandler implements IRemoteHandler, IVirtualBatchCraftingH
         return reverted;
     }
 
-    private List<ItemStack> revertMaterialsSoulForge(TileEntity forge) {
-        List<ItemStack> reverted = new ArrayList<>();
-        IItemHandler handler = forge.getCapability(CapabilityItemHandler.ITEM_HANDLER_CAPABILITY, null);
-        if (handler != null) {
-            for (int i = 0; i < handler.getSlots(); i++) {
-                ItemStack stack = handler.extractItem(i, 64, false);
-                if (!stack.isEmpty()) reverted.add(stack);
-            }
-        }
-        return reverted;
-    }
-
+    /** 回退:祭坛只需抽取槽位 0. */
     private List<ItemStack> revertMaterialsAltar(TileEntity altar) {
         List<ItemStack> reverted = new ArrayList<>();
         IItemHandler handler = altar.getCapability(CapabilityItemHandler.ITEM_HANDLER_CAPABILITY, null);

@@ -1,0 +1,35 @@
+MEST (ME Spliced Terminal) assets used by AE2Enhanced
+=====================================================
+
+Upstream: https://github.com/lhy512103/MEST
+Copyright (c) 2026 lhy512103
+Licensed under the MIT License (see licenses/MEST-LICENSE.txt).
+
+Files
+-----
+
+src/main/resources/assets/ae2enhanced/textures/gui/dock/background.png
+    Derived from MEST's
+    src/main/resources/assets/mesplicedterminal/textures/guis/network_tool_panel.png
+    (MIT, same upstream/copyright as above).
+
+    Derivation (performed once, reproducibly):
+      * middle 248x248 area, top edge band, bottom edge band, right edge band and the
+        top-right / bottom-right corners are copied verbatim from the source texture;
+      * MEST's source art is drawn for a left-flush section (its columns 0..3 and its
+        top-left / bottom-left corners are fully transparent), so the left edge band and
+        the two left corners are produced by mirroring the source's right band and right
+        corners horizontally. No colour outside the source texture is introduced;
+      * the result is a symmetric 256x256 nine-slice with a 4px border and a 248x248
+        tileable interior, i.e. the layout MEST's ModulePanel.drawGeneratedBackground
+        and its Blitter("guis/background.png", 256, 256) expect.
+
+    Reason: MEST's `BG` blitter points at AE2's own window background
+    (assets/ae2/textures/guis/background.png, 256x256, 4px border), which does not exist
+    in Applied Energistics 2 for Minecraft 1.12.2, and MEST itself ships no such file.
+    The 1.12.2 rewrite therefore needs its own copy of that nine-slice artwork.
+
+Upstream files intentionally NOT copied (may be added later by their own task):
+    textures/guis/network_tool_panel.png  (left-flush section skin; used by MEST's
+                                           network-toolkit panel and toolbox chrome)
+    textures/guis/extra_panels.png        (not present upstream either)

@@ -6,7 +6,6 @@ import com.github.aeddddd.ae2enhanced.item.ItemFluidDrop;
 import com.github.aeddddd.ae2enhanced.util.fakeitem.FakeFluids;
 import net.minecraft.item.ItemStack;
 import net.minecraftforge.fluids.FluidStack;
-import net.minecraftforge.fml.common.Loader;
 
 import java.lang.reflect.Method;
 
@@ -17,6 +16,17 @@ import java.lang.reflect.Method;
  * 让 ae2fc 的 FakeMonitor 体系接管注入/提取,避免 AE2E 自己维护一套流体回收逻辑.</p>
  *
  * <p>ae2fc 未安装时,回退到 AE2E 自己的 {@link ItemFluidDrop}.</p>
+ *
+ * <p><b>安装检测不得使用 {@code Loader.isModLoaded}.</b> 该方法要求 FML {@code Loader}
+ * 已装载;在未装载 Loader 的 JVM(无头单测/离线工具)里,{@code Loader.instance()} 为 null,
+ * {@code isModLoaded} 直接抛 NPE。静态初始化块一旦抛异常,类初始化即告失败,JVM 不会重试
+ * ——本类随后在整个 JVM 生命周期内每次访问都只会抛 {@code NoClassDefFoundError},
+ * 兼容层的所有判据(含 {@link #isAnyFluidFakeItem(ItemStack)} 这类纯字符串比较)
+ * 一并失效,并波及所有经过流体路径的用例。因此这里沿用 {@link Ae2fcCompat} 的类加载器
+ * 资源探测判据:它只依赖 classpath,Loader 未装载时自然返回"未安装"。</p>
+ *
+ * <p>初始化本身也被完整保护:{@code ae2fc} 存在但反射失败时,退化为
+ * "未加载 → 全部能力为 null/false / 回退 {@link ItemFluidDrop}",绝不抛出。</p>
  */
 public final class Ae2fcFluidCompat {
 
@@ -29,18 +39,39 @@ public final class Ae2fcFluidCompat {
 
     static {
         boolean loaded = false;
-        if (Loader.isModLoaded("ae2fc")) {
+        Throwable failure = null;
+        // 用 Ae2fcCompat 的资源探测结果判定 ae2fc 是否存在(不用 Loader.isModLoaded,理由见类注释)
+        if (Ae2fcCompat.AE2FC_LOADED) {
             try {
                 Class<?> fakeFluidsClass = Class.forName("com.glodblock.github.common.item.fake.FakeFluids");
                 PACK_FLUID_TO_AE_DROP = fakeFluidsClass.getMethod("packFluid2AEDrops", FluidStack.class);
                 Class<?> utilClass = Class.forName("com.glodblock.github.util.Util");
                 GET_FLUID_FROM_ITEM = utilClass.getMethod("getFluidFromItem", ItemStack.class);
                 loaded = true;
-            } catch (Exception e) {
-                AE2Enhanced.LOGGER.warn("[AE2E] Failed to initialize ae2fc fluid compat, falling back to AE2E ItemFluidDrop", e);
+            } catch (Throwable e) {
+                // 捕获 Throwable(而非 Exception):类加载/链接错误同样必须降级为"未安装",
+                // 不能把本兼容层的初始化拖垮成永久性的 NoClassDefFoundError
+                failure = e;
             }
         }
         AE2FC_LOADED = loaded;
+        if (failure != null) {
+            warnCompatInitFailure(failure);
+        }
+    }
+
+    /**
+     * ae2fc 存在但反射初始化失败时的降级日志.
+     *
+     * <p>日志本身不得成为静态初始化的失败点:调用方的类加载状态未知
+     * ({@code AE2Enhanced.LOGGER} 可能同样不可用),因此这里再兜一层。</p>
+     */
+    private static void warnCompatInitFailure(Throwable failure) {
+        try {
+            AE2Enhanced.LOGGER.warn("[AE2E] Failed to initialize ae2fc fluid compat, falling back to AE2E ItemFluidDrop", failure);
+        } catch (Throwable ignored) {
+            // 日志不可用时静默降级:兼容层保持"未加载"语义优先于留下日志
+        }
     }
 
     private Ae2fcFluidCompat() {

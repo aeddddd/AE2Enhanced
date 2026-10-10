@@ -1,7 +1,9 @@
 package com.github.aeddddd.ae2enhanced.test.lp;
 
+import static com.github.aeddddd.ae2enhanced.test.support.LpTestSupport.buildChordWeb;
 import static com.github.aeddddd.ae2enhanced.test.support.LpTestSupport.canon;
 import static com.github.aeddddd.ae2enhanced.test.support.LpTestSupport.execOf;
+import static com.github.aeddddd.ae2enhanced.test.support.LpTestSupport.key;
 import static com.github.aeddddd.ae2enhanced.test.support.LpTestSupport.solve;
 import static com.github.aeddddd.ae2enhanced.test.support.SimulationEnv.mult;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -11,16 +13,10 @@ import java.util.Map;
 
 import org.junit.jupiter.api.Test;
 
-import net.minecraft.block.Block;
-import net.minecraft.init.Blocks;
-import net.minecraft.item.ItemStack;
-
 import appeng.api.networking.crafting.ICraftingPatternDetails;
 import appeng.api.storage.data.IAEItemStack;
-import appeng.util.item.AEItemStack;
 
 import com.github.aeddddd.ae2enhanced.specialcrafting.CondensationPlanner.LpPlanOutcome;
-import com.github.aeddddd.ae2enhanced.specialcrafting.lp.SccLpModelBuilder;
 import com.github.aeddddd.ae2enhanced.specialcrafting.lp.SccLpSolve;
 import com.github.aeddddd.ae2enhanced.test.support.ProcessingPatternBuilder;
 import com.github.aeddddd.ae2enhanced.test.support.SimulationEnv;
@@ -36,19 +32,6 @@ import com.github.aeddddd.ae2enhanced.test.support.SimulationEnv;
  * </ul>
  */
 public class MassiveKindCycleStressTest {
-
-    private static Block[] palette() {
-        return new Block[] { Blocks.STONE, Blocks.COBBLESTONE, Blocks.DIRT, Blocks.PLANKS,
-                Blocks.SAND, Blocks.GRAVEL, Blocks.LOG, Blocks.GLASS, Blocks.CLAY,
-                Blocks.BRICK_BLOCK };
-    }
-
-    /** 第 i 个互不相同的键(10 种方块 × metadata 分段). */
-    private static IAEItemStack key(int i) {
-        Block[] palette = palette();
-        return AEItemStack.fromItemStack(new ItemStack(palette[i % palette.length], 1,
-                i / palette.length));
-    }
 
     /**
      * 守恒 oracle:逐键 库存 + Σ(out·t) − Σ(in·t) ≥ demand;根键额外要求 ≥ 订单量.
@@ -340,20 +323,7 @@ public class MassiveKindCycleStressTest {
                 "缺料量期望 ~1e9 实际 " + (long) deficit);
     }
 
-    /** 构造 N 键弦环网:主环 1:1 + 指定偏移的弦,全部互链成一个大 SCC. */
-    private static void buildChordWeb(SimulationEnv env, int n, int... chordOffsets) {
-        for (int i = 0; i < n; i++) {
-            env.addPattern(new ProcessingPatternBuilder(key((i + 1) % n))
-                    .addPreciseInput(1, key(i)).build());
-            for (int off : chordOffsets) {
-                env.addPattern(new ProcessingPatternBuilder(key((i + off) % n))
-                        .addPreciseInput(1, key(i)).build());
-            }
-        }
-    }
-
-    /**
-     * 构造宽 BOM:kinds 簇交叉双增益环(X1 拓扑)挂在公共根样板上,
+    /** 构造宽 BOM:kinds 簇交叉双增益环(X1 拓扑)挂在公共根样板上,
      * 根样板消耗每种中间体 A_k(W5/W9 共用).
      */
     private static void buildWideBomClusters(SimulationEnv env, int kinds) {

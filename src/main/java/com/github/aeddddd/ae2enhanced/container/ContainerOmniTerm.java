@@ -94,6 +94,15 @@ public class ContainerOmniTerm extends ContainerMEMonitorable
     // === 宿主 ===
     private final ITerminalHost terminalHost;
 
+    /**
+     * 宿主终端物品对象（非无线宿主返回 null）。
+     *
+     * <p>子类（可拼接终端）需要它来读写终端物品 NBT 上的 {@code omni_layout}。</p>
+     */
+    protected WirelessTerminalGuiObject getWirelessTerminalObject() {
+        return this.wirelessObject;
+    }
+
     public boolean isViewCellSlot(Slot slot) {
         for (int i = 0; i < this.cellView.length; i++) {
             if (this.cellView[i] == slot) return true;
@@ -331,6 +340,40 @@ public class ContainerOmniTerm extends ContainerMEMonitorable
     }
 
     // ================== 滚动控制 ==================
+
+    /**
+     * 编码区输入槽组（9 组 × 9）。第 {@code group} 组即"滚动到第 group 页时的 3×3 输入格"。
+     *
+     * <p>只读访问器：可拼接终端的面板需要按组摆放这些槽位，但绝不改动注册顺序或业务语义。</p>
+     */
+    public RCSlotFakeCraftingMatrix[] getPatternInputGroup(int group) {
+        return this.patternInputSlots[group];
+    }
+
+    /** 编码区输出槽组（9 组 × 3）。 */
+    public RCSlotPatternOutputs[] getPatternOutputGroup(int group) {
+        return this.outputSlotGroup[group];
+    }
+
+    /** 编码区组数（实际参与滚动的页数 = {@link #getMaxScrollOffset()} + 1）。 */
+    public int getPatternGroupCount() {
+        return this.patternInputSlots.length;
+    }
+
+    /** craft 模式的 3×3 产出槽（{@code SlotPatternTerm}，process 模式下不可见）。 */
+    public Slot getPatternCraftSlot() {
+        return this.craftSlot;
+    }
+
+    /** 空白样板输入槽（{@code SlotRestrictedInput}，规范坐标由面板接管）。 */
+    public Slot getPatternSlotIn() {
+        return this.patternSlotIN;
+    }
+
+    /** 已编码样板输出槽（{@code SlotRestrictedInput}）。 */
+    public Slot getPatternSlotOut() {
+        return this.patternSlotOUT;
+    }
 
     public void setRCSlot(int offset) {
         if (this.patternCraftMode) {
@@ -756,8 +799,47 @@ public class ContainerOmniTerm extends ContainerMEMonitorable
         }
         // ae2fc 的流体/大物品样板继承自 ItemEncodedPattern，isSameAs 不匹配子类
         return output.getItem() instanceof appeng.items.misc.ItemEncodedPattern
-                || AEApi.instance().definitions().materials().blankPattern().isSameAs(output);
+                || isSameAsCached(AEApi.instance().definitions().materials().blankPattern(), output);
     }
+
+    /**
+     * {@code IItemDefinition.isSameAs(stack)} 的等价实现，但复用缓存的"代表物品栈"。
+     *
+     * <p>AE2 的实现每次都会 {@code maybeStack(1)} → {@code new ItemStack(...)} → Forge 的
+     * {@code gatherCapabilities} 事件。这条判据在 <b>shift-click 热路径</b>上（
+     * {@code ContainerSplicedTerm.isViewCell}），实测在专用服务端上出现过一个 tick 卡 >60s、
+     * 被 ServerHangWatchdog 强杀的事故（见验收文档 I 节），因此这里只解析一次代表栈，
+     * 之后走 AE2 自己的比较器（语义与 {@code isSameAs} 完全一致）。</p>
+     */
+    protected static boolean isSameAsCached(appeng.api.definitions.IItemDefinition definition, ItemStack stack) {
+        if (definition == null || stack == null || stack.isEmpty() || !definition.isEnabled()) {
+            return false;
+        }
+        String key = definition.identifier();
+        ItemStack representative = com.github.aeddddd.ae2enhanced.util.DefinitionStackCache.get(key);
+        if (representative == null) {
+            representative = definition.maybeStack(1).orElse(ItemStack.EMPTY);
+            if (representative.isEmpty()) {
+                return false;
+            }
+            com.github.aeddddd.ae2enhanced.util.DefinitionStackCache.put(key, representative);
+        }
+        return appeng.util.Platform.itemComparisons().isEqualItemType(stack, representative);
+    }
+
+    /**
+     * 定义 → 代表物品栈的缓存（避免每次 {@code isSameAs} 都新建 ItemStack）。
+     *
+     * <p><b>必须是"稳定的强引用键"</b>：上一版用的是 {@code WeakHashMap<IItemDefinition, ItemStack>}，
+     * 结果在专用服务端上炸了——工具实例只是弱引用、随时可被回收 → 缓存**每次都 miss**（于是每次都
+     * {@code maybeStack(1)} → {@code new ItemStack} → Forge 能力事件），同时 map 里堆满已失效条目，
+     * {@code WeakHashMap.getTable()} 的清理遍历越走越长（每次调用比上次更慢，二次曲线），
+     * 最终一个 server tick 卡 >60s 被 ServerHangWatchdog 强杀。堆里能看到
+     * 175 万 ItemStack / 174 万 AttachCapabilitiesEvent / 614 万个 Object[]（见验收文档 K 节）。
+     * 现在改用 {@code identifier()} 字符串键 + {@code ConcurrentHashMap}（强引用、O(1)、线程安全），
+     * 条目数恒等于用到的定义数。</p>
+     */
+
 
     private boolean isFluidDrop(ItemStack stack) {
         if (stack.isEmpty()) return false;
@@ -1713,13 +1795,10 @@ public class ContainerOmniTerm extends ContainerMEMonitorable
             filtered.add(stack);
         }
 
-        // 排序
+        // 排序：统一走安全入口（AE2 比较器不可用时退化为本地比较器，绝不让"排序器炸了"变成"仓库空白"）
         appeng.api.config.SortOrder sortBy = appeng.api.config.SortOrder.values()[request.getSortBy()];
         appeng.api.config.SortDir sortDir = appeng.api.config.SortDir.values()[request.getSortDir()];
-        Comparator<IAEItemStack> c = getSearchComparator(sortBy);
-        appeng.util.ItemSorters.setDirection(sortDir);
-        appeng.util.ItemSorters.init();
-        filtered.sort(c);
+        com.github.aeddddd.ae2enhanced.util.TerminalItemSort.sort(filtered, sortBy, sortDir);
 
         // 搜索过滤
         String search = request.getSearchString();
@@ -1813,14 +1892,4 @@ public class ContainerOmniTerm extends ContainerMEMonitorable
         return adapter;
     }
 
-    private static Comparator<IAEItemStack> getSearchComparator(appeng.api.config.SortOrder sortBy) {
-        if (sortBy == appeng.api.config.SortOrder.MOD) {
-            return appeng.util.ItemSorters.CONFIG_BASED_SORT_BY_MOD;
-        } else if (sortBy == appeng.api.config.SortOrder.AMOUNT) {
-            return appeng.util.ItemSorters.CONFIG_BASED_SORT_BY_SIZE;
-        } else if (sortBy == appeng.api.config.SortOrder.INVTWEAKS) {
-            return appeng.util.ItemSorters.CONFIG_BASED_SORT_BY_INV_TWEAKS;
-        }
-        return appeng.util.ItemSorters.CONFIG_BASED_SORT_BY_NAME;
-    }
 }

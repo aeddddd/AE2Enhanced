@@ -17,9 +17,8 @@ import java.util.Set;
 /**
  * 样板列表管理.
  *
- * <p>从 {@link DualityCentralInterface} 抽出的配方注册逻辑：维护 patterns 库存与
- * {@link ICraftingPatternDetails} 集合的同步（含 {@link ItemSmartPattern} 智能样板展开）、
- * 配方优先级、向 AE2 CPU 提供合成选项。行为与原 {@code updateCraftingList} 完全一致。</p>
+ * <p>维护 patterns 库存与 {@link ICraftingPatternDetails} 集合的同步
+ * （含 {@link ItemSmartPattern} 智能样板展开）、配方优先级、向 AE2 CPU 提供合成选项。</p>
  */
 class CraftingPatternList {
 

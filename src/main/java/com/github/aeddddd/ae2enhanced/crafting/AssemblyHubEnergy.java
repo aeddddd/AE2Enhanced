@@ -10,8 +10,6 @@ package com.github.aeddddd.ae2enhanced.crafting;
  *   <li><b>额定上限</b>：单 tick 计费额不超过 {@link #RATED_CAP_PER_TICK}（2.1G FE = int 上限，
  *       与奇点腔室的能量上限约定一致）。超过上限的合成不再额外计费——满级并行卡不会
  *       无限吃电（机器的额定最大功耗语义）.</li>
- *   <li><b>欠电降载</b>：网络实付不足需求时，按实付比例折算可结算份数
- *       （{@link #grantedOps}），低于 1 份即本 tick 放弃该样板；不出现「付了电却一份不做」.</li>
  * </ul>
  *
  * <p>单位为 FE：支付路径与奇点腔室一致（ME 网络能源通道存量优先，不足走 AE 能源网按 1 AE = 2 FE）。</p>
@@ -57,29 +55,6 @@ public final class AssemblyHubEnergy {
             return 0L;
         }
         return Math.min(saturatedMul(ops, perCraft), tickRoom);
-    }
-
-    /**
-     * 按实付比例折算可结算份数（欠电降载）.
-     *
-     * @param paid 网络实际可支付/已支付的 FE
-     */
-    public static long grantedOps(long ops, long demand, long paid) {
-        if (ops <= 0L) {
-            return 0L;
-        }
-        if (demand <= 0L || paid >= demand) {
-            return ops;
-        }
-        if (paid <= 0L) {
-            return 0L;
-        }
-        // 大数下用 double 近似比例即可：这是降载启发式,结果夹在 [0, ops]
-        long granted = (long) ((double) ops * (double) paid / (double) demand);
-        if (granted <= 0L) {
-            return 0L;
-        }
-        return Math.min(granted, ops);
     }
 
     private static long saturatedMul(long a, long b) {

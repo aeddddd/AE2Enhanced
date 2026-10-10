@@ -5,7 +5,6 @@ import appeng.api.storage.data.IAEItemStack;
 import appeng.crafting.CraftingJob;
 import appeng.crafting.CraftingTreeNode;
 import appeng.crafting.CraftingTreeProcess;
-import com.github.aeddddd.ae2enhanced.specialcrafting.CondensationPlanner.LpPlanOutcome;
 import com.github.aeddddd.ae2enhanced.specialcrafting.lp.SccLpSolve.Execution;
 
 import java.util.*;
@@ -26,16 +25,18 @@ public final class LpPlanMaterializer {
     /**
      * 物化树结构并回填 crafts/missing/bytes.
      *
+     * @param executions 整数化后的活跃执行记录({@link FlowReconciler.Reconciled#executions}——
+     *                   R1 起由对账层局部持有,不再是 outcome 字段的副产物)
      * @param times 逐执行记录整数次数({@link FlowReconciler} 产物)
      * @param missing 缺料(canon 键 → 数量)
      * @param totalExtracted 初始提取总量(bytes 近似)
      */
     public static void attach(ICraftingGrid cc, CraftingJob job, CraftingTreeNode rootNode,
-            IAEItemStack what, LpPlanOutcome outcome, Map<Execution, Long> times,
+            IAEItemStack what, List<Execution> executions, Map<Execution, Long> times,
             Map<IAEItemStack, Long> missing, long totalExtracted) {
         // 生产者索引:canon 键 → LP 执行记录(仅整数次数 > 0)
         Map<IAEItemStack, List<Execution>> producers = new HashMap<>();
-        for (Execution exec : outcome.executions) {
+        for (Execution exec : executions) {
             Long t = times.get(exec);
             if (t == null || t <= 0) {
                 continue;
@@ -71,7 +72,7 @@ public final class LpPlanMaterializer {
                 Ae2CraftingReflect.processAddProcess(pro); // 立即展开输入子节点
                 Ae2CraftingReflect.addProcessToNode(node, pro);
                 Ae2CraftingReflect.setProcessCrafts(pro, times.get(exec));
-                for (CraftingTreeNode child : Ae2CraftingReflect.getProcessNodes(pro).keySet()) {
+                for (CraftingTreeNode child : Ae2CraftingReflect.sortedProcessNodes(pro)) {
                     IAEItemStack childWhat = Ae2CraftingReflect.getNodeWhat(child);
                     if (childWhat == null) {
                         continue;

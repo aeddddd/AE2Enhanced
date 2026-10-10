@@ -60,6 +60,11 @@ public interface IGuiMEMonitorableAccessor {
         throw new UnsupportedOperationException();
     }
 
+    @Accessor("memoryText")
+    static String ae2e$getMemoryText() {
+        throw new UnsupportedOperationException();
+    }
+
     @Invoker("setScrollBar")
     void ae2e$invokeSetScrollBar();
 }

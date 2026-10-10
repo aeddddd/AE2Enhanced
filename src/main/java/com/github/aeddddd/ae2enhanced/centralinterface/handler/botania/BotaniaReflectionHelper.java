@@ -1,6 +1,7 @@
 package com.github.aeddddd.ae2enhanced.centralinterface.handler.botania;
 
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
+import com.github.aeddddd.ae2enhanced.centralinterface.reflection.ReflectionCache;
 import com.github.aeddddd.ae2enhanced.mixin.late.botania.ITileAltarAccessor;
 import com.github.aeddddd.ae2enhanced.mixin.late.botania.ITilePoolAccessor;
 import com.github.aeddddd.ae2enhanced.mixin.late.botania.ITileRuneAltarAccessor;
@@ -14,6 +15,7 @@ import net.minecraft.item.ItemStack;
 import net.minecraftforge.items.IItemHandler;
 import net.minecraftforge.items.IItemHandlerModifiable;
 
+import javax.annotation.Nullable;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.List;
@@ -22,8 +24,9 @@ import java.util.List;
  * Botania Handler 的反射辅助类.
  *
  * 缓存对 Botania 全部使用到的类/方法/字段的反射引用,避免重复反射带来的性能损耗.
- * 所有缓存均在静态初始化块中完成,失败时记录警告但不应导致崩溃
- * (对应 handler 会在 isValidTarget 中回退到类型检查).
+ * 查找统一走 {@link ReflectionCache}:全部缓存由静态字段初始化一次性完成,失败时只记一条警告、
+ * 不抛异常,未命中的缓存项保持 null,由对应 handler 自行降级
+ * (isValidTarget 回退到类型检查 / 配方无法计价).
  *
  * 本类自身不引用任何 vazkii.botania 类型,因此可以安全地被无条件加载.
  *
@@ -38,241 +41,124 @@ import java.util.List;
 public class BotaniaReflectionHelper {
 
     // ---- TilePool (方法见 ITilePoolAccessor) ----
-    public static final Class<?> CLASS_TILE_POOL;
+    public static final Class<?> CLASS_TILE_POOL =
+            ReflectionCache.clazz("vazkii.botania.common.block.tile.mana.TilePool");
 
     // ---- TileAlfPortal ----
-    public static final Class<?> CLASS_TILE_ALF_PORTAL;
+    public static final Class<?> CLASS_TILE_ALF_PORTAL =
+            ReflectionCache.clazz("vazkii.botania.common.block.tile.TileAlfPortal");
 
     // ---- TileTerraPlate ----
-    public static final Class<?> CLASS_TILE_TERRA_PLATE;
-    public static final Method METHOD_HAS_VALID_PLATFORM;
-    public static final Method METHOD_ARE_ITEMS_VALID;
-    public static final Method METHOD_GET_ITEMS;
+    public static final Class<?> CLASS_TILE_TERRA_PLATE =
+            ReflectionCache.clazz("vazkii.botania.common.block.tile.TileTerraPlate");
+    public static final Method METHOD_HAS_VALID_PLATFORM =
+            ReflectionCache.declaredMethod(CLASS_TILE_TERRA_PLATE, "hasValidPlatform");
+    public static final Method METHOD_GET_ITEMS =
+            ReflectionCache.declaredMethod(CLASS_TILE_TERRA_PLATE, "getItems");
 
     // ---- TileRuneAltar (方法见 ITileRuneAltarAccessor / ITileSimpleInventoryAccessor) ----
-    public static final Class<?> CLASS_TILE_RUNE_ALTAR;
-    public static final Field FIELD_CURRENT_RECIPE;
-    public static final Field FIELD_COOLDOWN;
-    public static final Field FIELD_MANA;
-    public static final Field FIELD_MANA_TO_GET;
+    public static final Class<?> CLASS_TILE_RUNE_ALTAR =
+            ReflectionCache.clazz("vazkii.botania.common.block.tile.TileRuneAltar");
+    public static final Field FIELD_CURRENT_RECIPE =
+            ReflectionCache.declaredField(CLASS_TILE_RUNE_ALTAR, "currentRecipe");
+    public static final Field FIELD_COOLDOWN =
+            ReflectionCache.declaredField(CLASS_TILE_RUNE_ALTAR, "cooldown");
+    public static final Field FIELD_MANA =
+            ReflectionCache.declaredField(CLASS_TILE_RUNE_ALTAR, "mana");
+    public static final Field FIELD_MANA_TO_GET =
+            ReflectionCache.field(CLASS_TILE_RUNE_ALTAR, "manaToGet");
 
     // ---- TileAltar (方法见 ITileAltarAccessor / ITileSimpleInventoryAccessor) ----
-    public static final Class<?> CLASS_TILE_ALTAR;
+    public static final Class<?> CLASS_TILE_ALTAR =
+            ReflectionCache.clazz("vazkii.botania.common.block.tile.TileAltar");
 
     // ---- BotaniaStateProps / AlfPortalState ----
     @SuppressWarnings("rawtypes")
-    public static final IProperty ALFPORTAL_STATE_PROP;
-    public static final Object ALFPORTAL_STATE_OFF;
+    public static final IProperty ALFPORTAL_STATE_PROP =
+            (IProperty) readStaticField("vazkii.botania.api.state.BotaniaStateProps", "ALFPORTAL_STATE");
+    public static final Object ALFPORTAL_STATE_OFF =
+            readStaticField("vazkii.botania.api.state.enums.AlfPortalState", "OFF");
 
     // ---- ModBlocks / ModItems (vazkii.botania.common) ----
-    public static final Block BLOCK_LIVINGROCK;
-    public static final Block BLOCK_RUNE_ALTAR;
-    public static final Item ITEM_MANA_RESOURCE;
-    public static final Item ITEM_RUNE;
-    public static final Item ITEM_LEXICON;
+    public static final Block BLOCK_LIVINGROCK =
+            (Block) readStaticField("vazkii.botania.common.block.ModBlocks", "livingrock");
+    public static final Block BLOCK_RUNE_ALTAR =
+            (Block) readStaticField("vazkii.botania.common.block.ModBlocks", "runeAltar");
+    public static final Item ITEM_MANA_RESOURCE =
+            (Item) readStaticField("vazkii.botania.common.item.ModItems", "manaResource");
+    public static final Item ITEM_RUNE =
+            (Item) readStaticField("vazkii.botania.common.item.ModItems", "rune");
+    public static final Item ITEM_LEXICON =
+            (Item) readStaticField("vazkii.botania.common.item.ModItems", "lexicon");
 
     // ---- BotaniaAPI 配方列表(static final List,引用稳定,直接缓存) ----
-    public static final List<?> PETAL_RECIPES;
-    public static final List<?> MANA_INFUSION_RECIPES;
-    public static final List<?> RUNE_ALTAR_RECIPES;
-    public static final List<?> ELVEN_TRADE_RECIPES;
+    public static final List<?> PETAL_RECIPES =
+            (List<?>) readStaticField("vazkii.botania.api.BotaniaAPI", "petalRecipes");
+    public static final List<?> MANA_INFUSION_RECIPES =
+            (List<?>) readStaticField("vazkii.botania.api.BotaniaAPI", "manaInfusionRecipes");
+    public static final List<?> RUNE_ALTAR_RECIPES =
+            (List<?>) readStaticField("vazkii.botania.api.BotaniaAPI", "runeAltarRecipes");
+    public static final List<?> ELVEN_TRADE_RECIPES =
+            (List<?>) readStaticField("vazkii.botania.api.BotaniaAPI", "elvenTradeRecipes");
 
     // ---- Recipe 类 ----
-    public static final Class<?> CLASS_RECIPE_RUNE_ALTAR;
-    public static final Method METHOD_MANA_INFUSION_GET_INPUT;
-    public static final Method METHOD_MANA_INFUSION_GET_OUTPUT;
-    public static final Method METHOD_MANA_INFUSION_GET_MANA_TO_CONSUME;
-    public static final Method METHOD_ELVEN_TRADE_GET_INPUTS;
-    public static final Method METHOD_ELVEN_TRADE_GET_OUTPUTS;
-    public static final Method METHOD_PETALS_MATCHES;
-    public static final Method METHOD_PETALS_GET_INPUTS;
-    public static final Method METHOD_PETALS_GET_OUTPUT;
-    public static final Method METHOD_RUNE_ALTAR_GET_MANA_USAGE;
+    public static final Class<?> CLASS_RECIPE_RUNE_ALTAR =
+            ReflectionCache.clazz("vazkii.botania.api.recipe.RecipeRuneAltar");
+
+    private static final Class<?> CLASS_RECIPE_MANA_INFUSION =
+            ReflectionCache.clazz("vazkii.botania.api.recipe.RecipeManaInfusion");
+    private static final Class<?> CLASS_RECIPE_ELVEN_TRADE =
+            ReflectionCache.clazz("vazkii.botania.api.recipe.RecipeElvenTrade");
+    private static final Class<?> CLASS_RECIPE_PETALS =
+            ReflectionCache.clazz("vazkii.botania.api.recipe.RecipePetals");
+
+    public static final Method METHOD_MANA_INFUSION_GET_INPUT =
+            ReflectionCache.method(CLASS_RECIPE_MANA_INFUSION, "getInput");
+    public static final Method METHOD_MANA_INFUSION_GET_OUTPUT =
+            ReflectionCache.method(CLASS_RECIPE_MANA_INFUSION, "getOutput");
+    public static final Method METHOD_MANA_INFUSION_GET_MANA_TO_CONSUME =
+            ReflectionCache.method(CLASS_RECIPE_MANA_INFUSION, "getManaToConsume");
+    public static final Method METHOD_ELVEN_TRADE_GET_INPUTS =
+            ReflectionCache.method(CLASS_RECIPE_ELVEN_TRADE, "getInputs");
+    public static final Method METHOD_ELVEN_TRADE_GET_OUTPUTS =
+            ReflectionCache.method(CLASS_RECIPE_ELVEN_TRADE, "getOutputs");
+    public static final Method METHOD_PETALS_MATCHES =
+            ReflectionCache.method(CLASS_RECIPE_PETALS, "matches", IItemHandler.class);
+    public static final Method METHOD_PETALS_GET_INPUTS =
+            ReflectionCache.method(CLASS_RECIPE_PETALS, "getInputs");
+    public static final Method METHOD_PETALS_GET_OUTPUT =
+            ReflectionCache.method(CLASS_RECIPE_PETALS, "getOutput");
+    public static final Method METHOD_RUNE_ALTAR_GET_MANA_USAGE =
+            ReflectionCache.method(CLASS_RECIPE_RUNE_ALTAR, "getManaUsage");
 
     static {
-        Class<?> tilePool = null;
-
-        Class<?> tileAlfPortal = null;
-
-        Class<?> tileTerraPlate = null;
-        Method hasValidPlatform = null;
-        Method areItemsValid = null;
-        Method getItems = null;
-
-        Class<?> tileRuneAltar = null;
-        Field currentRecipe = null;
-        Field cooldown = null;
-        Field mana = null;
-        Field manaToGet = null;
-
-        Class<?> tileAltar = null;
-
-        IProperty alfPortalStateProp = null;
-        Object alfPortalStateOff = null;
-
-        Block livingrock = null;
-        Block runeAltarBlock = null;
-        Item manaResource = null;
-        Item rune = null;
-        Item lexicon = null;
-
-        List<?> petalRecipes = null;
-        List<?> manaInfusionRecipes = null;
-        List<?> runeAltarRecipes = null;
-        List<?> elvenTradeRecipes = null;
-
-        Class<?> recipeRuneAltar = null;
-        Method manaInfusionGetInput = null;
-        Method manaInfusionGetOutput = null;
-        Method manaInfusionGetManaToConsume = null;
-        Method elvenTradeGetInputs = null;
-        Method elvenTradeGetOutputs = null;
-        Method petalsMatches = null;
-        Method petalsGetInputs = null;
-        Method petalsGetOutput = null;
-        Method runeAltarGetManaUsage = null;
-
-        try {
-            tilePool = Class.forName("vazkii.botania.common.block.tile.mana.TilePool");
-        } catch (Exception e) {
-            AE2Enhanced.LOGGER.warn("[AE2E] BotaniaReflectionHelper failed to cache TilePool", e);
+        // 查找失败只 warn 不抛 —— 缺 Botania / 版本不匹配时各缓存项保持 null,
+        // 由各 handler 自行降级(类型检查 / 拒绝计价);逐项未命中的原因由 ReflectionCache 按 debug 记录。
+        if (CLASS_TILE_POOL == null || METHOD_HAS_VALID_PLATFORM == null || FIELD_MANA_TO_GET == null
+                || CLASS_TILE_ALTAR == null || ALFPORTAL_STATE_PROP == null || ITEM_RUNE == null
+                || PETAL_RECIPES == null || METHOD_PETALS_MATCHES == null
+                || METHOD_RUNE_ALTAR_GET_MANA_USAGE == null) {
+            AE2Enhanced.LOGGER.warn("[AE2E] BotaniaReflectionHelper: Botania 反射缓存不完整"
+                    + "(未安装或版本不匹配),相关方块将退化为类型检查且无法计价");
         }
+    }
 
-        try {
-            tileAlfPortal = Class.forName("vazkii.botania.common.block.tile.TileAlfPortal");
-        } catch (Exception e) {
-            AE2Enhanced.LOGGER.warn("[AE2E] BotaniaReflectionHelper failed to cache TileAlfPortal", e);
+    /**
+     * 读取静态字段的值(ModBlocks / ModItems / BotaniaAPI / 状态枚举这类"缓存对象引用"的场景).
+     *
+     * @return 字段值;类或字段不存在、或读取抛异常时返回 null
+     */
+    @Nullable
+    private static Object readStaticField(String ownerClassName, String fieldName) {
+        Field field = ReflectionCache.field(ReflectionCache.clazz(ownerClassName), fieldName);
+        if (field == null) {
+            return null;
         }
-
         try {
-            tileTerraPlate = Class.forName("vazkii.botania.common.block.tile.TileTerraPlate");
-            hasValidPlatform = tileTerraPlate.getDeclaredMethod("hasValidPlatform");
-            hasValidPlatform.setAccessible(true);
-            areItemsValid = tileTerraPlate.getDeclaredMethod("areItemsValid", List.class);
-            areItemsValid.setAccessible(true);
-            getItems = tileTerraPlate.getDeclaredMethod("getItems");
-            getItems.setAccessible(true);
+            return field.get(null);
         } catch (Exception e) {
-            AE2Enhanced.LOGGER.warn("[AE2E] BotaniaReflectionHelper failed to cache TileTerraPlate", e);
+            return null;
         }
-
-        try {
-            tileRuneAltar = Class.forName("vazkii.botania.common.block.tile.TileRuneAltar");
-            currentRecipe = tileRuneAltar.getDeclaredField("currentRecipe");
-            currentRecipe.setAccessible(true);
-            cooldown = tileRuneAltar.getDeclaredField("cooldown");
-            cooldown.setAccessible(true);
-            mana = tileRuneAltar.getDeclaredField("mana");
-            mana.setAccessible(true);
-            manaToGet = tileRuneAltar.getField("manaToGet");
-        } catch (Exception e) {
-            AE2Enhanced.LOGGER.warn("[AE2E] BotaniaReflectionHelper failed to cache TileRuneAltar", e);
-        }
-
-        try {
-            tileAltar = Class.forName("vazkii.botania.common.block.tile.TileAltar");
-        } catch (Exception e) {
-            AE2Enhanced.LOGGER.warn("[AE2E] BotaniaReflectionHelper failed to cache TileAltar", e);
-        }
-
-        try {
-            Class<?> stateProps = Class.forName("vazkii.botania.api.state.BotaniaStateProps");
-            alfPortalStateProp = (IProperty) stateProps.getField("ALFPORTAL_STATE").get(null);
-            Class<?> alfPortalState = Class.forName("vazkii.botania.api.state.enums.AlfPortalState");
-            alfPortalStateOff = alfPortalState.getField("OFF").get(null);
-        } catch (Exception e) {
-            AE2Enhanced.LOGGER.warn("[AE2E] BotaniaReflectionHelper failed to cache BotaniaStateProps", e);
-        }
-
-        try {
-            Class<?> modBlocks = Class.forName("vazkii.botania.common.block.ModBlocks");
-            livingrock = (Block) modBlocks.getField("livingrock").get(null);
-            runeAltarBlock = (Block) modBlocks.getField("runeAltar").get(null);
-        } catch (Exception e) {
-            AE2Enhanced.LOGGER.warn("[AE2E] BotaniaReflectionHelper failed to cache ModBlocks", e);
-        }
-
-        try {
-            Class<?> modItems = Class.forName("vazkii.botania.common.item.ModItems");
-            manaResource = (Item) modItems.getField("manaResource").get(null);
-            rune = (Item) modItems.getField("rune").get(null);
-            lexicon = (Item) modItems.getField("lexicon").get(null);
-        } catch (Exception e) {
-            AE2Enhanced.LOGGER.warn("[AE2E] BotaniaReflectionHelper failed to cache ModItems", e);
-        }
-
-        try {
-            Class<?> botaniaAPI = Class.forName("vazkii.botania.api.BotaniaAPI");
-            petalRecipes = (List<?>) botaniaAPI.getField("petalRecipes").get(null);
-            manaInfusionRecipes = (List<?>) botaniaAPI.getField("manaInfusionRecipes").get(null);
-            runeAltarRecipes = (List<?>) botaniaAPI.getField("runeAltarRecipes").get(null);
-            elvenTradeRecipes = (List<?>) botaniaAPI.getField("elvenTradeRecipes").get(null);
-        } catch (Exception e) {
-            AE2Enhanced.LOGGER.warn("[AE2E] BotaniaReflectionHelper failed to cache BotaniaAPI recipe lists", e);
-        }
-
-        try {
-            Class<?> recipeManaInfusion = Class.forName("vazkii.botania.api.recipe.RecipeManaInfusion");
-            manaInfusionGetInput = recipeManaInfusion.getMethod("getInput");
-            manaInfusionGetOutput = recipeManaInfusion.getMethod("getOutput");
-            manaInfusionGetManaToConsume = recipeManaInfusion.getMethod("getManaToConsume");
-
-            Class<?> recipeElvenTrade = Class.forName("vazkii.botania.api.recipe.RecipeElvenTrade");
-            elvenTradeGetInputs = recipeElvenTrade.getMethod("getInputs");
-            elvenTradeGetOutputs = recipeElvenTrade.getMethod("getOutputs");
-
-            Class<?> recipePetals = Class.forName("vazkii.botania.api.recipe.RecipePetals");
-            petalsMatches = recipePetals.getMethod("matches", IItemHandler.class);
-            petalsGetInputs = recipePetals.getMethod("getInputs");
-            petalsGetOutput = recipePetals.getMethod("getOutput");
-
-            recipeRuneAltar = Class.forName("vazkii.botania.api.recipe.RecipeRuneAltar");
-            runeAltarGetManaUsage = recipeRuneAltar.getMethod("getManaUsage");
-        } catch (Exception e) {
-            AE2Enhanced.LOGGER.warn("[AE2E] BotaniaReflectionHelper failed to cache recipe classes", e);
-        }
-
-        CLASS_TILE_POOL = tilePool;
-
-        CLASS_TILE_ALF_PORTAL = tileAlfPortal;
-
-        CLASS_TILE_TERRA_PLATE = tileTerraPlate;
-        METHOD_HAS_VALID_PLATFORM = hasValidPlatform;
-        METHOD_ARE_ITEMS_VALID = areItemsValid;
-        METHOD_GET_ITEMS = getItems;
-
-        CLASS_TILE_RUNE_ALTAR = tileRuneAltar;
-        FIELD_CURRENT_RECIPE = currentRecipe;
-        FIELD_COOLDOWN = cooldown;
-        FIELD_MANA = mana;
-        FIELD_MANA_TO_GET = manaToGet;
-
-        CLASS_TILE_ALTAR = tileAltar;
-
-        ALFPORTAL_STATE_PROP = alfPortalStateProp;
-        ALFPORTAL_STATE_OFF = alfPortalStateOff;
-
-        BLOCK_LIVINGROCK = livingrock;
-        BLOCK_RUNE_ALTAR = runeAltarBlock;
-        ITEM_MANA_RESOURCE = manaResource;
-        ITEM_RUNE = rune;
-        ITEM_LEXICON = lexicon;
-
-        PETAL_RECIPES = petalRecipes;
-        MANA_INFUSION_RECIPES = manaInfusionRecipes;
-        RUNE_ALTAR_RECIPES = runeAltarRecipes;
-        ELVEN_TRADE_RECIPES = elvenTradeRecipes;
-
-        CLASS_RECIPE_RUNE_ALTAR = recipeRuneAltar;
-        METHOD_MANA_INFUSION_GET_INPUT = manaInfusionGetInput;
-        METHOD_MANA_INFUSION_GET_OUTPUT = manaInfusionGetOutput;
-        METHOD_MANA_INFUSION_GET_MANA_TO_CONSUME = manaInfusionGetManaToConsume;
-        METHOD_ELVEN_TRADE_GET_INPUTS = elvenTradeGetInputs;
-        METHOD_ELVEN_TRADE_GET_OUTPUTS = elvenTradeGetOutputs;
-        METHOD_PETALS_MATCHES = petalsMatches;
-        METHOD_PETALS_GET_INPUTS = petalsGetInputs;
-        METHOD_PETALS_GET_OUTPUT = petalsGetOutput;
-        METHOD_RUNE_ALTAR_GET_MANA_USAGE = runeAltarGetManaUsage;
     }
 
     // ---- 通用调用封装 ----
@@ -322,15 +208,6 @@ public class BotaniaReflectionHelper {
             return FIELD_COOLDOWN.getInt(altar);
         } catch (IllegalAccessException e) {
             return 0;
-        }
-    }
-
-    public static void setRuneAltarCooldown(Object altar, int value) {
-        if (FIELD_COOLDOWN == null) return;
-        try {
-            FIELD_COOLDOWN.setInt(altar, value);
-        } catch (IllegalAccessException e) {
-            AE2Enhanced.LOGGER.warn("[AE2E] Failed to set RuneAltar cooldown", e);
         }
     }
 

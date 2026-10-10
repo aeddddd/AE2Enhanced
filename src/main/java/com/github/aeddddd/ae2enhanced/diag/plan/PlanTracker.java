@@ -105,8 +105,8 @@ public final class PlanTracker {
             return 0L;
         }
         long total = Ae2CraftingReflect.getNodeMissing(node);
-        for (CraftingTreeProcess pro : Ae2CraftingReflect.getNodeProcesses(node)) {
-            for (CraftingTreeNode child : Ae2CraftingReflect.getProcessNodes(pro).keySet()) {
+        for (CraftingTreeProcess pro : Ae2CraftingReflect.sortedNodeProcesses(node)) {
+            for (CraftingTreeNode child : Ae2CraftingReflect.sortedProcessNodes(pro)) {
                 total += sumMissing(child);
             }
         }

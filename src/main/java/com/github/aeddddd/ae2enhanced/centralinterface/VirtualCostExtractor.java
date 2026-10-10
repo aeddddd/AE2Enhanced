@@ -39,8 +39,7 @@ public class VirtualCostExtractor {
     /**
      * 非物品/流体通道的显式路由表。
      *
-     * <p>匹配规则：栈类全限定名包含 {@code classNameToken} 即命中（与原
-     * {@code className.contains(...)} 语义一致），按声明顺序逐个匹配。</p>
+     * <p>匹配规则：栈类全限定名包含 {@code classNameToken} 即命中，按声明顺序逐个匹配。</p>
      */
     private static final class ChannelRoute {
         final String classNameToken;

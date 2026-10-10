@@ -14,6 +14,32 @@ final class Basis {
     static final double PIVOT_MIN = Double.parseDouble(System.getProperty("ae2e.pivotMin", "1e-11"));
     /** eta 向量数上限, 超限由调用方重分解. m 为数百时重分解廉价, 取 30 限制因子漂移. */
     static final int MAX_ETA = Integer.getInteger("ae2e.maxEta", 30);
+    /**
+     * LU 填元比埋点开关(F-0): 记 nnz(L)+nnz(U) 与基列总非零数 nnz(B) 的比值,
+     * 用于判断是否值得引入 Markowitz 列序(A4)。默认关, 零开销。
+     */
+    static final boolean STATS = Boolean.getBoolean("ae2e.basisStats");
+    /** 累计分解次数(nnz(L)+nnz(U) 之和与 nnz(B) 之和的比值口径)。 */
+    static final java.util.concurrent.atomic.AtomicLong[] STATS_ACC =
+            new java.util.concurrent.atomic.AtomicLong[] {
+                    new java.util.concurrent.atomic.AtomicLong(), // 分解次数
+                    new java.util.concurrent.atomic.AtomicLong(), // Σ nnz(L)
+                    new java.util.concurrent.atomic.AtomicLong(), // Σ nnz(U)
+                    new java.util.concurrent.atomic.AtomicLong() // Σ nnz(B)
+            };
+
+    /** 填元比埋点快照(次数, nnz(L)+nnz(U), nnz(B), 比值); 未开启时返回全 0. */
+    static String statsSnapshot() {
+        long calls = STATS_ACC[0].get();
+        long lu = STATS_ACC[1].get() + STATS_ACC[2].get();
+        long b = STATS_ACC[3].get();
+        return "分解次数=" + calls + " Σ(nnzL+nnzU)=" + lu + " ΣnnzB=" + b
+                + " 填元比=" + (b == 0 ? "-" : String.format(java.util.Locale.ROOT, "%.3f", (double) lu / b))
+                + " nnzL/nnzB=" + (b == 0 ? "-" : String.format(java.util.Locale.ROOT, "%.3f",
+                        (double) STATS_ACC[1].get() / b))
+                + " nnzU/nnzB=" + (b == 0 ? "-" : String.format(java.util.Locale.ROOT, "%.3f",
+                        (double) STATS_ACC[2].get() / b));
+    }
 
     /** 数值失败异常(基奇异/病态), 由调用方转为 NUMERIC_FAILURE. 携带失败位置与候选行, 供单位列修补恢复. */
     static final class NumericException extends Exception {
@@ -184,6 +210,24 @@ final class Basis {
             this.lVal.add(lColVal);
             // 整行清零: L 前代会写入位置 < k 的元素, 必须全部复位
             java.util.Arrays.fill(work, 0);
+        }
+        if (STATS) {
+            long lSum = 0;
+            long uSum = 0;
+            long bNnz = 0;
+            for (int[] idx : this.lIdx) {
+                lSum += idx.length;
+            }
+            for (int[] idx : this.uIdx) {
+                uSum += idx.length;
+            }
+            for (SparseCol col : columns) {
+                bNnz += col.nnz();
+            }
+            STATS_ACC[0].incrementAndGet();
+            STATS_ACC[1].addAndGet(lSum);
+            STATS_ACC[2].addAndGet(uSum);
+            STATS_ACC[3].addAndGet(bNnz);
         }
     }
 

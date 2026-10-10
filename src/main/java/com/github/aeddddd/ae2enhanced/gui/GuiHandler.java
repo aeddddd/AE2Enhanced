@@ -35,6 +35,8 @@ public class GuiHandler implements IGuiHandler {
     public static final int GUI_CENTRAL_ME_INTERFACE = 12;
     public static final int GUI_SMART_PATTERN_INTERFACE = 13;
     public static final int GUI_ENERGY_STORAGE_BUS = 14;
+    /** 可拼接全能无线终端（第二代物品）的 GUI id；≤15 以兼容 {@link #encodePatternId} 的页码位。 */
+    public static final int GUI_SPLICED_TERMINAL = 15;
     public static final int GUI_OMNI_TOOL_CONFIG = 26;
 
     public static final int GUI_ADVANCED_ME_COLLECTOR = 27;
@@ -65,7 +67,8 @@ public class GuiHandler implements IGuiHandler {
     @Override
     public Object getServerGuiElement(int ID, EntityPlayer player, World world, int x, int y, int z) {
         // Omni 终端是无线物品 GUI,不依赖 TileEntity,优先处理避免与 (0,0,0) 处 TileEntity 冲突
-        if (ID == GUI_OMNI_TERMINAL) {
+        // 两代终端共用这条链路:11 = 旧 GUI(ContainerOmniTerm),15 = 可拼接终端(ContainerSplicedTerm)
+        if (ID == GUI_OMNI_TERMINAL || ID == GUI_SPLICED_TERMINAL) {
             ItemStack held = findOmniTerminalStack(player, x, y);
             if (held.getItem() instanceof ItemOmniWirelessTerminal) {
                 appeng.api.features.IWirelessTermHandler handler = appeng.api.AEApi.instance().registries().wireless().getWirelessTerminalHandler(held);
@@ -77,6 +80,9 @@ public class GuiHandler implements IGuiHandler {
                 if (host.getActionableNode() == null) {
                     player.sendMessage(appeng.core.localization.PlayerMessages.OutOfRange.get());
                     return null;
+                }
+                if (ID == GUI_SPLICED_TERMINAL) {
+                    return new com.github.aeddddd.ae2enhanced.container.ContainerSplicedTerm(player.inventory, host);
                 }
                 return new ContainerOmniTerm(player.inventory, host);
             }
@@ -249,7 +255,7 @@ public class GuiHandler implements IGuiHandler {
     @Override
     public Object getClientGuiElement(int ID, EntityPlayer player, World world, int x, int y, int z) {
         // Omni 终端是无线物品 GUI,不依赖 TileEntity,优先处理避免与 (0,0,0) 处 TileEntity 冲突
-        if (ID == GUI_OMNI_TERMINAL) {
+        if (ID == GUI_OMNI_TERMINAL || ID == GUI_SPLICED_TERMINAL) {
             ItemStack held = findOmniTerminalStack(player, x, y);
             if (held.getItem() instanceof ItemOmniWirelessTerminal) {
                 appeng.api.features.IWirelessTermHandler handler = appeng.api.AEApi.instance().registries().wireless().getWirelessTerminalHandler(held);
@@ -258,6 +264,9 @@ public class GuiHandler implements IGuiHandler {
                     return null;
                 }
                 appeng.helpers.WirelessTerminalGuiObject host = new appeng.helpers.WirelessTerminalGuiObject(handler, held, player, world, x, y, 0);
+                if (ID == GUI_SPLICED_TERMINAL) {
+                    return new com.github.aeddddd.ae2enhanced.client.gui.terminal.GuiSplicedTerm(player.inventory, host);
+                }
                 return new com.github.aeddddd.ae2enhanced.client.gui.GuiOmniTerm(player.inventory, host);
             }
             return null;

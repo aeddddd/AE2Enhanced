@@ -125,9 +125,32 @@ public final class HugeCount implements Comparable<HugeCount> {
         return other == null || compareTo(other) <= 0 ? this : other;
     }
 
-    /** 超过 Long.MAX_VALUE 时截断为 Long.MAX_VALUE（AE2 堆叠数量的接口上限）。 */
+    /**
+     * 向 AE2 网络聚合视图上报的数量上限（{@code Long.MAX_VALUE / 2}）.
+     *
+     * <p>AE2 的聚合缓存对同一物品做多来源<b>裸 long 加法且无溢出保护</b>
+     * （ItemVariantList.addStorage → AEStack.incStackSize）。若上报值达到
+     * {@link Long#MAX_VALUE}，只要网络中还存在第二个来源（普通存储元件、另一个中枢），
+     * 聚合结果即回绕为负数，导致电平维持器（如 AE2-PowerTools 的缓存指令器）等设备
+     * 误判缺口并无限发起合成。取半可保证两个满额来源聚合后仍不溢出
+     * （与 EMCInventoryHandler.MAX_TERMINAL_STACK 的既有约定一致）。</p>
+     */
+    public static final long AE2_VIEW_CAP = Long.MAX_VALUE / 2;
+
+    /** 超过 Long.MAX_VALUE 时截断为 Long.MAX_VALUE（提取结果等以请求量为天然上限的场景）。 */
     public long toLongSaturated() {
         return bigValue != null ? Long.MAX_VALUE : longValue;
+    }
+
+    /**
+     * 聚合视图上报用截断：封顶 {@link #AE2_VIEW_CAP}，防止 AE2 多来源聚合溢出回绕为负数.
+     * 仅 getAvailableItems（网络存储列表）使用；提取结果仍用 {@link #toLongSaturated()}。
+     */
+    public long toLongViewCapped() {
+        if (bigValue != null) {
+            return AE2_VIEW_CAP;
+        }
+        return Math.min(longValue, AE2_VIEW_CAP);
     }
 
     /** 是否超过 long 表示范围（替代旧代码的 compareTo(StorageConstants.LONG_MAX) > 0）。 */

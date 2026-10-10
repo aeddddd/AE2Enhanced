@@ -42,6 +42,7 @@ public class AE2EnhancedJEIPlugin implements IModPlugin {
     @Override
     public void register(IModRegistry registry) {
         registerSlotIngredientProvider(registry);
+        registerSplicedTermGuiProperties(registry);
 
         IIngredientRegistry ingredientRegistry = registry.getIngredientRegistry();
         IIngredientBlacklist blacklist = registry.getJeiHelpers().getIngredientBlacklist();
@@ -63,6 +64,10 @@ public class AE2EnhancedJEIPlugin implements IModPlugin {
         // 指南书为测试物品：JEI 隐藏
         if (ItemRegistry.GUIDE_BOOK != null) {
             blacklist.addIngredientToBlacklist(new ItemStack(ItemRegistry.GUIDE_BOOK));
+        }
+        // V2 可拼接终端当前仅 dev 可见（创造栏已置 null，这里同步从 JEI 隐藏）
+        if (ItemRegistry.OMNI_WIRELESS_TERMINAL_II != null) {
+            blacklist.addIngredientToBlacklist(new ItemStack(ItemRegistry.OMNI_WIRELESS_TERMINAL_II));
         }
 
         // 必须将 BlackHoleRecipe 包装为 BlackHoleRecipeWrapper,与 IRecipeCategory 的泛型匹配
@@ -86,6 +91,9 @@ public class AE2EnhancedJEIPlugin implements IModPlugin {
         // Omni Terminal 配方转移：使用 universal handler 支持所有 recipe category
         registry.getRecipeTransferRegistry().addUniversalRecipeTransferHandler(
                 new com.github.aeddddd.ae2enhanced.integration.jei.OmniTermRecipeTransferHandler());
+        // 可拼接终端（GUI 15）：JEI 按容器精确类查表，必须单独注册一份（逻辑同一段）
+        registry.getRecipeTransferRegistry().addUniversalRecipeTransferHandler(
+                new com.github.aeddddd.ae2enhanced.integration.jei.SplicedTermRecipeTransferHandler());
 
         // Smart Pattern Interface MiniGUI ghost ingredient drag support
         registry.addGhostIngredientHandler(
@@ -118,6 +126,21 @@ public class AE2EnhancedJEIPlugin implements IModPlugin {
         } else {
             LOGGER.warn("[AE2E] 检测到旧版 HEI/JEI（缺少 ISlotIngredientProvider API,HEI < 4.34.0）.");
             LOGGER.warn("[AE2E] 已回退到 Mixin 方式实现终端假物品识别.旧版兼容将在未来几个版本中移除,请升级 HEI 到 4.34.0 或更高版本.");
+        }
+    }
+
+    /**
+     * 上报可拼接终端的"GUI 本体矩形"（可拼接终端是全屏对话框，xSize/ySize 为 0，默认实现会让
+     * HEI 的物品列表铺满整屏）。详见 {@link SplicedTermGuiProperties}。
+     *
+     * <p>只注册本终端的类：旧终端 {@code GuiOmniTerm} 是普通尺寸的 AEBaseGui，保持默认行为不变。</p>
+     */
+    private static void registerSplicedTermGuiProperties(IModRegistry registry) {
+        try {
+            registry.addGuiScreenHandler(com.github.aeddddd.ae2enhanced.client.gui.terminal.GuiSplicedTerm.class,
+                    SplicedTermGuiProperties::create);
+        } catch (Throwable t) {
+            LOGGER.error("[AE2E] 注册可拼接终端的 JEI GUI 矩形失败,HEI 物品列表/书签位置会不正常", t);
         }
     }
 }

@@ -31,10 +31,15 @@ import java.util.List;
  * 需要周围存在 Ender Alternator 才能推进进度.
  * 合成完成后产物留在 result 槽,matrix 中未消耗的物品保留.</p>
  *
- * <p>处理样板策略(参考 ExtendedCraftingTableHandler / AstralSorceryHandler)：
- * AE 处理样板不保证槽位一一对应,因此 {@code canStart} 中通过物品种类+数量
- * 遍历配方列表进行多对多匹配；{@code pushMaterials} 按配方 {@code getIngredients()}
- * 的槽位顺序从可用物品中匹配并精确放置.</p>
+ * <p>处理样板策略：
+ * AE 处理样板不保证槽位一一对应,因此 {@code pushMaterials} 在写入 matrix 之前
+ * 按物品种类+数量反查一次配方(配方知识只用于 {@code getIngredients()} 的槽序摆放),
+ * 并把结果缓存到 {@link TargetSession}；{@code canStart} 只检查 matrix/result/alternator
+ * 等结构就绪条件，不查配方。</p>
+ *
+ * <p><b>取舍</b>：配方是否存在不由 {@code canStart} 当场拒绝。无匹配配方的材料被推入 matrix 后，
+ * 末影工作台不会启动(progress 保持 0)，会话保持 PROCESSING 直到 {@code processingTimeoutTicks}
+ * 超时，再由 {@link #revertMaterials} 取回 matrix 与 result 槽中的全部物品。</p>
  */
 public class EnderCrafterHandler implements IRemoteHandler, IVirtualBatchCraftingHandler {
 
@@ -125,15 +130,9 @@ public class EnderCrafterHandler implements IRemoteHandler, IVirtualBatchCraftin
             return false;
         }
 
-        // 通过 ingredients 反查配方(不依赖槽位顺序)
-        Object recipe = findRecipe(ingredients);
-        if (recipe != null) {
-            if (session != null) {
-                session.setRecipeCache(recipe);
-            }
-            return true;
-        }
-        return false;
+        // 不在此处反查配方：配方只用于 pushMaterials 的槽序摆放，
+        // 放在这里会让每个候选目标在做结构检查时都白跑一次配方遍历。
+        return true;
     }
 
     @Override
@@ -146,8 +145,12 @@ public class EnderCrafterHandler implements IRemoteHandler, IVirtualBatchCraftin
         try {
             Object recipe = session != null ? session.getRecipeCache() : null;
             if (recipe == null) {
+                // 配方知识只用于按 getIngredients() 槽序摆放 matrix，因此在本批写入点之前反查一次
                 recipe = findRecipe(ingredients);
                 if (recipe == null) return false;
+                if (session != null) {
+                    session.setRecipeCache(recipe);
+                }
             }
 
             List<ItemStack> matrix = (List<ItemStack>) METHOD_GET_MATRIX.invoke(te);
@@ -366,6 +369,12 @@ public class EnderCrafterHandler implements IRemoteHandler, IVirtualBatchCraftin
 
     // ---- 配方查找与匹配 ----
 
+    /**
+     * 按输入物品反查末影工作台配方(不依赖槽位顺序).
+     *
+     * <p>调用点只剩两处：物理路径的 {@code pushMaterials}(配方只用于
+     * {@code getIngredients()} 的槽序摆放) 与虚拟路径的 {@code canCraftVirtually}(配方校验)。</p>
+     */
     @SuppressWarnings("unchecked")
     private static Object findRecipe(InventoryCrafting ingredients) {
         initRecipeReflection();

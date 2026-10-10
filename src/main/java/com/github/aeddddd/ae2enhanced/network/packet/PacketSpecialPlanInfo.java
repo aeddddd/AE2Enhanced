@@ -56,6 +56,7 @@ public class PacketSpecialPlanInfo implements IMessage {
             ByteBufUtils.writeItemStack(buf, e.getKey().getDefinition());
             buf.writeLong(e.getValue());
         }
+        buf.writeInt(info.unresolvedUnits);
     }
 
     @Override
@@ -75,7 +76,8 @@ public class PacketSpecialPlanInfo implements IMessage {
             IAEItemStack key = AEItemStack.fromItemStack(ByteBufUtils.readItemStack(buf));
             callCounts.put(key, buf.readLong());
         }
-        this.info = new SpecialPlanInfo(entries, callCounts);
+        int unresolved = buf.readInt();
+        this.info = new SpecialPlanInfo(entries, callCounts, unresolved);
     }
 
     public static class Handler implements IMessageHandler<PacketSpecialPlanInfo, IMessage> {

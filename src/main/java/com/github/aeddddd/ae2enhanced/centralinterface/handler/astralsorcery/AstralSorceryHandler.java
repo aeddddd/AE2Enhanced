@@ -6,6 +6,7 @@ import appeng.api.networking.security.IActionSource;
 import appeng.api.storage.data.IAEItemStack;
 import appeng.api.storage.data.IAEStack;
 import appeng.util.item.AEItemStack;
+import com.github.aeddddd.ae2enhanced.centralinterface.HandlerUtils;
 import com.github.aeddddd.ae2enhanced.centralinterface.IRemoteHandler;
 import com.github.aeddddd.ae2enhanced.centralinterface.IVirtualBatchCraftingHandler;
 import com.github.aeddddd.ae2enhanced.storage.starlight.AEStarlightStack;
@@ -26,6 +27,7 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -34,12 +36,18 @@ import net.minecraft.util.EnumParticleTypes;
 /**
  * Astral Sorcery 星辉祭坛远程处理器.
  *
- * <p>支持全部 5 个等级(DISCOVERY~BRILLIANCE).
- * 配方匹配策略：在 {@code canStart} 中通过输入物品种类+数量遍历祭坛配方列表,
- * 找到唯一匹配后缓存；{@code pushMaterials} 按缓存配方的 slot 布局精确放置物品
- * (包括 3x3 主网格与 Attunement/Constellation/Trait 额外槽位)；
- * {@code startProcess} 直接创建 {@code ActiveCraftingTask} 并注入 TileAltar,
+ * <p>支持全部 5 个等级(DISCOVERY~BRILLIANCE).</p>
+ *
+ * <p><b>配方策略</b>：{@code canStart} 只做结构就绪检查(无进行中的合成、结构匹配、槽位可清空),
+ * 不查配方；{@code pushMaterials} 在写入祭坛之前定位一次配方并缓存到 {@link TargetSession},
+ * 然后按该配方的 slot 布局精确放置物品(包括 3x3 主网格与 Attunement/Constellation/Trait 额外槽位)；
+ * {@code startProcess} 复用缓存配方直接创建 {@code ActiveCraftingTask} 并注入 TileAltar,
  * 绕过 FakePlayer 进度门控.</p>
+ *
+ * <p>主产物以样板声明的 {@code expectedOutputs[0]} 为准(首个产物即主产物),配方只用于
+ * “按槽位放置”这一项放置位置知识。配方存在性与星能校验仍保留，但都下沉到
+ * {@code pushMaterials} 的写入点之前：不匹配时材料尚未推进祭坛，由 dispatcher 立即回退，
+ * 因此失败方式是当场拒绝。</p>
  */
 public class AstralSorceryHandler implements IRemoteHandler, IVirtualBatchCraftingHandler {
 
@@ -173,16 +181,8 @@ public class AstralSorceryHandler implements IRemoteHandler, IVirtualBatchCrafti
             }
         }
 
-        // 通过输入物品种类+数量查找配方并缓存
-        Object recipe = findRecipeByIngredients(te, ingredients);
-        if (recipe == null) return false;
-
-        // 星能检查
-        if (!fulfillesStarlightRequirement(recipe, te)) return false;
-
-        if (session != null) {
-            session.setRecipeCache(recipe);
-        }
+        // 本方法只做结构就绪检查：配方是否存在、星能是否满足都下沉到 pushMaterials 的写入点之前，
+        // 避免每个候选目标在 canStart 阶段都做一次祭坛配方表遍历。
         return true;
     }
 
@@ -197,9 +197,17 @@ public class AstralSorceryHandler implements IRemoteHandler, IVirtualBatchCrafti
 
         Object recipe = session != null ? session.getRecipeCache() : null;
         if (recipe == null) {
-            // 回退：尝试重新查找
-            recipe = findRecipeByIngredients(te, ingredients);
+            // 唯一保留的配方定位：主产物取样板声明的首个产物，配方只用于槽位放置。
+            recipe = findRecipeForBatch(te, ingredients, mainOutput(session));
             if (recipe == null) return false;
+        }
+
+        // 以下两项校验必须在任何写入之前完成，保证失败时祭坛仍为空、材料可被完整回退
+        if (!fulfillesStarlightRequirement(recipe, te)) return false;
+        if (!ingredientsMatch(recipe, ingredients)) return false;
+
+        if (session != null) {
+            session.setRecipeCache(recipe);
         }
 
         // 清空祭坛所有 slot(matches() 会检查 handler 的全部 slot)
@@ -337,7 +345,7 @@ public class AstralSorceryHandler implements IRemoteHandler, IVirtualBatchCrafti
         if (recipe == null) return costs;
 
         List<Ingredient> required = collectRequiredIngredients(recipe);
-        List<ItemStack> available = collectNonEmpty(ingredients);
+        List<ItemStack> available = HandlerUtils.collectNonEmpty(ingredients);
         for (Ingredient ing : required) {
             if (ing == null || ing == Ingredient.EMPTY) continue;
             for (int i = 0; i < available.size(); i++) {
@@ -389,7 +397,6 @@ public class AstralSorceryHandler implements IRemoteHandler, IVirtualBatchCrafti
         return null;
     }
 
-    @SuppressWarnings("unchecked")
     private List<Ingredient> collectRequiredIngredients(Object recipe) {
         List<Ingredient> required = new ArrayList<>();
         try {
@@ -402,33 +409,37 @@ public class AstralSorceryHandler implements IRemoteHandler, IVirtualBatchCrafti
                 }
             }
 
-            addItemHandleIngredients(required, recipe, CLASS_ATTUNEMENT_RECIPE, FIELD_ADDITIONAL_SLOTS);
-            addItemHandleIngredients(required, recipe, CLASS_CONSTELLATION_RECIPE, FIELD_MATCH_STACKS);
-            addItemHandleIngredients(required, recipe, CLASS_TRAIT_RECIPE, FIELD_MATCH_TRAIT_STACKS);
+            addHandleIngredients(required, recipe, CLASS_ATTUNEMENT_RECIPE, FIELD_ADDITIONAL_SLOTS);
+            addHandleIngredients(required, recipe, CLASS_CONSTELLATION_RECIPE, FIELD_MATCH_STACKS);
+            addHandleIngredients(required, recipe, CLASS_TRAIT_RECIPE, FIELD_MATCH_TRAIT_STACKS);
 
-            if (CLASS_TRAIT_RECIPE.isInstance(recipe) && FIELD_ADDITIONALLY_REQUIRED_STACKS != null) {
-                List<Object> outerHandles = (List<Object>) FIELD_ADDITIONALLY_REQUIRED_STACKS.get(recipe);
-                if (outerHandles != null) {
-                    for (Object handle : outerHandles) {
-                        Ingredient ing = (Ingredient) METHOD_GET_RECIPE_INGREDIENT.invoke(handle);
-                        if (ing != null && ing != Ingredient.EMPTY) {
-                            required.add(ing);
-                        }
-                    }
-                }
-            }
+            // TraitRecipe 外部 additionallyRequiredStacks(光波增幅器 / AttunementRelay)
+            addHandleIngredients(required, recipe, CLASS_TRAIT_RECIPE, FIELD_ADDITIONALLY_REQUIRED_STACKS);
         } catch (Exception e) {
             // ignore
         }
         return required;
     }
 
+    /**
+     * 把配方某字段中的 ItemHandle 转成 Ingredient 追加到 required.
+     *
+     * <p>map 字段(AttunementRecipe#additionalSlots、ConstellationRecipe#matchStacks、
+     * TraitRecipe#matchTraitStacks)与 list 字段(TraitRecipe#additionallyRequiredStacks)
+     * 的遍历逻辑一致,仅容器类型不同.</p>
+     *
+     * <p>字段不可访问时抛出异常,由调用方决定是整体放弃(严格路径)还是跳过(容错路径).</p>
+     */
     @SuppressWarnings("unchecked")
-    private void addItemHandleIngredients(List<Ingredient> required, Object recipe, Class<?> recipeClass, Field field) throws Exception {
+    private static void addHandleIngredients(List<Ingredient> required, Object recipe, Class<?> recipeClass, Field field) throws Exception {
         if (!recipeClass.isInstance(recipe) || field == null) return;
-        Map<?, ?> map = (Map<?, ?>) field.get(recipe);
-        if (map == null) return;
-        for (Object handle : map.values()) {
+        Object value = field.get(recipe);
+        if (value == null) return;
+        Collection<?> handles = value instanceof Map
+                ? ((Map<Object, Object>) value).values()
+                : (Collection<?>) value;
+        for (Object handle : handles) {
+            if (handle == null) continue;
             Ingredient ing = (Ingredient) METHOD_GET_RECIPE_INGREDIENT.invoke(handle);
             if (ing != null && ing != Ingredient.EMPTY) {
                 required.add(ing);
@@ -436,8 +447,17 @@ public class AstralSorceryHandler implements IRemoteHandler, IVirtualBatchCrafti
         }
     }
 
+    /** {@link #addHandleIngredients} 的容错包装：单个字段反射失败时跳过,不影响其余槽位收集. */
+    private static void addHandleIngredientsLeniently(List<Ingredient> required, Object recipe, Class<?> recipeClass, Field field) {
+        try {
+            addHandleIngredients(required, recipe, recipeClass, field);
+        } catch (Exception ignored) {
+            // ignore
+        }
+    }
+
     private boolean matchIngredients(List<Ingredient> required, InventoryCrafting ingredients) {
-        List<ItemStack> available = collectNonEmpty(ingredients);
+        List<ItemStack> available = HandlerUtils.collectNonEmpty(ingredients);
         for (Ingredient ing : required) {
             if (ing == null || ing == Ingredient.EMPTY) continue;
             boolean found = false;
@@ -451,15 +471,6 @@ public class AstralSorceryHandler implements IRemoteHandler, IVirtualBatchCrafti
             if (!found) return false;
         }
         return available.isEmpty();
-    }
-
-    private List<ItemStack> collectNonEmpty(InventoryCrafting ingredients) {
-        List<ItemStack> list = new ArrayList<>();
-        for (int i = 0; i < ingredients.getSizeInventory(); i++) {
-            ItemStack stack = ingredients.getStackInSlot(i);
-            if (!stack.isEmpty()) list.add(stack.copy());
-        }
-        return list;
     }
 
     private int getPassiveStarlightRequired(Object recipe) {
@@ -519,11 +530,30 @@ public class AstralSorceryHandler implements IRemoteHandler, IVirtualBatchCrafti
     // ---- 配方查找与匹配 ----
 
     /**
-     * 通过输入物品种类+数量在 AltarRecipeRegistry 中查找匹配的配方.
-     * 只搜索当前祭坛等级及以下的配方.
+     * 取本批样板声明的主产物(首个产物).
+     *
+     * <p>样板声明的首个产物即主产物。</p>
+     */
+    private static ItemStack mainOutput(TargetSession session) {
+        IAEItemStack[] expected = session != null ? session.getExpectedOutputs() : null;
+        if (expected == null || expected.length == 0 || expected[0] == null) {
+            return ItemStack.EMPTY;
+        }
+        return expected[0].createItemStack();
+    }
+
+    /**
+     * 定位本批要按槽位放置的祭坛配方.
+     *
+     * <p>只遍历祭坛配方表一次：优先返回“输出与样板主产物一致且输入可满足”的配方，
+     * 无输出一致项时退回“仅输入可满足”的配方。
+     * 只搜索当前祭坛等级及以下的配方。</p>
+     *
+     * @param mainOutput 样板声明的主产物；为空时退化为仅按输入匹配
+     * @return 匹配到的配方；无匹配返回 null
      */
     @SuppressWarnings("unchecked")
-    private static Object findRecipeByIngredients(TileEntity altar, InventoryCrafting ingredients) {
+    private static Object findRecipeForBatch(TileEntity altar, InventoryCrafting ingredients, ItemStack mainOutput) {
         try {
             Map<Object, List<Object>> recipesMap = (Map<Object, List<Object>>) FIELD_RECIPES_MAP.get(null);
             if (recipesMap == null) return null;
@@ -531,21 +561,39 @@ public class AstralSorceryHandler implements IRemoteHandler, IVirtualBatchCrafti
             Object altarLevel = METHOD_GET_ALTAR_LEVEL.invoke(altar);
             int altarOrdinal = ((Enum<?>) altarLevel).ordinal();
 
+            Object ingredientsOnlyMatch = null;
             for (Map.Entry<Object, List<Object>> entry : recipesMap.entrySet()) {
                 Object level = entry.getKey();
                 int levelOrdinal = ((Enum<?>) level).ordinal();
                 if (levelOrdinal > altarOrdinal) continue;
 
                 for (Object recipe : entry.getValue()) {
-                    if (ingredientsMatch(recipe, ingredients)) {
+                    if (!ingredientsMatch(recipe, ingredients)) continue;
+                    if (!mainOutput.isEmpty() && recipeOutputMatches(recipe, mainOutput)) {
                         return recipe;
+                    }
+                    if (ingredientsOnlyMatch == null) {
+                        ingredientsOnlyMatch = recipe;
                     }
                 }
             }
+            return ingredientsOnlyMatch;
         } catch (Exception e) {
             // ignore
         }
         return null;
+    }
+
+    /** 配方输出是否与样板声明的主产物同类(忽略 NBT：星辉产物可能带随机 NBT)。 */
+    private static boolean recipeOutputMatches(Object recipe, ItemStack mainOutput) {
+        try {
+            ItemStack recipeOutput = (ItemStack) METHOD_GET_OUTPUT_FOR_MATCHING.invoke(recipe);
+            return !recipeOutput.isEmpty()
+                    && recipeOutput.getItem() == mainOutput.getItem()
+                    && recipeOutput.getMetadata() == mainOutput.getMetadata();
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     private static boolean ingredientsMatch(Object recipe, InventoryCrafting ingredients) {
@@ -562,16 +610,16 @@ public class AstralSorceryHandler implements IRemoteHandler, IVirtualBatchCrafti
             }
 
             // AttunementRecipe 额外 slot
-            addExtraSlotRequirements(recipe, required, CLASS_ATTUNEMENT_RECIPE, FIELD_ADDITIONAL_SLOTS);
+            addHandleIngredientsLeniently(required, recipe, CLASS_ATTUNEMENT_RECIPE, FIELD_ADDITIONAL_SLOTS);
 
             // ConstellationRecipe 额外 slot
-            addExtraSlotRequirements(recipe, required, CLASS_CONSTELLATION_RECIPE, FIELD_MATCH_STACKS);
+            addHandleIngredientsLeniently(required, recipe, CLASS_CONSTELLATION_RECIPE, FIELD_MATCH_STACKS);
 
             // TraitRecipe 额外 slot(内部 matchTraitStacks)
-            addExtraSlotRequirements(recipe, required, CLASS_TRAIT_RECIPE, FIELD_MATCH_TRAIT_STACKS);
+            addHandleIngredientsLeniently(required, recipe, CLASS_TRAIT_RECIPE, FIELD_MATCH_TRAIT_STACKS);
 
             // TraitRecipe 外部 additionallyRequiredStacks(光波增幅器 / AttunementRelay)
-            addOuterStackRequirements(recipe, required);
+            addHandleIngredientsLeniently(required, recipe, CLASS_TRAIT_RECIPE, FIELD_ADDITIONALLY_REQUIRED_STACKS);
 
             List<ItemStack> available = new ArrayList<>();
             for (int i = 0; i < ingredients.getSizeInventory(); i++) {
@@ -597,44 +645,6 @@ public class AstralSorceryHandler implements IRemoteHandler, IVirtualBatchCrafti
             return true;
         } catch (Exception e) {
             return false;
-        }
-    }
-
-    @SuppressWarnings("unchecked")
-    private static void addOuterStackRequirements(Object recipe, List<Ingredient> required) {
-        try {
-            if (!CLASS_TRAIT_RECIPE.isInstance(recipe)) return;
-            List<Object> outerStacks = (List<Object>) FIELD_ADDITIONALLY_REQUIRED_STACKS.get(recipe);
-            if (outerStacks == null) return;
-            for (Object itemHandle : outerStacks) {
-                if (itemHandle != null) {
-                    Ingredient ing = (Ingredient) METHOD_GET_RECIPE_INGREDIENT.invoke(itemHandle);
-                    if (ing != null && ing != Ingredient.EMPTY) {
-                        required.add(ing);
-                    }
-                }
-            }
-        } catch (Exception e) {
-            // ignore
-        }
-    }
-
-    @SuppressWarnings("unchecked")
-    private static void addExtraSlotRequirements(Object recipe, List<Ingredient> required, Class<?> recipeClass, Field field) {
-        try {
-            if (!recipeClass.isInstance(recipe)) return;
-            Map<Object, Object> slots = (Map<Object, Object>) field.get(recipe);
-            if (slots == null) return;
-            for (Object itemHandle : slots.values()) {
-                if (itemHandle != null) {
-                    Ingredient ing = (Ingredient) METHOD_GET_RECIPE_INGREDIENT.invoke(itemHandle);
-                    if (ing != null && ing != Ingredient.EMPTY) {
-                        required.add(ing);
-                    }
-                }
-            }
-        } catch (Exception e) {
-            // ignore
         }
     }
 

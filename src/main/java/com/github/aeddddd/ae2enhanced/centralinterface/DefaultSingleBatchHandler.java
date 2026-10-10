@@ -1,370 +1,53 @@
 package com.github.aeddddd.ae2enhanced.centralinterface;
 
-import appeng.api.networking.security.IActionSource;
-import appeng.api.storage.data.IAEItemStack;
-import net.minecraft.inventory.InventoryCrafting;
-import net.minecraft.item.ItemStack;
-import net.minecraft.tileentity.TileEntity;
-import net.minecraft.util.EnumFacing;
+import com.github.aeddddd.ae2enhanced.centralinterface.machine.AbstractMachineHandler;
+import com.github.aeddddd.ae2enhanced.centralinterface.machine.CatalogBuilder;
+import com.github.aeddddd.ae2enhanced.centralinterface.machine.ISlotCatalog;
+import com.github.aeddddd.ae2enhanced.centralinterface.machine.MachineIdle;
+import com.github.aeddddd.ae2enhanced.centralinterface.machine.MachineSpec;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
-import net.minecraftforge.items.CapabilityItemHandler;
-import net.minecraftforge.items.IItemHandler;
-
-import java.util.*;
 
 /**
- * 默认单批次处理器(通用 Fallback).
+ * 通用兜底处理器：目标方块没有匹配到任何专用 handler 时接管的机器.
  *
- * <p>当没有特定 {@link IRemoteHandler} 匹配目标方块类型时,使用此处理器.
- * 适用场景：熔炉、通用加工机器等具备 {@link IItemHandler} 能力、
- * 物品插入后自动开始处理、处理完成后产物留在输出槽的设备.</p>
+ * <p>适用场景：熔炉、通用加工机器等"具备 {@code IItemHandler} 能力、物品插入后自动开始处理、
+ * 产物留在输出槽"的设备。</p>
  *
- * <p>多目标隔离：输入材料快照由 {@link DualityCentralInterface} 按 TargetBinding 维护,
- * 通过 {@code inputs} 参数传入,避免多个中枢接口共享单例 handler 时的状态覆盖.</p>
+ * <p>本类是通用骨架 {@link AbstractMachineHandler} 的一个表项最简形态：自带一条
+ * <b>兜底表项</b>（{@link MachineSpec}，不匹配任何 blockId），只回答"目录怎么来"（六面 capability）
+ * 与"什么时候算处理中"（永远不是）。推料（两阶段原子）、收集（两阶段 + 反复制过滤）、回退（按台账
+ * 精确取回）、清空输出槽、空闲与完成判定全部由框架提供。</p>
+ *
+ * <p>通用机器的六面对外只暴露一个笼统的 {@code IItemHandler}，无法区分输入/输出槽，因此目录角色全为
+ * {@link com.github.aeddddd.ae2enhanced.centralinterface.machine.SlotRole#UNKNOWN}，
+ * 框架对这类机器按"非本批输入即产物"的宽松策略处理。
+ * 不去猜角色——猜错会把玩家的燃料/工具收进 ME 网络。</p>
  */
-public class DefaultSingleBatchHandler implements IRemoteHandler {
+public class DefaultSingleBatchHandler extends AbstractMachineHandler {
 
+    /**
+     * 兜底表项：不匹配任何 blockId，仅由 {@code HandlerRegistry} 作为默认返回。
+     *
+     * <p>不能用 {@code exactIds()} 表达"什么都不匹配"——那样会被误当成匹配了空字符串的普通表项，
+     * 故用具名的 {@link MachineSpec.Builder#fallback()}。</p>
+     */
     @Override
-    public boolean canHandle(String blockId) {
-        return false; // 不主动匹配任何 blockId,由 HandlerRegistry 作为兜底 fallback
-    }
-
-    @Override
-    public boolean isValidTarget(World world, BlockPos pos) {
-        TileEntity te = world.getTileEntity(pos);
-        if (te == null) {
-            return false;
-        }
-        for (EnumFacing face : EnumFacing.values()) {
-            if (te.hasCapability(CapabilityItemHandler.ITEM_HANDLER_CAPABILITY, face)) {
-                return true;
-            }
-        }
-        return false;
+    protected MachineSpec defineSpec() {
+        return MachineSpec.builder().fallback().access(this).build();
     }
 
     @Override
-    public EnumSet<HandlerCapabilities> getCapabilities() {
-        return HandlerCapabilities.physicalOnly();
+    protected ISlotCatalog catalogFor(World world, BlockPos pos) {
+        if (world == null || pos == null) {
+            return null;
+        }
+        return CatalogBuilder.facesOf(world.getTileEntity(pos));
     }
 
     @Override
-    public boolean canStart(World world, BlockPos pos, InventoryCrafting ingredients, TargetSession session) {
-        return isValidTarget(world, pos);
+    protected MachineIdle idleGate(World world, BlockPos pos) {
+        // 通用机器把材料插入后即自行开工，没有可观测的"处理中"信号
+        return MachineIdle.none();
     }
-
-    @Override
-    public boolean pushMaterials(World world, BlockPos pos, InventoryCrafting ingredients, IActionSource source, TargetSession session) {
-        TileEntity te = world.getTileEntity(pos);
-        if (te == null) {
-            return false;
-        }
-
-        List<ItemStack> toPush = new ArrayList<>();
-        for (int i = 0; i < ingredients.getSizeInventory(); i++) {
-            ItemStack stack = ingredients.getStackInSlot(i);
-            if (!stack.isEmpty()) {
-                toPush.add(stack.copy());
-            }
-        }
-
-        // 先模拟插入：任一物品无法完整放入目标则不进行任何真实插入，保证原子性
-        List<ItemStack> simulatedRemainings = new ArrayList<>();
-        for (ItemStack stack : toPush) {
-            ItemStack remaining = pushItemToTarget(te, stack, true);
-            simulatedRemainings.add(remaining);
-            if (!remaining.isEmpty()) {
-                return false;
-            }
-        }
-
-        // 全部模拟通过后再真实插入
-        for (ItemStack stack : toPush) {
-            ItemStack remaining = pushItemToTarget(te, stack, false);
-            if (!remaining.isEmpty()) {
-                // 理论上不应发生，但若发生则尽量回退已插入部分
-                return false;
-            }
-        }
-        return true;
-    }
-
-    @Override
-    public boolean startProcess(World world, BlockPos pos, IActionSource source, TargetSession session) {
-        return true;
-    }
-
-    @Override
-    public List<ItemStack> revertMaterials(World world, BlockPos pos, IActionSource source, TargetSession session) {
-        TileEntity te = world.getTileEntity(pos);
-        if (te == null) {
-            return Collections.emptyList();
-        }
-        List<ItemStack> inputsSafe = session != null ? session.getInputs() : Collections.emptyList();
-        List<ItemStack> reverted = new ArrayList<>();
-        for (EnumFacing face : EnumFacing.values()) {
-            IItemHandler handler = te.getCapability(CapabilityItemHandler.ITEM_HANDLER_CAPABILITY, face);
-            if (handler == null) continue;
-            for (int slot = 0; slot < handler.getSlots(); slot++) {
-                ItemStack inSlot = handler.getStackInSlot(slot);
-                if (inSlot.isEmpty()) continue;
-                // 只回退本次推送的输入材料，避免清空升级/电池槽
-                if (!HandlerUtils.isInputMaterial(inSlot, inputsSafe)) continue;
-                ItemStack extracted = handler.extractItem(slot, inSlot.getCount(), false);
-                if (!extracted.isEmpty()) {
-                    reverted.add(extracted);
-                }
-            }
-        }
-        return reverted;
-    }
-
-    @Override
-    public List<ItemStack> clearOutputs(World world, BlockPos pos, IActionSource source, TargetSession session) {
-        TileEntity te = world.getTileEntity(pos);
-        if (te == null) {
-            return Collections.emptyList();
-        }
-        List<ItemStack> inputsSafe = session != null ? session.getInputs() : Collections.emptyList();
-        List<ItemStack> expectedSafe = getExpectedItemStacks(session);
-        List<ItemStack> cleared = new ArrayList<>();
-        for (EnumFacing face : EnumFacing.values()) {
-            IItemHandler handler = te.getCapability(CapabilityItemHandler.ITEM_HANDLER_CAPABILITY, face);
-            if (handler == null) continue;
-            for (int slot = 0; slot < handler.getSlots(); slot++) {
-                ItemStack inSlot = handler.getStackInSlot(slot);
-                if (inSlot.isEmpty()) continue;
-                // 优先收集预期产物；若无法匹配预期产物，则收集非输入物品。
-                // 升级/电池等物品通常不在 expectedOutputs 也不在 inputs 中，借此避免被清空。
-                if (!HandlerUtils.isInputMaterial(inSlot, inputsSafe)
-                        && !matchesAnyExpected(inSlot, expectedSafe)) {
-                    continue;
-                }
-                ItemStack extracted = handler.extractItem(slot, inSlot.getCount(), false);
-                if (!extracted.isEmpty()) {
-                    cleared.add(extracted);
-                }
-            }
-        }
-        return cleared;
-    }
-
-    private List<ItemStack> getExpectedItemStacks(TargetSession session) {
-        if (session == null || session.getExpectedOutputs() == null) {
-            return Collections.emptyList();
-        }
-        List<ItemStack> list = new ArrayList<>();
-        for (IAEItemStack stack : session.getExpectedOutputs()) {
-            if (stack != null) {
-                list.add(stack.createItemStack());
-            }
-        }
-        return list;
-    }
-
-    private boolean matchesAnyExpected(ItemStack stack, List<ItemStack> expectedList) {
-        for (ItemStack expected : expectedList) {
-            if (HandlerUtils.matchesLoosely(stack, expected)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    @Override
-    public List<ItemStack> collectProducts(World world, BlockPos pos, IAEItemStack[] expectedOutputs,
-            List<ItemStack> inputs, IActionSource source, TargetSession session) {
-        TileEntity te = world.getTileEntity(pos);
-        if (te == null) {
-            return Collections.emptyList();
-        }
-
-        List<ItemStack> inputsSafe = inputs != null ? inputs : Collections.emptyList();
-        List<ItemStack> collected = new ArrayList<>();
-        Set<String> visitedSlots = new HashSet<>();
-
-        // 阶段 1：优先收集匹配预期产物的物品(NBT 放宽)
-        if (expectedOutputs != null && expectedOutputs.length > 0) {
-            for (IAEItemStack expected : expectedOutputs) {
-                if (expected == null) continue;
-                ItemStack expectedStack = expected.createItemStack();
-                ItemStack result = collectExpectedItem(te, expectedStack, inputsSafe, visitedSlots);
-                if (!result.isEmpty()) {
-                    collected.add(result);
-                }
-            }
-        }
-
-        // 阶段 2：收集所有其他非输入材料的可抽取物品(副产物、残余、容器物品等)
-        List<ItemStack> extras = collectAllNonInputItems(te, inputsSafe, visitedSlots);
-        collected.addAll(extras);
-
-        return collected;
-    }
-
-    @Override
-    public boolean isIdle(World world, BlockPos pos, List<ItemStack> inputs, TargetSession session) {
-        TileEntity te = world.getTileEntity(pos);
-        if (te == null) {
-            return true;
-        }
-
-        List<ItemStack> inputsSafe = inputs != null ? inputs : Collections.emptyList();
-
-        // 宽松语义：只要有可抽取的非输入物品(产物),即可收集(支持流水线模式)
-        for (EnumFacing face : EnumFacing.values()) {
-            IItemHandler handler = te.getCapability(CapabilityItemHandler.ITEM_HANDLER_CAPABILITY, face);
-            if (handler == null) continue;
-            for (int slot = 0; slot < handler.getSlots(); slot++) {
-                ItemStack inSlot = handler.getStackInSlot(slot);
-                if (inSlot.isEmpty()) continue;
-                ItemStack simulated = handler.extractItem(slot, 1, true);
-                if (simulated.isEmpty()) continue;
-                if (!HandlerUtils.isInputMaterial(inSlot, inputsSafe)) {
-                    return true; // 发现产物,可以收集
-                }
-            }
-        }
-        return false;
-    }
-
-    @Override
-    public boolean hasFinished(World world, BlockPos pos, List<ItemStack> inputs, TargetSession session) {
-        TileEntity te = world.getTileEntity(pos);
-        if (te == null) {
-            return true;
-        }
-
-        List<ItemStack> inputsSafe = inputs != null ? inputs : Collections.emptyList();
-
-        // 检查是否还有输入材料未消耗完
-        for (EnumFacing face : EnumFacing.values()) {
-            IItemHandler handler = te.getCapability(CapabilityItemHandler.ITEM_HANDLER_CAPABILITY, face);
-            if (handler == null) continue;
-            for (int slot = 0; slot < handler.getSlots(); slot++) {
-                ItemStack inSlot = handler.getStackInSlot(slot);
-                if (inSlot.isEmpty()) continue;
-                ItemStack simulated = handler.extractItem(slot, 1, true);
-                if (simulated.isEmpty()) continue;
-                if (HandlerUtils.isInputMaterial(inSlot, inputsSafe)) {
-                    return false; // 还有输入材料,未完成
-                }
-            }
-        }
-
-        // 输入已耗尽,再检查是否还有产物残留
-        for (EnumFacing face : EnumFacing.values()) {
-            IItemHandler handler = te.getCapability(CapabilityItemHandler.ITEM_HANDLER_CAPABILITY, face);
-            if (handler == null) continue;
-            for (int slot = 0; slot < handler.getSlots(); slot++) {
-                ItemStack inSlot = handler.getStackInSlot(slot);
-                if (inSlot.isEmpty()) continue;
-                ItemStack simulated = handler.extractItem(slot, 1, true);
-                if (simulated.isEmpty()) continue;
-                if (!HandlerUtils.isInputMaterial(inSlot, inputsSafe)) {
-                    return false; // 还有产物,未真正完成
-                }
-            }
-        }
-
-        return true;
-    }
-
-    // ---- Internal helpers ----
-
-    private ItemStack pushItemToTarget(TileEntity target, ItemStack stack, boolean simulate) {
-        ItemStack remaining = stack.copy();
-        for (EnumFacing face : EnumFacing.values()) {
-            IItemHandler handler = target.getCapability(CapabilityItemHandler.ITEM_HANDLER_CAPABILITY, face);
-            if (handler == null) {
-                continue;
-            }
-            for (int slot = 0; slot < handler.getSlots() && !remaining.isEmpty(); slot++) {
-                remaining = handler.insertItem(slot, remaining, simulate);
-            }
-            if (remaining.isEmpty()) {
-                break;
-            }
-        }
-        return remaining;
-    }
-
-    private ItemStack collectExpectedItem(TileEntity target, ItemStack expected,
-                                          List<ItemStack> inputs, Set<String> visitedSlots) {
-        ItemStack collected = ItemStack.EMPTY;
-        int remainingAmount = expected.getCount();
-
-        for (EnumFacing face : EnumFacing.values()) {
-            IItemHandler handler = target.getCapability(CapabilityItemHandler.ITEM_HANDLER_CAPABILITY, face);
-            if (handler == null) continue;
-
-            for (int slot = 0; slot < handler.getSlots() && remainingAmount > 0; slot++) {
-                String slotKey = face.ordinal() + ":" + slot;
-                if (visitedSlots.contains(slotKey)) continue;
-
-                ItemStack inSlot = handler.getStackInSlot(slot);
-                if (inSlot.isEmpty()) continue;
-                if (HandlerUtils.isInputMaterial(inSlot, inputs)) continue;
-
-                if (!HandlerUtils.matchesLoosely(inSlot, expected)) continue;
-
-                int toExtract = Math.min(remainingAmount, inSlot.getCount());
-                ItemStack extracted = handler.extractItem(slot, toExtract, false);
-                if (!extracted.isEmpty()) {
-                    if (collected.isEmpty()) {
-                        collected = extracted.copy();
-                    } else {
-                        collected.grow(extracted.getCount());
-                    }
-                    remainingAmount -= extracted.getCount();
-
-                    // 只有当槽位被完全清空时才标记为已访问,
-                    // 否则剩余物品应由 collectAllNonInputItems 继续回收
-                    ItemStack afterExtract = handler.getStackInSlot(slot);
-                    if (afterExtract.isEmpty()) {
-                        visitedSlots.add(slotKey);
-                    }
-                }
-            }
-            if (remainingAmount <= 0) {
-                break;
-            }
-        }
-        return collected;
-    }
-
-    private List<ItemStack> collectAllNonInputItems(TileEntity target,
-                                                    List<ItemStack> inputs, Set<String> visitedSlots) {
-        List<ItemStack> collected = new ArrayList<>();
-        for (EnumFacing face : EnumFacing.values()) {
-            IItemHandler handler = target.getCapability(CapabilityItemHandler.ITEM_HANDLER_CAPABILITY, face);
-            if (handler == null) continue;
-            for (int slot = 0; slot < handler.getSlots(); slot++) {
-                String slotKey = face.ordinal() + ":" + slot;
-                if (visitedSlots.contains(slotKey)) continue;
-
-                ItemStack inSlot = handler.getStackInSlot(slot);
-                if (inSlot.isEmpty()) continue;
-                if (HandlerUtils.isInputMaterial(inSlot, inputs)) continue;
-
-                // 循环提取直到槽位真正清空，防止某些 IItemHandler 单次提取上限导致产物残留
-                boolean anyExtracted = false;
-                while (true) {
-                    ItemStack current = handler.getStackInSlot(slot);
-                    if (current.isEmpty()) break;
-                    ItemStack extracted = handler.extractItem(slot, current.getCount(), false);
-                    if (extracted.isEmpty()) break;
-                    collected.add(extracted);
-                    anyExtracted = true;
-                }
-                if (anyExtracted) {
-                    visitedSlots.add(slotKey);
-                }
-            }
-        }
-        return collected;
-    }
-
-    // isInputMaterial / matchesLoosely 统一复用 HandlerUtils 的公共实现
 }

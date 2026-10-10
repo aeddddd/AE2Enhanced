@@ -29,6 +29,11 @@ import java.util.List;
  *
  * <p>结构：中心 CraftingCore,周围 7×7 水平范围内放置 Pedestal.
  * slot 0 → Core 主材料,slot 1+ → Pedestals 辅助材料(各1个).</p>
+ *
+ * <p>物理路径不查配方：主材/辅材的分配只依赖样板槽位(slot 0 为主材)与基座坐标。
+ * 基座坐标由 {@code locatePedestals} 扫描得到，结果按 {@link TargetSession} 缓存，
+ * 消除同一次发配中 canStart / pushMaterials / collectProducts / revertMaterials
+ * 各扫一遍 7×7 世界的开销。</p>
  */
 public class ExtendedCraftingHandler implements IRemoteHandler, IVirtualBatchCraftingHandler {
 
@@ -119,7 +124,7 @@ public class ExtendedCraftingHandler implements IRemoteHandler, IVirtualBatchCra
         if (!coreInv.getStackInSlot(0).isEmpty()) return false;
 
         // 检查周围有足够 pedestals(空或已有匹配材料的也算,简化处理)
-        List<BlockPos> pedestalPositions = getPedestalPositions(te);
+        List<BlockPos> pedestalPositions = getCachedPedestalPositions(te, session);
         int needed = 0;
         for (int i = 1; i < ingredients.getSizeInventory(); i++) {
             if (!ingredients.getStackInSlot(i).isEmpty()) needed++;
@@ -149,7 +154,7 @@ public class ExtendedCraftingHandler implements IRemoteHandler, IVirtualBatchCra
         }
 
         // 预检辅助材料
-        List<BlockPos> pedestalPositions = getPedestalPositions(te);
+        List<BlockPos> pedestalPositions = getCachedPedestalPositions(te, session);
         int pedestalIdx = 0;
         for (int i = 1; i < ingredients.getSizeInventory(); i++) {
             ItemStack stack = ingredients.getStackInSlot(i);
@@ -227,7 +232,7 @@ public class ExtendedCraftingHandler implements IRemoteHandler, IVirtualBatchCra
 
     @Override
     public List<ItemStack> clearOutputs(World world, BlockPos pos, IActionSource source, TargetSession session) {
-        return collectAllFromTarget(world, pos);
+        return collectAllFromTarget(world, pos, session);
     }
 
     @Override
@@ -248,7 +253,7 @@ public class ExtendedCraftingHandler implements IRemoteHandler, IVirtualBatchCra
         }
 
         // 清理 Pedestals 中的残余材料(防止干扰下一次合成)
-        List<BlockPos> pedestalPositions = getPedestalPositions(te);
+        List<BlockPos> pedestalPositions = getCachedPedestalPositions(te, session);
         for (BlockPos pPos : pedestalPositions) {
             TileEntity pTe = world.getTileEntity(pPos);
             if (CLASS_PEDESTAL.isInstance(pTe)) {
@@ -266,10 +271,10 @@ public class ExtendedCraftingHandler implements IRemoteHandler, IVirtualBatchCra
 
     @Override
     public List<ItemStack> revertMaterials(World world, BlockPos pos, IActionSource source, TargetSession session) {
-        return collectAllFromTarget(world, pos);
+        return collectAllFromTarget(world, pos, session);
     }
 
-    private List<ItemStack> collectAllFromTarget(World world, BlockPos pos) {
+    private List<ItemStack> collectAllFromTarget(World world, BlockPos pos, TargetSession session) {
         initReflection();
         List<ItemStack> result = new ArrayList<>();
         TileEntity te = world.getTileEntity(pos);
@@ -283,7 +288,7 @@ public class ExtendedCraftingHandler implements IRemoteHandler, IVirtualBatchCra
             }
         }
 
-        List<BlockPos> pedestalPositions = getPedestalPositions(te);
+        List<BlockPos> pedestalPositions = getCachedPedestalPositions(te, session);
         for (BlockPos pPos : pedestalPositions) {
             TileEntity pTe = world.getTileEntity(pPos);
             if (CLASS_PEDESTAL.isInstance(pTe)) {
@@ -312,6 +317,31 @@ public class ExtendedCraftingHandler implements IRemoteHandler, IVirtualBatchCra
         } catch (Exception e) {
             return new ArrayList<>();
         }
+    }
+
+    /**
+     * 取本 session 缓存的基座坐标；未缓存时做一次 7×7 结构扫描并写入缓存.
+     *
+     * <p>一次发配内基座结构不会变化(基座被拆掉时 {@link #CLASS_PEDESTAL} 类型判断会跳过失效坐标)，
+     * 因此 canStart / pushMaterials / collectProducts / revertMaterials / clearOutputs
+     * 共用同一份坐标，避免每个阶段都扫一遍世界。缓存放在
+     * {@link TargetSession#getRecipeCache()} 里，随 {@link TargetSession#reset()} 清空：
+     * 一次发配结束(收产物完成)、发配失败回退、目标不可用恢复、绑定重建与解绑
+     * 都会走 reset 或丢弃 session，因此无需额外的失效点。</p>
+     */
+    @SuppressWarnings("unchecked")
+    private static List<BlockPos> getCachedPedestalPositions(TileEntity core, TargetSession session) {
+        if (session != null) {
+            Object cached = session.getRecipeCache();
+            if (cached instanceof List) {
+                return (List<BlockPos>) cached;
+            }
+        }
+        List<BlockPos> positions = getPedestalPositions(core);
+        if (session != null) {
+            session.setRecipeCache(positions);
+        }
+        return positions;
     }
 
     private static IItemHandler getCoreInventory(TileEntity core) {

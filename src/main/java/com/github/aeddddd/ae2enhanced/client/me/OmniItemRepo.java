@@ -31,15 +31,23 @@ public class OmniItemRepo extends ItemRepo {
 
     // ==================== 常量 ====================
     public static final int CACHE_PAGES = 3;             // 当前页 + 上一页 + 下一页
-    public static final int MAX_CACHE_SIZE = 540;        // 18 col * 30 row，覆盖 TALL 模式下的 3 页
+    /** 旧 Omni 终端的默认页容量（18 col × 5 row）；用于缓存数组的初始分配。 */
+    public static final int DEFAULT_SLOTS_PER_PAGE = 90;
     private static final long REFRESH_COOLDOWN_MS = 200;
 
     // ==================== R3: 三页缓存 ====================
-    private final IAEItemStack[] cache = new IAEItemStack[MAX_CACHE_SIZE];
+    /**
+     * 缓存容量：只能是"页容量 × {@link #CACHE_PAGES}"。
+     *
+     * <p>可拼接终端的 repo 面板尺寸可变（列数 = 内容宽度 / 18），但缓存数组的长度同时也是
+     * 分页请求的 {@code limit}，两者必须始终一致，否则服务端会按旧 limit 回包而被静默截断。
+     * 因此容量只能通过 {@link #setSlotsPerPage(int)} 变更，且变更时会立刻重新拉取当前可见页。</p>
+     */
+    private IAEItemStack[] cache = new IAEItemStack[capacityFor(DEFAULT_SLOTS_PER_PAGE)];
     private int cacheOffset = -1;   // cache[0] 对应服务端列表的哪个 offset，-1 表示未初始化
     private int totalCount = 0;
     private int scrollOffset = 0;   // 当前 GUI 滚动位置（物品索引，不是页数）
-    private int slotsPerPage = 90;  // 每页可见槽位数（默认 18 col * 5 row）
+    private int slotsPerPage = DEFAULT_SLOTS_PER_PAGE;  // 每页可见槽位数（默认 18 col * 5 row）
 
     // ==================== 当前查询参数 ====================
     private String currentSearch = "";
@@ -52,6 +60,10 @@ public class OmniItemRepo extends ItemRepo {
     // ==================== 刷新节流 ====================
     private volatile boolean pendingRefresh = false;
     private long lastRefreshTime = 0;
+    /** 已发出分页请求尚未收到结果时的 (offset, limit)，用于抑制同一页的重复请求。 */
+    private boolean awaitingPage = false;
+    private int inFlightOffset = -1;
+    private int inFlightLimit = -1;
 
     // ==================== 原有字段 ====================
     private final OmniItemRegistry registry = new OmniItemRegistry();
@@ -75,8 +87,41 @@ public class OmniItemRepo extends ItemRepo {
         return this.pendingRefresh;
     }
 
+    /** 给定页容量所需的缓存槽位数（纯函数，便于单测）。 */
+    public static int capacityFor(int slotsPerPage) {
+        return Math.max(1, slotsPerPage) * CACHE_PAGES;
+    }
+
+    /** 当前缓存数组容量（= 分页请求的 limit）。 */
+    public int cacheCapacity() {
+        return this.cache.length;
+    }
+
+    public int getSlotsPerPage() {
+        return this.slotsPerPage;
+    }
+
+    /**
+     * 设置每页可见槽位数（由 repo 面板在列/行变化时调用）。
+     *
+     * <p>容量变化时旧缓存整段失效（缓存偏移语义不变，但长度不同），因此这里直接重新分配并
+     * 以当前可见页为中心重新拉取；容量不变则是空操作。</p>
+     */
     public void setSlotsPerPage(int slotsPerPage) {
-        this.slotsPerPage = Math.max(1, slotsPerPage);
+        int next = Math.max(1, slotsPerPage);
+        if (next == this.slotsPerPage) {
+            return;
+        }
+        this.slotsPerPage = next;
+        int capacity = capacityFor(next);
+        if (capacity == this.cache.length) {
+            return;
+        }
+        this.cache = new IAEItemStack[capacity];
+        this.cacheOffset = -1;
+        this.totalCount = 0;
+        // 立即以当前可见页为中心重新拉取，否则界面会停在空缓存上
+        onScrollChanged(this.scrollOffset);
     }
 
     // ==================== R3: 槽位数据获取 ====================
@@ -127,7 +172,15 @@ public class OmniItemRepo extends ItemRepo {
     public void handlePageResult(int totalCount, int offset, List<PacketOmniPageResult.Entry> entries) {
         this.totalCount = totalCount;
         this.cacheOffset = offset;
+        this.awaitingPage = false;
         Arrays.fill(this.cache, null);
+
+        if (entries.size() > this.cache.length) {
+            // 服务端按更大的 limit 回包：说明客户端缓存容量与实际请求 limit 不一致。
+            // 只记录一行（不再静默），多余条目会被丢弃。
+            AE2Enhanced.LOGGER.warn("[AE2E] Omni page result larger than cache: entries={}, capacity={}",
+                    entries.size(), this.cache.length);
+        }
 
         for (int i = 0; i < entries.size() && i < this.cache.length; i++) {
             PacketOmniPageResult.Entry e = entries.get(i);
@@ -159,7 +212,7 @@ public class OmniItemRepo extends ItemRepo {
         this.pendingRefresh = false;
         // 以当前可见页为中心刷新，确保上下都有缓冲
         int targetOffset = Math.max(0, this.scrollOffset - this.slotsPerPage);
-        requestPage(targetOffset, MAX_CACHE_SIZE);
+        requestPage(targetOffset, cacheCapacity());
     }
 
     /**
@@ -178,21 +231,21 @@ public class OmniItemRepo extends ItemRepo {
         // 缓存未覆盖可见区域：以当前可见页为中心重新请求（确保上下都有缓冲）
         if (this.cacheOffset < 0 || visibleStart < cacheStart || visibleEnd > cacheEnd) {
             int targetOffset = Math.max(0, visibleStart - this.slotsPerPage);
-            requestPage(targetOffset, MAX_CACHE_SIZE);
+            requestPage(targetOffset, cacheCapacity());
             return;
         }
 
         // 接近缓存末尾，预加载下一页（以当前可见页为中心）
         if (visibleEnd > cacheEnd - this.slotsPerPage && cacheEnd < this.totalCount) {
             int targetOffset = Math.max(0, cacheEnd - this.slotsPerPage);
-            requestPage(targetOffset, MAX_CACHE_SIZE);
+            requestPage(targetOffset, cacheCapacity());
             return;
         }
 
         // 接近缓存开头，预加载上一页（以当前可见页为中心）
         if (visibleStart < cacheStart + this.slotsPerPage && cacheStart > 0) {
             int targetOffset = Math.max(0, visibleStart - this.slotsPerPage);
-            requestPage(targetOffset, MAX_CACHE_SIZE);
+            requestPage(targetOffset, cacheCapacity());
         }
     }
 
@@ -214,8 +267,9 @@ public class OmniItemRepo extends ItemRepo {
         this.cacheOffset = -1;
         this.scrollOffset = 0;
         this.totalCount = 0;
+        this.awaitingPage = false;
         Arrays.fill(this.cache, null);
-        requestPage(0, MAX_CACHE_SIZE);
+        requestPage(0, cacheCapacity());
     }
 
     private List<ItemDescriptor> computeClientFilter(String search, byte mode) {
@@ -231,12 +285,30 @@ public class OmniItemRepo extends ItemRepo {
     }
 
     private void requestPage(int offset, int limit) {
+        if (this.awaitingPage && offset == this.inFlightOffset && limit == this.inFlightLimit) {
+            // 同一页的请求已在途：再来一次只会拿到同样的结果，直接抑制。
+            // 拖动缩放面板时"容量变化"与"滚动范围重算"会在同一 tick 各自请求一次，靠这里合并。
+            return;
+        }
         PacketOmniPageRequest req = new PacketOmniPageRequest(
             this.currentSearch, this.searchMode, this.sortBy,
             this.sortDir, this.viewMode, offset, limit,
             this.currentClientFilter
         );
-        AE2Enhanced.network.sendToServer(req);
+        this.awaitingPage = true;
+        this.inFlightOffset = offset;
+        this.inFlightLimit = limit;
+        sendToServer(req);
+    }
+
+    /**
+     * 分页请求的发送出口。
+     *
+     * <p>单独成方法是为了给无头单测留一个覆写点（测试环境没有网络初始化），
+     * 生产路径上就是 {@code AE2Enhanced.network.sendToServer}。</p>
+     */
+    protected void sendToServer(PacketOmniPageRequest request) {
+        AE2Enhanced.network.sendToServer(request);
     }
 
     // ==================== 父类兼容性覆盖 ====================
@@ -262,8 +334,9 @@ public class OmniItemRepo extends ItemRepo {
             this.cacheOffset = -1;
             this.scrollOffset = 0;
             this.totalCount = 0;
+            this.awaitingPage = false;
             Arrays.fill(this.cache, null);
-            requestPage(0, MAX_CACHE_SIZE);
+            requestPage(0, cacheCapacity());
         }
     }
 

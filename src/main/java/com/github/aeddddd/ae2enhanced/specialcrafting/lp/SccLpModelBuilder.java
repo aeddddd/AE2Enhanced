@@ -18,6 +18,7 @@ import appeng.api.storage.data.IAEItemStack;
 import com.github.aeddddd.ae2enhanced.specialcrafting.FlowReconciler;
 import com.github.aeddddd.ae2enhanced.specialcrafting.NetworkPatternIndex;
 import com.github.aeddddd.ae2enhanced.specialcrafting.RecursiveCraftingHelper;
+import com.github.aeddddd.ae2enhanced.specialcrafting.StableOrder;
 
 /**
  * SCC 分量 → LP 模型构建器 (方案 L §4).
@@ -32,6 +33,11 @@ public final class SccLpModelBuilder {
     public static final int MAX_VARIANTS_PER_SLOT = 4;
     /** 同样板变体组合乘积上限(防御: 多替代槽笛卡尔积爆炸时退化为仅编码输入). */
     public static final int MAX_VARIANTS_PER_PATTERN = 64;
+    /** 贪心上界的定点传播轮数上限(每轮 O(E); 亏损链的放大按每轮约 2 倍增长, 64 轮覆盖 1e19 量级). */
+    private static final int GREEDY_PASSES = Integer.getInteger("ae2e.greedyPasses", 64);
+    /** 贪心上界的松弛系数: 贪心传播在环上可能低估, 乘该系数留出余量(仍远小于 ∞). */
+    private static final double GREEDY_SLACK =
+            Double.parseDouble(System.getProperty("ae2e.greedyUpperSlack", "4"));
 
     /** 结构变量元数据(列 → 样板/变体/环外系数). */
     public static final class VarInfo {
@@ -43,7 +49,7 @@ public final class SccLpModelBuilder {
         public final double upper;
         /** 环外输入系数(canon 键 → 单次执行消耗; 仅非 SCC 键). */
         public final Map<IAEItemStack, Double> externalInputs;
-        /** 阶段② ε 排序用登记秩(收集序 = 键序 × 优先级序). */
+        /** 阶段③ ε 排序用登记秩(= 样板定序下标:优先级降序 → 内容签名升序). */
         public final int rank;
 
         VarInfo(ICraftingPatternDetails pattern, Map<IAEItemStack, Long> variantInputs, double upper,
@@ -102,6 +108,9 @@ public final class SccLpModelBuilder {
             Map<IAEItemStack, Long> stock, Map<IAEItemStack, Double> demands,
             Map<ICraftingPatternDetails, Double> upperCaps,
             Map<ICraftingPatternDetails, Double> committed, boolean internalizeRaw) {
+        // 确定性: 行键按 canon 键升序(行序/赤字序/需求行序跨 JVM 启动一致);
+        // 局部副本, 不改调用方列表
+        keys = StableOrder.sortedKeys(keys);
         Map<IAEItemStack, Integer> rowOf = new LinkedHashMap<>();
         for (int i = 0; i < keys.size(); i++) {
             rowOf.put(keys.get(i), i);
@@ -123,6 +132,10 @@ public final class SccLpModelBuilder {
                 }
             }
         }
+        // D1: 样板定序 = 优先级降序 → 内容签名升序, rank = 定序下标(阶段③ ε·rank
+        // 体现优先级);禁止重排组内变体——expandVariants 首元恒为编码输入基准,
+        // shiftToCandidateVariants 依赖该连续性
+        patterns = StableOrder.sortedPatterns(patterns);
 
         // D_max = D_total·ρ_max^K 是损耗链逐跳放大的闭式充分上界, 只做变量界不进约束矩阵,
         // 溢出按 LpModel.INF 无界; 不得以低于真实需求的常数封顶, 否则缺料场景构造性不可行
@@ -193,9 +206,10 @@ public final class SccLpModelBuilder {
                 }
             }
         }
-        // 行号空间扩展: 单元键(0..K-1) + 内化原料行(K..K+R-1), demand 恒 0
+        // 行号空间扩展: 单元键(0..K-1) + 内化原料行(K..K+R-1), demand 恒 0;
+        // 内化原料行按 canon 键升序(收集序依赖样板序, 排序后与样板序解耦)
         List<IAEItemStack> allKeys = new ArrayList<>(keys);
-        for (IAEItemStack raw : internalRaw) {
+        for (IAEItemStack raw : StableOrder.sortedKeys(internalRaw)) {
             rowOf.put(raw, allKeys.size());
             allKeys.add(raw);
         }
@@ -205,6 +219,15 @@ public final class SccLpModelBuilder {
         double baseUpper = Double.isFinite(upperClosure) && upperClosure < LpModel.INF
                 ? Math.ceil(upperClosure)
                 : LpModel.INF;
+        // F-2 有限上界: 闭式上界 D_total·ρ^K 在含亏损环的大单元上必然溢出(ρ>1 ⇒ ρ^K⇒∞),
+        // 上界全为 ∞ 时界翻转机制失效、退化严重. 改为再算一个贪心可行上界
+        // (需求沿"消费方→生产方"反向定点传播, 逐样板 runs = ⌈需求/单次产出⌉), 取两者较小;
+        // 闭式溢出时退化为贪心上界而非 ∞. 两者都拿不到才保持 ∞.
+        double greedyUpper = greedyUpperBound(allKeys, rowOf, patterns, demands, stock, index);
+        if (greedyUpper < LpModel.INF) {
+            greedyUpper = Math.ceil(greedyUpper * GREEDY_SLACK);
+        }
+        baseUpper = Math.min(baseUpper, greedyUpper);
         for (int rank = 0; rank < patterns.size(); rank++) {
             ICraftingPatternDetails pattern = patterns.get(rank);
             boolean hasSccOutput = false;
@@ -283,8 +306,9 @@ public final class SccLpModelBuilder {
             b[i] = demand - stockK;
         }
         // 已承诺跨分量样板: 其 SCC 内产出已实物存在, 折算为库存(b = demand − stock 故减去);
-        // 输入消费不计(已由下游分量的环外折算传播为 demand)
-        for (Map.Entry<ICraftingPatternDetails, Double> com : committed.entrySet()) {
+        // 输入消费不计(已由下游分量的环外折算传播为 demand);按样板定序遍历(防御:当前调用方传空表)
+        for (Map.Entry<ICraftingPatternDetails, Double> com
+                : StableOrder.sortedPatternEntries(committed)) {
             for (IAEItemStack out : com.getKey().getCondensedOutputs()) {
                 if (out == null) {
                     continue;
@@ -351,6 +375,140 @@ public final class SccLpModelBuilder {
 
         LpModel lp = new LpModel(SparseMatrix.fromColumns(b.length, columns), b, cost, lower, upperArr);
         return new Built(lp, vars, allKeys, deficitCol, surplusCol, internalRaw.size(), columns);
+    }
+
+    /**
+     * F-2 贪心可行上界(有限, 无溢出即返回; 溢出/不可得返回 {@link LpModel#INF}).
+     *
+     * <p>做法: 把"每个键需要被生产多少"沿"消费方 → 生产方"反向定点传播——
+     * {@code need[k]} 初值 = 单元需求 − 库存(发射台键视作无限供给, 需求为 0),
+     * 每轮对样板 p 取 {@code runs = max over 输出键 ⌈need[k]/out_k⌉}, 再把
+     * {@code runs·in_m} 以 max 方式回灌给输入键 m; 迭代到不动点(或 {@value #GREEDY_PASSES}
+     * 轮封顶)。最终 {@code U_greedy = max_p runs_p · slack}。</p>
+     *
+     * <p><b>性质</b>: 无环部分(冷凝 DAG)上这是 MRP 意义的需求闭包, 因此不会低于真实
+     * 需求(不截断交付); 亏损链把需求逐跳放大, 该放大是"真实需要"的一部分, 故不做
+     * 常数封顶——放大到溢出即返回 ∞, 与改造前逐位一致(不比改造前更差)。
+     * 传播序/迭代序只依赖行号与样板定序, 跨 JVM 确定。</p>
+     */
+    private static double greedyUpperBound(List<IAEItemStack> allKeys, Map<IAEItemStack, Integer> rowOf,
+            List<ICraftingPatternDetails> patterns, Map<IAEItemStack, Double> demands,
+            Map<IAEItemStack, Long> stock, NetworkPatternIndex index) {
+        int rows = allKeys.size();
+        double[] need = new double[rows];
+        for (int i = 0; i < rows; i++) {
+            IAEItemStack key = allKeys.get(i);
+            if (index.canEmit(key)) {
+                need[i] = 0; // 发射台无限供给
+                continue;
+            }
+            need[i] = Math.max(0, demands.getOrDefault(key, 0.0) - stock.getOrDefault(key, 0L));
+        }
+        // 逐样板的输出/输入(基准变体)预展开为行号数组, 避免每轮重复 canon
+        int pn = patterns.size();
+        int[][] outRows = new int[pn][];
+        double[][] outAmt = new double[pn][];
+        int[][] inRows = new int[pn][];
+        double[][] inAmt = new double[pn][];
+        for (int p = 0; p < pn; p++) {
+            ICraftingPatternDetails pattern = patterns.get(p);
+            List<Integer> or = new ArrayList<>();
+            List<Double> oa = new ArrayList<>();
+            for (IAEItemStack out : pattern.getCondensedOutputs()) {
+                if (out == null || out.getStackSize() <= 0) {
+                    continue;
+                }
+                Integer row = rowOf.get(RecursiveCraftingHelper.canon(out));
+                if (row != null) {
+                    or.add(row);
+                    oa.add((double) out.getStackSize());
+                }
+            }
+            Map<IAEItemStack, Long> inputs = condensedInputs(pattern, Collections.emptyMap());
+            List<Integer> ir = new ArrayList<>();
+            List<Double> ia = new ArrayList<>();
+            for (Map.Entry<IAEItemStack, Long> in : inputs.entrySet()) {
+                Integer row = rowOf.get(in.getKey());
+                if (row != null && in.getValue() != null && in.getValue() > 0) {
+                    ir.add(row);
+                    ia.add((double) in.getValue());
+                }
+            }
+            outRows[p] = toIntArray(or);
+            outAmt[p] = toDoubleArray(oa);
+            inRows[p] = toIntArray(ir);
+            inAmt[p] = toDoubleArray(ia);
+        }
+        double[] runs = new double[pn];
+        double[] next = new double[rows];
+        for (int pass = 0; pass < GREEDY_PASSES; pass++) {
+            System.arraycopy(need, 0, next, 0, rows);
+            boolean changed = false;
+            for (int p = 0; p < pn; p++) {
+                double r = 0;
+                for (int t = 0; t < outRows[p].length; t++) {
+                    double req = need[outRows[p][t]] / outAmt[p][t];
+                    if (req > r) {
+                        r = req;
+                    }
+                }
+                if (r <= 0) {
+                    continue;
+                }
+                r = Math.ceil(r);
+                if (r > runs[p]) {
+                    runs[p] = r;
+                    changed = true;
+                }
+                for (int t = 0; t < inRows[p].length; t++) {
+                    double v = r * inAmt[p][t];
+                    if (v > next[inRows[p][t]]) {
+                        next[inRows[p][t]] = v;
+                    }
+                }
+            }
+            boolean grew = false;
+            for (int i = 0; i < rows; i++) {
+                if (next[i] > need[i]) {
+                    need[i] = next[i];
+                    grew = true;
+                } else {
+                    next[i] = need[i];
+                }
+                if (!Double.isFinite(need[i]) || need[i] > LpModel.INF) {
+                    return LpModel.INF; // 放大到溢出: 该量级已超出任何可行计划, 退回无界
+                }
+            }
+            if (!changed && !grew) {
+                break;
+            }
+        }
+        double maxRuns = 0;
+        for (double r : runs) {
+            if (r > maxRuns) {
+                maxRuns = r;
+            }
+        }
+        if (!Double.isFinite(maxRuns) || maxRuns <= 0) {
+            return LpModel.INF;
+        }
+        return maxRuns;
+    }
+
+    private static int[] toIntArray(List<Integer> list) {
+        int[] out = new int[list.size()];
+        for (int i = 0; i < out.length; i++) {
+            out[i] = list.get(i);
+        }
+        return out;
+    }
+
+    private static double[] toDoubleArray(List<Double> list) {
+        double[] out = new double[list.size()];
+        for (int i = 0; i < out.length; i++) {
+            out[i] = list.get(i);
+        }
+        return out;
     }
 
     /**

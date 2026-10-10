@@ -17,15 +17,18 @@ import appeng.parts.automation.StackUpgradeInventory;
 import appeng.util.IConfigManagerHost;
 import appeng.util.inv.IAEAppEngInventory;
 import com.github.aeddddd.ae2enhanced.registry.content.BlockRegistry;
+import com.github.aeddddd.ae2enhanced.AE2Enhanced;
 import com.github.aeddddd.ae2enhanced.centralinterface.DualityCentralInterface;
 import com.github.aeddddd.ae2enhanced.centralinterface.ICentralInterfaceHost;
 import com.github.aeddddd.ae2enhanced.centralinterface.TargetBinding;
 import com.github.aeddddd.ae2enhanced.item.ItemChannelReceiverCard;
+import com.github.aeddddd.ae2enhanced.network.packet.PacketCentralBindingOutline;
 import com.github.aeddddd.ae2enhanced.util.network.WirelessChannelConnectionHelper;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.inventory.InventoryCrafting;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
+import net.minecraft.nbt.NBTTagList;
 import net.minecraft.util.EnumFacing;
 import net.minecraft.util.ITickable;
 import net.minecraftforge.items.IItemHandler;
@@ -52,6 +55,15 @@ public class TileCentralMEInterface extends TileAENetworkBase
 
     private int channelCardTickCounter = 0;
     private boolean lastChannelCardState = false;
+
+    /**
+     * 绑定列表的键名.
+     *
+     * <p>存档 NBT 与客户端更新包共用该键，两者的值都是
+     * {@link TargetBinding#writeToNBT()} 列表，因此 {@code DualityCentralInterface.readFromNBT}
+     * 对二者都能正确解析。</p>
+     */
+    private static final String TAG_BINDINGS = "bindings";
 
     private static final Set<TileCentralMEInterface> ACTIVE_INTERFACES = Collections.newSetFromMap(new WeakHashMap<>());
 
@@ -379,27 +391,88 @@ public class TileCentralMEInterface extends TileAENetworkBase
         if (world != null && !world.isRemote) {
             net.minecraft.block.state.IBlockState state = world.getBlockState(pos);
             world.notifyBlockUpdate(pos, state, state, 2);
+            sendBindingOutline();
         }
+    }
+
+    /**
+     * 把绑定坐标列表发给正在跟踪本方块所在区块的玩家（描边渲染的数据来源）.
+     *
+     * <p>只发给"区块已下发给该玩家"的客户端：描边渲染要求接口方块实体在客户端存在，
+     * 而这个条件与该集合重合，因此无需按距离估算同步半径。</p>
+     */
+    private void sendBindingOutline() {
+        if (!(world instanceof net.minecraft.world.WorldServer)) {
+            return;
+        }
+        net.minecraft.server.management.PlayerChunkMapEntry entry =
+                ((net.minecraft.world.WorldServer) world).getPlayerChunkMap()
+                        .getEntry(pos.getX() >> 4, pos.getZ() >> 4);
+        if (entry == null) {
+            return;
+        }
+        List<net.minecraft.entity.player.EntityPlayerMP> watchers = entry.getWatchingPlayers();
+        if (watchers.isEmpty()) {
+            return;
+        }
+        PacketCentralBindingOutline packet = new PacketCentralBindingOutline(
+                world.provider.getDimension(), pos, getInterfaceDuality().getBindings());
+        for (net.minecraft.entity.player.EntityPlayerMP player : watchers) {
+            AE2Enhanced.network.sendTo(packet, player);
+        }
+    }
+
+    /**
+     * 应用客户端描边数据快照（服务端调用无操作）.
+     *
+     * <p>由 {@link PacketCentralBindingOutline} 与 {@link #handleUpdateTag} 调用；
+     * 服务端权威绑定列表不允许被描边快照覆盖，因此这里显式拒绝非远程世界。</p>
+     */
+    public void applyBindingSnapshot(List<TargetBinding> bindings) {
+        if (world != null && !world.isRemote) {
+            return;
+        }
+        getInterfaceDuality().setBindingSnapshot(bindings);
     }
 
     // ---- 客户端同步 ----
 
+    /**
+     * 客户端更新包：只携带绑定坐标列表（描边渲染所需）.
+     *
+     * <p>旧实现把 duality 全量 NBT（9 格 config + 36 个样板 + 9 格 storage + 待注入产物）
+     * 塞进更新包发给所有追踪客户端，而客户端实际只消费其中的 bindings。
+     * config / 样板 / storage 的客户端内容由 Container 槽位协议同步（与 AE2 原版接口一致），
+     * 因此这里只保留绑定列表；{@code getUpdateTag} 不是存档 NBT，不影响持久化。</p>
+     */
     @Override
     public NBTTagCompound getUpdateTag() {
         NBTTagCompound tag = super.getUpdateTag();
-        NBTTagCompound dualityTag = new NBTTagCompound();
-        getInterfaceDuality().writeToNBT(dualityTag);
-        tag.setTag("duality", dualityTag);
+        NBTTagList list = new NBTTagList();
+        for (TargetBinding binding : getInterfaceDuality().getBindings()) {
+            list.appendTag(binding.writeToNBT());
+        }
+        tag.setTag(TAG_BINDINGS, list);
         return tag;
     }
 
     @Override
     public void handleUpdateTag(NBTTagCompound tag) {
         super.handleUpdateTag(tag);
-        if (tag.hasKey("duality")) {
-            NBTTagCompound dualityTag = tag.getCompoundTag("duality");
-            getInterfaceDuality().readFromNBT(dualityTag);
+        applyBindingTag(tag);
+    }
+
+    /** 从更新包读取绑定列表并写入客户端快照；无该键时保持现状. */
+    private void applyBindingTag(NBTTagCompound tag) {
+        if (!tag.hasKey(TAG_BINDINGS)) {
+            return;
         }
+        NBTTagList list = tag.getTagList(TAG_BINDINGS, 10);
+        List<TargetBinding> bindings = new java.util.ArrayList<>(list.tagCount());
+        for (int i = 0; i < list.tagCount(); i++) {
+            bindings.add(TargetBinding.readFromNBT(list.getCompoundTagAt(i)));
+        }
+        applyBindingSnapshot(bindings);
     }
 
     @Override

@@ -1,8 +1,10 @@
 package com.github.aeddddd.ae2enhanced.centralinterface;
 
+import net.minecraft.inventory.InventoryCrafting;
 import net.minecraft.item.ItemStack;
 
 import javax.annotation.Nullable;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -13,6 +15,25 @@ import java.util.List;
 public final class HandlerUtils {
 
     private HandlerUtils() {
+    }
+
+    /**
+     * 收集合成网格中的非空物品（按槽位顺序）.
+     *
+     * <p>返回的是<b>防御性副本</b>（每个非空槽位 {@code stack.copy()}）：调用方普遍会从结果里
+     * 逐个 {@code remove} 来匹配配方输入，副本可保证这种消费不会写回样板表 / 玩家网格本身。
+     * 空槽位直接跳过，因此返回列表的长度通常小于网格槽位数。</p>
+     *
+     * @param ingredients 合成网格；不得为 null
+     * @return 非空槽位的副本列表（可变，可能为空的非 null 列表）
+     */
+    public static List<ItemStack> collectNonEmpty(InventoryCrafting ingredients) {
+        List<ItemStack> list = new ArrayList<>();
+        for (int i = 0; i < ingredients.getSizeInventory(); i++) {
+            ItemStack stack = ingredients.getStackInSlot(i);
+            if (!stack.isEmpty()) list.add(stack.copy());
+        }
+        return list;
     }
 
     /**

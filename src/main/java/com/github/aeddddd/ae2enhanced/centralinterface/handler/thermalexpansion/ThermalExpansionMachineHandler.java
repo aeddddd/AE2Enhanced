@@ -1,14 +1,17 @@
 package com.github.aeddddd.ae2enhanced.centralinterface.handler.thermalexpansion;
 
 import appeng.api.networking.security.IActionSource;
-import appeng.api.storage.data.IAEItemStack;
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
 import com.github.aeddddd.ae2enhanced.centralinterface.FluidTransferHelper;
-import com.github.aeddddd.ae2enhanced.centralinterface.HandlerCapabilities;
-import com.github.aeddddd.ae2enhanced.centralinterface.IRemoteHandler;
 import com.github.aeddddd.ae2enhanced.centralinterface.TargetSession;
+import com.github.aeddddd.ae2enhanced.centralinterface.machine.AbstractMachineHandler;
+import com.github.aeddddd.ae2enhanced.centralinterface.machine.CatalogBuilder;
+import com.github.aeddddd.ae2enhanced.centralinterface.machine.ISlotCatalog;
+import com.github.aeddddd.ae2enhanced.centralinterface.machine.MachineIdle;
+import com.github.aeddddd.ae2enhanced.centralinterface.machine.MachineSpec;
+import com.github.aeddddd.ae2enhanced.centralinterface.machine.MachineStorageAccess;
+import com.github.aeddddd.ae2enhanced.centralinterface.machine.SlotRole;
 import net.minecraft.inventory.IInventory;
-import net.minecraft.inventory.InventoryCrafting;
 import net.minecraft.item.ItemStack;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.math.BlockPos;
@@ -20,22 +23,32 @@ import net.minecraftforge.fluids.capability.IFluidTankProperties;
 import net.minecraftforge.fml.common.Loader;
 
 import java.lang.reflect.Field;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.EnumSet;
 import java.util.List;
 
 /**
  * Thermal Expansion 机器远程处理器.
  *
- * <p>通过反射直接访问 CoFH {@code TileInventory#inventory} 字段,
- * 绕过 Thermal Expansion 机器的 SideCache 配置限制,避免因为配置面导致中枢 ME 接口无法输入输出.</p>
+ * <p>通过反射直接访问 CoFH {@code TileInventory#inventory} 字段，
+ * 绕过 Thermal Expansion 机器的 SideCache 配置限制,避免因为配置面导致中枢 ME 接口无法输入输出。</p>
  *
  * <p>同时读取 {@code TileReconfigurable#slotConfig} 中的
  * {@code allowInsertionSlot}/{@code allowExtractionSlot}, 精确识别输入/输出槽,
- * 避免在输入槽解锁时将材料错误写入输出槽或升级槽.</p>
+ * 避免在输入槽解锁时将材料错误写入输出槽或升级槽。</p>
+ *
+ * <p>本类继承通用骨架 {@link AbstractMachineHandler}（并因此实现 {@link MachineStorageAccess}）：
+ * 库存访问抽象为 {@link ISlotCatalog}（{@link #catalogFor}）,
+ * 材料的原子推送、两阶段收集、按本批快照回退、输出槽清理与"产物已出现"判定全部由框架提供。
+ * 本类只保留三处 TE 特有语义：角色映射（见 {@link #slotRoles}）、
+ * "处理中"判定（见 {@link #idleGate}）以及"流体罐非空即视为可收集"（见 {@link #isIdle} / {@link #hasFinished}）。</p>
+ *
+ * <p>blockId 匹配规则声明在表项里（{@link #defineSpec}：{@code thermalexpansion:} 前缀），
+ * {@code canHandle} 与 {@code HandlerRegistry} 的两级索引都从该表项取值.</p>
+ *
+ * <p><b>反射隔离</b>：TE / CoFH 的类一律以 {@code Class.forName} + 静态 {@link Field} 缓存访问,
+ * 本类不 import 也不持有任何第三方类型（{@link InventoryArrayItemHandler} 只面对
+ * {@link IInventory} 与 {@code ItemStack[]}）。</p>
  */
-public class ThermalExpansionMachineHandler implements IRemoteHandler {
+public class ThermalExpansionMachineHandler extends AbstractMachineHandler {
 
     private static final boolean AVAILABLE;
     private static Class<?> TILE_INVENTORY_CLASS;
@@ -81,103 +94,174 @@ public class ThermalExpansionMachineHandler implements IRemoteHandler {
     }
 
     @Override
-    public boolean canHandle(String blockId) {
-        return blockId != null && blockId.startsWith("thermalexpansion:");
+    protected MachineSpec defineSpec() {
+        return MachineSpec.builder().prefixes("thermalexpansion:").access(this).build();
     }
 
+    /**
+     * 用反射取得的内部库存数组构造目录.
+     *
+     * <p>不使用侧面 capability：TE 机器的侧面可被玩家配置为"无",此时 capability 层看不到任何槽位,
+     * 而中枢接口的语义是"把材料送进这台机器",因此这里始终读取机器自身的内部库存。</p>
+     *
+     * <p>零槽位（纯流体机器, 如流体缓冲器/岩浆发电机）仍返回目录而不是 {@code null}：
+     * 其流体产物由 {@link FluidTransferHelper#collectFluidProducts} 接管; 返回 null 会把目标
+     * 降级为 UNAVAILABLE, 反而丢掉这条能力。</p>
+     */
     @Override
-    public boolean isValidTarget(World world, BlockPos pos) {
+    protected ISlotCatalog catalogFor(World world, BlockPos pos) {
         // 反射初始化失败时（类/字段缺失）直接拒绝,避免 NPE 逃逸导致服务端 tick 崩溃
-        if (!AVAILABLE || TILE_INVENTORY_CLASS == null) return false;
+        if (!AVAILABLE || TILE_INVENTORY_CLASS == null || world == null || pos == null) {
+            return null;
+        }
         TileEntity te = world.getTileEntity(pos);
-        return te instanceof IInventory && TILE_INVENTORY_CLASS.isInstance(te);
+        if (!(te instanceof IInventory) || !TILE_INVENTORY_CLASS.isInstance(te)) {
+            return null;
+        }
+        ItemStack[] inventory = inventoryArrayOf(te);
+        if (inventory == null) {
+            return null;
+        }
+        return catalogOf((IInventory) te, inventory, insertionFlagsOf(te), extractionFlagsOf(te));
     }
 
-    @Override
-    public EnumSet<HandlerCapabilities> getCapabilities() {
-        return HandlerCapabilities.physicalOnly();
+    /**
+     * 由反射结果构造目录（纯装配, 不含反射调用, 便于单测直接驱动）.
+     *
+     * @param inv              机器自身（提供 {@code isItemValidForSlot} 与 {@code markDirty}）
+     * @param inventory        反射得到的内部库存数组
+     * @param insertionFlags   {@code slotConfig.allowInsertionSlot}, 缺失时为 null
+     * @param extractionFlags  {@code slotConfig.allowExtractionSlot}, 缺失时为 null
+     */
+    static ISlotCatalog catalogOf(IInventory inv, ItemStack[] inventory,
+                                  boolean[] insertionFlags, boolean[] extractionFlags) {
+        if (inv == null || inventory == null) {
+            return null;
+        }
+        CatalogBuilder builder = ISlotCatalog.builder();
+        // face 传 null：这是机器内部数组视图,没有"哪个面"的语义
+        builder.addAll(new InventoryArrayItemHandler(inv, inventory), null,
+                slotRoles(inventory.length, inv.getSizeInventory(), insertionFlags, extractionFlags));
+        return builder.build();
     }
 
-    @Override
-    public boolean canStart(World world, BlockPos pos, InventoryCrafting ingredients, TargetSession session) {
-        return isValidTarget(world, pos);
-    }
-
-    @Override
-    public boolean pushMaterials(World world, BlockPos pos, InventoryCrafting ingredients, IActionSource source, TargetSession session) {
-        TileEntity te = world.getTileEntity(pos);
-        if (!isValidTarget(world, pos)) return false;
-
-        IInventory inv = (IInventory) te;
-        ItemStack[] inventory = getInventoryArray(te);
-        if (inventory == null) return false;
-
-        boolean[] insertionSlots = getAllowInsertionSlots(te);
-
-        List<ItemStack> toPush = new ArrayList<>();
-        for (int i = 0; i < ingredients.getSizeInventory(); i++) {
-            ItemStack stack = ingredients.getStackInSlot(i);
-            if (!stack.isEmpty()) {
-                toPush.add(stack.copy());
+    /**
+     * 槽位角色映射（纯函数）.
+     *
+     * <p>槽位判据沿用各次遍历所用的口径,不"顺手修正"它的宽松处：</p>
+     * <ul>
+     *   <li>输入槽 = {@code insertionFlags[slot]}（下标越界或标志缺失时退化为"前 2/3 槽位"）,
+     *       这是推料的唯一目标；</li>
+     *   <li>输出槽 = {@code extractionFlags[slot]}（同样可退化）<b>或</b>落在后 1/3。
+     *       "或后 1/3"来自 {@code isIdle}/{@code collectProducts} 里的
+     *       {@code isOutputSlot(...) || isProbablyOutputSlotFallback(...)}：该启发式并未被
+     *       "标志可用"所抑制, 因此充电/电池槽等既不可插也不可取的尾部槽位
+     *       同样会被当作可收集产物。这里照实标注为 {@link SlotRole#OUTPUT}；代价是共用的
+     *       {@code clearOutputs} 也会清这些槽位（只认抽取标志的 clearOutputs 不含该启发式）。</li>
+     *   <li>其余 → {@link SlotRole#UNKNOWN}（对它们既不推料也不收集）。</li>
+     * </ul>
+     *
+     * <p><b>同时可插可取的槽位取 INPUT</b>：TE 的顺序制造机（Sequential Fabricator）18 个合成网格槽
+     * 两个标志都为 true, 而角色模型一槽只能一个角色。取 INPUT 保住"材料能推入"与
+     * "本批材料未消耗完不算完成"；取 OUTPUT 会让该机器一个推料目标都没有, 直接不可用。</p>
+     *
+     * @param slotCount    内部数组长度（= 目录槽位数, 各遍历的上界）
+     * @param declaredSize {@code IInventory#getSizeInventory()}, 启发式的基数。
+     *                     多数机器等于数组长度, 但顺序制造机为 20（数组 30）、
+     *                     词典/因素分解机为 2（数组 11/2）, 正是用它算 2/3
+     */
+    static SlotRole[] slotRoles(int slotCount, int declaredSize,
+                                boolean[] insertionFlags, boolean[] extractionFlags) {
+        SlotRole[] roles = new SlotRole[slotCount];
+        for (int slot = 0; slot < slotCount; slot++) {
+            if (isInputSlot(declaredSize, insertionFlags, slot)) {
+                roles[slot] = SlotRole.INPUT;
+            } else if (isOutputSlot(declaredSize, extractionFlags, slot) || isTailThird(declaredSize, slot)) {
+                roles[slot] = SlotRole.OUTPUT;
+            } else {
+                roles[slot] = SlotRole.UNKNOWN;
             }
         }
+        return roles;
+    }
 
-        for (ItemStack stack : toPush) {
-            if (!pushItemToInventory(inv, inventory, insertionSlots, stack)) {
-                return false;
-            }
+    /** {@code isInputSlot}：标志可用且下标在范围内时取标志,否则退化为"前 2/3"。 */
+    static boolean isInputSlot(int declaredSize, boolean[] insertionFlags, int slot) {
+        if (insertionFlags != null && slot >= 0 && slot < insertionFlags.length) {
+            return insertionFlags[slot];
         }
-        markDirty(te);
-        return true;
+        return slot < declaredSize * 2 / 3;
     }
 
-    @Override
-    public boolean startProcess(World world, BlockPos pos, IActionSource source, TargetSession session) {
-        return true;
+    /** {@code isOutputSlot}：标志可用且下标在范围内时取标志,否则退化为"后 1/3"。 */
+    static boolean isOutputSlot(int declaredSize, boolean[] extractionFlags, int slot) {
+        if (extractionFlags != null && slot >= 0 && slot < extractionFlags.length) {
+            return extractionFlags[slot];
+        }
+        return isTailThird(declaredSize, slot);
     }
 
+    /** {@code isProbablyOutputSlotFallback}。 */
+    static boolean isTailThird(int declaredSize, int slot) {
+        return slot >= declaredSize * 2 / 3;
+    }
+
+    /**
+     * 机器"正在处理"判定：{@code TileMachineBase#processRem > 0}.
+     *
+     * <p>发电机/装置等非机器类型的 TE 没有这个字段, 读它会抛
+     * {@link IllegalArgumentException}, {@link #isProcessing} 吞掉后返回 false。</p>
+     */
     @Override
-    public List<ItemStack> revertMaterials(World world, BlockPos pos, IActionSource source, TargetSession session) {
+    protected MachineIdle idleGate(World world, BlockPos pos) {
+        return (w, p, te) -> isProcessing(te);
+    }
+
+    /**
+     * 空闲判定：先处理中 → 再流体罐 → 最后才看槽位产物.
+     *
+     * <p>为什么必须覆盖框架默认：只要机器<b>任意</b>罐内有流体就判定空闲（流体产物不由槽位承载,
+     * 如离心机/坩埚/精炼机/岩浆发电机）, 框架不知道流体罐的存在。顺序同样重要：
+     * "处理中"优先于"有流体", 否则正在消耗输入罐里那批流体的机器会被当成空闲去收产物。</p>
+     */
+    @Override
+    public boolean isIdle(World world, BlockPos pos, List<ItemStack> inputs, TargetSession session) {
+        if (catalogFor(world, pos) == null) {
+            return true;
+        }
         TileEntity te = world.getTileEntity(pos);
-        if (!isValidTarget(world, pos)) return Collections.emptyList();
-
-        IInventory inv = (IInventory) te;
-        ItemStack[] inventory = getInventoryArray(te);
-        if (inventory == null) return Collections.emptyList();
-
-        boolean[] insertionSlots = getAllowInsertionSlots(te);
-        List<ItemStack> reverted = new ArrayList<>();
-        for (int slot = 0; slot < inventory.length; slot++) {
-            ItemStack stack = inventory[slot];
-            if (!stack.isEmpty() && isInputSlot(inv, insertionSlots, slot)) {
-                reverted.add(stack.copy());
-                inventory[slot] = ItemStack.EMPTY;
-            }
+        // 流体产物先于"处理中"判定。熔炉类机器的流体是连续产出，只要有料就一直在处理，
+        // 若等它完全停下才允许收集，成品会长期锁在罐里直到会话超时回退（而回退不抽流体）。
+        // 输入罐不会因此被误收：抽取判据要求罐声明 canDrain，而 TE 的输入罐是可填不可抽。
+        if (hasTankFluid(te)) {
+            return true;
         }
-        markDirty(te);
-        return reverted;
+        if (isProcessing(te)) {
+            return false;
+        }
+        return super.isIdle(world, pos, inputs, session);
     }
 
+    /**
+     * 完成判定：处理中或罐内有流体都不算完成.
+     *
+     * <p>为什么必须覆盖框架默认：框架默认只看槽位（本批输入是否耗尽 + 是否还有可收集产物）,
+     * 会把"输入已进内部进度缓冲、输出罐还留着上一批流体"的机器提前判为完成并关闭会话,
+     * 残留流体会一直卡在机器里。</p>
+     */
     @Override
-    public List<ItemStack> clearOutputs(World world, BlockPos pos, IActionSource source, TargetSession session) {
-        TileEntity te = world.getTileEntity(pos);
-        if (!isValidTarget(world, pos)) return Collections.emptyList();
-
-        IInventory inv = (IInventory) te;
-        ItemStack[] inventory = getInventoryArray(te);
-        if (inventory == null) return Collections.emptyList();
-
-        boolean[] extractionSlots = getAllowExtractionSlots(te);
-        List<ItemStack> cleared = new ArrayList<>();
-        for (int slot = 0; slot < inventory.length; slot++) {
-            ItemStack stack = inventory[slot];
-            if (!stack.isEmpty() && isOutputSlot(inv, extractionSlots, slot)) {
-                cleared.add(stack.copy());
-                inventory[slot] = ItemStack.EMPTY;
-            }
+    public boolean hasFinished(World world, BlockPos pos, List<ItemStack> inputs, TargetSession session) {
+        if (catalogFor(world, pos) == null) {
+            return true;
         }
-        markDirty(te);
-        return cleared;
+        TileEntity te = world.getTileEntity(pos);
+        if (isProcessing(te)) {
+            return false;
+        }
+        if (hasTankFluid(te)) {
+            return false;
+        }
+        return super.hasFinished(world, pos, inputs, session);
     }
 
     @Override
@@ -187,122 +271,9 @@ public class ThermalExpansionMachineHandler implements IRemoteHandler {
         return FluidTransferHelper.drainExtractableFluids(world, pos, batchFluids);
     }
 
-    @Override
-    public List<ItemStack> collectProducts(World world, BlockPos pos, IAEItemStack[] expectedOutputs,
-            List<ItemStack> inputs, IActionSource source, TargetSession session) {
-        TileEntity te = world.getTileEntity(pos);
-        if (!isValidTarget(world, pos)) return Collections.emptyList();
+    // ---- 反射访问 ----
 
-        IInventory inv = (IInventory) te;
-        ItemStack[] inventory = getInventoryArray(te);
-        if (inventory == null) return Collections.emptyList();
-        List<ItemStack> inputsSafe = inputs != null ? inputs : Collections.emptyList();
-        boolean[] extractionSlots = getAllowExtractionSlots(te);
-
-        List<ItemStack> collected = new ArrayList<>();
-
-        // 阶段 1：优先收集匹配预期产物的物品
-        if (expectedOutputs != null) {
-            for (IAEItemStack expected : expectedOutputs) {
-                if (expected == null) continue;
-                ItemStack expectedStack = expected.createItemStack();
-                for (int slot = 0; slot < inventory.length; slot++) {
-                    ItemStack inSlot = inventory[slot];
-                    if (inSlot.isEmpty()) continue;
-                    if (isInputMaterial(inSlot, inputsSafe)) continue;
-                    if (!isOutputSlot(inv, extractionSlots, slot) && !isProbablyOutputSlotFallback(inv, slot)) continue;
-                    if (!matchesLoosely(inSlot, expectedStack)) continue;
-                    collected.add(inSlot.copy());
-                    inventory[slot] = ItemStack.EMPTY;
-                }
-            }
-        }
-
-        // 阶段 2：收集所有非输入材料物品(主要是输出槽)
-        for (int slot = 0; slot < inventory.length; slot++) {
-            ItemStack stack = inventory[slot];
-            if (stack.isEmpty()) continue;
-            if (isInputMaterial(stack, inputsSafe)) continue;
-            if (!isOutputSlot(inv, extractionSlots, slot) && !isProbablyOutputSlotFallback(inv, slot)) continue;
-            collected.add(stack.copy());
-            inventory[slot] = ItemStack.EMPTY;
-        }
-
-        markDirty(te);
-        return collected;
-    }
-
-    @Override
-    public boolean isIdle(World world, BlockPos pos, List<ItemStack> inputs, TargetSession session) {
-        TileEntity te = world.getTileEntity(pos);
-        if (!isValidTarget(world, pos)) return true;
-
-        // 如果机器仍在处理中,直接返回不空闲
-        if (isProcessing(te)) {
-            return false;
-        }
-
-        IInventory inv = (IInventory) te;
-        ItemStack[] inventory = getInventoryArray(te);
-        List<ItemStack> inputsSafe = inputs != null ? inputs : Collections.emptyList();
-        boolean[] extractionSlots = getAllowExtractionSlots(te);
-
-        // 宽松语义：只要有可收集的产物(非输入材料)或流体,即可收集(支持流水线模式)
-        boolean hasProducts = false;
-        if (inventory != null) {
-            for (int slot = 0; slot < inventory.length; slot++) {
-                ItemStack stack = inventory[slot];
-                if (stack.isEmpty()) continue;
-                if (isInputMaterial(stack, inputsSafe)) continue;
-                if (!isOutputSlot(inv, extractionSlots, slot) && !isProbablyOutputSlotFallback(inv, slot)) continue;
-                hasProducts = true;
-                break;
-            }
-        }
-
-        return hasProducts || getTankFluid(te) != null;
-    }
-
-    @Override
-    public boolean hasFinished(World world, BlockPos pos, List<ItemStack> inputs, TargetSession session) {
-        TileEntity te = world.getTileEntity(pos);
-        if (!isValidTarget(world, pos)) return true;
-
-        // 仍在处理中 → 未完成
-        if (isProcessing(te)) {
-            return false;
-        }
-
-        ItemStack[] inventory = getInventoryArray(te);
-        List<ItemStack> inputsSafe = inputs != null ? inputs : Collections.emptyList();
-        boolean[] insertionSlots = getAllowInsertionSlots(te);
-        boolean[] extractionSlots = getAllowExtractionSlots(te);
-        IInventory inv = (IInventory) te;
-
-        if (inventory != null) {
-            for (int slot = 0; slot < inventory.length; slot++) {
-                ItemStack stack = inventory[slot];
-                if (stack.isEmpty()) continue;
-
-                // 还有输入材料 → 未完成
-                if (isInputSlot(inv, insertionSlots, slot) && isInputMaterial(stack, inputsSafe)) {
-                    return false;
-                }
-
-                // 输出槽仍有产物 → 未完成（等待下一次 tick 收集）
-                if (isOutputSlot(inv, extractionSlots, slot) && !isInputMaterial(stack, inputsSafe)) {
-                    return false;
-                }
-            }
-        }
-
-        // 输入已耗尽、输出槽已空且无产物流体 → 完成
-        return getTankFluid(te) == null;
-    }
-
-    // ---- Internal helpers ----
-
-    private ItemStack[] getInventoryArray(TileEntity te) {
+    private static ItemStack[] inventoryArrayOf(TileEntity te) {
         try {
             return (ItemStack[]) INVENTORY_FIELD.get(te);
         } catch (Exception e) {
@@ -311,19 +282,23 @@ public class ThermalExpansionMachineHandler implements IRemoteHandler {
         }
     }
 
-    private boolean[] getAllowInsertionSlots(TileEntity te) {
-        return getSlotConfigArray(te, ALLOW_INSERTION_SLOT_FIELD);
+    private static boolean[] insertionFlagsOf(TileEntity te) {
+        return slotConfigArray(te, ALLOW_INSERTION_SLOT_FIELD);
     }
 
-    private boolean[] getAllowExtractionSlots(TileEntity te) {
-        return getSlotConfigArray(te, ALLOW_EXTRACTION_SLOT_FIELD);
+    private static boolean[] extractionFlagsOf(TileEntity te) {
+        return slotConfigArray(te, ALLOW_EXTRACTION_SLOT_FIELD);
     }
 
-    private boolean[] getSlotConfigArray(TileEntity te, Field arrayField) {
-        if (SLOT_CONFIG_FIELD == null || arrayField == null) return null;
+    private static boolean[] slotConfigArray(TileEntity te, Field arrayField) {
+        if (SLOT_CONFIG_FIELD == null || arrayField == null) {
+            return null;
+        }
         try {
             Object slotConfig = SLOT_CONFIG_FIELD.get(te);
-            if (slotConfig == null) return null;
+            if (slotConfig == null) {
+                return null;
+            }
             return (boolean[]) arrayField.get(slotConfig);
         } catch (Exception e) {
             AE2Enhanced.LOGGER.debug("[AE2E] Failed to get ThermalExpansion slot config", e);
@@ -331,78 +306,10 @@ public class ThermalExpansionMachineHandler implements IRemoteHandler {
         }
     }
 
-    private boolean isInputSlot(IInventory inv, boolean[] insertionSlots, int slot) {
-        if (insertionSlots != null && slot >= 0 && slot < insertionSlots.length) {
-            return insertionSlots[slot];
+    private static boolean isProcessing(TileEntity te) {
+        if (PROCESS_REM_FIELD == null || te == null) {
+            return false;
         }
-        return isProbablyInputSlotFallback(inv, slot);
-    }
-
-    private boolean isOutputSlot(IInventory inv, boolean[] extractionSlots, int slot) {
-        if (extractionSlots != null && slot >= 0 && slot < extractionSlots.length) {
-            return extractionSlots[slot];
-        }
-        return isProbablyOutputSlotFallback(inv, slot);
-    }
-
-    private boolean pushItemToInventory(IInventory inv, ItemStack[] inventory, boolean[] insertionSlots, ItemStack stack) {
-        for (int slot = 0; slot < inventory.length; slot++) {
-            if (!isInputSlot(inv, insertionSlots, slot)) {
-                continue;
-            }
-            ItemStack existing = inventory[slot];
-            if (!existing.isEmpty()) {
-                if (ItemStack.areItemsEqual(existing, stack)
-                        && ItemStack.areItemStackTagsEqual(existing, stack)
-                        && existing.getCount() + stack.getCount() <= existing.getMaxStackSize()
-                        && inv.isItemValidForSlot(slot, stack)) {
-                    existing.grow(stack.getCount());
-                    return true;
-                }
-                continue;
-            }
-            if (inv.isItemValidForSlot(slot, stack)) {
-                inventory[slot] = stack.copy();
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private boolean isProbablyInputSlotFallback(IInventory inv, int slot) {
-        // 简单启发式：前 2/3 槽位视为输入(大多数 TE 机器输入槽在前,输出槽在后)
-        return slot < inv.getSizeInventory() * 2 / 3;
-    }
-
-    private boolean isProbablyOutputSlotFallback(IInventory inv, int slot) {
-        return slot >= inv.getSizeInventory() * 2 / 3;
-    }
-
-    private void markDirty(TileEntity te) {
-        try {
-            te.markDirty();
-        } catch (Exception e) {
-            AE2Enhanced.LOGGER.debug("[AE2E] markDirty failed", e);
-        }
-    }
-
-    private boolean isInputMaterial(ItemStack stack, List<ItemStack> inputs) {
-        for (ItemStack input : inputs) {
-            if (ItemStack.areItemsEqual(stack, input) && ItemStack.areItemStackTagsEqual(stack, input)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private boolean matchesLoosely(ItemStack actual, ItemStack expected) {
-        if (!ItemStack.areItemsEqual(actual, expected)) return false;
-        if (!expected.hasTagCompound()) return true;
-        return ItemStack.areItemStackTagsEqual(actual, expected);
-    }
-
-    private boolean isProcessing(TileEntity te) {
-        if (PROCESS_REM_FIELD == null) return false;
         try {
             int processRem = PROCESS_REM_FIELD.getInt(te);
             return processRem > 0;
@@ -411,24 +318,32 @@ public class ThermalExpansionMachineHandler implements IRemoteHandler {
         }
     }
 
-    private FluidStack getTankFluid(TileEntity te) {
+    /** 目标是否有非空流体罐（{@code getTankFluid(te) != null}）。 */
+    private static boolean hasTankFluid(TileEntity te) {
         // 不用反射:部分 TE 机器(TileRefinery/TileTransposer 等)声明了返回客户端类
         // TextureAtlasSprite 的 getTexture 方法,getMethod 解析方法签名会在
         // Dedicated Server 上抛 NoClassDefFoundError.改用 Forge 流体 Capability.
-        if (!te.hasCapability(CapabilityFluidHandler.FLUID_HANDLER_CAPABILITY, null)) {
-            return null; // 该机器没有 tank
+        if (te == null || !te.hasCapability(CapabilityFluidHandler.FLUID_HANDLER_CAPABILITY, null)) {
+            return false; // 该机器没有 tank
         }
         IFluidHandler handler = te.getCapability(CapabilityFluidHandler.FLUID_HANDLER_CAPABILITY, null);
         if (handler == null) {
-            return null;
+            return false;
         }
-        // 与原 getTankFluid 语义一致:返回第一个非空储罐的流体,全空返回 null
-        for (IFluidTankProperties props : handler.getTankProperties()) {
+        // 只要存在非空储罐即视为有流体,全空则否
+        IFluidTankProperties[] properties = handler.getTankProperties();
+        if (properties == null) {
+            return false;
+        }
+        for (IFluidTankProperties props : properties) {
+            if (props == null) {
+                continue;
+            }
             FluidStack contents = props.getContents();
             if (contents != null && contents.amount > 0) {
-                return contents;
+                return true;
             }
         }
-        return null;
+        return false;
     }
 }

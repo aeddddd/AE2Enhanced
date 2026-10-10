@@ -1,6 +1,7 @@
 package com.github.aeddddd.ae2enhanced.centralinterface;
 
 import appeng.api.AEApi;
+import appeng.api.config.Actionable;
 import appeng.api.networking.energy.IEnergySource;
 import appeng.api.networking.events.MENetworkCraftingPatternChange;
 import appeng.api.networking.security.IActionHost;
@@ -69,12 +70,25 @@ public final class NetworkAccess {
      */
     public static IAEFluidStack poweredInsertFluid(IGridConnection grid, IActionHost host, IAEFluidStack stack)
             throws GridAccessException {
+        return poweredInsertFluid(grid, host, stack, Actionable.MODULATE);
+    }
+
+    /**
+     * 同 {@link #poweredInsertFluid(IGridConnection, IActionHost, IAEFluidStack)}，但可指定注入模式.
+     *
+     * <p>{@code Actionable.SIMULATE} 只问"网络收得下多少"（存储空间 + 可扣的 AE 能量），
+     * 不改动网络，返回值与真注入同口径。</p>
+     */
+    public static IAEFluidStack poweredInsertFluid(IGridConnection grid, IActionHost host, IAEFluidStack stack,
+                                                   Actionable mode)
+            throws GridAccessException {
         IFluidStorageChannel channel = AEApi.instance().storage().getStorageChannel(IFluidStorageChannel.class);
         return Platform.poweredInsert(
                 grid.energy(),
                 grid.storage().getInventory(channel),
                 stack,
-                new MachineSource(host));
+                new MachineSource(host),
+                mode);
     }
 
     /**
@@ -85,7 +99,43 @@ public final class NetworkAccess {
     }
 
     /**
-     * 将流体列表直接注入 AE 流体网络，不再创建流体假物品。
+     * 模拟把流体列表注入 AE 流体网络（{@code Actionable.SIMULATE}，不改动网络）.
+     *
+     * <p>与 {@link #injectFluidsToNetwork} 共用同一条 {@code Platform.poweredInsert} 路径：
+     * 存储空间与 AE 能量的判定口径完全一致，因此调用方可以"先模拟、确认收得下，再真抽/真送"。</p>
+     *
+     * @return 网络<b>收不下</b>的流体列表；全部收得下则返回空列表。网格不可用时按"全部收不下"处理
+     */
+    public static List<FluidStack> simulateInjectFluidsToNetwork(IGridConnection grid, IActionHost host,
+                                                                 List<FluidStack> fluids) {
+        List<FluidStack> rejected = new ArrayList<>();
+        try {
+            IFluidStorageChannel channel = AEApi.instance().storage().getStorageChannel(IFluidStorageChannel.class);
+            for (FluidStack fluid : fluids) {
+                if (fluid == null || fluid.amount <= 0) continue;
+                IAEFluidStack toInsert = channel.createStack(fluid);
+                if (toInsert == null) {
+                    rejected.add(fluid.copy());
+                    continue;
+                }
+                IAEFluidStack remaining = poweredInsertFluid(grid, host, toInsert, Actionable.SIMULATE);
+                if (remaining != null && remaining.getStackSize() > 0) {
+                    FluidStack leftover = remaining.getFluidStack();
+                    rejected.add(leftover != null ? leftover.copy() : fluid.copy());
+                }
+            }
+        } catch (GridAccessException e) {
+            for (FluidStack fluid : fluids) {
+                if (fluid != null && fluid.amount > 0) {
+                    rejected.add(fluid.copy());
+                }
+            }
+        }
+        return rejected;
+    }
+
+    /**
+     * 将流体列表直接注入 AE 流体网络，不创建流体假物品。
      *
      * @return 未能注入网络的溢出流体列表；若全部注入成功则返回空列表
      */

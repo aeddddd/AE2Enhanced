@@ -496,8 +496,12 @@ public class GuiUniversalMemoryCard extends GuiContainer {
             int rowY = y + LIST_Y + i * ENTRY_HEIGHT;
 
             // 静态图标(选取时记录的方块/Part 物品堆)
+            // 上一帧模型渲染可能在异常路径下遗留光照关闭状态,图标会偏暗,
+            // 此处显式启用 GUI 物品光照绘制,绘完即关(后面的纹理绘制不吃光照)
             if (entry.icon != null && !entry.icon.isEmpty()) {
+                RenderHelper.enableGUIStandardItemLighting();
                 mc.getRenderItem().renderItemAndEffectIntoGUI(entry.icon, rowIconX, rowY + 4);
+                RenderHelper.disableStandardItemLighting();
             }
 
             // 行 1:机器名(客户端本地化)
@@ -620,6 +624,12 @@ public class GuiUniversalMemoryCard extends GuiContainer {
         } catch (Exception e) {
             // 奇异模型渲染失败不应拖垮整个 GUI
         } finally {
+            // 渲染中途抛异常时 GL 状态可能只设置了一半,统一复位,
+            // 避免下一帧的 GUI 纹理/图标继承残留状态(图标偏暗等)
+            GlStateManager.disableAlpha();
+            GlStateManager.disableRescaleNormal();
+            RenderHelper.disableStandardItemLighting();
+            GlStateManager.color(1.0f, 1.0f, 1.0f, 1.0f);
             GlStateManager.popMatrix();
             mc.getTextureManager().bindTexture(GUI_TEXTURE);
             mc.getTextureManager().getTexture(TextureMap.LOCATION_BLOCKS_TEXTURE).restoreLastBlurMipmap();
@@ -631,13 +641,15 @@ public class GuiUniversalMemoryCard extends GuiContainer {
      *
      * <p>解析链:</p>
      * <ol>
+     *   <li>物品模型(renderStack = partItem 或含机型 NBT 的 blockItem)——
+     *       物品形态是 mod 必定注册模型的表示,且不受 CCL bakery 类模组错误模型
+     *       (紫黑块,非 missingModel 实例、带 quads,检查拦不住)的影响;</li>
      *   <li>若方块带 TileEntity 且复制了 NBT 数据,构造假 TileEntity 并读入复制的
      *       NBT,再通过 {@link Block#getExtendedState} 提供扩展状态——热力(Thermal
      *       Expansion)等 mod 的机器侧面 IO 覆盖层(ISmartBlockModel 烘焙路径)
      *       依赖 TileEntity 中的 SideCache,此路径可原样显示复制时刻的侧面配置;</li>
      *   <li>普通方块状态模型(带朝向);</li>
-     *   <li>物品模型;</li>
-     *   <li>TEISR 物品渲染(箱子等 TESR 方块).</li>
+     *   <li>TEISR 物品渲染(仅当物品模型声明 isBuiltInRenderer,如箱子).</li>
      * </ol>
      * 任一步失败均回退到下一级,不抛出.
      */
@@ -648,6 +660,26 @@ public class GuiUniversalMemoryCard extends GuiContainer {
         Minecraft mc = Minecraft.getMinecraft();
         IBakedModel missingModel = mc.getRenderItem().getItemModelMesher().getModelManager().getMissingModel();
         try {
+            // 1) 物品模型优先:renderStack 是 partItem 或含机型 NBT 的 blockItem,
+            //    物品形态是 mod 必定注册模型的表示(物品栏/JEI 可见即可证)。
+            //    状态路径放前面会被 CCL bakery 类模组(热力全家等)坑——它们对
+            //    无法识别的状态返回自己的紫黑错误模型,既不是 missingModel 实例
+            //    又带 quads,所有检查都拦不住。
+            if (!renderStack.isEmpty()) {
+                IBakedModel m = mc.getRenderItem().getItemModelWithOverrides(renderStack, null, null);
+                if (m != null && m != missingModel && !isEmptyModel(m, null)) {
+                    previewModel = m;
+                    // 箱子等内建渲染器模型仍走 TEISR 路径
+                    previewUseTeisr = m.isBuiltInRenderer();
+                    return;
+                }
+                if (m != null && m.isBuiltInRenderer()) {
+                    previewUseTeisr = true;
+                    return;
+                }
+            }
+            // 2) 状态模型(带扩展状态/侧面覆盖层,热力机器等 ISmartBlockModel 的
+            //    IO 覆盖层来自此路径;仅当物品模型缺失时才轮到)
             IBlockState stateForModel = renderState;
             if (renderState != null && config.hasKey("data", 10)) {
                 TileEntity te = createDummyTile(renderState, config.getCompoundTag("data"));
@@ -670,21 +702,6 @@ public class GuiUniversalMemoryCard extends GuiContainer {
                 if (m != null && m != missingModel && !isEmptyModel(m, stateForModel)) {
                     previewModel = m;
                     return;
-                }
-                // 状态模型不可用(如 EIO 等 ISmartBlockModel 无 tile 数据时 quads 为空)
-                // 不得直接跳到 TEISR——原版 TEISR 只识别箱子/旗帜等少数物品,
-                // 普通机器会渲染为空白;继续尝试下面的物品模型路径
-            }
-            if (!renderStack.isEmpty()) {
-                IBakedModel m = mc.getRenderItem().getItemModelWithOverrides(renderStack, null, null);
-                if (m != null && m != missingModel && !isEmptyModel(m, null)) {
-                    previewModel = m;
-                    // 箱子等内建渲染器模型仍走 TEISR 路径
-                    previewUseTeisr = m.isBuiltInRenderer();
-                    return;
-                }
-                if (m != null && m.isBuiltInRenderer()) {
-                    previewUseTeisr = true;
                 }
             }
         } catch (Throwable t) {

@@ -8,6 +8,7 @@ import appeng.util.Platform;
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
 import com.github.aeddddd.ae2enhanced.gui.GuiHandler;
 import com.github.aeddddd.ae2enhanced.item.ItemOmniWirelessTerminal;
+import com.github.aeddddd.ae2enhanced.util.OmniTerminalResolver;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.inventory.Container;
 import net.minecraft.item.ItemStack;
@@ -36,7 +37,9 @@ public class MixinPacketSwitchGuis {
             if (target instanceof WirelessTerminalGuiObject) {
                 ItemStack stack = ((WirelessTerminalGuiObject) target).getItemStack();
                 if (stack.getItem() instanceof ItemOmniWirelessTerminal) {
-                    player.openGui(AE2Enhanced.instance, GuiHandler.GUI_OMNI_TERMINAL, player.world, slot, isBauble ? 1 : 0, 0);
+                    // 分发收口:旧物品回旧 GUI(11),可拼接终端回新 GUI(15)
+                    player.openGui(AE2Enhanced.instance, OmniTerminalResolver.resolveOmniGuiId(stack),
+                            player.world, slot, isBauble ? 1 : 0, 0);
                     return;
                 }
             }

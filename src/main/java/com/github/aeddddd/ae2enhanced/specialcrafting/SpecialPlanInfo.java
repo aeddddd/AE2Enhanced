@@ -48,10 +48,18 @@ public final class SpecialPlanInfo {
 
     public final Map<IAEItemStack, Entry> entries;
     public final Map<IAEItemStack, Long> callCounts;
+    /** 未解出(降级/截断)单元数:>0 时计划未完整,GUI 显示"未解出"而非缺料. */
+    public final int unresolvedUnits;
 
     public SpecialPlanInfo(Map<IAEItemStack, Entry> entries, Map<IAEItemStack, Long> callCounts) {
+        this(entries, callCounts, 0);
+    }
+
+    public SpecialPlanInfo(Map<IAEItemStack, Entry> entries, Map<IAEItemStack, Long> callCounts,
+            int unresolvedUnits) {
         this.entries = entries;
         this.callCounts = callCounts;
+        this.unresolvedUnits = unresolvedUnits;
     }
 
     public boolean isEmpty() {
@@ -85,6 +93,7 @@ public final class SpecialPlanInfo {
      * 识别;循环链(含催化环)复用 {@link RoundQuotaScheduler#deriveQuota} 的闭包 + GCD 轮次推导.</p>
      */
     public static SpecialPlanInfo compute(appeng.crafting.CraftingJob job) {
+        int unresolved = job instanceof LpCraftingJob ? ((LpCraftingJob) job).unresolvedUnits() : 0;
         Map<IAEItemStack, Entry> entries = new LinkedHashMap<>();
         IAEItemStack finalWhat = RecursiveCraftingHelper.canon(job.getOutput());
         Map<appeng.api.networking.crafting.ICraftingPatternDetails, Long> patternTimes = new LinkedHashMap<>();
@@ -108,20 +117,17 @@ public final class SpecialPlanInfo {
                 long outPer = RecursiveCraftingHelper.selfOutputPerCraft(pattern, finalWhat);
                 entries.put(finalWhat.copy(), new Entry(KIND_SELF_DUP, 1, outPer, inPer, e.getValue(),
                         usedItems.getOrDefault(finalWhat, 0L)));
-                return new SpecialPlanInfo(entries, callCounts);
+                return new SpecialPlanInfo(entries, callCounts, unresolved);
             }
         }
 
         // 循环链(闭包 + GCD 轮次;催化环的环外副产物输出也会出现在 perRound 中)
         RoundQuotaScheduler.Quota quota = RoundQuotaScheduler.deriveQuota(patternTimes, finalWhat);
         if (quota == null) {
-            return new SpecialPlanInfo(entries, callCounts);
+            return new SpecialPlanInfo(entries, callCounts, unresolved);
         }
-        long rounds = 0;
-        for (Map.Entry<appeng.api.networking.crafting.ICraftingPatternDetails, Long> e : quota.perRound.entrySet()) {
-            rounds = patternTimes.get(e.getKey()) / e.getValue();
-            break;
-        }
+        // 轮次直读配额推导结果(旧实现取 perRound 首条目反推:依赖遍历序且被 Math.max(1,…) 钳位)
+        long rounds = quota.rounds;
         Map<IAEItemStack, long[]> perRound = new LinkedHashMap<>(); // [consume, produce]
         for (Map.Entry<appeng.api.networking.crafting.ICraftingPatternDetails, Long> e : quota.perRound.entrySet()) {
             long t = e.getValue();
@@ -142,7 +148,7 @@ public final class SpecialPlanInfo {
             entries.put(e.getKey().copy(), new Entry(KIND_CYCLE, rounds, e.getValue()[1], e.getValue()[0], 0,
                     usedItems.getOrDefault(e.getKey(), 0L)));
         }
-        return new SpecialPlanInfo(entries, callCounts);
+        return new SpecialPlanInfo(entries, callCounts, unresolved);
     }
 
     /**
@@ -164,12 +170,12 @@ public final class SpecialPlanInfo {
                 }
             }
         }
-        for (appeng.crafting.CraftingTreeProcess pro : Ae2CraftingReflect.getNodeProcesses(node)) {
+        for (appeng.crafting.CraftingTreeProcess pro : Ae2CraftingReflect.sortedNodeProcesses(node)) {
             long crafts = Ae2CraftingReflect.getProcessCrafts(pro);
             if (crafts > 0) {
                 patternTimes.merge(Ae2CraftingReflect.getProcessDetails(pro), crafts, Long::sum);
             }
-            for (appeng.crafting.CraftingTreeNode child : Ae2CraftingReflect.getProcessNodes(pro).keySet()) {
+            for (appeng.crafting.CraftingTreeNode child : Ae2CraftingReflect.sortedProcessNodes(pro)) {
                 collectFromTree(child, patternTimes, usedItems);
             }
         }

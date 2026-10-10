@@ -15,14 +15,13 @@
     "world.MixinInventoryHelperDropItems",
     "world.MixinPlayerInteractionManager",
     "world.MixinWorldSpawnEntity",
-    "accessor.IEntityAccessor",
-    "accessor.IEntityLivingBaseAccessor"
+    "dev.MixinNetHandlerPlayServerClickTrace"
   ],
   "client": [
     "world.MixinPlayerControllerMP",
     "terminal.MixinGuiScreenPlanHooks",
     "terminal.MixinGuiContainerPlanHooks",
-    "accessor.IGuiScreenAccessor"
+    "dev.MixinPlayerControllerMPClickTrace"
   ],
   "server": []
 }

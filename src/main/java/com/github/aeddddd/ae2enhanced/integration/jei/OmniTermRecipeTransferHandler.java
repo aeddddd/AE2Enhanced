@@ -30,6 +30,18 @@ public class OmniTermRecipeTransferHandler implements IRecipeTransferHandler<Con
 
     @Override
     public IRecipeTransferError transferRecipe(ContainerOmniTerm container, IRecipeLayout recipeLayout, EntityPlayer player, boolean maxTransfer, boolean doTransfer) {
+        return transfer(recipeLayout, maxTransfer, doTransfer);
+    }
+
+    /**
+     * 配方 → {@code PacketLoadOmniRecipe} 的转换逻辑（与容器类型无关）。
+     *
+     * <p>JEI 的转移处理器查找是<b>按打开容器的精确类</b>做的
+     * （{@code RecipeRegistry.getRecipeTransferHandler}: {@code container.getClass()} 查表），
+     * 所以可拼接终端（{@code ContainerSplicedTerm extends ContainerOmniTerm}）必须单独注册一份
+     * 处理器——见 {@code SplicedTermRecipeTransferHandler}。两边共用这里同一段逻辑，避免分叉。</p>
+     */
+    public static IRecipeTransferError transfer(IRecipeLayout recipeLayout, boolean maxTransfer, boolean doTransfer) {
         String recipeUid = recipeLayout.getRecipeCategory().getUid();
         boolean isCrafting = recipeUid.equals("minecraft.crafting");
         int gridSize = 3; // default 3x3
