@@ -1,51 +1,48 @@
 // ============================================================================
 // AE2Enhanced —— Minecraft 1.12.2 / Forge Mod
-// 构建链: ForgeGradle 2.3-SNAPSHOT + MixinGradle 0.6 (Java 8 / Gradle 4.10.3)
-// 结构参照 Forge MDK / Cleanroom 1.12.2 模板: 所有版本常量集中在 gradle.properties
+// 构建链: RetroFuturaGradle 2.0.3 (Gradle 9.7 / 构建 JVM 需 Java 25, 编译目标 Java 8)
+// 结构参照 CleanroomMC ForgeDevEnv 模板: 所有版本常量集中在 gradle.properties
 // ============================================================================
 
-buildscript {
-    repositories {
-        maven { url = 'https://files.minecraftforge.net/maven' }
-        maven { url = 'https://repo.spongepowered.org/repository/maven-public/' }
-        mavenCentral()
-    }
-    dependencies {
-        classpath 'net.minecraftforge.gradle:ForgeGradle:2.3-SNAPSHOT'
-        classpath 'org.spongepowered:mixingradle:0.6-SNAPSHOT'
-    }
+plugins {
+    id 'java'
+    id 'java-library'
+    id 'com.gtnewhorizons.retrofuturagradle' version '2.0.3'
 }
-
-apply plugin: 'net.minecraftforge.gradle.forge'
-apply plugin: 'org.spongepowered.mixin'
 
 // ----------------------------------------------------------------------------
 // Mod 元数据（值见 gradle.properties）
 // ----------------------------------------------------------------------------
 version = project.mod_version
 group = project.maven_group
-archivesBaseName = project.archives_base_name
-
-// ----------------------------------------------------------------------------
-// Java 8 / UTF-8 编译
-// ----------------------------------------------------------------------------
-sourceCompatibility = targetCompatibility = JavaVersion.VERSION_1_8
-compileJava {
-    sourceCompatibility = targetCompatibility = JavaVersion.VERSION_1_8
-    options.encoding = 'UTF-8'
-}
-compileTestJava {
-    sourceCompatibility = targetCompatibility = JavaVersion.VERSION_1_8
-    options.encoding = 'UTF-8'
+base {
+    archivesName.set(project.archives_base_name)
 }
 
 // ----------------------------------------------------------------------------
-// Minecraft / Forge / Mappings（值见 gradle.properties）
+// Java 8 工具链（本机 JDK 8 自动检测, 缺失时由 foojay 自动下载）/ UTF-8 编译
+// ----------------------------------------------------------------------------
+java {
+    toolchain {
+        languageVersion.set(JavaLanguageVersion.of(8))
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+}
+
+// ----------------------------------------------------------------------------
+// Minecraft / Forge / Mappings
+// RFG 对 1.12.2 内置默认 Forge 14.23.5.2847 (IMinecraftyExtension#getForgeVersion)
 // ----------------------------------------------------------------------------
 minecraft {
-    version = "${project.minecraft_version}-${project.forge_version}"
-    runDir = 'run'
-    mappings = project.mcp_mappings
+    mcVersion.set(project.minecraft_version)
+    mcpMappingChannel.set(project.mapping_channel)
+    mcpMappingVersion.set(project.mapping_version)
+
+    username.set('Developer')
+    extraRunJvmArguments.addAll(['-ea:' + project.group, '-Dmixin.checks.interfaces=true'])
 }
 
 // ----------------------------------------------------------------------------
@@ -64,40 +61,49 @@ repositories {
     ivy {
         name = 'GitHub-ae2uel'
         url = 'https://github.com/AE2-UEL/Applied-Energistics-2/releases/download'
-        layout 'pattern', { artifact 'v[revision]/ae2-uel-v[revision].[ext]' }
+        patternLayout { artifact 'v[revision]/ae2-uel-v[revision].[ext]' }
         metadataSources { artifact() }
     }
     ivy {
         name = 'GitHub-thaumic-energistics'
         url = 'https://github.com/Delfayne/ThaumicEnergistics/releases/download'
-        layout 'pattern', { artifact 'v[revision]/thaumic-energistics-extended-life-1.12.2-[revision].[ext]' }
+        patternLayout { artifact 'v[revision]/thaumic-energistics-extended-life-1.12.2-[revision].[ext]' }
         metadataSources { artifact() }
     }
     ivy {
         name = 'GitHub-cells'
         url = 'https://github.com/Aedial/CELLS/releases/download'
-        layout 'pattern', { artifact '[revision]/cells-[revision].[ext]' }
+        patternLayout { artifact '[revision]/cells-[revision].[ext]' }
         metadataSources { artifact() }
     }
     ivy {
         name = 'GitHub-cell-terminal'
         url = 'https://github.com/Aedial/DiskTerminal/releases/download'
-        layout 'pattern', { artifact '[revision]/cell-terminal-[revision]-dev.[ext]' }
+        patternLayout { artifact '[revision]/cell-terminal-[revision]-dev.[ext]' }
         metadataSources { artifact() }
     }
-    ivy {
-        name = 'GitHub-terminal-interaction-integration'
-        url = 'https://github.com/NNYYOONNIIOO/terminal_interaction_integration/releases/download'
-        layout 'pattern', { artifact '[revision]/terminal_interaction_integration-1.0.[ext]' }
-        metadataSources { artifact() }
+}
+
+configurations {
+    mixinAgent {
+        canBeConsumed = false
+        canBeResolved = true
+        visible = false
+    }
+    specialSource {
+        canBeConsumed = false
+        canBeResolved = true
+        visible = false
     }
 }
 
 // ----------------------------------------------------------------------------
 // 依赖
+// 注意: AE2-UEL 不得包 rfg.deobf() —— 开发环境运行时由 FML 做 SRG→MCP 重映射,
+// 且 remap=false mixin 直接以 SRG 名为目标, 预反混淆会破坏二者。
 // ----------------------------------------------------------------------------
 dependencies {
-    compile 'ae2uel:ae2-uel:0.56.7'
+    implementation 'ae2uel:ae2-uel:0.56.7'
 
     // 可选集成 (compileOnly): 第三方 mod 类一律通过反射隔离访问,
     // 运行时按对应 mod 是否安装进行条件加载
@@ -130,38 +136,71 @@ dependencies {
     compileOnly 'thaumicenergistics:thaumic-energistics:2.3.5'                       // ThaumicEnergistics Extended Life
     compileOnly 'cells:cells:0.6.2-alpha3'
     compileOnly 'cellterminal:cell-terminal:1.6.7'
-    compileOnly 'tii:terminal-interaction-integration:1.0.0'
+    // TII: GitHub Release 上的 1.0.0 构件过旧(缺少 getEmptyContainer 等接口方法),
+    // 必须使用 libs/ 下的新版本地构件
+    compileOnly files('libs/terminal_interaction_integration-1.0.jar')
 
     // --- 公共 Maven  ---
     compileOnly('vazkii.botania:Botania:r1.10-364.4') { transitive = false }
     compileOnly('TechReborn:TechReborn-1.12.2:2.27.3.1084:universal') { transitive = false }
     compileOnly('RebornCore:RebornCore-1.12.2:3.19.4.529:universal') { transitive = false }
 
-    // Mixin: MixinBooter + 注解处理器
-    compile('zone.rong:mixinbooter:10.6') { transitive = false }
+    // Mixin: MixinBooter + refmap 生成 (RFG modUtils 取代 MixinGradle 0.6)
+    String mixin = modUtils.enableMixins("zone.rong:mixinbooter:${project.mixin_booter_version}", 'mixin.refmap.json')
+    implementation(mixin) { transitive = false }
     annotationProcessor "org.spongepowered:mixin:${project.mixin_version}:processor"
+    add('mixinAgent', mixin) { transitive = false }
 
     // fastutil
-    compile "it.unimi.dsi:fastutil:${project.fastutil_version}"
+    implementation "it.unimi.dsi:fastutil:${project.fastutil_version}"
 
-    // JEI / CraftTweaker
-    deobfProvided "mezz.jei:jei_${project.minecraft_version}:${project.jei_version}:api"
-    deobfProvided "mezz.jei:jei_${project.minecraft_version}:${project.jei_version}"
-    deobfProvided "CraftTweaker2:CraftTweaker2-MC1120-Main:${project.crafttweaker_version}"
+    // JEI / CraftTweaker (JEI 完整 jar 同时供编译与开发运行时; CT 仅编译期)
+    implementation rfg.deobf("mezz.jei:jei_${project.minecraft_version}:${project.jei_version}")
+    compileOnly rfg.deobf("mezz.jei:jei_${project.minecraft_version}:${project.jei_version}:api")
+    compileOnly rfg.deobf("CraftTweaker2:CraftTweaker2-MC1120-Main:${project.crafttweaker_version}")
+
+    // 单元测试用 SRG→MCP 重映射工具 (显式依赖, 不再从构建插件缓存目录取 jar)
+    specialSource 'net.md-5:SpecialSource:1.8.3:shaded'
 
     // JUnit 5
     testImplementation "org.junit.jupiter:junit-jupiter-api:${project.junit_version}"
     testImplementation "org.junit.jupiter:junit-jupiter-params:${project.junit_version}"
     testRuntimeOnly "org.junit.jupiter:junit-jupiter-engine:${project.junit_version}"
+    // Gradle 9 起不再自动注入 JUnit Platform Launcher, 必须显式声明
+    testRuntimeOnly "org.junit.platform:junit-platform-launcher:${project.junit_platform_version}"
 
     // 测试断言与 mock(Java 8 兼容版本)
     testImplementation "org.assertj:assertj-core:3.11.1"
     testImplementation "org.mockito:mockito-core:2.23.4"
+
+    // 仅为测试运行时提供 yalter.mousetweaks.api(该 jar 捆绑了此 API):
+    // AE2 AEBaseGui 实现 IMTModGuiContainer2, 测试加载 GUI 类时必须能解析到
+    testRuntimeOnly 'cells:cells:0.6.2-alpha3'
+}
+
+// RFG 默认只把 LWJGL 加入编译 classpath (run 任务单独挂载), 测试运行时需显式继承,
+// 否则 Mockito 反射 net.minecraft.client.Minecraft 构造器时找不到 org.lwjgl 类
+configurations.testRuntimeClasspath.extendsFrom(configurations.lwjgl2Classpath)
+
+// 调试模式 (task.debug) 下以 javaagent 挂载 Mixin
+['runClient', 'runServer', 'runObfClient', 'runObfServer'].each { taskName ->
+    tasks.named(taskName, JavaExec).configure { JavaExec task ->
+        task.doFirst {
+            if (task.debug) {
+                task.jvmArgs("-javaagent:${configurations.mixinAgent.singleFile.absolutePath}")
+            }
+        }
+    }
 }
 
 test {
     useJUnitPlatform()
     dependsOn 'remapAe2ForTest'
+    // 全套测试共享一个 JVM, AE2/MC 类加载累积量大, 512m 默认堆会 GC overhead OOM
+    maxHeapSize = '2g'
+    javaLauncher.set(javaToolchains.launcherFor {
+        languageVersion = JavaLanguageVersion.of(8)
+    })
     // 诊断基准类(test/bench/**,零断言纯观测)不纳入默认测试运行;
     // 手动运行: ./gradlew test -Pbench(可叠加 AE2E_BENCH=1 获得 3g 堆)
     if (!project.hasProperty('bench')) {
@@ -172,36 +211,31 @@ test {
         maxHeapSize = '3g'
         testLogging { showStandardStreams = true }
     }
-    // 透传 ae2e.* 系统属性到测试 JVM(文档用法 -Dae2e.lpSolver=... 依赖此),
-    // 否则 -D 只落在 Gradle 守护进程上,fork 出的测试 JVM 读不到
-    System.getProperties().each { k, v ->
-        if (k.toString().startsWith('ae2e.')) {
-            systemProperty k.toString(), v
-        }
-    }
 }
 
 // ----------------------------------------------------------------------------
-// 单元测试环境: 本开发环境运行时 MC 为 MCP 命名(Cleanroom 风格),而 AE2-UEL jar
-// 保留 SRG 名(field_*/func_*),普通 JVM 测试无运行时重映射器,需预先用
-// SpecialSource 将 AE2 jar 从 SRG 重映射到 MCP,并替换 test 运行时 classpath 中的
-// 原始 jar(编译 classpath 不变——javac 不解析 jar 内部的 MC 成员名).
+// 单元测试环境: 开发环境运行时 MC 为 MCP 命名,而 AE2-UEL jar 保留 SRG 名
+// (field_*/func_*),普通 JVM 测试无运行时重映射器,需预先用 SpecialSource 将
+// AE2 jar 从 SRG 重映射到 MCP,并替换 test 运行时 classpath 中的原始 jar
+// (编译 classpath 不变——javac 不解析 jar 内部的 MC 成员名)。
+// srg-mcp 映射文件直接取 RFG generateForgeSrgMappings 任务的产物。
 // ----------------------------------------------------------------------------
-def srgToMcpSrg = "${gradle.gradleUserHomeDir}/caches/minecraft/de/oceanlabs/mcp/mcp_stable/39/1.12.2/srgs/srg-mcp.srg"
-def specialSourceJar = "${gradle.gradleUserHomeDir}/caches/forge_gradle/maven_downloader/net/md-5/SpecialSource/1.8.3/SpecialSource-1.8.3-shaded.jar"
-def ae2McpJar = file("$buildDir/testLibs/ae2-uel-mcp.jar")
+def ae2McpJar = layout.buildDirectory.file('testLibs/ae2-uel-mcp.jar')
+def genSrgMappings = tasks.named('generateForgeSrgMappings')
 
-task remapAe2ForTest(type: JavaExec) {
-    // AE2-UEL 构件经 Ivy 直链解析进 Gradle 缓存, 在执行期定位实际文件
-    inputs.file srgToMcpSrg
-    outputs.file ae2McpJar
-    outputs.upToDateWhen { ae2McpJar.exists() }
-    main = 'net.md_5.specialsource.SpecialSource'
-    classpath = files(specialSourceJar)
+tasks.register('remapAe2ForTest', JavaExec) {
+    dependsOn genSrgMappings
+    inputs.file(genSrgMappings.flatMap { it.srgToMcp })
+    outputs.file(ae2McpJar)
+    outputs.upToDateWhen { ae2McpJar.get().asFile.exists() }
+    mainClass.set('net.md_5.specialsource.SpecialSource')
+    classpath = configurations.specialSource
     doFirst {
-        def ae2Jar = configurations.compile.find { it.name.startsWith('ae2-uel') }
-        assert ae2Jar != null: 'AE2-UEL artifact not found in compile configuration'
-        args = ['-i', ae2Jar.absolutePath, '-o', ae2McpJar.absolutePath, '-m', srgToMcpSrg]
+        def ae2Jar = configurations.compileClasspath.find { it.name.startsWith('ae2-uel') }
+        assert ae2Jar != null: 'AE2-UEL artifact not found in compileClasspath'
+        args = ['-i', ae2Jar.absolutePath,
+                '-o', ae2McpJar.get().asFile.absolutePath,
+                '-m', genSrgMappings.get().srgToMcp.get().asFile.absolutePath]
     }
 }
 
@@ -211,91 +245,44 @@ afterEvaluate {
             .filter { !it.name.startsWith('ae2-uel') } + files(ae2McpJar)
 }
 
-mixin {
-    add sourceSets.main, 'mixin.refmap.json'
-}
-
 // ----------------------------------------------------------------------------
 // 资源处理: 展开 mcmod.info 中的 ${version} / ${mcversion} 模板变量
 // ----------------------------------------------------------------------------
 processResources {
     inputs.property 'version', project.version
-    inputs.property 'mcversion', project.minecraft.version
-    from(sourceSets.main.resources.srcDirs) {
-        include 'mcmod.info'
-        expand 'version': project.version, 'mcversion': project.minecraft.version
-    }
-    from(sourceSets.main.resources.srcDirs) {
-        exclude 'mcmod.info'
+    inputs.property 'mcversion', project.minecraft_version
+    filesMatching('mcmod.info') { fcd ->
+        fcd.expand('version': project.version, 'mcversion': project.minecraft_version)
     }
 }
 
 // ----------------------------------------------------------------------------
-// runClient 时自动检测 HEI: 若 mods 文件夹中存在 HEI, 则排除原版 JEI jar,
-// 避免原版 JEI 与 HEI 的类冲突; 若只有原版 JEI, 则保持兼容.
+// runClient: 若 run/mods 中存在 HEI 则排除运行 classpath 上的原版 JEI, 避免类冲突。
+// RFG 下 compileOnly 不再泄漏进运行 classpath, 旧版 FG2 的 mod jar 剥离/去重逻辑
+// 已无存在必要; 需要联调可选 mod 时把 jar 放进 run/mods/ 即可(FML 照常扫描)。
 // ----------------------------------------------------------------------------
 afterEvaluate {
-    tasks.runClient {
+    tasks.named('runClient', JavaExec) {
         doFirst {
             // 先快照原始 classpath, 闭包内不得再引用 classpath 自身(否则 filter 递归求值 → StackOverflow)
             def original = classpath
             def hasHEI = fileTree('run/mods').matching { include '**/HadEnoughItems*.jar' }.files.size() > 0
             if (hasHEI) {
-                original = original.filter { file ->
-                    !file.name.contains("jei_${project.minecraft_version}")
-                }
-                println "[AE2Enhanced] Detected HEI in run/mods, excluded vanilla JEI from runtime classpath."
+                classpath = files(original.filter { file ->
+                    if (file.name.contains("jei_${project.minecraft_version}")) {
+                        println "[AE2Enhanced] runClient: excluded JEI jar " + file.name + " (HEI detected in run/mods)."
+                        return false
+                    }
+                    return true
+                })
             }
-            // 重复 mod 去重: 同一 modid 的多个 jar 同时在 classpath 上会让 FML 拒绝启动。
-            // 1) 同名文件只保留第一份(如 ae2-uel 同时来自 ivy 缓存与 libs/)。
-            // 2) Mekanism 官方版与 CE-Unofficial-All 同 modid, 优先保留 CE(编译期 mixin 以 CE 为准)。
-            def hasMekCE = original.files.any { it.name.startsWith('Mekanism-CE-Unofficial-All') }
-            def seen = new HashSet<>()
-            // .files 立即物化, 保证谓词只被求值一次(seen 集合才可靠)
-            classpath = files(original.filter { file ->
-                def name = file.name
-                if (hasMekCE && name.startsWith('Mekanism-1.12.2-')) {
-                    println "[AE2Enhanced] runClient: excluded duplicate mod jar " + name + " (kept Mekanism-CE-Unofficial-All)."
-                    return false
-                }
-                if (name ==~ /^ae2-uel-.*\.jar/ && !seen.add('ae2-uel')) {
-                    println "[AE2Enhanced] runClient: excluded duplicate mod jar " + name + " (ae2-uel already on classpath)."
-                    return false
-                }
-                return true
-            }.files)
-            // 第三方 mod jar 剥离: 依赖迁移到 Maven 后, compileOnly 的 mod jar 也会进入
-            // runClient classpath, FML 会把它们当真实 mod 加载并因依赖缺失/版本不符拒绝启动。
-            // 规则: 含 mcmod.info 的 jar 一律视为 mod, 除白名单外全部移出启动 classpath。
-            // 白名单: ae2-uel(硬依赖) + mixinbooter(mixin 加载必需) + 本 mod 自身产物 jar
-            // (runClient classpath 里本 mod 以 build/libs 的打包 jar 形式出现, 不能剥)。
-            // 如需在开发环境联调某个可选 mod, 把它的 jar 放进 run/mods/ 即可(FML 照常扫描)。
-            def modWhitelist = { String n -> (n ==~ /^ae2-uel-.*\.jar/) || n.toLowerCase().contains('mixinbooter') || n.startsWith('AE2Enhanced-') }
-            classpath = files(classpath.files.findAll { file ->
-                if (!file.name.endsWith('.jar') || modWhitelist(file.name)) return true
-                def isMod = false
-                try {
-                    def zip = new java.util.zip.ZipFile(file)
-                    isMod = zip.getEntry('mcmod.info') != null
-                    zip.close()
-                } catch (Exception ignored) { }
-                if (isMod) {
-                    println "[AE2Enhanced] runClient: excluded mod jar " + file.name + " (put it in run/mods/ to enable it in dev)."
-                    return false
-                }
-                return true
-            })
-            println "[AE2Enhanced] runClient main=" + main
-            println "[AE2Enhanced] runClient allJvmArgs=" + allJvmArgs
-            println "[AE2Enhanced] runClient classpath=" + classpath.files.join(File.pathSeparator)
         }
     }
 }
 
 // ----------------------------------------------------------------------------
-// runServer: 独立(专用)服务端的运行环境 —— 独立目录 runServer/, 与 runClient 同一套
-// classpath 治理(剥离 mod jar / 同 modid 去重), 但**一律排除 JEI**: 服务端不需要 HEI,
-// 也不接受任何客户端专属 mod 进入专用服务端 classpath。
+// runServer: 独立(专用)服务端的运行环境 —— 独立目录 runServer/, 并一律排除 JEI:
+// 服务端不需要 HEI/JEI, 也不接受任何客户端专属 mod 进入专用服务端 classpath。
 //
 // 用法:
 //   ./gradlew runServer            # 前台运行; 首次运行前需在 runServer/eula.txt 里写 eula=true
@@ -304,60 +291,29 @@ afterEvaluate {
 // 客户端连入: 开发客户端 Multiplayer → Direct Connect → localhost。
 // ----------------------------------------------------------------------------
 afterEvaluate {
-    tasks.runServer {
-        // 独立运行目录(FG 只是把 runDir 传给 JavaExec 的 workingDir, 这里显式覆盖)
+    tasks.named('runServer', JavaExec) {
+        // 独立运行目录(覆盖 RFG 默认的 run/)
         workingDir = file('runServer')
         // Gradle 的 JavaExec 默认不把 stdin 接给子进程: MC 服务端(nogui 模式)会立刻读到 EOF
         // 然后"干净退出"(BUILD SUCCESSFUL, 但服务端根本没起来)。接上 stdin 即可。
         standardInput = System.in
         doFirst {
-            // 服务端不需要资产/资源重载链, 但同样不能把"长得像 mod"的依赖 jar 留在 classpath 上:
-            // FML 会把它们当真实 mod 加载, 因依赖缺失拒绝启动。
             def original = classpath
-            def hasMekCE = original.files.any { it.name.startsWith('Mekanism-CE-Unofficial-All') }
-            def seen = new HashSet<>()
-            original = original.filter { file ->
-                def name = file.name
-                if (name.contains("jei_${project.minecraft_version}")) {
-                    println "[AE2Enhanced] runServer: excluded JEI jar " + name + " (dedicated server does not need it)."
-                    return false
-                }
-                if (hasMekCE && name.startsWith('Mekanism-1.12.2-')) {
-                    println "[AE2Enhanced] runServer: excluded duplicate mod jar " + name + " (kept Mekanism-CE-Unofficial-All)."
-                    return false
-                }
-                if (name ==~ /^ae2-uel-.*\.jar/ && !seen.add('ae2-uel')) {
-                    println "[AE2Enhanced] runServer: excluded duplicate mod jar " + name + " (ae2-uel already on classpath)."
-                    return false
-                }
-                return true
-            }
-            def modWhitelist = { String n -> (n ==~ /^ae2-uel-.*\.jar/) || n.toLowerCase().contains('mixinbooter') || n.startsWith('AE2Enhanced-') }
-            classpath = files(original.files.findAll { file ->
-                if (!file.name.endsWith('.jar') || modWhitelist(file.name)) return true
-                def isMod = false
-                try {
-                    def zip = new java.util.zip.ZipFile(file)
-                    isMod = zip.getEntry('mcmod.info') != null
-                    zip.close()
-                } catch (Exception ignored) { }
-                if (isMod) {
-                    println "[AE2Enhanced] runServer: excluded mod jar " + file.name + " (put it in runServer/mods/ to enable it)."
+            classpath = files(original.filter { file ->
+                if (file.name.contains("jei_${project.minecraft_version}")) {
+                    println "[AE2Enhanced] runServer: excluded JEI jar " + file.name + " (dedicated server does not need it)."
                     return false
                 }
                 return true
             })
-            println "[AE2Enhanced] runServer workingDir=" + workingDir
-            println "[AE2Enhanced] runServer main=" + main
-            println "[AE2Enhanced] runServer args=" + args
-            println "[AE2Enhanced] runServer allJvmArgs=" + allJvmArgs
-            println "[AE2Enhanced] runServer classpath=" + classpath.files.join(File.pathSeparator)
         }
     }
 }
 
 // ----------------------------------------------------------------------------
-// 打包: 排除 JEI stub、按白名单打包 fastutil、写入 FML CorePlugin manifest
+// 打包: 排除 JEI stub、按白名单打包 fastutil、写入 FML CorePlugin manifest。
+// RFG 下 jar 任务产出 -dev 分类器的开发 jar, 发布 jar 由 reobfJar 产出(无分类器,
+// 文件名与旧构建链一致: build/libs/AE2Enhanced-<version>.jar)。
 // ----------------------------------------------------------------------------
 jar {
     // 排除 JEI 内部类的编译期 stub, 避免与运行时 JEI/HEI 的类冲突
@@ -371,7 +327,7 @@ jar {
 
     // 打包 fastutil, 仅保留白名单中的类
     from({
-        configurations.compile.findAll { it.name.contains('fastutil') }.collect { zipTree(it) }
+        configurations.compileClasspath.findAll { it.name.contains('fastutil') }.collect { zipTree(it) }
     }) {
         eachFile { fc ->
             if (fc.path.endsWith('.class') && fc.path.startsWith('it/unimi/dsi/fastutil/')
