@@ -1,7 +1,5 @@
 package com.github.aeddddd.ae2enhanced.ring;
 
-import com.github.aeddddd.ae2enhanced.config.AE2EnhancedConfig;
-import com.github.aeddddd.ae2enhanced.item.ItemNetworkLinkCredential;
 import net.minecraft.enchantment.EnchantmentHelper;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.entity.player.EntityPlayerMP;
@@ -65,6 +63,11 @@ public class RingEventHandler {
     }
 
     @SubscribeEvent
+    public void onClientDisconnect(net.minecraftforge.fml.common.network.FMLNetworkEvent.ClientDisconnectionFromServerEvent event) {
+        RingManager.clearClientState();
+    }
+
+    @SubscribeEvent
     public void onRespawn(PlayerRespawnEvent event) {
         RingManager.onRespawn(event.player);
         // 死亡保留的飞升指环恢复
@@ -78,6 +81,16 @@ public class RingEventHandler {
                 }
             }
             entityData.removeTag(NBT_PRESERVED);
+        }
+    }
+
+    @SubscribeEvent
+    public void onItemToss(net.minecraftforge.event.entity.item.ItemTossEvent event) {
+        if (event.getPlayer().world.isRemote) return;
+        ItemStack stack = event.getEntityItem().getItem();
+        if (stack.getItem() instanceof ItemNetworkLinkCredential && RingNBT.isAscended(stack)) {
+            CredentialRecoveryTracker.markIntentionalDrop(event.getPlayer().getUniqueID(),
+                    event.getEntityItem().getUniqueID());
         }
     }
 
@@ -99,7 +112,7 @@ public class RingEventHandler {
             return;
         }
         long cost = RingEnergyHandler.price(ring,
-                (long) Math.ceil(event.getAmount() * AE2EnhancedConfig.ring.ascendedBlockCostPerPoint));
+                (long) Math.ceil(event.getAmount() * com.github.aeddddd.ae2enhanced.config.ServerConfig.current().ring.ascendedBlockCostPerPoint));
         if (RingEnergyHandler.consumeThrottled(player, ring, cost, RingEnergyHandler.Category.BLOCK)) {
             event.setCanceled(true);
         }
@@ -122,7 +135,7 @@ public class RingEventHandler {
         if (RingNBT.isAscended(ring)) {
             // 飞升兜底：LivingAttack 未覆盖的路径(如其他模组直接改 amount)在此归零,无冷却
             long cost = RingEnergyHandler.price(ring,
-                    (long) Math.ceil(amount * AE2EnhancedConfig.ring.ascendedBlockCostPerPoint));
+                    (long) Math.ceil(amount * com.github.aeddddd.ae2enhanced.config.ServerConfig.current().ring.ascendedBlockCostPerPoint));
             if (RingEnergyHandler.consumeThrottled(player, ring, cost, RingEnergyHandler.Category.BLOCK)) {
                 event.setCanceled(true);
             }
@@ -135,7 +148,7 @@ public class RingEventHandler {
         if (RingManager.isDeathBlockOnCooldown(player)) return;
         float overflow = amount - health;
         long cost = RingEnergyHandler.price(ring,
-                (long) Math.ceil(overflow * AE2EnhancedConfig.ring.blockCostPerOverflowPoint));
+                (long) Math.ceil(overflow * com.github.aeddddd.ae2enhanced.config.ServerConfig.current().ring.blockCostPerOverflowPoint));
         if (RingEnergyHandler.consumeThrottled(player, ring, cost, RingEnergyHandler.Category.BLOCK)) {
             event.setCanceled(true);
             RingManager.markDeathBlock(player);

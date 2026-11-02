@@ -1,12 +1,10 @@
 package com.github.aeddddd.ae2enhanced.diag.check;
 
+import com.github.aeddddd.ae2enhanced.observation.ObservationCheck;
 import net.minecraft.server.MinecraftServer;
 
 import javax.annotation.Nullable;
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 /**
  * 系统检查注册表与执行器.
@@ -16,11 +14,18 @@ public final class DiagChecks {
     private static final Map<String, SystemCheck> CHECKS = new LinkedHashMap<>();
 
     static {
-        register(new StorageCheck());
-        register(new ChannelCheck());
-        register(new RecipeCheck());
-        register(new GridCheck());
-        register(new PersonalDimCheck());
+        boolean gridRegistered = false;
+        for (ObservationCheck check : ServiceLoader.load(ObservationCheck.class,
+                DiagChecks.class.getClassLoader())) {
+            if ("personaldim".equals(check.name())) {
+                register(new GridCheck());
+                gridRegistered = true;
+            }
+            register(new ObservedSystemCheck(check));
+        }
+        if (!gridRegistered) {
+            register(new GridCheck());
+        }
     }
 
     private DiagChecks() {

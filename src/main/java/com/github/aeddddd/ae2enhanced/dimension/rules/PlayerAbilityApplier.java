@@ -5,17 +5,14 @@ import com.github.aeddddd.ae2enhanced.dimension.PersonalDimensionRules;
 import net.minecraft.entity.player.EntityPlayerMP;
 import net.minecraft.entity.player.PlayerCapabilities;
 
+import javax.annotation.Nullable;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 
-/**
- * 统一应用/重置个人维度的玩家能力: 飞行、移动速度、飞行惯性.
- * 从 PersonalDimensionManager 抽离以避免 WorldTick 与 PlayerTick 重复刷新.
- * 速度通过反射设置, 兼容 Mohist/CatServer/Arclight 等改造环境中方法签名不一致或被剥离的情况.
- */
+/** 统一协调 base、个人维度与指环能力，避免来源各自快照并相互覆盖。 */
 public final class PlayerAbilityApplier {
 
     private PlayerAbilityApplier() {}
@@ -136,55 +133,107 @@ public final class PlayerAbilityApplier {
         }
     }
 
-    /** 进入个人维度前的能力快照, 不持久化. 离开时优先恢复快照, 避免破坏其他模组(如天使指环)授予的飞行/速度来源. */
-    private static final Map<UUID, CapSnapshot> CAP_SNAPSHOTS = new HashMap<>();
+    private static final Map<UUID, Sources> STATES = new HashMap<>();
 
-    /** 玩家退出登录时清理能力快照, 防止离线玩家 UUID 在 map 中累积泄漏. */
     public static void discardSnapshot(UUID playerId) {
-        CAP_SNAPSHOTS.remove(playerId);
+        STATES.remove(playerId);
     }
 
-    /**
-     * 根据个人维度规则应用飞行与移动速度. 应在玩家进入维度、登录或规则变更时调用, 不要在每 tick 调用.
-     * 首次进入时快照当前能力, 离开时由 {@link #resetAbilities} 恢复快照而非硬编码默认值,
-     * 以兼容其他模组授予的飞行/速度来源.
-     *
-     * @return 若能力发生变化返回 true
-     */
+    public static void clearAll() {
+        STATES.clear();
+    }
+
     public static boolean applyCapabilities(EntityPlayerMP player, PersonalDimensionRules rules) {
-        PlayerCapabilities cap = player.capabilities;
-        // 仅在无快照时记录, 避免维度内重复应用把已被修改的能力当作原始状态
-        CAP_SNAPSHOTS.computeIfAbsent(player.getUniqueID(), id -> new CapSnapshot(
-                cap.allowFlying, cap.isFlying, getFlySpeedSafe(cap), getWalkSpeedSafe(cap)));
-        boolean changed = false;
-
-        boolean shouldFly = player.isCreative() || rules.flightEnabled;
-        if (cap.allowFlying != shouldFly) {
-            cap.allowFlying = shouldFly;
-            if (!shouldFly) {
-                cap.isFlying = false;
-            }
-            changed = true;
-        }
-
         float speed = clampMovementSpeed(rules.movementSpeed);
-        if (Math.abs(getFlySpeedSafe(cap) - speed) > 1e-4f || Math.abs(getWalkSpeedSafe(cap) - speed) > 1e-4f) {
-            setFlySpeedSafe(cap, speed);
-            setWalkSpeedSafe(cap, speed);
+        return updateDimension(player, new PlayerAbilityState.Modifier(rules.flightEnabled, speed, speed));
+    }
+
+    public static boolean resetAbilities(EntityPlayerMP player) {
+        return updateDimension(player, null);
+    }
+
+    public static boolean applyRingCapabilities(EntityPlayerMP player, boolean allowFlying,
+                                                 @Nullable Float flySpeed, @Nullable Float walkSpeed) {
+        return updateRing(player, new PlayerAbilityState.Modifier(allowFlying, flySpeed, walkSpeed));
+    }
+
+    public static boolean clearRingCapabilities(EntityPlayerMP player) {
+        return updateRing(player, null);
+    }
+
+    public static boolean refreshCapabilities(EntityPlayerMP player) {
+        Sources sources = STATES.get(player.getUniqueID());
+        return sources != null && apply(player, sources);
+    }
+
+    private static boolean updateDimension(EntityPlayerMP player, @Nullable PlayerAbilityState.Modifier modifier) {
+        Sources sources = sources(player, modifier);
+        if (sources == null) return false;
+        sources.dimension = modifier;
+        return apply(player, sources);
+    }
+
+    private static boolean updateRing(EntityPlayerMP player, @Nullable PlayerAbilityState.Modifier modifier) {
+        Sources sources = sources(player, modifier);
+        if (sources == null) return false;
+        sources.ring = modifier;
+        return apply(player, sources);
+    }
+
+    @Nullable
+    private static Sources sources(EntityPlayerMP player, @Nullable PlayerAbilityState.Modifier modifier) {
+        Sources sources = STATES.get(player.getUniqueID());
+        if (sources == null && modifier != null) {
+            sources = new Sources(player);
+            STATES.put(player.getUniqueID(), sources);
+        }
+        return sources;
+    }
+
+    private static boolean apply(EntityPlayerMP player, Sources sources) {
+        PlayerCapabilities cap = player.capabilities;
+        PlayerAbilityState.Resolved resolved = PlayerAbilityState.resolve(sources.base, sources.dimension, sources.ring,
+                player.isCreative() || player.isSpectator(), cap.isFlying);
+        boolean changed = false;
+        if (cap.allowFlying != resolved.allowFlying) {
+            cap.allowFlying = resolved.allowFlying;
             changed = true;
         }
-
-        if (changed) {
-            player.sendPlayerAbilities();
+        if (cap.isFlying != resolved.isFlying) {
+            cap.isFlying = resolved.isFlying;
+            if (!resolved.isFlying) player.fallDistance = 0.0f;
+            changed = true;
         }
-
+        if (Math.abs(getFlySpeedSafe(cap) - resolved.flySpeed) > 1e-4f) {
+            setFlySpeedSafe(cap, resolved.flySpeed);
+            changed = true;
+        }
+        if (Math.abs(getWalkSpeedSafe(cap) - resolved.walkSpeed) > 1e-4f) {
+            setWalkSpeedSafe(cap, resolved.walkSpeed);
+            changed = true;
+        }
+        if (sources.unmanaged()) STATES.remove(player.getUniqueID());
+        if (changed) player.sendPlayerAbilities();
         return changed;
     }
 
-    /**
-     * 处理无飞行惯性规则: 玩家停止移动输入时清零水平速度.
-     * 移动输入每 tick 都在变化, 需要在玩家 tick 中持续调用.
-     */
+    private static final class Sources {
+        final PlayerAbilityState.Base base;
+        PlayerAbilityState.Modifier dimension;
+        PlayerAbilityState.Modifier ring;
+
+        Sources(EntityPlayerMP player) {
+            PlayerCapabilities cap = player.capabilities;
+            boolean privileged = player.isCreative() || player.isSpectator();
+            base = new PlayerAbilityState.Base(!privileged && cap.allowFlying,
+                    getFlySpeedSafe(cap), getWalkSpeedSafe(cap));
+        }
+
+        boolean unmanaged() {
+            return dimension == null && ring == null;
+        }
+    }
+
     public static void tickNoFlightInertia(EntityPlayerMP player, PersonalDimensionRules rules) {
         if (!rules.noFlightInertia) return;
         PlayerCapabilities cap = player.capabilities;
@@ -194,82 +243,6 @@ public final class PlayerAbilityApplier {
         }
     }
 
-    /**
-     * 恢复玩家能力. 仅在玩家离开个人维度或重生时调用.
-     * 优先恢复进入前的能力快照, 以保留其他模组授予的飞行/速度来源; 无快照时才回退到原版默认值.
-     * 创造模式玩家的能力不会被修改.
-     */
-    public static void resetAbilities(EntityPlayerMP player) {
-        if (player.isCreative()) {
-            CAP_SNAPSHOTS.remove(player.getUniqueID());
-            return;
-        }
-        PlayerCapabilities cap = player.capabilities;
-        CapSnapshot snapshot = CAP_SNAPSHOTS.remove(player.getUniqueID());
-        boolean changed = false;
-        if (snapshot != null) {
-            // 恢复快照：回到进入维度前的状态，不破坏其他模组的飞行/速度来源
-            boolean targetAllow = snapshot.allowFlying;
-            if (cap.allowFlying != targetAllow) {
-                cap.allowFlying = targetAllow;
-                changed = true;
-            }
-            // 快照中的飞行状态仅在允许飞行时恢复
-            boolean targetFlying = snapshot.isFlying && targetAllow;
-            if (cap.isFlying != targetFlying) {
-                cap.isFlying = targetFlying;
-                changed = true;
-            }
-            if (Math.abs(getWalkSpeedSafe(cap) - snapshot.walkSpeed) > 1e-4f) {
-                setWalkSpeedSafe(cap, snapshot.walkSpeed);
-                changed = true;
-            }
-            if (Math.abs(getFlySpeedSafe(cap) - snapshot.flySpeed) > 1e-4f) {
-                setFlySpeedSafe(cap, snapshot.flySpeed);
-                changed = true;
-            }
-        } else {
-            // 无快照时回退原版默认值
-            if (cap.allowFlying) {
-                cap.allowFlying = false;
-                changed = true;
-            }
-            if (cap.isFlying) {
-                cap.isFlying = false;
-                changed = true;
-            }
-            if (Math.abs(getWalkSpeedSafe(cap) - 0.1f) > 1e-4f) {
-                setWalkSpeedSafe(cap, 0.1f);
-                changed = true;
-            }
-            if (Math.abs(getFlySpeedSafe(cap) - 0.05f) > 1e-4f) {
-                setFlySpeedSafe(cap, 0.05f);
-                changed = true;
-            }
-        }
-        if (changed) {
-            player.sendPlayerAbilities();
-        }
-    }
-
-    /** 玩家能力快照. */
-    private static final class CapSnapshot {
-        final boolean allowFlying;
-        final boolean isFlying;
-        final float flySpeed;
-        final float walkSpeed;
-
-        CapSnapshot(boolean allowFlying, boolean isFlying, float flySpeed, float walkSpeed) {
-            this.allowFlying = allowFlying;
-            this.isFlying = isFlying;
-            this.flySpeed = flySpeed;
-            this.walkSpeed = walkSpeed;
-        }
-    }
-
-    /**
-     * 校验并限制移动速度在合理范围内，防止客户端伪造极大/极小值。
-     */
     public static float clampMovementSpeed(float speed) {
         if (Float.isNaN(speed) || speed < 0.05f) return 0.05f;
         if (speed > 2.0f) return 2.0f;

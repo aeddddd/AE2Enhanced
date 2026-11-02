@@ -27,12 +27,7 @@ public abstract class TileDelegatedProxyBase<C extends TileEntity & IGridProxyab
 
     private BlockPos controllerPos;
 
-    /**
-     * getController 结果缓存(弱引用).
-     * isBusy()/pushPattern() 在 AE2 合成循环中每 tick 每个 medium 被调用,
-     * 每次 world.getTileEntity 的 chunk 查找是 spark 采样热点之一;
-     * 控制器绑定后位置基本不变,缓存 + isInvalid 校验可消除重复查找.
-     */
+    /** 缓存必须经加载状态、绑定坐标与当前 Tile 身份复核，不能跨替换或卸载复用。 */
     private WeakReference<C> cachedController;
 
     // ---- 子类必须实现 ----
@@ -54,15 +49,35 @@ public abstract class TileDelegatedProxyBase<C extends TileEntity & IGridProxyab
     }
 
     public C getController() {
-        if (controllerPos == null || world == null) return null;
+        if (controllerPos == null || world == null) {
+            cachedController = null;
+            return null;
+        }
+        if (!world.isBlockLoaded(controllerPos)) {
+            cachedController = null;
+            return null;
+        }
+        TileEntity current = world.getTileEntity(controllerPos);
         C cached = cachedController != null ? cachedController.get() : null;
-        if (cached != null && !cached.isInvalid() && cached.getWorld() == world) {
+        if (cached != null && cached == current && !cached.isInvalid()
+                && cached.getWorld() == world && controllerPos.equals(cached.getPos())) {
             return cached;
         }
-        TileEntity te = world.getTileEntity(controllerPos);
-        C result = getControllerClass().isInstance(te) ? getControllerClass().cast(te) : null;
+        C result = getControllerClass().isInstance(current) ? getControllerClass().cast(current) : null;
         cachedController = result != null ? new WeakReference<>(result) : null;
         return result;
+    }
+
+    @Override
+    public void invalidate() {
+        cachedController = null;
+        super.invalidate();
+    }
+
+    @Override
+    public void onChunkUnload() {
+        cachedController = null;
+        super.onChunkUnload();
     }
 
     // ---- IGridProxyable 实现 ----
@@ -102,9 +117,7 @@ public abstract class TileDelegatedProxyBase<C extends TileEntity & IGridProxyab
     @Override
     public void securityBreak() {
         C controller = getController();
-        if (controller instanceof TileAENetworkBase) {
-            ((TileAENetworkBase) controller).disassemble();
-        }
+        if (controller != null) controller.securityBreak();
     }
 
     // ---- NBT ----
@@ -112,13 +125,11 @@ public abstract class TileDelegatedProxyBase<C extends TileEntity & IGridProxyab
     @Override
     public void readFromNBT(NBTTagCompound compound) {
         super.readFromNBT(compound);
-        if (compound.hasKey("controllerX")) {
-            controllerPos = new BlockPos(
+        controllerPos = compound.hasKey("controllerX") ? new BlockPos(
                 compound.getInteger("controllerX"),
                 compound.getInteger("controllerY"),
-                compound.getInteger("controllerZ")
-            );
-        }
+                compound.getInteger("controllerZ")) : null;
+        cachedController = null;
     }
 
     @Override
@@ -128,6 +139,10 @@ public abstract class TileDelegatedProxyBase<C extends TileEntity & IGridProxyab
             compound.setInteger("controllerX", controllerPos.getX());
             compound.setInteger("controllerY", controllerPos.getY());
             compound.setInteger("controllerZ", controllerPos.getZ());
+        } else {
+            compound.removeTag("controllerX");
+            compound.removeTag("controllerY");
+            compound.removeTag("controllerZ");
         }
         return compound;
     }

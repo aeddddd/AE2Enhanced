@@ -1,56 +1,67 @@
 package com.github.aeddddd.ae2enhanced.storage;
 
-import com.github.aeddddd.ae2enhanced.integration.botaniaapplie.BotaniaApplieCompat;
-import com.github.aeddddd.ae2enhanced.integration.fluxapplied.FluxAppliedCompat;
+import com.github.aeddddd.ae2enhanced.config.BootConfig;
 import com.github.aeddddd.ae2enhanced.storage.external.ExternalStorageAdapter;
 import net.minecraftforge.fml.common.Loader;
 
-/**
- * 存储适配器创建工厂（从 TileHyperdimensionalController 拆出，
- * 供 {@link HyperdimensionalStorageManager} 的会话创建使用）.
- *
- * <p>只负责创建与磁盘加载；与 tile 的回调绑定由控制器在 attach 时完成。</p>
- */
+/** 存储适配器创建工厂；通道与提供方在启动期冻结，禁用的通道不创建适配器。 */
 public final class StorageAdapterFactory {
 
     private StorageAdapterFactory() {
     }
 
-    /**
-     * 创建能量适配器:优先使用 Flux_Applied 外部通道,否则回退到 AE2E 自有通道.
-     */
     @SuppressWarnings("unchecked")
     public static IStorageAdapter createEnergyAdapter(HyperdimensionalStorageFile file) {
-        if (FluxAppliedCompat.isFluxStorageChannelAvailable()) {
+        BootConfig boot = BootConfig.current();
+        if (!boot.channelEnabled("energy")) {
+            return null;
+        }
+        boolean available = ExternalStorageChannels.isAvailable(ExternalStorageChannels.Kind.ENERGY);
+        if (boot.externalChannelRequired("energy") && !available) {
+            throw new IllegalStateException("Energy channel is forced EXTERNAL but Flux Applied is unavailable");
+        }
+        if (boot.externalChannelAllowed("energy") && available) {
             ExternalStorageAdapter<EnergyDescriptor> adapter = new ExternalStorageAdapter<>(
                     file,
-                    FluxAppliedCompat.getFluxStorageChannelInstance(),
+                    ExternalStorageChannels.channel(ExternalStorageChannels.Kind.ENERGY),
                     "fe",
                     EnergyDescriptor.INSTANCE
             );
             file.loadEnergy((java.util.Map<EnergyDescriptor, HugeCount>) (java.util.Map<?, ?>) adapter.getStorageMap());
-            file.registerPostLoadHook(adapter::recalcTotal); // 异步首加载完成后重算总数
+            file.registerPostLoadHook(adapter::recalcTotal);
             return adapter;
+        }
+        if (!boot.internalChannelAllowed("energy")) {
+            throw new IllegalStateException("Energy channel is forced EXTERNAL but no external provider is available");
         }
         return new HyperdimensionalEnergyStorageAdapter(file);
     }
 
-    /**
-     * 创建 Mana 适配器:优先使用 Botania_Applie 外部通道,否则在 Botania 存在时回退到 AE2E 自有通道.
-     */
     @SuppressWarnings("unchecked")
     public static IStorageAdapter createManaAdapter(HyperdimensionalStorageFile file) {
-        if (BotaniaApplieCompat.isManaStorageChannelAvailable()) {
+        BootConfig boot = BootConfig.current();
+        if (!boot.channelEnabled("mana")) {
+            return null;
+        }
+        boolean available = ExternalStorageChannels.isAvailable(ExternalStorageChannels.Kind.MANA);
+        if (boot.externalChannelRequired("mana") && !available) {
+            throw new IllegalStateException("Mana channel is forced EXTERNAL but Botania Applie is unavailable");
+        }
+        if (boot.externalChannelAllowed("mana") && available) {
             ExternalStorageAdapter<ManaDescriptor> adapter = new ExternalStorageAdapter<>(
                     file,
-                    BotaniaApplieCompat.getManaStorageChannelInstance(),
+                    ExternalStorageChannels.channel(ExternalStorageChannels.Kind.MANA),
                     "mana",
                     ManaDescriptor.INSTANCE
             );
             file.loadMana((java.util.Map<ManaDescriptor, HugeCount>) (java.util.Map<?, ?>) adapter.getStorageMap());
-            file.registerPostLoadHook(adapter::recalcTotal); // 异步首加载完成后重算总数
+            file.registerPostLoadHook(adapter::recalcTotal);
             return adapter;
-        } else if (Loader.isModLoaded("botania")) {
+        }
+        if (!boot.internalChannelAllowed("mana")) {
+            throw new IllegalStateException("Mana channel is forced EXTERNAL but no external provider is available");
+        }
+        if (Loader.isModLoaded("botania") && boot.integrationEnabled("botania")) {
             return new ManaStorageAdapter(file);
         }
         return null;

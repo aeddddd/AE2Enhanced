@@ -10,7 +10,6 @@ import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.util.NonNullList;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -35,8 +34,8 @@ public final class RecipeCosts {
     /**
      * 配方产物与样板声明的产物是否一致（决定按哪条配方折算成本）.
      *
-     * <p>比较 Item + Metadata + Count + NBT：仅当 expected 带 NBT 时才要求 NBT 相同（配方产物
-     * NBT 常由机器后补，严格比较会漏配）。<b>不得</b>改用 {@code HandlerUtils#matchesLoosely} 或
+     * <p>比较 Item + Metadata + Count + NBT，四者必须完全一致；虚拟产物直接交给 CPU
+     * waitingFor 结算，不能忽略任一侧的 NBT。<b>不得</b>改用 {@code HandlerUtils#matchesLoosely} 或
      * {@code ProductFilter#matchesExpected}——它们不比较 count，会放宽匹配口径。</p>
      *
      * <p>{@code null} 保护把"配方对象返回 null 产物"降级为"跳过该配方"，对合法配方行为不变。</p>
@@ -53,10 +52,7 @@ public final class RecipeCosts {
         if (recipeOutput.getItem() != expectedOutput.getItem()) return false;
         if (recipeOutput.getMetadata() != expectedOutput.getMetadata()) return false;
         if (recipeOutput.getCount() != expectedOutput.getCount()) return false;
-        if (expectedOutput.hasTagCompound() && !ItemStack.areItemStackTagsEqual(recipeOutput, expectedOutput)) {
-            return false;
-        }
-        return true;
+        return ItemStack.areItemStackTagsEqual(recipeOutput, expectedOutput);
     }
 
     /**
@@ -67,24 +63,33 @@ public final class RecipeCosts {
      *
      * @param ingredients 配方的 ingredient 列表；{@code null}（如反射调用失败）视为无法计价
      * @param count       份数（并行批次大小）
-     * @return 合并后的成本列表；无有效 ingredient 时为空列表；不返回 {@code null}
+     * @return 合并后的成本列表；无有效 ingredient 时为空列表；无法计价或数量溢出返回 {@code null}
      */
     public static List<IAEStack> fromIngredients(NonNullList<Ingredient> ingredients, long count) {
-        if (ingredients == null) {
-            return Collections.emptyList();
+        if (ingredients == null || count <= 0) {
+            return null;
         }
 
         Map<ItemKey, Long> merged = new HashMap<>();
-        for (Ingredient ing : ingredients) {
-            if (ing == null || ing == Ingredient.EMPTY) continue;
-            ItemStack[] matching = ing.getMatchingStacks();
-            if (matching == null || matching.length == 0) continue;
-            for (ItemStack stack : matching) {
-                if (stack != null && !stack.isEmpty()) {
-                    merged.merge(new ItemKey(stack), count, Long::sum);
-                    break;
+        try {
+            for (Ingredient ing : ingredients) {
+                if (ing == null || ing == Ingredient.EMPTY) continue;
+                ItemStack[] matching = ing.getMatchingStacks();
+                if (matching == null || matching.length == 0) return null;
+                boolean found = false;
+                for (ItemStack stack : matching) {
+                    if (stack != null && !stack.isEmpty()) {
+                        ItemKey key = new ItemKey(stack);
+                        Long previous = merged.get(key);
+                        merged.put(key, previous == null ? count : Math.addExact(previous, count));
+                        found = true;
+                        break;
+                    }
                 }
+                if (!found) return null;
             }
+        } catch (ArithmeticException overflow) {
+            return null;
         }
 
         List<IAEStack> costs = new ArrayList<>();

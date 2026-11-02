@@ -1,7 +1,7 @@
 package com.github.aeddddd.ae2enhanced.mixin.late.world;
 
 import com.github.aeddddd.ae2enhanced.collector.CollectorRegistry;
-import com.github.aeddddd.ae2enhanced.tile.TileAdvancedMECollector;
+import com.github.aeddddd.ae2enhanced.collector.TileAdvancedMECollector;
 import net.minecraft.item.ItemStack;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
@@ -29,6 +29,8 @@ public class MixinBlockSpawnAsEntity {
         ItemStack remaining = collector.tryCollectStackForced(stack);
         if (remaining.isEmpty()) {
             ci.cancel();
+        } else {
+            stack.setCount(remaining.getCount());
         }
     }
 }

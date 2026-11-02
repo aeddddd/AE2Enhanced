@@ -50,6 +50,9 @@ public class OmniTerminalDataTest {
 
         OmniTerminalData restored = new OmniTerminalData();
         restored.readFromNBT(nbt);
+        assertThat(restored.writeToNBT(new NBTTagCompound()).getTagList("storages", 10))
+                .anySatisfy(entry -> assertThat(((NBTTagCompound) entry).getUniqueId("id")).isEqualTo(idA))
+                .anySatisfy(entry -> assertThat(((NBTTagCompound) entry).getUniqueId("id")).isEqualTo(idB));
 
         // getOrCreate 命中已读入的条目不标脏，借此可观测"确实读回来了"
         restored.setDirty(false);
@@ -123,5 +126,25 @@ public class OmniTerminalDataTest {
         data.setDirty(false);
         data.getOrCreate(id);
         assertThat(data.isDirty()).isTrue();
+    }
+
+    @Test
+    public void inventoryChangesMarkOwningDataDirtyWithoutCloseAndWriteRootVersion() {
+        UUID id = UUID.randomUUID();
+        OmniTerminalStorage storage = data.getOrCreate(id);
+        data.setDirty(false);
+
+        storage.getRightStorageInventory().setStackInSlot(0, new ItemStack(Items.APPLE, 4));
+        assertThat(data.isDirty()).isTrue();
+
+        NBTTagCompound written = data.writeToNBT(new NBTTagCompound());
+        assertThat(written.getInteger("rootVersion")).isEqualTo(1);
+
+        OmniTerminalData restored = new OmniTerminalData();
+        restored.readFromNBT(written);
+        restored.setDirty(false);
+        restored.getOrCreate(id).getCraftingInventory().extractItem(0, 1, false);
+        restored.getOrCreate(id).getRightStorageInventory().extractItem(0, 1, false);
+        assertThat(restored.isDirty()).isTrue();
     }
 }

@@ -5,8 +5,11 @@ import appeng.api.networking.crafting.ICraftingPatternDetails;
 import appeng.api.networking.crafting.ICraftingProviderHelper;
 import appeng.me.helpers.AENetworkProxy;
 import appeng.tile.inventory.AppEngInternalInventory;
+import com.github.aeddddd.ae2enhanced.crafting.compat.MMCEPatternProviderReflect;
+import com.github.aeddddd.ae2enhanced.crafting.smartpattern.SmartPatternRepository;
 import com.github.aeddddd.ae2enhanced.crafting.smartpattern.SmartPatternSubDetails;
 import com.github.aeddddd.ae2enhanced.item.ItemSmartPattern;
+import com.github.aeddddd.ae2enhanced.runtime.RuntimeScopes;
 import github.kasuminova.mmce.common.tile.MEPatternProvider;
 import github.kasuminova.mmce.common.tile.base.MEMachineComponent;
 import net.minecraft.item.ItemStack;
@@ -14,44 +17,27 @@ import net.minecraft.tileentity.TileEntity;
 import net.minecraft.world.World;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
+import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
+import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.TreeMap;
+import java.util.UUID;
 
-/**
- * Mixin MEPatternProvider：支持智能样板的虚拟展开.
- *
- * <p>MMCE 机械样板供应器的 {@code details} 列表与 36 个样板槽位一一对应,
- * 原版 {@code refreshPattern} 通过 {@code getPatternForItem} 每槽只能获得单个 detail,
- * 而智能样板({@link ItemSmartPattern})的 {@code getPatternForItem} 返回 null.</p>
- *
- * <p>适配策略：</p>
- * <ul>
- *   <li>{@code refreshPattern} HEAD 拦截：智能样板展开为多个
- *       {@link SmartPatternSubDetails},首个存入 {@code details}(保持槽位索引语义,
- *       供 {@code setCurrentPattern}/{@code refreshPatterns} 使用),其余存入
- *       {@code ae2e$extraDetails}(按槽位分组).</li>
- *   <li>{@code provideCrafting} RETURN 追加：把 {@code ae2e$extraDetails} 中的
- *       展开 detail 全部注册为 AE2 合成选项,使控制器能读取到智能样板中的全部配方.</li>
- *   <li>{@code setCurrentPattern} HEAD 适配：增强阻挡模式下,若被推送的 detail
- *       是智能样板的非首个展开项,按配方内容在 {@code ae2e$extraDetails} 中反查所属槽位,
- *       保证 {@code currentPatternIdx} 正确持久化.</li>
- * </ul>
- */
+/** MMCE 机械样板供应器的智能样板展开、阻挡模式与部署刷新适配。 */
 @Mixin(value = MEPatternProvider.class, remap = false)
 public abstract class MixinMEPatternProvider {
 
     @Shadow
     protected AppEngInternalInventory patterns;
-
-    /** MMCE-CE 2.3.2 起为定长数组(36 槽位),旧版 MMCE 为 List——本 mixin 仅适配 CE. */
-    @Shadow
-    protected ICraftingPatternDetails[] details;
 
     @Shadow
     protected MEPatternProvider.WorkModeSetting workMode;
@@ -66,36 +52,42 @@ public abstract class MixinMEPatternProvider {
     private void resetCurrentPattern() {
     }
 
-    /**
-     * 每个样板槽位展开出的额外配方详情(首个存于 details,其余存于此).
-     */
-    private final Map<Integer, List<ICraftingPatternDetails>> ae2e$extraDetails = new HashMap<>();
+    @Unique
+    private final Map<Integer, List<ICraftingPatternDetails>> ae2e$extraDetails = new TreeMap<>();
+    @Unique
+    private final Map<UUID, SmartPatternRepository.ListenerRegistration> ae2e$smartPatternListeners = new HashMap<>();
 
-    /**
-     * 拦截 refreshPattern,对智能样板进行虚拟展开.
-     */
+    @Shadow
+    protected abstract void refreshPatterns();
+
     @Inject(method = "refreshPattern", at = @At("HEAD"), cancellable = true)
     private void ae2e$refreshSmartPattern(int slot, CallbackInfo ci) {
-        // 无论槽位内容如何,先清理该槽位的智能样板展开缓存
-        this.ae2e$extraDetails.remove(slot);
-
         ItemStack stack = this.patterns.getStackInSlot(slot);
         if (stack.isEmpty() || !(stack.getItem() instanceof ItemSmartPattern)) {
-            return; // 非智能样板：走原逻辑
+            this.ae2e$extraDetails.remove(slot);
+            return;
         }
         ci.cancel();
 
         World world = ((TileEntity) (Object) this).getWorld();
-        List<SmartPatternSubDetails> expanded = ItemSmartPattern.expandPatterns(stack, world);
+        if (world == null || world.isRemote) {
+            return;
+        }
 
+        List<SmartPatternSubDetails> expanded = new ArrayList<>();
+        for (SmartPatternSubDetails detail : ItemSmartPattern.expandPatterns(stack, world)) {
+            if (!detail.isCraftable()) {
+                expanded.add(detail);
+            }
+        }
+        MMCEPatternProviderReflect.DetailsAccess details = MMCEPatternProviderReflect.details(this);
+        this.ae2e$extraDetails.remove(slot);
         ICraftingPatternDetails first = expanded.isEmpty() ? null : expanded.get(0);
-        this.details[slot] = first;
+        details.set(slot, first);
         if (expanded.size() > 1) {
             this.ae2e$extraDetails.put(slot, new ArrayList<>(expanded.subList(1, expanded.size())));
         }
 
-        // 复刻原版增强阻挡模式的 currentPattern 维护逻辑,
-        // 但 currentPattern 只需命中该智能样板的任意一个展开项即视为仍有效
         if (this.workMode == MEPatternProvider.WorkModeSetting.ENHANCED_BLOCKING_MODE
                 && slot == this.currentPatternIdx) {
             if (this.currentPattern == null) {
@@ -115,9 +107,6 @@ public abstract class MixinMEPatternProvider {
         }
     }
 
-    /**
-     * 追加注册智能样板展开出的额外配方详情,使 AE2 网络感知全部配方.
-     */
     @Inject(method = "provideCrafting", at = @At("RETURN"))
     private void ae2e$provideSmartPatternExtras(ICraftingProviderHelper craftingTracker, CallbackInfo ci) {
         if (this.ae2e$extraDetails.isEmpty()) {
@@ -134,20 +123,13 @@ public abstract class MixinMEPatternProvider {
         }
     }
 
-    /**
-     * 增强阻挡模式适配：被推送的 detail 是智能样板非首个展开项时,
-     * 按配方内容反查所属槽位,保证 currentPatternIdx 正确.
-     */
     @Inject(method = "setCurrentPattern", at = @At("HEAD"), cancellable = true)
     private void ae2e$setCurrentPatternSmart(ICraftingPatternDetails pattern, CallbackInfo ci) {
         if (pattern == null || this.ae2e$extraDetails.isEmpty()) {
             return;
         }
-        // MMCE-CE 2.3.2 起 details 为定长数组,手动线性查找替代 List.indexOf
-        for (ICraftingPatternDetails d : this.details) {
-            if (pattern.equals(d)) {
-                return; // 原逻辑可处理
-            }
+        if (MMCEPatternProviderReflect.details(this).indexOf(pattern) >= 0) {
+            return;
         }
         for (Map.Entry<Integer, List<ICraftingPatternDetails>> entry : this.ae2e$extraDetails.entrySet()) {
             for (ICraftingPatternDetails detail : entry.getValue()) {
@@ -158,6 +140,61 @@ public abstract class MixinMEPatternProvider {
                     return;
                 }
             }
+        }
+    }
+
+    @Inject(method = "refreshPatterns", at = @At("RETURN"))
+    private void ae2e$syncSmartPatternListeners(CallbackInfo ci) {
+        World world = ((TileEntity) (Object) this).getWorld();
+        if (world == null || world.isRemote || !RuntimeScopes.currentServer().isPresent()) {
+            return;
+        }
+
+        Set<UUID> deployed = new HashSet<>();
+        for (int slot = 0; slot < this.patterns.getSlots(); slot++) {
+            UUID id = ItemSmartPattern.getPatternDataId(this.patterns.getStackInSlot(slot));
+            if (id != null) {
+                deployed.add(id);
+            }
+        }
+
+        java.util.Iterator<Map.Entry<UUID, SmartPatternRepository.ListenerRegistration>> iterator =
+                this.ae2e$smartPatternListeners.entrySet().iterator();
+        while (iterator.hasNext()) {
+            Map.Entry<UUID, SmartPatternRepository.ListenerRegistration> entry = iterator.next();
+            if (!deployed.contains(entry.getKey())) {
+                entry.getValue().close();
+                iterator.remove();
+            }
+        }
+
+        for (UUID id : deployed) {
+            if (this.ae2e$smartPatternListeners.containsKey(id)) {
+                continue;
+            }
+            WeakReference<MEPatternProvider> self = new WeakReference<>((MEPatternProvider) (Object) this);
+            SmartPatternRepository.ListenerRegistration registration = SmartPatternRepository.get(world).listen(id,
+                    (changedId, revision) -> {
+                        MEPatternProvider provider = self.get();
+                        if (provider != null) {
+                            ((MixinMEPatternProvider) (Object) provider).ae2e$onSmartPatternChanged(changedId);
+                        }
+                    });
+            this.ae2e$smartPatternListeners.put(id, registration);
+        }
+    }
+
+    @Unique
+    private void ae2e$onSmartPatternChanged(UUID id) {
+        for (int slot = 0; slot < this.patterns.getSlots(); slot++) {
+            if (id.equals(ItemSmartPattern.getPatternDataId(this.patterns.getStackInSlot(slot)))) {
+                this.refreshPatterns();
+                return;
+            }
+        }
+        SmartPatternRepository.ListenerRegistration registration = this.ae2e$smartPatternListeners.remove(id);
+        if (registration != null) {
+            registration.close();
         }
     }
 }

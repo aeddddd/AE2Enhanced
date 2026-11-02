@@ -33,7 +33,7 @@ public class MixinMECraftingInventory implements IMeInventoryVersionAccess {
         ae2e$injectVersion++;
     }
 
-    @Inject(method = "injectItems", at = @At("RETURN"), require = 0)
+    @Inject(method = "injectItems", at = @At("RETURN"))
     private void ae2e$onInject(IAEItemStack input, Actionable mode, IActionSource src,
             CallbackInfoReturnable<IAEItemStack> cir) {
         if (mode == Actionable.MODULATE && input != null) {

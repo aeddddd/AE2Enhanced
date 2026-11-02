@@ -1,6 +1,6 @@
 package com.github.aeddddd.ae2enhanced.container;
 
-import com.github.aeddddd.ae2enhanced.tile.TileMENetworkRecycler;
+import com.github.aeddddd.ae2enhanced.recycler.TileMENetworkRecycler;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.entity.player.InventoryPlayer;
 import net.minecraft.inventory.Container;

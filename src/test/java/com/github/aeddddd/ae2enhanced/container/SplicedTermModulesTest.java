@@ -26,11 +26,17 @@ class SplicedTermModulesTest {
         assertEquals(SplicedTermSlotPolicy.MODULE_STORAGE, SplicedTermModules.moduleIdAt(SplicedTermModules.STORAGE));
         assertEquals(SplicedTermSlotPolicy.MODULE_UPGRADE, SplicedTermModules.moduleIdAt(SplicedTermModules.UPGRADE));
         assertEquals(SplicedTermSlotPolicy.MODULE_PATTERN, SplicedTermModules.moduleIdAt(SplicedTermModules.PATTERN));
+        assertEquals(SplicedTermModules.CRAFTING_MANAGEMENT_ID,
+                SplicedTermModules.moduleIdAt(SplicedTermModules.CRAFTING_MANAGEMENT));
+        assertEquals(SplicedTermModules.INTERFACE_TERMINAL_ID,
+                SplicedTermModules.moduleIdAt(SplicedTermModules.INTERFACE_TERMINAL));
 
         assertEquals(0, SplicedTermModules.indexOf(SplicedTermSlotPolicy.MODULE_REPO));
         assertEquals(6, SplicedTermModules.indexOf(SplicedTermSlotPolicy.MODULE_PATTERN));
-        assertEquals(7, SplicedTermModules.moduleIds().size());
-        assertEquals((1 << 7) - 1, SplicedTermModules.ALL, "ALL 是 7 位全开 = 127");
+        assertEquals(7, SplicedTermModules.indexOf(SplicedTermModules.CRAFTING_MANAGEMENT_ID));
+        assertEquals(8, SplicedTermModules.indexOf(SplicedTermModules.INTERFACE_TERMINAL_ID));
+        assertEquals(9, SplicedTermModules.moduleIds().size());
+        assertEquals((1 << 9) - 1, SplicedTermModules.ALL, "ALL 是 9 位全开 = 511");
     }
 
     @Test

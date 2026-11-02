@@ -1,0 +1,6 @@
+class	method	reason
+com.github.aeddddd.ae2enhanced.test.lp.DualSimplexTest	dumpedModelsAsIs()	未指定 -Dae2e.lpdump.dir，无法定位外部 .lpm 转储。
+com.github.aeddddd.ae2enhanced.test.lp.DualSimplexTest	dumpedModelsRelaxed()	未指定 -Dae2e.lpdump.dir，无法定位外部 .lpm 转储。
+com.github.aeddddd.ae2enhanced.test.lp.LpModelReplayTest	replayDumpedModels()	未指定 -Dae2e.lpdump.dir，无法定位外部 .lpm 转储。
+com.github.aeddddd.ae2enhanced.test.modpack.ModpackReplayTest	testNetworkCensus()	全网普查由 AE2E_CENSUS=1 显式开启，当前未开启。
+com.github.aeddddd.ae2enhanced.test.modpack.ModpackReplayTest	testCosmicBalance()	当前 harvest 快照中 avaritiaitem:cosmic_balance 无任何产出样板；玩家编码样板和代码注册配方不在采集面。

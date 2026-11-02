@@ -14,8 +14,8 @@ import org.junit.jupiter.api.Test;
 /**
  * 阶段 2b：{@code OmniItemRepo} 的可变缓存容量。
  *
- * <p>可拼接终端的 repo 面板尺寸可变（列数 = 内容宽度 / 18），缓存数组长度同时也是分页请求的
- * {@code limit}，两者必须始终一致；这里验证容量推导与"容量变化即重新拉页"的行为。</p>
+ * <p>可拼接终端的 repo 面板尺寸可变（列数 = 内容宽度 / 18）；这里验证容量推导、
+ * "容量变化即重新拉页"，以及大缓存按协议上限分块串行请求的行为。</p>
  */
 class OmniItemRepoTest {
 
@@ -64,10 +64,10 @@ class OmniItemRepoTest {
     }
 
     @Test
-    void defaultCapacityMatchesLegacyOmniTerminal() {
+    void defaultCapacityMatchesTheCompactDefaultLayout() {
         RecordingRepo repo = new RecordingRepo();
         assertEquals(OmniItemRepo.capacityFor(OmniItemRepo.DEFAULT_SLOTS_PER_PAGE), repo.cacheCapacity());
-        assertEquals(90 * 3, repo.cacheCapacity());
+        assertEquals(60 * 3, repo.cacheCapacity());
     }
 
     @Test
@@ -111,6 +111,19 @@ class OmniItemRepoTest {
     }
 
     @Test
+    void inFlightPageRetriesAfterBoundedWait() {
+        RecordingRepo repo = new RecordingRepo();
+        repo.requests.clear();
+        repo.onScrollChanged(0);
+        for (int tick = 0; tick < 39; tick++) {
+            repo.tick();
+        }
+        assertEquals(1, repo.requests.size());
+        repo.tick();
+        assertEquals(2, repo.requests.size());
+    }
+
+    @Test
     void aDifferentPageIsNotSuppressedWhileAnotherIsInFlight() {
         RecordingRepo repo = new RecordingRepo();
         repo.requests.clear();
@@ -120,7 +133,7 @@ class OmniItemRepoTest {
         repo.onScrollChanged(500);
 
         assertEquals(2, repo.requests.size());
-        assertEquals(410, repo.requests.get(1).getOffset());
+        assertEquals(440, repo.requests.get(1).getOffset());
         assertEquals(repo.cacheCapacity(), repo.requests.get(1).getLimit());
     }
 
@@ -138,5 +151,58 @@ class OmniItemRepoTest {
         assertEquals(2, repo.requests.size());
         assertEquals("abc", repo.requests.get(1).getSearchString());
         assertEquals(1, repo.requests.get(1).getSearchMode());
+    }
+
+    @Test
+    void v2SplitsThreePagesIntoProtocolSizedSerialChunks() {
+        RecordingV2Repo repo = new RecordingV2Repo();
+        com.github.aeddddd.ae2enhanced.container.ContainerOmniTerm container =
+                org.mockito.Mockito.mock(com.github.aeddddd.ae2enhanced.container.ContainerOmniTerm.class);
+        org.mockito.Mockito.when(container.getContainerSessionId()).thenReturn(1L);
+        org.mockito.Mockito.when(container.getQueryGeneration()).thenReturn(0L);
+        repo.bindContainer(container);
+        long initialVersion = repo.getRenderViewVersion();
+
+        repo.onScrollChanged(0);
+
+        assertEquals(1, repo.requests.size());
+        assertEquals(0, repo.requests.get(0).getOffset());
+        assertEquals(135, repo.requests.get(0).getLimit());
+        repo.handlePageResult(new com.github.aeddddd.ae2enhanced.network.packet.PacketOmniPageResultV2(
+                1L, 0L, 1L, 270, 0, java.util.Collections.emptyList()));
+        assertEquals(2, repo.requests.size());
+        assertEquals(135, repo.requests.get(1).getOffset());
+        assertEquals(45, repo.requests.get(1).getLimit());
+        assertTrue(repo.getRenderViewVersion() > initialVersion);
+        long firstChunkVersion = repo.getRenderViewVersion();
+
+        repo.handlePageResult(new com.github.aeddddd.ae2enhanced.network.packet.PacketOmniPageResultV2(
+                1L, 0L, 2L, 270, 135, java.util.Collections.emptyList()));
+        assertEquals(2, repo.requests.size());
+        assertTrue(repo.getRenderViewVersion() > firstChunkVersion);
+        assertTrue(repo.harnessQueryState().contains("awaiting=false cacheOffset=0"));
+    }
+
+    private static final class RecordingV2Repo extends OmniItemRepo {
+        final List<com.github.aeddddd.ae2enhanced.network.packet.PacketOmniPageRequestV2> requests =
+                new ArrayList<com.github.aeddddd.ae2enhanced.network.packet.PacketOmniPageRequestV2>();
+
+        RecordingV2Repo() {
+            super(new GuiScrollbar(), NO_SORT);
+        }
+
+        @Override
+        protected void sendToServer(
+                com.github.aeddddd.ae2enhanced.network.packet.PacketOmniPageRequestV2 request) {
+            requests.add(request);
+        }
+
+        @Override
+        protected void syncToParentView() {
+        }
+
+        @Override
+        protected void setChanged(boolean value) {
+        }
     }
 }

@@ -2,20 +2,19 @@ package com.github.aeddddd.ae2enhanced.storage.channel;
 
 import appeng.api.AEApi;
 import appeng.api.storage.IStorageChannel;
-import com.github.aeddddd.ae2enhanced.integration.botaniaapplie.BotaniaApplieCompat;
-import com.github.aeddddd.ae2enhanced.integration.fluxapplied.FluxAppliedCompat;
+import com.github.aeddddd.ae2enhanced.storage.ExternalStorageChannels;
+import com.github.aeddddd.ae2enhanced.storage.energy.EnergyStorageChannel;
+import com.github.aeddddd.ae2enhanced.storage.energy.IEnergyStorageChannel;
 import com.github.aeddddd.ae2enhanced.storage.mana.IManaStorageChannel;
 import com.github.aeddddd.ae2enhanced.storage.mana.ManaStorageChannel;
 import com.github.aeddddd.ae2enhanced.storage.starlight.IStarlightStorageChannel;
 import com.github.aeddddd.ae2enhanced.storage.starlight.StarlightStorageChannel;
-import com.github.aeddddd.ae2enhanced.storage.energy.EnergyStorageChannel;
-import com.github.aeddddd.ae2enhanced.storage.energy.IEnergyStorageChannel;
 import net.minecraftforge.fml.common.Loader;
 
 /**
  * 存储通道注册管理器.
  * <p>
- * 根据外部兼容层 ({@link FluxAppliedCompat} / {@link BotaniaApplieCompat}) 以及 Forge 的 mod 加载状态,
+ * 根据 {@link ExternalStorageChannels} 端口以及 Forge 的 mod 加载状态,
  * 决定是否为 RF/Mana/Starlight 注册 AE2E 自有存储通道,避免与外部通道重复注册.
  * </p>
  */
@@ -34,14 +33,14 @@ public final class ChannelRegistrationManager {
      */
     public static void registerChannels() {
         // RF: 若 Flux_Applied 已提供能量通道,则交由外部管理
-        if (!FluxAppliedCompat.isFluxStorageChannelAvailable()) {
+        if (!ExternalStorageChannels.isAvailable(ExternalStorageChannels.Kind.ENERGY)) {
             EnergyStorageChannel channel = new EnergyStorageChannel();
             AEApi.instance().storage().registerStorageChannel(IEnergyStorageChannel.class, channel);
             registeredEnergyChannel = channel;
         }
 
         // Mana: 若 Botania_Applie 已提供 Mana 通道,则交由外部管理;否则仅在 Botania 存在时注册 AE2E 通道
-        if (BotaniaApplieCompat.isManaStorageChannelAvailable()) {
+        if (ExternalStorageChannels.isAvailable(ExternalStorageChannels.Kind.MANA)) {
             registeredManaChannel = null;
         } else if (Loader.isModLoaded("botania")) {
             ManaStorageChannel channel = new ManaStorageChannel();
@@ -64,8 +63,8 @@ public final class ChannelRegistrationManager {
         if (channel == null) {
             return false;
         }
-        if (FluxAppliedCompat.isFluxStorageChannelAvailable()) {
-            return channel == FluxAppliedCompat.getFluxStorageChannelInstance();
+        if (ExternalStorageChannels.isAvailable(ExternalStorageChannels.Kind.ENERGY)) {
+            return channel == ExternalStorageChannels.channel(ExternalStorageChannels.Kind.ENERGY);
         }
         return channel == registeredEnergyChannel;
     }
@@ -77,8 +76,8 @@ public final class ChannelRegistrationManager {
         if (channel == null) {
             return false;
         }
-        if (BotaniaApplieCompat.isManaStorageChannelAvailable()) {
-            return channel == BotaniaApplieCompat.getManaStorageChannelInstance();
+        if (ExternalStorageChannels.isAvailable(ExternalStorageChannels.Kind.MANA)) {
+            return channel == ExternalStorageChannels.channel(ExternalStorageChannels.Kind.MANA);
         }
         return channel == registeredManaChannel;
     }

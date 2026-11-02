@@ -5,9 +5,13 @@ import appeng.client.gui.widgets.IScrollSource;
 import appeng.client.gui.widgets.ISortSource;
 import appeng.client.me.ItemRepo;
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
-import com.github.aeddddd.ae2enhanced.mixin.late.accessor.IItemRepoAccessor;
+import com.github.aeddddd.ae2enhanced.client.gui.terminal.access.IItemRepoAccessor;
+import com.github.aeddddd.ae2enhanced.container.ContainerOmniTerm;
+import com.github.aeddddd.ae2enhanced.container.CraftingStatus;
 import com.github.aeddddd.ae2enhanced.network.packet.PacketOmniPageRequest;
+import com.github.aeddddd.ae2enhanced.network.packet.PacketOmniPageRequestV2;
 import com.github.aeddddd.ae2enhanced.network.packet.PacketOmniPageResult;
+import com.github.aeddddd.ae2enhanced.network.packet.PacketOmniPageResultV2;
 import com.github.aeddddd.ae2enhanced.storage.ItemDescriptor;
 
 import java.util.ArrayList;
@@ -31,23 +35,24 @@ public class OmniItemRepo extends ItemRepo {
 
     // ==================== 常量 ====================
     public static final int CACHE_PAGES = 3;             // 当前页 + 上一页 + 下一页
-    /** 旧 Omni 终端的默认页容量（18 col × 5 row）；用于缓存数组的初始分配。 */
-    public static final int DEFAULT_SLOTS_PER_PAGE = 90;
+    /** 默认页容量（12 col × 5 row）；用于缓存数组的初始分配。 */
+    public static final int DEFAULT_SLOTS_PER_PAGE = 60;
     private static final long REFRESH_COOLDOWN_MS = 200;
 
     // ==================== R3: 三页缓存 ====================
     /**
      * 缓存容量：只能是"页容量 × {@link #CACHE_PAGES}"。
      *
-     * <p>可拼接终端的 repo 面板尺寸可变（列数 = 内容宽度 / 18），但缓存数组的长度同时也是
-     * 分页请求的 {@code limit}，两者必须始终一致，否则服务端会按旧 limit 回包而被静默截断。
-     * 因此容量只能通过 {@link #setSlotsPerPage(int)} 变更，且变更时会立刻重新拉取当前可见页。</p>
+     * <p>可拼接终端的 repo 面板尺寸可变（列数 = 内容宽度 / 18），容量只能通过
+     * {@link #setSlotsPerPage(int)} 变更，且变更时会立刻重新拉取当前可见页。
+     * V2 请求按 {@link PacketOmniPageRequest#MAX_LIMIT} 分块串行发送，线上 limit 不等于整个缓存长度。</p>
      */
     private IAEItemStack[] cache = new IAEItemStack[capacityFor(DEFAULT_SLOTS_PER_PAGE)];
     private int cacheOffset = -1;   // cache[0] 对应服务端列表的哪个 offset，-1 表示未初始化
+    private long renderViewVersion;
     private int totalCount = 0;
     private int scrollOffset = 0;   // 当前 GUI 滚动位置（物品索引，不是页数）
-    private int slotsPerPage = DEFAULT_SLOTS_PER_PAGE;  // 每页可见槽位数（默认 18 col * 5 row）
+    private int slotsPerPage = DEFAULT_SLOTS_PER_PAGE;  // 每页可见槽位数（默认 12 col * 5 row）
 
     // ==================== 当前查询参数 ====================
     private String currentSearch = "";
@@ -62,8 +67,18 @@ public class OmniItemRepo extends ItemRepo {
     private long lastRefreshTime = 0;
     /** 已发出分页请求尚未收到结果时的 (offset, limit)，用于抑制同一页的重复请求。 */
     private boolean awaitingPage = false;
+    private int awaitingTicks;
     private int inFlightOffset = -1;
     private int inFlightLimit = -1;
+    private int inFlightEnd = -1;
+    private int nextChunkOffset = -1;
+    private int inFlightChunkOffset = -1;
+
+    private ContainerOmniTerm queryContainer;
+    private long containerSessionId;
+    private long queryGeneration;
+    private long nextRequestId;
+    private long currentRequestId;
 
     // ==================== 原有字段 ====================
     private final OmniItemRegistry registry = new OmniItemRegistry();
@@ -74,7 +89,54 @@ public class OmniItemRepo extends ItemRepo {
         super(src, sortSrc);
     }
 
+    public void bindContainer(ContainerOmniTerm container) {
+        this.queryContainer = container;
+        synchronizeSession();
+    }
+
+    public void tick() {
+        synchronizeSession();
+        if (this.queryContainer != null && this.containerSessionId != 0L
+                && !this.awaitingPage && this.cacheOffset < 0) {
+            requestPage(Math.max(0, this.scrollOffset - this.slotsPerPage), cacheCapacity());
+        }
+        if (this.awaitingPage && ++this.awaitingTicks >= 40) {
+            int offset = this.inFlightOffset;
+            int limit = this.inFlightLimit;
+            this.awaitingPage = false;
+            requestPage(offset, limit);
+        }
+        if (this.pendingRefresh) handleUpdateNotify();
+    }
+
+    private void synchronizeSession() {
+        if (this.queryContainer == null) return;
+        long session = this.queryContainer.getContainerSessionId();
+        if (session == 0L || session == this.containerSessionId) return;
+        this.containerSessionId = session;
+        this.queryGeneration = this.queryContainer.getQueryGeneration();
+        this.nextRequestId = 0L;
+        this.currentRequestId = 0L;
+        this.awaitingPage = false;
+        TerminalQueryClient.register(session, this);
+    }
+
     // ==================== 公共访问器 ====================
+
+    public String harnessQueryState() {
+        IAEItemStack visible = getSlotStack(0);
+        String visibleId = visible == null ? "null" : visible.getDefinition().getItem().getRegistryName()
+                + "@" + visible.getDefinition().getMetadata();
+        return "session=" + this.containerSessionId + " generation=" + this.queryGeneration
+                + " request=" + this.currentRequestId + " next=" + this.nextRequestId
+                + " awaiting=" + this.awaitingPage + " cacheOffset=" + this.cacheOffset
+                + " scrollOffset=" + this.scrollOffset + " total=" + this.totalCount
+                + " visible=" + visibleId
+                + " containerSession=" + (this.queryContainer == null ? "none"
+                        : this.queryContainer.getContainerSessionId())
+                + " containerGeneration=" + (this.queryContainer == null ? "none"
+                        : this.queryContainer.getQueryGeneration());
+    }
 
     public void setActiveCrafting(List<CraftingStatus> list) {
         this.activeCrafting = list != null ? new ArrayList<>(list) : Collections.emptyList();
@@ -92,7 +154,7 @@ public class OmniItemRepo extends ItemRepo {
         return Math.max(1, slotsPerPage) * CACHE_PAGES;
     }
 
-    /** 当前缓存数组容量（= 分页请求的 limit）。 */
+    /** 当前缓存数组容量；V2 按协议上限分块请求整个区间。 */
     public int cacheCapacity() {
         return this.cache.length;
     }
@@ -156,12 +218,19 @@ public class OmniItemRepo extends ItemRepo {
             return null;
         }
 
-        int normalIdx = this.scrollOffset + (idx - rowSize);
-        int cacheIdx = normalIdx - this.cacheOffset;
-        if (cacheIdx < 0 || cacheIdx >= this.normalView.size()) {
+        int cacheIdx = this.scrollOffset + (idx - rowSize) - this.cacheOffset;
+        if (cacheIdx < 0 || cacheIdx >= this.cache.length) {
             return null;
         }
-        return this.normalView.get(cacheIdx);
+        int skipped = 0;
+        for (int index = 0; index < cacheIdx; index++) {
+            IAEItemStack stack = this.cache[index];
+            if (stack != null && isInActiveCrafting(stack)) {
+                skipped++;
+            }
+        }
+        int viewIdx = cacheIdx - skipped;
+        return viewIdx < this.normalView.size() ? this.normalView.get(viewIdx) : null;
     }
 
     // ==================== R3: 分页结果处理 ====================
@@ -170,10 +239,37 @@ public class OmniItemRepo extends ItemRepo {
      * 处理服务端返回的页数据。
      */
     public void handlePageResult(int totalCount, int offset, List<PacketOmniPageResult.Entry> entries) {
+        if (this.queryContainer != null) return;
+        applyPage(totalCount, offset, entries);
+    }
+
+    public void handlePageResult(PacketOmniPageResultV2 packet) {
+        synchronizeSession();
+        if (this.queryContainer == null || packet.getContainerSessionId() != this.containerSessionId
+                || packet.getQueryGeneration() != this.queryGeneration
+                || packet.getRequestId() != this.currentRequestId || !this.awaitingPage) return;
+        List<PacketOmniPageResult.Entry> entries = new ArrayList<>(packet.getEntries().size());
+        for (PacketOmniPageResultV2.Entry entry : packet.getEntries()) {
+            if (entry.stack != null) {
+                entries.add(new PacketOmniPageResult.Entry(entry.id, entry.stack, entry.count));
+            }
+        }
+        applyPage(packet.getTotalCount(), packet.getOffset(), entries);
+    }
+
+    private void applyPage(int totalCount, int offset, List<PacketOmniPageResult.Entry> entries) {
+        boolean chunked = this.queryContainer != null && this.awaitingPage;
+        if (chunked && offset != this.inFlightChunkOffset) {
+            AE2Enhanced.LOGGER.warn("[AE2E] Ignoring V2 chunk with unexpected offset: expected={}, actual={}",
+                    this.inFlightChunkOffset, offset);
+            return;
+        }
         this.totalCount = totalCount;
-        this.cacheOffset = offset;
-        this.awaitingPage = false;
-        Arrays.fill(this.cache, null);
+        this.renderViewVersion++;
+        this.cacheOffset = chunked ? this.inFlightOffset : offset;
+        if (!chunked || offset == this.inFlightOffset) {
+            Arrays.fill(this.cache, null);
+        }
 
         if (entries.size() > this.cache.length) {
             // 服务端按更大的 limit 回包：说明客户端缓存容量与实际请求 limit 不一致。
@@ -182,21 +278,27 @@ public class OmniItemRepo extends ItemRepo {
                     entries.size(), this.cache.length);
         }
 
-        for (int i = 0; i < entries.size() && i < this.cache.length; i++) {
+        int destination = chunked ? offset - this.inFlightOffset : 0;
+        for (int i = 0; i < entries.size(); i++) {
+            int index = destination + i;
+            if (index < 0 || index >= this.cache.length) continue;
             PacketOmniPageResult.Entry e = entries.get(i);
+            if (e == null || e.stack == null) continue;
             this.registry.register(e.id, e.stack, e.count);
             IAEItemStack stack = this.registry.getStack(e.id);
             if (stack != null) {
-                this.cache[i] = stack;
+                this.cache[index] = stack;
             }
         }
 
-        // 更新 normalView（排除 activeCrafting 中的物品）
         updateNormalView();
-
-        // 通知 GUI 刷新
         setChanged(true);
         syncToParentView();
+        if (chunked && this.nextChunkOffset < this.inFlightEnd) {
+            sendNextChunk();
+        } else {
+            this.awaitingPage = false;
+        }
     }
 
     /**
@@ -262,6 +364,7 @@ public class OmniItemRepo extends ItemRepo {
 
         // 对名称搜索尝试使用 HEI/JEI 过滤器（支持拼音/tooltip 等语义）
         this.currentClientFilter = computeClientFilter(this.currentSearch, this.searchMode);
+        advanceQueryGeneration();
 
         // 清空缓存，重新请求第一页
         this.cacheOffset = -1;
@@ -285,29 +388,46 @@ public class OmniItemRepo extends ItemRepo {
     }
 
     private void requestPage(int offset, int limit) {
-        if (this.awaitingPage && offset == this.inFlightOffset && limit == this.inFlightLimit) {
-            // 同一页的请求已在途：再来一次只会拿到同样的结果，直接抑制。
-            // 拖动缩放面板时"容量变化"与"滚动范围重算"会在同一 tick 各自请求一次，靠这里合并。
-            return;
-        }
-        PacketOmniPageRequest req = new PacketOmniPageRequest(
-            this.currentSearch, this.searchMode, this.sortBy,
-            this.sortDir, this.viewMode, offset, limit,
-            this.currentClientFilter
-        );
+        synchronizeSession();
+        if (this.awaitingPage && offset == this.inFlightOffset && limit == this.inFlightLimit) return;
+        if (this.queryContainer != null && this.containerSessionId == 0L) return;
         this.awaitingPage = true;
+        this.awaitingTicks = 0;
         this.inFlightOffset = offset;
         this.inFlightLimit = limit;
-        sendToServer(req);
+        if (this.queryContainer != null) {
+            this.inFlightEnd = offset + limit;
+            this.nextChunkOffset = offset;
+            sendNextChunk();
+        } else {
+            sendToServer(new PacketOmniPageRequest(this.currentSearch, this.searchMode, this.sortBy,
+                    this.sortDir, this.viewMode, offset, limit, this.currentClientFilter));
+        }
     }
 
-    /**
-     * 分页请求的发送出口。
-     *
-     * <p>单独成方法是为了给无头单测留一个覆写点（测试环境没有网络初始化），
-     * 生产路径上就是 {@code AE2Enhanced.network.sendToServer}。</p>
-     */
+    private void sendNextChunk() {
+        this.awaitingTicks = 0;
+        this.inFlightChunkOffset = this.nextChunkOffset;
+        int limit = Math.min(PacketOmniPageRequest.MAX_LIMIT, this.inFlightEnd - this.nextChunkOffset);
+        this.nextChunkOffset += limit;
+        this.currentRequestId = ++this.nextRequestId;
+        sendToServer(new PacketOmniPageRequestV2(this.containerSessionId, this.queryGeneration,
+                this.currentRequestId, this.currentSearch, this.searchMode, this.sortBy,
+                this.sortDir, this.viewMode, this.inFlightChunkOffset, limit, this.currentClientFilter));
+    }
+
+    private void advanceQueryGeneration() {
+        if (this.queryContainer == null) return;
+        synchronizeSession();
+        this.queryGeneration = Math.max(this.queryGeneration,
+                this.queryContainer.getQueryGeneration()) + 1;
+    }
+
     protected void sendToServer(PacketOmniPageRequest request) {
+        AE2Enhanced.network.sendToServer(request);
+    }
+
+    protected void sendToServer(PacketOmniPageRequestV2 request) {
         AE2Enhanced.network.sendToServer(request);
     }
 
@@ -330,6 +450,7 @@ public class OmniItemRepo extends ItemRepo {
             this.currentSearch = rawSearch;
             this.searchMode = newMode;
             this.currentClientFilter = computeClientFilter(this.currentSearch, this.searchMode);
+            advanceQueryGeneration();
             // 搜索词变化时重新请求第一页
             this.cacheOffset = -1;
             this.scrollOffset = 0;
@@ -354,7 +475,7 @@ public class OmniItemRepo extends ItemRepo {
         return this.totalCount;
     }
 
-    private void syncToParentView() {
+    protected void syncToParentView() {
         IItemRepoAccessor acc = (IItemRepoAccessor) this;
         List<IAEItemStack> viewList = Arrays.asList(this.cache);
         acc.ae2e$setView(viewList);
@@ -389,14 +510,13 @@ public class OmniItemRepo extends ItemRepo {
         return super.getRowSize();
     }
 
-    private void setChanged(boolean value) {
+    protected void setChanged(boolean value) {
         ((IItemRepoAccessor) this).ae2e$setChanged(value);
     }
 
     // ==================== 向后兼容存根 ====================
 
     public long getRenderViewVersion() {
-        // R3: 不再使用 renderView 双缓冲
-        return this.cacheOffset;
+        return this.renderViewVersion;
     }
 }

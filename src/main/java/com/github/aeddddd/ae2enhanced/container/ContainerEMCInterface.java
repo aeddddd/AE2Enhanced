@@ -2,7 +2,7 @@ package com.github.aeddddd.ae2enhanced.container;
 
 import appeng.container.slot.SlotFakeTypeOnly;
 import appeng.tile.inventory.AppEngInternalAEInventory;
-import com.github.aeddddd.ae2enhanced.integration.projecte.ProjectEHelper;
+import com.github.aeddddd.ae2enhanced.storage.EmcStoragePort;
 import com.github.aeddddd.ae2enhanced.tile.TileEMCInterface;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.entity.player.InventoryPlayer;
@@ -165,7 +165,7 @@ public class ContainerEMCInterface extends Container {
     }
 
     private static boolean hasEmc(@Nonnull ItemStack stack) {
-        return ProjectEHelper.isAvailable() && ProjectEHelper.getEmcValue(stack) > 0;
+        return EmcStoragePort.isAvailable() && EmcStoragePort.getEmcValue(stack) > 0;
     }
 
     /**

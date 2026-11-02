@@ -2,7 +2,7 @@ package com.github.aeddddd.ae2enhanced.client.gui;
 
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
 import com.github.aeddddd.ae2enhanced.container.ContainerAssemblyPattern;
-import com.github.aeddddd.ae2enhanced.gui.GuiHandler;
+import com.github.aeddddd.ae2enhanced.guiapi.GuiCatalog;
 import com.github.aeddddd.ae2enhanced.network.packet.PacketPatternPage;
 import com.github.aeddddd.ae2enhanced.tile.TileAssemblyController;
 import net.minecraft.client.gui.inventory.GuiContainer;
@@ -149,7 +149,7 @@ public class GuiAssemblyPattern extends GuiContainer {
 
         int maxPage = tile.getPatternPages() - 1;
         if (page > maxPage && maxPage >= 0) {
-            mc.player.openGui(AE2Enhanced.instance, GuiHandler.encodePatternId(maxPage, tile.getPatternPages()),
+            mc.player.openGui(AE2Enhanced.instance, GuiCatalog.encodePatternId(maxPage, tile.getPatternPages()),
                 mc.world, tile.getPos().getX(), tile.getPos().getY(), tile.getPos().getZ());
             return;
         }

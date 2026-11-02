@@ -3,7 +3,7 @@ package com.github.aeddddd.ae2enhanced.mixin.late.cells;
 import appeng.util.Platform;
 import appeng.util.inv.IAEAppEngInventory;
 import appeng.util.inv.InvOperation;
-import com.github.aeddddd.ae2enhanced.util.network.WirelessChannelConnectionHelper;
+import com.github.aeddddd.ae2enhanced.tile.network.WirelessChannelConnectionHelper;
 import net.minecraft.item.ItemStack;
 import net.minecraftforge.items.IItemHandler;
 import org.spongepowered.asm.mixin.Mixin;

@@ -2,10 +2,10 @@ package com.github.aeddddd.ae2enhanced.network.packet;
 
 import com.github.aeddddd.ae2enhanced.item.ItemOmniUpgradeCard;
 import com.github.aeddddd.ae2enhanced.item.ItemOmniWirelessTerminal;
+import com.github.aeddddd.ae2enhanced.omni.OmniTerminalFinder;
 import com.github.aeddddd.ae2enhanced.storage.OmniTerminalData;
 import com.github.aeddddd.ae2enhanced.storage.OmniTerminalInventory;
 import com.github.aeddddd.ae2enhanced.storage.OmniTerminalStorage;
-import com.github.aeddddd.ae2enhanced.util.OmniTerminalFinder;
 import io.netty.buffer.ByteBuf;
 import net.minecraft.item.ItemStack;
 import net.minecraft.util.text.TextComponentTranslation;
@@ -40,7 +40,7 @@ public class PacketToggleMagnet implements IMessage {
                     return;
                 }
 
-                java.util.UUID storageId = ItemOmniWirelessTerminal.getStorageId(terminal);
+                java.util.UUID storageId = ItemOmniWirelessTerminal.ensureStorageId(terminal);
                 OmniTerminalStorage storage = OmniTerminalData.get(player.world).getOrCreate(storageId);
                 OmniTerminalInventory upgrades = storage.getUpgradeInventory();
 

@@ -6,14 +6,12 @@
  */
 package com.github.aeddddd.ae2enhanced.client.gui.terminal;
 
-import java.io.IOException;
-
 import appeng.core.AELog;
-import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-
+import com.github.aeddddd.ae2enhanced.AE2Enhanced;
+import com.github.aeddddd.ae2enhanced.client.gui.dock.*;
+import com.github.aeddddd.ae2enhanced.container.dev.SplicedTermTestHarness;
+import com.github.aeddddd.ae2enhanced.dock.model.DockRect;
+import com.github.aeddddd.ae2enhanced.dock.model.ModuleLayoutPolicy;
 import net.minecraft.client.gui.Gui;
 import net.minecraft.client.gui.GuiButton;
 import net.minecraft.client.gui.GuiScreen;
@@ -22,17 +20,11 @@ import net.minecraft.client.resources.I18n;
 import org.lwjgl.input.Keyboard;
 import org.lwjgl.input.Mouse;
 
-import appeng.client.gui.widgets.MEGuiTextField;
-
-import com.github.aeddddd.ae2enhanced.AE2Enhanced;
-import com.github.aeddddd.ae2enhanced.client.gui.dock.Ae2ModernArt;
-import com.github.aeddddd.ae2enhanced.client.gui.dock.ChromeLayout;
-import com.github.aeddddd.ae2enhanced.client.gui.dock.NinePatch;
-import com.github.aeddddd.ae2enhanced.client.gui.dock.DockManager;
-import com.github.aeddddd.ae2enhanced.client.gui.dock.ModulePanel;
-import com.github.aeddddd.ae2enhanced.client.gui.dock.model.DockRect;
-import com.github.aeddddd.ae2enhanced.client.gui.dock.model.ModuleLayoutPolicy;
-import com.github.aeddddd.ae2enhanced.util.dev.SplicedTermTestHarness;
+import java.io.IOException;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 
 /**
  * 可拼接终端布局编辑器（阶段 4b）——全屏界面，规格取自 MEST 的
@@ -58,7 +50,7 @@ import com.github.aeddddd.ae2enhanced.util.dev.SplicedTermTestHarness;
  * 侧栏列出模块而不是"组合窗口分组"；属性只保留 4 项（MEST 的第 5 项"终端按钮"在本终端没有落点）；
  * 剪贴板导入导出由本屏负责（DockManager 只收发字符串）。</p>
  */
-public class GuiSplicedLayoutEditor extends GuiScreen {
+public class GuiSplicedLayoutEditor extends GuiScreen implements IOmniTerminalGui {
 
     // --- 按钮 id ---
     private static final int ID_UNDO = 1;
@@ -81,8 +73,8 @@ public class GuiSplicedLayoutEditor extends GuiScreen {
     private static final int PRESET_TAB_WIDTH = 46;
     private static final int PRESET_TAB_GAP = 4;
 
-    private static final int SIDEBAR_WIDTH = 118;
-    private static final int PROPERTY_WIDTH = 132;
+    private int sidebarWidth = 118;
+    private int propertyWidth = 132;
     /** 侧栏模块行高。 */
     private static final int ROW_HEIGHT = 18;
     /** 折行文字的行高（8px 字高 + 2px 行距）。 */
@@ -126,12 +118,7 @@ public class GuiSplicedLayoutEditor extends GuiScreen {
     private final DockManager dock;
     private final List<ModulePanel> panels;
 
-    private MEGuiTextField nameField;
-    /** 命名框外框（AE2 输入框底的绘制矩形；MEGuiTextField 的字段是私有的，这里自己记）。 */
-    private int nameFieldX;
-    private int nameFieldY;
-    private int nameFieldWidth;
-    private int nameFieldHeight;
+    private com.github.aeddddd.ae2enhanced.client.gui.widget.Ae2TextField nameField;
     private ModulePanel selected;
     private ModulePanel pendingPalette;
     private double pendingPaletteX;
@@ -155,6 +142,8 @@ public class GuiSplicedLayoutEditor extends GuiScreen {
     public void initGui() {
         super.initGui();
         this.buttonList.clear();
+        this.sidebarWidth = this.width < 600 ? 76 : 118;
+        this.propertyWidth = this.width < 600 ? 96 : 132;
 
         int y = TOOLBAR_ROW_1;
         int x = 6;
@@ -185,21 +174,15 @@ public class GuiSplicedLayoutEditor extends GuiScreen {
         int nameX = presetX + 12;
         addButton(ID_RENAME, nameX + 96 + 4, TOOLBAR_ROW_2, 46,
                 I18n.format("gui.ae2enhanced.spliced_editor.rename"));
-        this.nameFieldX = nameX;
-        this.nameFieldY = TOOLBAR_ROW_2 + 1;
-        this.nameFieldWidth = 96;
-        this.nameFieldHeight = 14;
-        this.nameField = new MEGuiTextField(this.fontRenderer, this.nameFieldX, this.nameFieldY,
-                this.nameFieldWidth, this.nameFieldHeight);
+        this.nameField = new com.github.aeddddd.ae2enhanced.client.gui.widget.Ae2TextField(
+                0, this.fontRenderer, nameX, TOOLBAR_ROW_2 + 3, 96);
         this.nameField.setMaxStringLength(24);
-        this.nameField.setTextColor(0xFFFFFF);
-        this.nameField.setSelectionColor(-16744448);
-        this.nameField.setEnableBackgroundDrawing(false);
-        this.nameField.setTextColor(ChromeLayout.COLOR_TITLE_TEXT);
         this.nameField.setText(dock.presetName(dock.activePreset()));
 
+        Keyboard.enableRepeatEvents(true);
         syncCanvasInsets();
         syncNameFieldVisibility();
+        refreshPresetButtons();
     }
 
     private void addButton(int id, int x, int y, int buttonWidth, String label) {
@@ -212,7 +195,7 @@ public class GuiSplicedLayoutEditor extends GuiScreen {
     /** 让 dock 知道画布范围，并把视口同步成编辑器当前尺寸（窗口缩放时也走这里）。 */
     private void syncCanvasInsets() {
         dock.updateViewport(this.width, this.height);
-        dock.setEditorCanvasInsets(SIDEBAR_WIDTH, TOOLBAR_HEIGHT, PROPERTY_WIDTH, 0);
+        dock.setEditorCanvasInsets(sidebarWidth, TOOLBAR_HEIGHT, propertyWidth, 0);
     }
 
     private void syncNameFieldVisibility() {
@@ -222,7 +205,16 @@ public class GuiSplicedLayoutEditor extends GuiScreen {
     }
 
     @Override
+    public void updateScreen() {
+        super.updateScreen();
+        if (this.nameField != null) {
+            this.nameField.updateCursorCounter();
+        }
+    }
+
+    @Override
     public void onGuiClosed() {
+        Keyboard.enableRepeatEvents(false);
         super.onGuiClosed();
     }
 
@@ -268,29 +260,25 @@ public class GuiSplicedLayoutEditor extends GuiScreen {
         renderToolbarChrome();
         renderSidebar(mouseX, mouseY);
         renderProperties(mouseX, mouseY);
-        super.drawScreen(mouseX, mouseY, partialTicks);
-        renderStatus();
-
         if (nameField != null && nameField.getVisible()) {
-            // E4：AE2 19.x 输入框底（聚焦态换条带）
-            NinePatch.drawTextField(this.nameFieldX, this.nameFieldY, this.nameFieldWidth,
-                    this.nameFieldHeight, nameField.isFocused(), NAME_FIELD_Z);
             nameField.drawTextBox();
         }
+        super.drawScreen(mouseX, mouseY, partialTicks);
+        renderStatus();
         renderTooltips(mouseX, mouseY);
     }
 
     private void renderCanvasBackdrop() {
-        Gui.drawRect(SIDEBAR_WIDTH, TOOLBAR_HEIGHT, width - PROPERTY_WIDTH, height, COLOR_CANVAS);
-        int right = width - PROPERTY_WIDTH;
+        Gui.drawRect(sidebarWidth, TOOLBAR_HEIGHT, width - propertyWidth, height, COLOR_CANVAS);
+        int right = width - propertyWidth;
         GlStateManager.color(1.0F, 1.0F, 1.0F, 1.0F);
-        for (int gx = SIDEBAR_WIDTH; gx < right; gx += GRID_STEP) {
-            int color = ((gx - SIDEBAR_WIDTH) % GRID_MAJOR_EVERY == 0) ? COLOR_GRID_MAJOR : COLOR_GRID_MINOR;
+        for (int gx = sidebarWidth; gx < right; gx += GRID_STEP) {
+            int color = ((gx - sidebarWidth) % GRID_MAJOR_EVERY == 0) ? COLOR_GRID_MAJOR : COLOR_GRID_MINOR;
             Gui.drawRect(gx, TOOLBAR_HEIGHT, gx + 1, height, color);
         }
         for (int gy = TOOLBAR_HEIGHT; gy < height; gy += GRID_STEP) {
             int color = ((gy - TOOLBAR_HEIGHT) % GRID_MAJOR_EVERY == 0) ? COLOR_GRID_MAJOR : COLOR_GRID_MINOR;
-            Gui.drawRect(SIDEBAR_WIDTH, gy, right, gy + 1, color);
+            Gui.drawRect(sidebarWidth, gy, right, gy + 1, color);
         }
     }
 
@@ -303,32 +291,35 @@ public class GuiSplicedLayoutEditor extends GuiScreen {
         if (hovered != null && hovered == selected) {
             return;
         }
-        Gui.drawRect(selected.x, selected.y, selected.x + selected.width, selected.y + 1, COLOR_SELECTION);
-        Gui.drawRect(selected.x, selected.y + selected.height - 1, selected.x + selected.width,
-                selected.y + selected.height, COLOR_SELECTION);
-        Gui.drawRect(selected.x, selected.y, selected.x + 1, selected.y + selected.height, COLOR_SELECTION);
-        Gui.drawRect(selected.x + selected.width - 1, selected.y, selected.x + selected.width,
-                selected.y + selected.height, COLOR_SELECTION);
+        boolean pushed = NinePatch.pushZLevel(dock.paintZOf(selected) + 24.0F);
+        try {
+            Gui.drawRect(selected.x, selected.y, selected.x + selected.width, selected.y + 1, COLOR_SELECTION);
+            Gui.drawRect(selected.x, selected.y + selected.height - 1, selected.x + selected.width,
+                    selected.y + selected.height, COLOR_SELECTION);
+            Gui.drawRect(selected.x, selected.y, selected.x + 1, selected.y + selected.height, COLOR_SELECTION);
+            Gui.drawRect(selected.x + selected.width - 1, selected.y, selected.x + selected.width,
+                    selected.y + selected.height, COLOR_SELECTION);
+        } finally {
+            NinePatch.popZLevel(pushed);
+        }
     }
 
     private void renderToolbarChrome() {
         Gui.drawRect(0, 0, width, TOOLBAR_HEIGHT, COLOR_CHROME);
         Gui.drawRect(0, TOOLBAR_HEIGHT - 1, width, TOOLBAR_HEIGHT, COLOR_CHROME_RULE);
-        fontRenderer.drawString(I18n.format("gui.ae2enhanced.spliced_editor.title"), 6,
-                TOOLBAR_HEIGHT + 4, COLOR_MUTED, false);
     }
 
     private void renderSidebar(int mouseX, int mouseY) {
-        Gui.drawRect(0, TOOLBAR_HEIGHT, SIDEBAR_WIDTH, height, COLOR_CHROME);
-        Gui.drawRect(SIDEBAR_WIDTH - 1, TOOLBAR_HEIGHT, SIDEBAR_WIDTH, height, COLOR_CHROME_RULE);
-        Gui.drawRect(SIDEBAR_WIDTH - 1, TOOLBAR_HEIGHT, SIDEBAR_WIDTH, height, 0xFF777B8C);
+        Gui.drawRect(0, TOOLBAR_HEIGHT, sidebarWidth, height, COLOR_CHROME);
+        Gui.drawRect(sidebarWidth - 1, TOOLBAR_HEIGHT, sidebarWidth, height, COLOR_CHROME_RULE);
+        Gui.drawRect(sidebarWidth - 1, TOOLBAR_HEIGHT, sidebarWidth, height, 0xFF777B8C);
         int y = TOOLBAR_HEIGHT + 4;
         fontRenderer.drawString(I18n.format("gui.ae2enhanced.spliced_editor.modules"), 6, y, COLOR_TEXT, false);
         y += 12;
 
         for (int index = 0; index < panels.size(); index++) {
             ModulePanel panel = panels.get(index);
-            boolean hovered = mouseX >= 0 && mouseX < SIDEBAR_WIDTH
+            boolean hovered = mouseX >= 0 && mouseX < sidebarWidth
                     && mouseY >= y && mouseY < y + ROW_HEIGHT;
             boolean visible = dock.isModuleVisible(panel.id());
             boolean isSelected = panel == selected;
@@ -336,14 +327,14 @@ public class GuiSplicedLayoutEditor extends GuiScreen {
             // 选中=略亮底 + 左侧深色竖条（hover 与选中不再混在一起）。
             int rowBg = isSelected ? COLOR_ROW_SELECTED
                     : (hovered ? COLOR_ROW_HOVER : ChromeLayout.COLOR_PANEL);
-            Gui.drawRect(2, y, SIDEBAR_WIDTH - 4, y + ROW_HEIGHT - 1, rowBg);
-            Gui.drawRect(2, y + ROW_HEIGHT - 1, SIDEBAR_WIDTH - 4, y + ROW_HEIGHT, COLOR_ROW_RULE);
+            Gui.drawRect(2, y, sidebarWidth - 4, y + ROW_HEIGHT - 1, rowBg);
+            Gui.drawRect(2, y + ROW_HEIGHT - 1, sidebarWidth - 4, y + ROW_HEIGHT, COLOR_ROW_RULE);
             if (isSelected) {
                 Gui.drawRect(2, y, 4, y + ROW_HEIGHT - 1, ChromeLayout.COLOR_TITLE_TEXT);
             }
             Gui.drawRect(6, y + 3, 11, y + ROW_HEIGHT - 4, visible ? COLOR_ON : COLOR_OFF);
             String title = panel.title();
-            int titleWidth = SIDEBAR_WIDTH - 4 - 14 - 2;
+            int titleWidth = sidebarWidth - 4 - 14 - 2;
             fontRenderer.drawString(fontRenderer.trimStringToWidth(title, titleWidth), 14,
                     y + (ROW_HEIGHT - 8) / 2, visible ? COLOR_TEXT : COLOR_MUTED, false);
             y += ROW_HEIGHT;
@@ -356,7 +347,7 @@ public class GuiSplicedLayoutEditor extends GuiScreen {
                 "gui.ae2enhanced.spliced_editor.hint.splice",
                 "gui.ae2enhanced.spliced_editor.hint.resize" }) {
             // E8：帮助文字按侧栏宽度折行，全部显示（不再用 "..." 裁掉尾部）
-            y = drawWrappedText(I18n.format(hintKey), 6, y, SIDEBAR_WIDTH - 12, COLOR_MUTED);
+            y = drawWrappedText(I18n.format(hintKey), 6, y, sidebarWidth - 12, COLOR_MUTED);
             y += 2;
         }
     }
@@ -382,7 +373,7 @@ public class GuiSplicedLayoutEditor extends GuiScreen {
     }
 
     private void renderProperties(int mouseX, int mouseY) {
-        int left = width - PROPERTY_WIDTH;
+        int left = width - propertyWidth;
         // W2：Properties 面板与侧栏同一套浅色（原来是深色 0xFF22262F，与浅色画布割裂）
         Gui.drawRect(left, TOOLBAR_HEIGHT, width, height, COLOR_CHROME);
         Gui.drawRect(left, TOOLBAR_HEIGHT, left + 1, height, COLOR_CHROME_RULE);
@@ -394,27 +385,27 @@ public class GuiSplicedLayoutEditor extends GuiScreen {
             fontRenderer.drawString(
                     fontRenderer.trimStringToWidth(
                             I18n.format("gui.ae2enhanced.spliced_editor.properties.none"),
-                            PROPERTY_WIDTH - 10),
+                            propertyWidth - 10),
                     left + 6, y, COLOR_MUTED, false);
             return;
         }
-        fontRenderer.drawString(fontRenderer.trimStringToWidth(selected.title(), PROPERTY_WIDTH - 10),
+        fontRenderer.drawString(fontRenderer.trimStringToWidth(selected.title(), propertyWidth - 10),
                 left + 6, y, COLOR_MUTED, false);
         y += 12;
 
         for (int index = 0; index < PROPERTY_COUNT; index++) {
-            boolean hovered = mouseX >= left + 2 && mouseX < width - 2 && mouseY >= y && mouseY < y + ROW_HEIGHT;
-            boolean on = propertyEnabled(index);
-            // E6：属性项做成"开关式小按钮"——19.x 按钮底 + 状态图标（VALID/INVALID）+ 右侧标签，
-            // 而不是一行纯文字。点击语义不变（整行命中都算点击，见 propertyRowAt）。
             int buttonX = left + 4;
-            int buttonWidth = PROPERTY_WIDTH - 10;
+            int buttonWidth = propertyWidth - 10;
+            boolean hovered = mouseX >= buttonX && mouseX < buttonX + buttonWidth
+                    && mouseY >= y && mouseY < y + ROW_HEIGHT - 2;
+            boolean on = propertyEnabled(index);
+            int hoverOffset = hovered ? 1 : 0;
             Ae2ModernArt.drawButton(buttonX, y, buttonWidth, ROW_HEIGHT - 2, hovered, true, EDITOR_WIDGET_Z);
             Ae2ModernArt.drawIcon(on ? Ae2ModernArt.Icon.VALID : Ae2ModernArt.Icon.INVALID,
-                    buttonX + 3, y + 1, EDITOR_WIDGET_Z);
+                    buttonX + 3, y + hoverOffset, EDITOR_WIDGET_Z);
             fontRenderer.drawString(
-                    fontRenderer.trimStringToWidth(propertyLabel(index), PROPERTY_WIDTH - 34),
-                    buttonX + 22, y + (ROW_HEIGHT - 2 - 8) / 2,
+                    fontRenderer.trimStringToWidth(propertyLabel(index), propertyWidth - 34),
+                    buttonX + 22, y + (ROW_HEIGHT - 2 - 8) / 2 + hoverOffset,
                     on ? COLOR_TEXT : COLOR_MUTED, false);
             y += ROW_HEIGHT;
         }
@@ -428,7 +419,7 @@ public class GuiSplicedLayoutEditor extends GuiScreen {
             statusText = null;
             return;
         }
-        fontRenderer.drawString(statusText, SIDEBAR_WIDTH + 6, TOOLBAR_HEIGHT + 4,
+        fontRenderer.drawString(statusText, sidebarWidth + 6, TOOLBAR_HEIGHT + 4,
                 statusError ? 0xFFFF6B6B : 0xFF7CFF7C, false);
     }
 
@@ -465,7 +456,7 @@ public class GuiSplicedLayoutEditor extends GuiScreen {
             super.mouseClicked(mouseX, mouseY, mouseButton);
             return;
         }
-        if (mouseX < SIDEBAR_WIDTH) {
+        if (mouseX < sidebarWidth) {
             int index = sidebarRowAt(mouseX, mouseY);
             if (index >= 0 && mouseButton == 0) {
                 ModulePanel panel = panels.get(index);
@@ -477,7 +468,7 @@ public class GuiSplicedLayoutEditor extends GuiScreen {
             }
             return;
         }
-        if (mouseX >= width - PROPERTY_WIDTH) {
+        if (mouseX >= width - propertyWidth) {
             int property = propertyRowAt(mouseX, mouseY);
             if (property >= 0 && mouseButton == 0) {
                 toggleProperty(property);
@@ -540,7 +531,7 @@ public class GuiSplicedLayoutEditor extends GuiScreen {
         if (delta != 0) {
             int mouseX = Mouse.getEventX() * width / mc.displayWidth;
             int mouseY = height - Mouse.getEventY() * height / mc.displayHeight - 1;
-            if (mouseX >= SIDEBAR_WIDTH && mouseX < width - PROPERTY_WIDTH && mouseY >= TOOLBAR_HEIGHT
+            if (mouseX >= sidebarWidth && mouseX < width - propertyWidth && mouseY >= TOOLBAR_HEIGHT
                     && dock.mouseScrolled(mouseX, mouseY, delta / 120.0D)) {
                 return;
             }
@@ -670,7 +661,7 @@ public class GuiSplicedLayoutEditor extends GuiScreen {
     // ==================== 属性检查器 ====================
 
     private int propertyRowAt(int mouseX, int mouseY) {
-        if (selected == null || mouseX < width - PROPERTY_WIDTH || mouseY < TOOLBAR_HEIGHT) {
+        if (selected == null || mouseX < width - propertyWidth || mouseY < TOOLBAR_HEIGHT) {
             return -1;
         }
         int y = TOOLBAR_HEIGHT + 4 + 14 + 12;
@@ -684,7 +675,7 @@ public class GuiSplicedLayoutEditor extends GuiScreen {
     }
 
     private int sidebarRowAt(int mouseX, int mouseY) {
-        if (mouseX < 0 || mouseX >= SIDEBAR_WIDTH || mouseY < TOOLBAR_HEIGHT) {
+        if (mouseX < 0 || mouseX >= sidebarWidth || mouseY < TOOLBAR_HEIGHT) {
             return -1;
         }
         int y = TOOLBAR_HEIGHT + 4 + 12;
@@ -836,5 +827,20 @@ public class GuiSplicedLayoutEditor extends GuiScreen {
     /** 选中窗口的屏幕矩形（供调试/测试观察）。 */
     public DockRect selectedBounds() {
         return selected == null ? null : new DockRect(selected.x, selected.y, selected.width, selected.height);
+    }
+
+    @Override
+    public void handlePageResult(com.github.aeddddd.ae2enhanced.network.packet.PacketOmniPageResult packet) {
+        this.parent.handlePageResult(packet);
+    }
+
+    @Override
+    public void handleUpdateNotify() {
+        this.parent.handleUpdateNotify();
+    }
+
+    @Override
+    public void postUpdate(net.minecraft.nbt.NBTTagCompound data) {
+        this.parent.postUpdate(data);
     }
 }

@@ -1,8 +1,10 @@
 package com.github.aeddddd.ae2enhanced.omnitool.module;
 
-import com.github.aeddddd.ae2enhanced.item.ItemAdvancedMEOmniTool;
+import com.github.aeddddd.ae2enhanced.omnitool.ItemAdvancedMEOmniTool;
 import com.github.aeddddd.ae2enhanced.omnitool.OmniToolUpgrades;
-import com.github.aeddddd.ae2enhanced.util.TravelAnchorHelper;
+import com.github.aeddddd.ae2enhanced.util.TeleportWhitelist;
+import com.github.aeddddd.ae2enhanced.util.ServerTickCounter;
+import com.github.aeddddd.ae2enhanced.omnitool.TravelAnchorHelper;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.client.util.ITooltipFlag;
 import net.minecraft.entity.player.EntityPlayer;
@@ -56,8 +58,7 @@ public class TravelModule implements IOmniToolModule {
             player.sendStatusMessage(new TextComponentTranslation("message.ae2enhanced.omnitool.travel_anchor_unavailable"), true);
         }
 
-        doBlink(player, world, stack);
-        return new ActionResult<>(EnumActionResult.SUCCESS, stack);
+        return new ActionResult<>(doBlink(player, world, stack), stack);
     }
 
     @Override
@@ -119,9 +120,9 @@ public class TravelModule implements IOmniToolModule {
     }
 
     private EnumActionResult doBlink(EntityPlayer player, World world, ItemStack stack) {
-        long now = world.getTotalWorldTime();
+        long now = ServerTickCounter.now(player);
         long lastBlink = getLastBlink(stack);
-        if (now - lastBlink < BLINK_COOLDOWN_TICKS) return EnumActionResult.PASS;
+        if (ServerTickCounter.isCoolingDown(lastBlink, now, BLINK_COOLDOWN_TICKS)) return EnumActionResult.PASS;
 
         double distance = getBlinkDistance(stack);
         Vec3d look = player.getLookVec();
@@ -151,7 +152,11 @@ public class TravelModule implements IOmniToolModule {
         // 防卡墙：根据视线方向增加偏移，并确保落点安全
         target = adjustLandingPosition(world, target, look, player);
 
-        player.setPositionAndUpdate(target.x, target.y - player.getEyeHeight(), target.z);
+        double targetY = target.y - player.getEyeHeight();
+        try (TeleportWhitelist.Scope ignored = TeleportWhitelist.open(player.getUniqueID())) {
+            player.setPositionAndUpdate(target.x, targetY, target.z);
+        }
+        if (player.getDistanceSq(target.x, targetY, target.z) > 1.0e-6) return EnumActionResult.PASS;
         player.fallDistance = 0.0f;
         setLastBlink(stack, now);
         return EnumActionResult.SUCCESS;

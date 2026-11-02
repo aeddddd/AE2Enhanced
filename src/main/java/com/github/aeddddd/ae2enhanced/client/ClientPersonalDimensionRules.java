@@ -12,6 +12,11 @@ import com.github.aeddddd.ae2enhanced.dimension.PersonalDimensionRules;
 public final class ClientPersonalDimensionRules {
 
     private static PersonalDimensionRules cachedRules;
+    private static com.github.aeddddd.ae2enhanced.dimension.PrivateDimensionInfo cachedInfo =
+            com.github.aeddddd.ae2enhanced.dimension.PrivateDimensionInfo.empty();
+    private static com.github.aeddddd.ae2enhanced.dimension.FloorDefinition cachedFloor =
+            new com.github.aeddddd.ae2enhanced.dimension.FloorDefinition();
+    private static int repaintPending = -1;
 
     private ClientPersonalDimensionRules() {}
 
@@ -27,5 +32,26 @@ public final class ClientPersonalDimensionRules {
 
     public static void update(PersonalDimensionRules rules) {
         cachedRules = rules != null ? rules.copy() : new PersonalDimensionRules();
+    }
+
+    public static com.github.aeddddd.ae2enhanced.dimension.PrivateDimensionInfo info() {
+        return cachedInfo;
+    }
+
+    public static void updateInfo(com.github.aeddddd.ae2enhanced.dimension.PrivateDimensionInfo info) {
+        cachedInfo = info != null ? info : com.github.aeddddd.ae2enhanced.dimension.PrivateDimensionInfo.empty();
+    }
+
+    public static com.github.aeddddd.ae2enhanced.dimension.FloorDefinition floor() {
+        return cachedFloor.copy();
+    }
+
+    public static int repaintPending() {
+        return repaintPending;
+    }
+
+    public static void updateFloor(com.github.aeddddd.ae2enhanced.dimension.FloorDefinition floor, int pending) {
+        cachedFloor = floor != null ? floor.copy() : new com.github.aeddddd.ae2enhanced.dimension.FloorDefinition();
+        repaintPending = pending;
     }
 }

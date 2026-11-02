@@ -1,7 +1,7 @@
 package com.github.aeddddd.ae2enhanced.mixin.late.world;
 
 import com.github.aeddddd.ae2enhanced.collector.CollectorRegistry;
-import com.github.aeddddd.ae2enhanced.tile.TileAdvancedMECollector;
+import com.github.aeddddd.ae2enhanced.collector.TileAdvancedMECollector;
 import net.minecraft.inventory.IInventory;
 import net.minecraft.item.ItemStack;
 import net.minecraft.util.math.BlockPos;

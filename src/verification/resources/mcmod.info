@@ -1,0 +1,11 @@
+[
+  {
+    "modid": "ae2enhancedsmoke",
+    "name": "AE2Enhanced Server Smoke Verification",
+    "description": "Dedicated-server acceptance harness for AE2Enhanced; not part of the production jar.",
+    "version": "1.0",
+    "mcversion": "1.12.2",
+    "authorList": ["AE2Enhanced verification"],
+    "requiredMods": ["ae2enhanced"]
+  }
+]

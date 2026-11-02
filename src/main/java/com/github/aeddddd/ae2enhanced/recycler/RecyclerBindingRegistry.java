@@ -1,5 +1,6 @@
 package com.github.aeddddd.ae2enhanced.recycler;
 
+import com.github.aeddddd.ae2enhanced.runtime.RuntimeScopes;
 import com.github.aeddddd.ae2enhanced.storage.FluidStorageAdapter;
 import com.github.aeddddd.ae2enhanced.storage.ItemStorageAdapter;
 import net.minecraft.util.math.BlockPos;
@@ -18,19 +19,33 @@ import java.util.concurrent.ConcurrentHashMap;
  * <p>当机器完成运行、产物即将写入输出槽时，通过本注册表找到负责该机器的回收节点，
  * 并尝试把产物直接注入其所在网络的超维度仓储中枢。</p>
  */
-public class RecyclerBindingRegistry {
+public class RecyclerBindingRegistry implements AutoCloseable {
 
-    private static final RecyclerBindingRegistry INSTANCE = new RecyclerBindingRegistry();
+    public RecyclerBindingRegistry() {
+    }
 
     public static RecyclerBindingRegistry getInstance() {
-        return INSTANCE;
+        return RuntimeScopes.requireServer().service(RecyclerBindingRegistry.class, RecyclerBindingRegistry::new);
     }
 
     private final Map<TargetManager.TargetRef, Entry> exactMap = new ConcurrentHashMap<>();
     // 辅助索引：dimId -> BlockPos -> Entry 列表（忽略 face，方便机器 Hook 查询）
     private final Map<Integer, Map<BlockPos, List<Entry>>> byPosition = new ConcurrentHashMap<>();
 
-    private RecyclerBindingRegistry() {
+    public static boolean isActive() {
+        return RuntimeScopes.currentServer()
+                .map(scope -> scope.acceptingWork() && !scope.closed())
+                .orElse(false);
+    }
+
+    @Override
+    public void close() {
+        exactMap.clear();
+        byPosition.clear();
+    }
+
+    public int bindingCount() {
+        return exactMap.size();
     }
 
     /**

@@ -10,10 +10,9 @@ import appeng.api.storage.data.IAEStack;
 import appeng.util.item.AEItemStack;
 import appeng.me.GridAccessException;
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
-import com.github.aeddddd.ae2enhanced.config.AE2EnhancedConfig;
-import com.github.aeddddd.ae2enhanced.diag.DiagLog;
-import com.github.aeddddd.ae2enhanced.diag.DiagSwitch;
-import com.github.aeddddd.ae2enhanced.network.packet.PacketVirtualCraftingParticles;
+import com.github.aeddddd.ae2enhanced.config.ServerConfig;
+import com.github.aeddddd.ae2enhanced.observation.Observations;
+import com.github.aeddddd.ae2enhanced.centralinterface.packet.PacketVirtualCraftingParticles;
 import net.minecraft.inventory.InventoryCrafting;
 import net.minecraft.item.ItemStack;
 import net.minecraft.util.EnumParticleTypes;
@@ -155,6 +154,10 @@ public class VirtualBatchEngine {
         }
 
         boolean ownershipAcquired = true;
+        IStorageGrid storage = null;
+        IActionSource source = null;
+        IMEInventory<IAEItemStack> itemSource = null;
+        List<IAEStack> extracted = null;
         try {
             InventoryCrafting virtualTable = owner.copyInventoryCrafting(originalTable);
             IAEItemStack[] outputs = patternDetails.getOutputs();
@@ -164,7 +167,6 @@ public class VirtualBatchEngine {
                 return 0;
             }
 
-            IStorageGrid storage;
             IEnergySource energy;
             try {
                 storage = grid.storage();
@@ -176,7 +178,7 @@ public class VirtualBatchEngine {
 
             // CPU 内部物品缓存：任务提交时整单材料已预提到此处，虚拟并行的额外物品
             // 必须从该缓存核算/提取。可能为 null（非 CPU 直推场景），此时回退到网络核算。
-            IMEInventory<IAEItemStack> itemSource = owner.getVirtualItemSource();
+            itemSource = owner.getVirtualItemSource();
 
             long actualParallel = computeActualParallel(storage, energy, handler, world, target,
                     virtualTable, outputs, maxParallel, patternDetails, itemSource);
@@ -185,7 +187,12 @@ public class VirtualBatchEngine {
                 return 0;
             }
 
-            IActionSource source = NetworkAccess.machineSource(owner.host);
+            if (!IVirtualBatchCraftingHandler.isOutputScalingSafe(outputs, actualParallel)) {
+                logFail(world, target, "output scaling failed or overflowed for parallel=" + actualParallel);
+                return 0;
+            }
+
+            source = NetworkAccess.machineSource(owner.host);
             List<IAEStack> netCosts = getNetCosts(handler, world, target, virtualTable,
                     outputs, actualParallel, patternDetails);
             if (netCosts == null) {
@@ -199,20 +206,20 @@ public class VirtualBatchEngine {
                 return 0;
             }
 
-            double energyCost = AE2EnhancedConfig.centralInterface.virtualParallelEnergyCost * (double) actualParallel;
+            double energyCost = ServerConfig.current().centralInterface.virtualParallelEnergyCost * (double) actualParallel;
             if (!VirtualCostExtractor.simulateExtractEnergy(energy, energyCost)) {
                 logFail(world, target, "simulateExtractEnergy failed (need " + energyCost + " AE)");
                 return 0;
             }
 
-            List<IAEStack> extracted = VirtualCostExtractor.extractAll(storage, netCosts, source, itemSource);
+            extracted = VirtualCostExtractor.extractAll(storage, netCosts, source, itemSource);
             if (extracted == null) {
                 logFail(world, target, "extractAll failed, netCosts=[" + describeCosts(netCosts) + "]");
                 return 0;
             }
 
             if (!VirtualCostExtractor.extractEnergy(energy, energyCost, source)) {
-                VirtualCostExtractor.rollbackExtracted(storage, extracted, source, itemSource);
+                rollbackVirtualCosts(storage, extracted, source, itemSource);
                 logFail(world, target, "extractEnergy failed after resources extracted");
                 return 0;
             }
@@ -220,16 +227,12 @@ public class VirtualBatchEngine {
             List<ItemStack> products = handler.virtualCraftBatch(world, target.pos, virtualTable,
                     outputs, actualParallel, source, patternDetails);
             if (products == null || products.isEmpty()) {
-                // handler 未能产出：回滚已提取资源，避免材料被吞。
-                // 已扣除的 AE 能量无法经 IEnergySource 返还，属可接受的微小损耗。
-                VirtualCostExtractor.rollbackExtracted(storage, extracted, source, itemSource);
+                rollbackVirtualCosts(storage, extracted, source, itemSource);
                 logFail(world, target, "virtualCraftBatch returned no products");
                 return 0;
             }
 
             products = mergeProducts(products);
-            owner.pendingProducts.addAll(products);
-
             List<EnumParticleTypes> particleTypes = handler.getVirtualCraftingParticles(world, target.pos);
             int particleType = particleTypes.isEmpty()
                     ? EnumParticleTypes.PORTAL.getParticleID()
@@ -237,14 +240,21 @@ public class VirtualBatchEngine {
             addParticleTarget(target.pos, particleType);
 
             if (actualParallel > 1 || !handler.skipCooldownOnSingleBatch()) {
-                owner.virtualCooldowns.put(target, AE2EnhancedConfig.centralInterface.virtualCooldownTargetTicks);
-            } else {
-                // 部分 handler（如 Extended Crafting 工作台）在单份处理时希望跳过冷却，
-                // 使 CPU 能立即继续调度，等效于无并行时的物理发配行为。
+                owner.virtualCooldowns.put(target, ServerConfig.current().centralInterface.virtualCooldownTargetTicks);
             }
+            owner.pendingProducts.addAll(products);
+            extracted = null;
             owner.tryWakeTickDevice();
             return actualParallel;
+        } catch (VirtualCostExtractor.RollbackException e) {
+            owner.preserveVirtualRollback(e.getRemaining());
+            AE2Enhanced.LOGGER.warn("[AE2E] Virtual cost rollback overflow preserved at {}: {}",
+                    target.pos, e.toString());
+            return 0;
         } catch (Throwable t) {
+            if (extracted != null && !extracted.isEmpty()) {
+                rollbackVirtualCosts(storage, extracted, source, itemSource);
+            }
             // 必须捕获 Throwable：第三方 handler 的 canCraftVirtually/virtualCraftBatch/getVirtualCost
             // 可能抛出 NoClassDefFoundError/NoSuchMethodError 等 Error，逃逸至 AE2 CPU tick 会崩服
             AE2Enhanced.LOGGER.warn("[AE2E] Virtual batch dispatch error for {} at {}: {}",
@@ -255,6 +265,12 @@ public class VirtualBatchEngine {
                 TargetOwnershipTracker.instance().release(target, owner);
             }
         }
+    }
+
+    private void rollbackVirtualCosts(IStorageGrid storage, List<IAEStack> extracted,
+                                      IActionSource source, IMEInventory<IAEItemStack> itemSource) {
+        List<IAEStack> remaining = VirtualCostExtractor.rollbackExtracted(storage, extracted, source, itemSource);
+        owner.preserveVirtualRollback(remaining);
     }
 
     /**
@@ -268,11 +284,9 @@ public class VirtualBatchEngine {
 
         if (!owner.pendingProducts.isEmpty()) {
             List<ItemStack> toInject = owner.pendingProducts.drainAll();
-            if (owner.injectItemsToNetwork(grid, world, toInject)) {
-                didWork = true;
-            } else {
-                owner.stashItemsToStorage(world, toInject);
-            }
+            List<ItemStack> remaining = owner.injectItemsToNetwork(grid, world, toInject);
+            owner.stashItemsToStorage(world, remaining);
+            didWork = true;
         }
 
         if (sendParticlePackets(world)) {
@@ -315,7 +329,7 @@ public class VirtualBatchEngine {
             // 这类 handler 无法用资源量约束并行，只能受能量上限钳制；每个 handler 类只告警一次。
             warnZeroCostOnce(handler);
             long actual = maxParallel;
-            double perOp = AE2EnhancedConfig.centralInterface.virtualParallelEnergyCost;
+            double perOp = ServerConfig.current().centralInterface.virtualParallelEnergyCost;
             if (perOp > 0) {
                 double availableEnergy = VirtualCostExtractor.queryAvailableEnergy(energy);
                 long energySupported = (long) (availableEnergy / perOp);
@@ -362,7 +376,7 @@ public class VirtualBatchEngine {
             }
         }
 
-        double perOp = AE2EnhancedConfig.centralInterface.virtualParallelEnergyCost;
+        double perOp = ServerConfig.current().centralInterface.virtualParallelEnergyCost;
         if (perOp > 0) {
             double availableEnergy = VirtualCostExtractor.queryAvailableEnergy(energy);
             long energySupported = (long) (availableEnergy / perOp);
@@ -419,7 +433,10 @@ public class VirtualBatchEngine {
         }
 
         List<IAEStack> fullCosts = handler.getVirtualCost(world, target.pos, virtualTable, outputs, parallel, details);
-        if (fullCosts == null || fullCosts.isEmpty()) {
+        if (fullCosts == null) {
+            return null;
+        }
+        if (fullCosts.isEmpty()) {
             return Collections.emptyList();
         }
         List<IAEStack> perCopy = handler.getVirtualCost(world, target.pos, virtualTable, outputs, 1, details);
@@ -494,7 +511,7 @@ public class VirtualBatchEngine {
      */
     private void logFail(World world, TargetBinding target, String reason) {
         if (!world.isRemote) {
-            DiagLog.info(DiagSwitch.VIRTUAL_BATCH, "[AE2E-VirtBatch] fail at {}: {}", target.pos, reason);
+            Observations.log("info", "virtualbatch", "[AE2E-VirtBatch] fail at {}: {}", target.pos, reason);
         }
     }
 
@@ -505,12 +522,12 @@ public class VirtualBatchEngine {
         else if (particleType == EnumParticleTypes.SPELL_WITCH.getParticleID()) color = 0xFFFF55FF;
         else if (particleType == EnumParticleTypes.END_ROD.getParticleID()) color = 0xFFFFFFFF;
 
-        int maxTargets = AE2EnhancedConfig.centralInterface.virtualParticleMaxTargets;
+        int maxTargets = ServerConfig.current().centralInterface.virtualParticleMaxTargets;
         if (this.activeParticleTargets.size() >= maxTargets) {
             this.activeParticleTargets.remove(0);
         }
         this.activeParticleTargets.add(new VirtualParticleTarget(
-                pos, particleType, color, AE2EnhancedConfig.centralInterface.virtualParticleDurationTicks));
+                pos, particleType, color, ServerConfig.current().centralInterface.virtualParticleDurationTicks));
     }
 
     private boolean sendParticlePackets(World world) {
@@ -521,8 +538,8 @@ public class VirtualBatchEngine {
             return false;
         }
 
-        int countPerTick = AE2EnhancedConfig.centralInterface.virtualParticleCountPerTick;
-        int renderDistance = AE2EnhancedConfig.centralInterface.virtualParticleRenderDistance;
+        int countPerTick = ServerConfig.current().centralInterface.virtualParticleCountPerTick;
+        int renderDistance = com.github.aeddddd.ae2enhanced.config.ClientPreferences.current().centralInterface.virtualParticleRenderDistance;
         int renderDistanceSq = renderDistance * renderDistance;
 
         List<PacketVirtualCraftingParticles.ParticleTarget> packetTargets = new ArrayList<>();

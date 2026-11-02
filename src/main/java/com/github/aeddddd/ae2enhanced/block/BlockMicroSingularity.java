@@ -2,7 +2,6 @@ package com.github.aeddddd.ae2enhanced.block;
 
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
 import com.github.aeddddd.ae2enhanced.crafting.SingularityFuelRecipe;
-import com.github.aeddddd.ae2enhanced.crafting.SingularityFuelRegistry;
 import com.github.aeddddd.ae2enhanced.tile.TileMicroSingularity;
 import net.minecraft.block.Block;
 import net.minecraft.block.material.Material;
@@ -68,6 +67,24 @@ public class BlockMicroSingularity extends Block {
         return new TileMicroSingularity();
     }
 
+    /**
+     * 奇点约束器右键: 移除方块, 约束器转化为携带剩余寿命与永久标记的奇点物品.
+     */
+    private static void convertToItem(World world, BlockPos pos, EntityPlayer player, ItemStack constrictor,
+                                      TileMicroSingularity singularity) {
+        ItemStack singularityStack = com.github.aeddddd.ae2enhanced.ring.ItemConstrainedMicroSingularity
+                .createStack(singularity.getLifetimeTicks(), singularity.isPermanent());
+        if (!player.isCreative()) {
+            constrictor.shrink(1);
+        }
+        world.setBlockToAir(pos);
+        if (!player.addItemStackToInventory(singularityStack)) {
+            player.dropItem(singularityStack, false);
+        }
+        world.playSound(null, pos, net.minecraft.init.SoundEvents.ENTITY_ENDEREYE_DEATH,
+                SoundCategory.BLOCKS, 1.0f, 0.6f);
+    }
+
     @Override
     public boolean onBlockActivated(World world, BlockPos pos, IBlockState state,
                                     EntityPlayer player, EnumHand hand, EnumFacing facing,
@@ -81,7 +98,7 @@ public class BlockMicroSingularity extends Block {
                     convertToItem(world, pos, player, held, singularity);
                     return true;
                 }
-                SingularityFuelRecipe fuel = SingularityFuelRegistry.findFor(held);
+                SingularityFuelRecipe fuel = com.github.aeddddd.ae2enhanced.chamber.RecipeCatalog.findSingularityFuel(held);
                 if (fuel != null) {
                     feedFuel(world, pos, player, held, singularity, fuel);
                 } else {
@@ -90,24 +107,6 @@ public class BlockMicroSingularity extends Block {
             }
         }
         return true;
-    }
-
-    /**
-     * 奇点约束器右键: 移除方块, 约束器转化为携带剩余寿命与永久标记的奇点物品.
-     */
-    private static void convertToItem(World world, BlockPos pos, EntityPlayer player, ItemStack constrictor,
-                                      TileMicroSingularity singularity) {
-        ItemStack singularityStack = com.github.aeddddd.ae2enhanced.item.ItemConstrainedMicroSingularity
-                .createStack(singularity.getLifetimeTicks(), singularity.isPermanent());
-        if (!player.isCreative()) {
-            constrictor.shrink(1);
-        }
-        world.setBlockToAir(pos);
-        if (!player.addItemStackToInventory(singularityStack)) {
-            player.dropItem(singularityStack, false);
-        }
-        world.playSound(null, pos, net.minecraft.init.SoundEvents.ENTITY_ENDEREYE_DEATH,
-                SoundCategory.BLOCKS, 1.0f, 0.6f);
     }
 
     /** 喂入燃料: 延长存在时间, 或使奇点永久存在. */

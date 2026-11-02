@@ -93,6 +93,7 @@ public class PhysicalDispatcher {
             return false;
         }
 
+        List<ItemStack> originalTableSnapshot = snapshotInventory(originalTable);
         // 复制 table，避免一个 target 的失败影响其他 target
         InventoryCrafting table = owner.copyInventoryCrafting(originalTable);
         IActionSource source = NetworkAccess.machineSource(owner.host);
@@ -171,6 +172,7 @@ public class PhysicalDispatcher {
             return false;
         } finally {
             if (!success) {
+                restoreInventory(originalTable, originalTableSnapshot);
                 // 任何非提交路径都应已调用 revertSession；这里作为兜底再次释放所有权
                 session.reset();
             }
@@ -196,7 +198,7 @@ public class PhysicalDispatcher {
 
             IRemoteHandler handler = HandlerRegistry.findHandler(target.blockId);
             if (handler == null) {
-                session.reset();
+                owner.deferPhysicalSession(session);
                 continue;
             }
 
@@ -239,7 +241,7 @@ public class PhysicalDispatcher {
 
             IRemoteHandler handler = HandlerRegistry.findHandler(target.blockId);
             if (handler == null) {
-                session.reset();
+                owner.deferPhysicalSession(session);
                 continue;
             }
 
@@ -283,6 +285,70 @@ public class PhysicalDispatcher {
             }
         }
 
+        return didWork;
+    }
+
+    /** 恢复已提交但接口卸载时仍未完成的物理批次；余量先落 outbox 再删除原记录。 */
+    public boolean recoverPending(IGridConnection grid, World world) {
+        boolean didWork = false;
+        for (PhysicalSessionRecord record : new ArrayList<>(owner.inflightSessions.values())) {
+            TargetBinding target = record.binding;
+            TargetSession current = owner.sessions.get(target);
+            if (current != null && !current.isIdle() && !current.isUnavailable()) continue;
+            if (world == null || world.provider.getDimension() != target.dimension
+                    || !world.isBlockLoaded(target.pos)) continue;
+            IRemoteHandler handler = HandlerRegistry.findHandler(target.blockId);
+            if (handler == null) continue;
+
+            if (record.hasPreservedContent()) continue;
+            TargetSession session = owner.getOrCreateSession(target);
+            try {
+                session.restoreCommitted(record);
+            } catch (IllegalStateException exception) {
+                continue;
+            }
+            try {
+                IActionSource source = NetworkAccess.machineSource(owner.host);
+                List<ItemStack> products = safeCollectProducts(handler, world, target.pos,
+                        record.expectedOutputs, record.inputs, source, session);
+                if (products == null) continue;
+                List<ItemStack> reverted = safeRevertMaterials(handler, world, target.pos, source, session);
+                if (reverted != null) products.addAll(reverted);
+                List<FluidStack> fluids = FluidTransferHelper.collectFluidProducts(world, target.pos, session);
+                List<ItemStack> itemOverflow = products.isEmpty()
+                        ? java.util.Collections.emptyList() : owner.injectItemsToNetwork(grid, world, products);
+                List<FluidStack> fluidOverflow = fluids.isEmpty()
+                        ? java.util.Collections.emptyList() : safeInjectFluids(grid, fluids);
+                owner.recoveryOutbox.put(record.id, itemOverflow, fluidOverflow);
+                owner.inflightSessions.remove(record.id);
+                owner.host.saveChanges();
+                didWork = true;
+            } finally {
+                session.releaseRecovered();
+            }
+        }
+        return didWork;
+    }
+
+    /** 将恢复 outbox 的余量逐步注入网络；只移除实际接受量。 */
+    public boolean flushRecoveryOutbox(IGridConnection grid, World world) {
+        boolean didWork = false;
+        for (CentralRecoveryOutbox.Entry entry : owner.recoveryOutbox.entries()) {
+            if (!entry.items.isEmpty()) {
+                entry.items = owner.injectItemsToNetwork(grid, world, entry.items);
+                entry.countAttempt(owner.host::saveChanges);
+            }
+            if (!entry.fluids.isEmpty()) {
+                entry.fluids = safeInjectFluids(grid, entry.fluids);
+                entry.countAttempt(owner.host::saveChanges);
+            }
+            if (entry.items.isEmpty() && entry.fluids.isEmpty() && !entry.hasPreservedContent()) {
+                owner.recoveryOutbox.remove(entry.id);
+            } else {
+                owner.host.saveChanges();
+            }
+            didWork = true;
+        }
         return didWork;
     }
 
@@ -333,9 +399,11 @@ public class PhysicalDispatcher {
                         }
                     }
 
-                    // 回退尚未消耗的材料(按本批输入快照识别)
+                    // PUSHING 失败时 AE2 原生路径会把 originalTable 返还 CPU；这里只负责
+                    // 从机器撤回本批材料，不能再把撤回物回网。已提交批次没有原生 table
+                    // 返还路径，仍由 Central 负责回收。
                     List<ItemStack> reverted = safeRevertMaterials(handler, world, target.pos, source, session);
-                    if (reverted != null && !reverted.isEmpty()) {
+                    if (session.getState() != TargetState.PUSHING && reverted != null && !reverted.isEmpty()) {
                         stashOrInject(owner.gridConnection(), world, reverted);
                     }
 
@@ -399,7 +467,7 @@ public class PhysicalDispatcher {
                 return true;
             }
         }
-        session.reset();
+        owner.deferPhysicalSession(session);
         return true;
     }
 
@@ -426,22 +494,37 @@ public class PhysicalDispatcher {
         if (items == null || items.isEmpty()) {
             return false;
         }
-        if (grid != null && owner.injectItemsToNetwork(grid, world, items)) {
-            return true;
+        List<ItemStack> remaining = grid != null
+                ? owner.injectItemsToNetwork(grid, world, items)
+                : new ArrayList<>(items);
+        if (!remaining.isEmpty()) {
+            owner.stashItemsToStorage(world, remaining);
         }
-        owner.stashItemsToStorage(world, items);
-        return !items.isEmpty();
+        return true;
     }
 
     private List<ItemStack> snapshotItemInputs(InventoryCrafting table) {
         List<ItemStack> snapshot = new ArrayList<>();
-        for (int i = 0; i < table.getSizeInventory(); i++) {
-            ItemStack stack = table.getStackInSlot(i);
+        for (ItemStack stack : snapshotInventory(table)) {
             if (!stack.isEmpty()) {
-                snapshot.add(stack.copy());
+                snapshot.add(stack);
             }
         }
         return snapshot;
+    }
+
+    private List<ItemStack> snapshotInventory(InventoryCrafting table) {
+        List<ItemStack> snapshot = new ArrayList<>();
+        for (int i = 0; i < table.getSizeInventory(); i++) {
+            snapshot.add(table.getStackInSlot(i).copy());
+        }
+        return snapshot;
+    }
+
+    private void restoreInventory(InventoryCrafting table, List<ItemStack> snapshot) {
+        for (int i = 0; i < table.getSizeInventory() && i < snapshot.size(); i++) {
+            table.setInventorySlotContents(i, snapshot.get(i).copy());
+        }
     }
 
     // ---- 带异常隔离的 handler 调用包装 ----

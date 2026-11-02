@@ -1,7 +1,6 @@
 package com.github.aeddddd.ae2enhanced.client.shader;
 
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
-import com.github.aeddddd.ae2enhanced.config.AE2EnhancedConfig;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.resources.IResource;
 import net.minecraft.util.ResourceLocation;
@@ -50,8 +49,8 @@ public final class AE2EShaders {
      * 是否满足使用自定义 shader 的配置与环境条件.
      */
     public static boolean shouldUseShader() {
-        return AE2EnhancedConfig.render.enableBlackHoleShader
-                && !AE2EnhancedConfig.render.forceCompatibilityMode
+        return com.github.aeddddd.ae2enhanced.config.ClientPreferences.current().render.enableBlackHoleShader
+                && !com.github.aeddddd.ae2enhanced.config.ClientPreferences.current().render.forceCompatibilityMode
                 && !isOptifinePresent();
     }
 

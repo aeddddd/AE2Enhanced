@@ -1,7 +1,5 @@
 package com.github.aeddddd.ae2enhanced.centralinterface.handler.bloodmagic;
 
-import com.github.aeddddd.ae2enhanced.centralinterface.TargetSession;
-
 import appeng.api.networking.security.IActionSource;
 import appeng.api.storage.data.IAEItemStack;
 import appeng.api.storage.data.IAEStack;
@@ -10,6 +8,7 @@ import appeng.util.item.AEItemStack;
 import com.github.aeddddd.ae2enhanced.centralinterface.HandlerUtils;
 import com.github.aeddddd.ae2enhanced.centralinterface.IRemoteHandler;
 import com.github.aeddddd.ae2enhanced.centralinterface.IVirtualBatchCraftingHandler;
+import com.github.aeddddd.ae2enhanced.centralinterface.TargetSession;
 import net.minecraft.inventory.InventoryCrafting;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.crafting.Ingredient;
@@ -168,31 +167,64 @@ public class BloodMagicHandler implements IRemoteHandler, IVirtualBatchCraftingH
         } else if (BloodMagicReflectionHelper.isInstance(BloodMagicReflectionHelper.CLASS_TILE_ALTAR, te)) {
             return getVirtualCostAltar(ingredients, outputs, count);
         }
-        return new ArrayList<>();
+        return null;
     }
 
     @Override
     public List<ItemStack> virtualCraftBatch(World world, BlockPos pos, InventoryCrafting ingredients, IAEItemStack[] outputs, long count, IActionSource source) {
-        List<ItemStack> products = new ArrayList<>();
-        if (!canCraftVirtually(world, pos, ingredients, outputs)) return products;
-        return scaleOutputsByCount(outputs, count);
+        TileEntity te = world.getTileEntity(pos);
+        com.github.aeddddd.ae2enhanced.centralinterface.recipe.RecipeBinding binding = null;
+        if (BloodMagicReflectionHelper.isInstance(BloodMagicReflectionHelper.CLASS_TILE_ALCHEMY_TABLE, te)) {
+            binding = bindAlchemyTable(ingredients, outputs);
+        } else if (BloodMagicReflectionHelper.isInstance(BloodMagicReflectionHelper.CLASS_TILE_ALTAR, te)) {
+            binding = bindAltar(ingredients, outputs);
+        }
+        return binding == null ? new ArrayList<>() : scaleOutputsByCount(binding.getOutputs(), count);
     }
 
     // ---- 批量虚拟合成辅助 ----
 
-    private boolean canCraftVirtuallyAlchemyTable(InventoryCrafting ingredients, IAEItemStack[] outputs) {
-        if (outputs == null || outputs.length == 0 || outputs[0] == null) return false;
+    private com.github.aeddddd.ae2enhanced.centralinterface.recipe.RecipeBinding bindAlchemyTable(
+            InventoryCrafting ingredients, IAEItemStack[] outputs) {
+        if (outputs == null || outputs.length == 0 || outputs[0] == null) return null;
         Object recipe = findAlchemyRecipeByOutput(outputs[0].createItemStack());
-        if (recipe == null) return false;
-        return matchIngredients(BloodMagicReflectionHelper.alchemyRecipeGetInput(recipe), HandlerUtils.collectNonEmpty(ingredients));
+        if (recipe == null || !matchIngredients(BloodMagicReflectionHelper.alchemyRecipeGetInput(recipe),
+                HandlerUtils.collectNonEmpty(ingredients))) return null;
+        return com.github.aeddddd.ae2enhanced.centralinterface.recipe.RecipeBinding.of(
+                recipe, outputs, BloodMagicReflectionHelper.alchemyRecipeGetOutput(recipe));
+    }
+
+    private com.github.aeddddd.ae2enhanced.centralinterface.recipe.RecipeBinding bindAltar(
+            InventoryCrafting ingredients, IAEItemStack[] outputs) {
+        if (outputs == null || outputs.length == 0 || outputs[0] == null) return null;
+        Object recipe = findAltarRecipeByOutput(outputs[0].createItemStack());
+        if (recipe == null) return null;
+        Ingredient input = BloodMagicReflectionHelper.bloodAltarRecipeGetInput(recipe);
+        if (input == null) return null;
+        boolean matched = false;
+        int inputCount = 0;
+        for (int i = 0; i < ingredients.getSizeInventory(); i++) {
+            ItemStack stack = ingredients.getStackInSlot(i);
+            if (!stack.isEmpty()) {
+                inputCount += stack.getCount();
+                if (input.apply(stack)) matched = true;
+            }
+        }
+        if (!matched || inputCount != 1) return null;
+        return com.github.aeddddd.ae2enhanced.centralinterface.recipe.RecipeBinding.of(
+                recipe, outputs, BloodMagicReflectionHelper.bloodAltarRecipeGetOutput(recipe));
+    }
+
+    private boolean canCraftVirtuallyAlchemyTable(InventoryCrafting ingredients, IAEItemStack[] outputs) {
+        return bindAlchemyTable(ingredients, outputs) != null;
     }
 
     private List<IAEStack> getVirtualCostAlchemyTable(InventoryCrafting ingredients, IAEItemStack[] outputs, long count) {
+        if (count <= 0) return null;
+        com.github.aeddddd.ae2enhanced.centralinterface.recipe.RecipeBinding binding = bindAlchemyTable(ingredients, outputs);
+        if (binding == null) return null;
+        Object recipe = binding.getRecipe();
         List<IAEStack> costs = new ArrayList<>();
-        if (outputs == null || outputs.length == 0 || outputs[0] == null) return costs;
-        Object recipe = findAlchemyRecipeByOutput(outputs[0].createItemStack());
-        if (recipe == null) return costs;
-
         List<ItemStack> available = HandlerUtils.collectNonEmpty(ingredients);
         for (Object ingObj : BloodMagicReflectionHelper.alchemyRecipeGetInput(recipe)) {
             Ingredient ing = (Ingredient) ingObj;
@@ -208,30 +240,21 @@ public class BloodMagicHandler implements IRemoteHandler, IVirtualBatchCraftingH
         }
 
         IAEStack lp = createLPCost(BloodMagicReflectionHelper.alchemyRecipeGetSyphon(recipe), count);
-        if (lp == null) {
-            return null;
-        }
+        if (lp == null) return null;
         costs.add(lp);
         return costs;
     }
 
     private boolean canCraftVirtuallyAltar(InventoryCrafting ingredients, IAEItemStack[] outputs) {
-        if (outputs == null || outputs.length == 0 || outputs[0] == null) return false;
-        Object recipe = findAltarRecipeByOutput(outputs[0].createItemStack());
-        if (recipe == null) return false;
-        Ingredient input = BloodMagicReflectionHelper.bloodAltarRecipeGetInput(recipe);
-        for (int i = 0; i < ingredients.getSizeInventory(); i++) {
-            if (input.apply(ingredients.getStackInSlot(i))) return true;
-        }
-        return false;
+        return bindAltar(ingredients, outputs) != null;
     }
 
     private List<IAEStack> getVirtualCostAltar(InventoryCrafting ingredients, IAEItemStack[] outputs, long count) {
+        if (count <= 0) return null;
+        com.github.aeddddd.ae2enhanced.centralinterface.recipe.RecipeBinding binding = bindAltar(ingredients, outputs);
+        if (binding == null) return null;
+        Object recipe = binding.getRecipe();
         List<IAEStack> costs = new ArrayList<>();
-        if (outputs == null || outputs.length == 0 || outputs[0] == null) return costs;
-        Object recipe = findAltarRecipeByOutput(outputs[0].createItemStack());
-        if (recipe == null) return costs;
-
         Ingredient input = BloodMagicReflectionHelper.bloodAltarRecipeGetInput(recipe);
         for (int i = 0; i < ingredients.getSizeInventory(); i++) {
             ItemStack stack = ingredients.getStackInSlot(i);
@@ -244,9 +267,7 @@ public class BloodMagicHandler implements IRemoteHandler, IVirtualBatchCraftingH
         }
 
         IAEStack lp = createLPCost(BloodMagicReflectionHelper.bloodAltarRecipeGetSyphon(recipe), count);
-        if (lp == null) {
-            return null;
-        }
+        if (lp == null) return null;
         costs.add(lp);
         return costs;
     }
@@ -261,9 +282,7 @@ public class BloodMagicHandler implements IRemoteHandler, IVirtualBatchCraftingH
         if (output.isEmpty()) return null;
         for (Object recipe : recipesSupplier.get()) {
             ItemStack recipeOutput = outputGetter.apply(recipe);
-            if (!recipeOutput.isEmpty()
-                    && recipeOutput.getItem() == output.getItem()
-                    && recipeOutput.getMetadata() == output.getMetadata()) {
+            if (com.github.aeddddd.ae2enhanced.centralinterface.recipe.RecipeBinding.exactMatch(recipeOutput, output)) {
                 return recipe;
             }
         }
@@ -289,8 +308,15 @@ public class BloodMagicHandler implements IRemoteHandler, IVirtualBatchCraftingH
             } catch (Exception ignored) {
             }
         }
-        if (fluid == null) return null;
-        return AEFluidStack.fromFluidStack(new FluidStack(fluid, (int) ((long) syphon * count)));
+        if (fluid == null || syphon < 0 || count <= 0) return null;
+        final long total;
+        try {
+            total = Math.multiplyExact((long) syphon, count);
+        } catch (ArithmeticException overflow) {
+            return null;
+        }
+        if (total > Integer.MAX_VALUE) return null;
+        return AEFluidStack.fromFluidStack(new FluidStack(fluid, (int) total));
     }
 
     private boolean matchIngredients(List<?> required, List<ItemStack> available) {

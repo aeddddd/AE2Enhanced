@@ -16,13 +16,13 @@ import appeng.core.settings.TickRates;
 import appeng.items.parts.PartModels;
 import appeng.parts.PartModel;
 import appeng.util.InventoryAdaptor;
-import com.google.common.collect.ImmutableList;
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
-import com.github.aeddddd.ae2enhanced.gui.GuiHandler;
-import com.github.aeddddd.ae2enhanced.util.fakeitem.FakeFluids;
-import com.github.aeddddd.ae2enhanced.util.fakeitem.FakeGases;
-import com.github.aeddddd.ae2enhanced.util.reflection.GasReflectionHelper;
+import com.github.aeddddd.ae2enhanced.guiapi.GuiCatalog;
+import com.github.aeddddd.ae2enhanced.item.fakeitem.FakeFluids;
+import com.github.aeddddd.ae2enhanced.item.fakeitem.FakeGases;
 import com.github.aeddddd.ae2enhanced.util.ItemPushHelper;
+import com.github.aeddddd.ae2enhanced.util.reflection.GasReflectionHelper;
+import com.google.common.collect.ImmutableList;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.EnumFacing;
 import net.minecraft.util.ResourceLocation;
@@ -61,7 +61,7 @@ public class PartUniversalExportBus extends PartUniversalBusBase {
         try {
             if (Loader.isModLoaded("thaumcraft") && Loader.isModLoaded("thaumicenergistics")) {
                 ieTransport = Class.forName("thaumcraft.api.aspects.IEssentiaTransport");
-                Class<?> helperClass = Class.forName("com.github.aeddddd.ae2enhanced.util.reflection.EssentiaBusHelper");
+                Class<?> helperClass = Class.forName("com.github.aeddddd.ae2enhanced.item.reflection.EssentiaBusHelper");
                 java.lang.invoke.MethodHandles.Lookup lookup = java.lang.invoke.MethodHandles.publicLookup();
                 exportSlot = lookup.unreflect(helperClass.getMethod("exportEssentiaSlot",
                         appeng.api.networking.IGrid.class, TileEntity.class, EnumFacing.class,
@@ -86,7 +86,7 @@ public class PartUniversalExportBus extends PartUniversalBusBase {
 
     @Override
     protected int getUpgradeSlots() {
-        return 5 + com.github.aeddddd.ae2enhanced.config.AE2EnhancedConfig.wirelessChannel.extraUpgradeSlots;
+        return 5 + com.github.aeddddd.ae2enhanced.config.ServerConfig.current().wirelessChannel.extraUpgradeSlots;
     }
 
     @Override
@@ -96,7 +96,7 @@ public class PartUniversalExportBus extends PartUniversalBusBase {
 
     @Override
     protected int getGuiId() {
-        return GuiHandler.GUI_UNIVERSAL_EXPORT_BUS;
+        return GuiCatalog.GUI_UNIVERSAL_EXPORT_BUS;
     }
 
     // region Item Export

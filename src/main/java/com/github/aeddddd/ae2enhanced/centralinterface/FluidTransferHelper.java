@@ -1,8 +1,8 @@
 package com.github.aeddddd.ae2enhanced.centralinterface;
 
 import appeng.api.storage.data.IAEItemStack;
-import com.github.aeddddd.ae2enhanced.util.compat.Ae2fcFluidCompat;
-import com.github.aeddddd.ae2enhanced.util.fakeitem.FakeFluids;
+import com.github.aeddddd.ae2enhanced.item.compat.Ae2fcFluidCompat;
+import com.github.aeddddd.ae2enhanced.item.fakeitem.FakeFluids;
 import net.minecraft.inventory.InventoryCrafting;
 import net.minecraft.item.ItemStack;
 import net.minecraft.tileentity.TileEntity;
@@ -103,11 +103,15 @@ public final class FluidTransferHelper {
 
             boolean pushed = false;
             for (EnumFacing face : FLUID_FACE_ORDER) {
-                if (tryFillFluidHandler(te, face, fluid, pushedFluids)) {
+                int filled = tryFillFluidHandler(te, face, fluid, pushedFluids);
+                if (filled == fluid.amount) {
                     FluidFlowDiag.logAt(FluidFlowDiag.PUSH_INPUT, fluid, blockIdOf(te), pos,
                             "pushed (batch fluid input)", "face=" + (face == null ? "null(internal)" : face.name()));
                     pushed = true;
                     break;
+                }
+                if (filled > 0) {
+                    return false;
                 }
             }
 
@@ -121,17 +125,17 @@ public final class FluidTransferHelper {
         return true;
     }
 
-    private static boolean tryFillFluidHandler(TileEntity te, EnumFacing face, FluidStack fluid, List<FluidStack> pushedFluids) {
-        if (!te.hasCapability(CapabilityFluidHandler.FLUID_HANDLER_CAPABILITY, face)) return false;
+    private static int tryFillFluidHandler(TileEntity te, EnumFacing face, FluidStack fluid, List<FluidStack> pushedFluids) {
+        if (!te.hasCapability(CapabilityFluidHandler.FLUID_HANDLER_CAPABILITY, face)) return 0;
         IFluidHandler fh = te.getCapability(CapabilityFluidHandler.FLUID_HANDLER_CAPABILITY, face);
-        if (fh == null) return false;
-        int filled = fh.fill(fluid, false);
-        if (filled >= fluid.amount) {
-            fh.fill(fluid, true);
-            pushedFluids.add(fluid.copy());
-            return true;
+        if (fh == null || fh.fill(fluid, false) < fluid.amount) return 0;
+        int filled = fh.fill(fluid, true);
+        if (filled > 0) {
+            FluidStack actual = fluid.copy();
+            actual.amount = Math.min(filled, fluid.amount);
+            pushedFluids.add(actual);
         }
-        return false;
+        return filled;
     }
 
     /**
@@ -157,20 +161,27 @@ public final class FluidTransferHelper {
         }
         for (FluidStack fluid : fluids) {
             if (fluid == null || fluid.amount <= 0) continue;
-            boolean pushed = false;
+            int leftover = fluid.amount;
             List<FluidStack> dummy = new ArrayList<>();
             for (EnumFacing face : FLUID_DRAIN_FACE_ORDER) {
-                if (tryFillFluidHandler(te, face, fluid, dummy)) {
+                int filled = tryFillFluidHandler(te, face, fluid, dummy);
+                if (filled == fluid.amount) {
                     FluidFlowDiag.logAt(FluidFlowDiag.PUSHBACK_OK, fluid, blockIdOf(te), pos,
                             "pushed", "back into target face=" + face.name());
-                    pushed = true;
+                    leftover = 0;
+                    break;
+                }
+                if (filled > 0) {
+                    leftover = Math.max(0, fluid.amount - filled);
                     break;
                 }
             }
-            if (!pushed) {
+            if (leftover > 0) {
                 FluidFlowDiag.logAt(FluidFlowDiag.PUSHBACK_FAIL, fluid, blockIdOf(te), pos,
-                        "target refused");
-                remaining.add(fluid.copy());
+                        "target refused all or part of the fluid");
+                FluidStack rejected = fluid.copy();
+                rejected.amount = leftover;
+                remaining.add(rejected);
             }
         }
         return remaining;

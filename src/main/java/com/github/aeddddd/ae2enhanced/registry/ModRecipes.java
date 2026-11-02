@@ -2,8 +2,8 @@ package com.github.aeddddd.ae2enhanced.registry;
 
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
 import com.github.aeddddd.ae2enhanced.crafting.*;
+import com.github.aeddddd.ae2enhanced.item.ItemRegistry;
 import com.github.aeddddd.ae2enhanced.item.ItemVirtualParallelCard;
-import com.github.aeddddd.ae2enhanced.registry.content.ItemRegistry;
 import net.minecraft.block.Block;
 import net.minecraft.init.Items;
 import net.minecraft.item.Item;
@@ -24,7 +24,9 @@ public final class ModRecipes {
     private ModRecipes() {}
 
     public static void init() {
+        com.github.aeddddd.ae2enhanced.chamber.RecipeCatalog.beginDefaults();
         registerSingularityRecipes();
+        com.github.aeddddd.ae2enhanced.chamber.RecipeCatalog.completeDefaults();
     }
 
     private static void registerSingularityRecipes() {
@@ -35,7 +37,7 @@ public final class ModRecipes {
             List<ItemStack> ritualInputs = new ArrayList<>();
             ritualInputs.add(new ItemStack(ae2Material, 64, 47)); // AE2 奇点
             ritualInputs.add(new ItemStack(Items.NETHER_STAR, 4));
-            SingularityRecipeRegistry.register(new SingularityRecipe(
+            com.github.aeddddd.ae2enhanced.chamber.RecipeCatalog.addDefault(new SingularityRecipe(
                     "micro_singularity_ritual",
                     ritualInputs,
                     new ItemStack(Items.NETHER_STAR),
@@ -60,13 +62,13 @@ public final class ModRecipes {
 
     private static void registerSingularityFuels() {
         // 与 1.20.1 分支 data/ae2enhanced/recipes/singularity_fuel/*.json 保持一致
-        SingularityFuelRegistry.register(new SingularityFuelRecipe(
+        com.github.aeddddd.ae2enhanced.chamber.RecipeCatalog.addDefault(new SingularityFuelRecipe(
                 "stable_spacetime_manifold",
                 new ItemStack(ItemRegistry.STABLE_SPACETIME_MANIFOLD), 12000, false));
-        SingularityFuelRegistry.register(new SingularityFuelRecipe(
+        com.github.aeddddd.ae2enhanced.chamber.RecipeCatalog.addDefault(new SingularityFuelRecipe(
                 "differential_form_stabilizer",
                 new ItemStack(ItemRegistry.DIFFERENTIAL_FORM_STABILIZER), 48000, false));
-        SingularityFuelRegistry.register(new SingularityFuelRecipe(
+        com.github.aeddddd.ae2enhanced.chamber.RecipeCatalog.addDefault(new SingularityFuelRecipe(
                 "conformal_invariant_charge",
                 new ItemStack(ItemRegistry.CONFORMAL_CHARGE), 0, true));
     }
@@ -78,7 +80,7 @@ public final class ModRecipes {
             Map<String, Integer> manifoldInputs = new HashMap<>();
             manifoldInputs.put("appliedenergistics2:material:34", 16);
             manifoldInputs.put("appliedenergistics2:material:47", 64);
-            BlackHoleRecipeRegistry.register(new BlackHoleRecipe(
+            com.github.aeddddd.ae2enhanced.chamber.RecipeCatalog.addDefault(new BlackHoleRecipe(
                     "stable_spacetime_manifold", manifoldInputs,
                     new ItemStack(ItemRegistry.STABLE_SPACETIME_MANIFOLD, 1)));
 
@@ -86,7 +88,7 @@ public final class ModRecipes {
             Map<String, Integer> stabilizerInputs = new HashMap<>();
             stabilizerInputs.put("appliedenergistics2:material:47", 128);
             stabilizerInputs.put(BlackHoleRecipe.keyOf(new ItemStack(Items.NETHER_STAR)), 16);
-            BlackHoleRecipeRegistry.register(new BlackHoleRecipe(
+            com.github.aeddddd.ae2enhanced.chamber.RecipeCatalog.addDefault(new BlackHoleRecipe(
                     "differential_form_stabilizer", stabilizerInputs,
                     new ItemStack(ItemRegistry.DIFFERENTIAL_FORM_STABILIZER, 1)));
         }
@@ -95,7 +97,7 @@ public final class ModRecipes {
         Map<String, Integer> chargeInputs = new HashMap<>();
         chargeInputs.put(BlackHoleRecipe.keyOf(new ItemStack(ItemRegistry.STABLE_SPACETIME_MANIFOLD)), 16);
         chargeInputs.put(BlackHoleRecipe.keyOf(new ItemStack(ItemRegistry.DIFFERENTIAL_FORM_STABILIZER)), 16);
-        BlackHoleRecipeRegistry.register(new BlackHoleRecipe(
+        com.github.aeddddd.ae2enhanced.chamber.RecipeCatalog.addDefault(new BlackHoleRecipe(
                 "conformal_invariant_charge", chargeInputs,
                 new ItemStack(ItemRegistry.CONFORMAL_CHARGE, 1)));
 
@@ -103,7 +105,7 @@ public final class ModRecipes {
         if (ae2Material != null) {
             Map<String, Integer> smartPatternInputs = new HashMap<>();
             smartPatternInputs.put("appliedenergistics2:material:52", 64);
-            BlackHoleRecipeRegistry.register(new BlackHoleRecipe(
+            com.github.aeddddd.ae2enhanced.chamber.RecipeCatalog.addDefault(new BlackHoleRecipe(
                     "smart_blank_pattern", smartPatternInputs,
                     new ItemStack(ItemRegistry.SMART_BLANK_PATTERN, 1)));
         }
@@ -114,7 +116,7 @@ public final class ModRecipes {
             vpcInputs.put("appliedenergistics2:material:30", 1024);
             vpcInputs.put("appliedenergistics2:material:27", 1024);
             vpcInputs.put("appliedenergistics2:material:47", 64);
-            BlackHoleRecipeRegistry.register(new BlackHoleRecipe(
+            com.github.aeddddd.ae2enhanced.chamber.RecipeCatalog.addDefault(new BlackHoleRecipe(
                     "virtual_parallel_card_tier1", vpcInputs,
                     ItemVirtualParallelCard.createStack(0)));
 
@@ -122,7 +124,7 @@ public final class ModRecipes {
             for (int tier = 1; tier <= 5; tier++) {
                 Map<String, Integer> upgradeInputs = new HashMap<>();
                 upgradeInputs.put(BlackHoleRecipe.keyOf(ItemVirtualParallelCard.createStack(tier - 1)), 16);
-                BlackHoleRecipeRegistry.register(new BlackHoleRecipe(
+                com.github.aeddddd.ae2enhanced.chamber.RecipeCatalog.addDefault(new BlackHoleRecipe(
                         "virtual_parallel_card_tier" + (tier + 1), upgradeInputs,
                         ItemVirtualParallelCard.createStack(tier)));
             }

@@ -1,7 +1,7 @@
 package com.github.aeddddd.ae2enhanced.client.gui;
 
 import com.github.aeddddd.ae2enhanced.container.ContainerAssemblyUnformed;
-import com.github.aeddddd.ae2enhanced.structure.AssemblyStructure;
+import com.github.aeddddd.ae2enhanced.tile.AssemblyStructure;
 import com.github.aeddddd.ae2enhanced.tile.TileAssemblyController;
 import net.minecraft.block.Block;
 import net.minecraft.entity.player.InventoryPlayer;

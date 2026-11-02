@@ -1,7 +1,5 @@
 package com.github.aeddddd.ae2enhanced.centralinterface.handler.thaumcraft;
 
-import com.github.aeddddd.ae2enhanced.centralinterface.TargetSession;
-
 import appeng.api.networking.security.IActionSource;
 import appeng.api.storage.data.IAEItemStack;
 import appeng.api.storage.data.IAEStack;
@@ -9,17 +7,18 @@ import appeng.util.item.AEItemStack;
 import com.github.aeddddd.ae2enhanced.centralinterface.HandlerUtils;
 import com.github.aeddddd.ae2enhanced.centralinterface.IRemoteHandler;
 import com.github.aeddddd.ae2enhanced.centralinterface.IVirtualBatchCraftingHandler;
+import com.github.aeddddd.ae2enhanced.centralinterface.TargetSession;
 import com.mojang.authlib.GameProfile;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.inventory.InventoryCrafting;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.crafting.Ingredient;
 import net.minecraft.tileentity.TileEntity;
+import net.minecraft.util.EnumParticleTypes;
 import net.minecraft.util.NonNullList;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
 import net.minecraft.world.WorldServer;
-import net.minecraft.util.EnumParticleTypes;
 import net.minecraftforge.common.util.FakePlayer;
 import net.minecraftforge.common.util.FakePlayerFactory;
 
@@ -338,9 +337,7 @@ public class ThaumcraftHandler implements IRemoteHandler, IVirtualBatchCraftingH
     @Override
     public boolean canCraftVirtually(World world, BlockPos pos, InventoryCrafting ingredients, IAEItemStack[] outputs) {
         if (outputs == null || outputs.length == 0 || outputs[0] == null) return false;
-        Object recipe = ThaumcraftReflectionHelper.getInfusionRecipe(outputs[0].createItemStack());
-        if (recipe == null) return false;
-        return matchInfusionRecipe(recipe, ingredients);
+        return bindInfusionRecipe(ingredients, outputs) != null;
     }
 
     @Override
@@ -355,10 +352,11 @@ public class ThaumcraftHandler implements IRemoteHandler, IVirtualBatchCraftingH
 
     @Override
     public List<IAEStack> getVirtualCost(World world, BlockPos pos, InventoryCrafting ingredients, IAEItemStack[] outputs, long count) {
+        if (count <= 0) return null;
+        com.github.aeddddd.ae2enhanced.centralinterface.recipe.RecipeBinding binding = bindInfusionRecipe(ingredients, outputs);
+        if (binding == null) return null;
+        Object recipe = binding.getRecipe();
         List<IAEStack> costs = new ArrayList<>();
-        if (outputs == null || outputs.length == 0 || outputs[0] == null) return costs;
-        Object recipe = ThaumcraftReflectionHelper.getInfusionRecipe(outputs[0].createItemStack());
-        if (recipe == null) return costs;
 
         List<ItemStack> available = HandlerUtils.collectNonEmpty(ingredients);
 
@@ -393,7 +391,8 @@ public class ThaumcraftHandler implements IRemoteHandler, IVirtualBatchCraftingH
 
         // 源质
         Object aspects = ThaumcraftReflectionHelper.infusionGetAspects(recipe);
-        if (aspects != null && ThaumcraftReflectionHelper.aspectListSize(aspects) > 0) {
+        if (aspects == null) return null;
+        if (ThaumcraftReflectionHelper.aspectListSize(aspects) > 0) {
             List<IAEStack> essentia = ThaumcraftReflectionHelper.createEssentiaCosts(aspects, count);
             if (essentia == null) {
                 return null;
@@ -406,9 +405,18 @@ public class ThaumcraftHandler implements IRemoteHandler, IVirtualBatchCraftingH
 
     @Override
     public List<ItemStack> virtualCraftBatch(World world, BlockPos pos, InventoryCrafting ingredients, IAEItemStack[] outputs, long count, IActionSource source) {
-        List<ItemStack> products = new ArrayList<>();
-        if (!canCraftVirtually(world, pos, ingredients, outputs)) return products;
-        return scaleOutputsByCount(outputs, count);
+        com.github.aeddddd.ae2enhanced.centralinterface.recipe.RecipeBinding binding = bindInfusionRecipe(ingredients, outputs);
+        return binding == null ? new ArrayList<>() : scaleOutputsByCount(binding.getOutputs(), count);
+    }
+
+    private com.github.aeddddd.ae2enhanced.centralinterface.recipe.RecipeBinding bindInfusionRecipe(
+            InventoryCrafting ingredients, IAEItemStack[] outputs) {
+        if (outputs == null || outputs.length == 0 || outputs[0] == null) return null;
+        Object recipe = ThaumcraftReflectionHelper.getInfusionRecipeExact(outputs[0].createItemStack());
+        if (recipe == null || !matchInfusionRecipe(recipe, ingredients)) return null;
+        Object output = ThaumcraftReflectionHelper.infusionGetRecipeOutput(recipe);
+        if (!(output instanceof ItemStack)) return null;
+        return com.github.aeddddd.ae2enhanced.centralinterface.recipe.RecipeBinding.of(recipe, outputs, (ItemStack) output);
     }
 
     // ---- 批量虚拟合成辅助 ----
@@ -416,6 +424,7 @@ public class ThaumcraftHandler implements IRemoteHandler, IVirtualBatchCraftingH
     private boolean matchInfusionRecipe(Object recipe, InventoryCrafting ingredients) {
         List<ItemStack> available = HandlerUtils.collectNonEmpty(ingredients);
         Ingredient mainInput = ThaumcraftReflectionHelper.infusionGetRecipeInput(recipe);
+        if (mainInput == null) return false;
         if (mainInput != null) {
             boolean found = false;
             for (int i = 0; i < available.size(); i++) {
@@ -428,6 +437,7 @@ public class ThaumcraftHandler implements IRemoteHandler, IVirtualBatchCraftingH
             if (!found) return false;
         }
         NonNullList<Ingredient> components = ThaumcraftReflectionHelper.infusionGetComponents(recipe);
+        if (components == null) return false;
         if (components != null) {
             for (Ingredient ing : components) {
                 if (ing == null || ing == Ingredient.EMPTY) continue;

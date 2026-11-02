@@ -9,13 +9,9 @@ import appeng.api.util.AECableType;
 import appeng.api.util.AEPartLocation;
 import appeng.me.helpers.AENetworkProxy;
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
-import com.github.aeddddd.ae2enhanced.block.BlockHyperdimensionalController;
 import com.github.aeddddd.ae2enhanced.config.AE2EnhancedConfig;
-import com.github.aeddddd.ae2enhanced.diag.DiagSwitch;
-import com.github.aeddddd.ae2enhanced.diag.metrics.MetricsRegistry;
-import com.github.aeddddd.ae2enhanced.diag.metrics.Timer;
-import com.github.aeddddd.ae2enhanced.mixin.late.accessor.INetworkMonitorAccessor;
-import com.github.aeddddd.ae2enhanced.registry.content.BlockRegistry;
+import com.github.aeddddd.ae2enhanced.observation.Observations;
+import com.github.aeddddd.ae2enhanced.storage.access.mixin.INetworkMonitorAccessor;
 import com.github.aeddddd.ae2enhanced.storage.*;
 import com.github.aeddddd.ae2enhanced.storage.channel.ChannelRegistrationManager;
 import com.github.aeddddd.ae2enhanced.storage.energy.EnergyChannelResolver;
@@ -54,6 +50,8 @@ public class TileHyperdimensionalController extends TileAENetworkBase implements
     private StarlightStorageAdapter starlightAdapter;
     private OptionalStorageManager optionalStorage;
     private SimpleMEMonitor itemMonitor;
+    private static final java.util.Map<Object, LegacySubscription> LEGACY_SUBSCRIPTIONS =
+            new java.util.WeakHashMap<>();
 
     private boolean networkActive = false;
     private boolean networkPowered = false;
@@ -112,11 +110,7 @@ public class TileHyperdimensionalController extends TileAENetworkBase implements
     protected String getProxyName() {
         return "hyperdimensional_controller";
     }
-
-    @Override
-    protected ItemStack getProxyRepresentation() {
-        return new ItemStack(BlockRegistry.HYPERDIMENSIONAL_CONTROLLER);
-    }
+    private AttachmentToken sessionAttachments;
 
     @Nonnull
     @Override
@@ -124,9 +118,27 @@ public class TileHyperdimensionalController extends TileAENetworkBase implements
         return AECableType.NONE;
     }
 
-    @Override
-    public void securityBreak() {
-        disassemble();
+    /**
+     * 优先使用多附着接口；旧 adapter 没有该接口时保留单回调兼容，但只有最后附着者生效，
+     * 且注销仍按附着身份判空，不能清掉后继附着者。
+     */
+    @SuppressWarnings("rawtypes")
+    private static AttachmentToken attachSubscriber(Object adapter, Runnable onChange,
+                                                     java.util.function.BiConsumer postChange) {
+        if (adapter == null) return null;
+        try {
+            Object token = adapter.getClass()
+                    .getMethod("attachSubscriber", Runnable.class, java.util.function.BiConsumer.class)
+                    .invoke(adapter, onChange, postChange);
+            if (token instanceof AttachmentToken) return (AttachmentToken) token;
+            throw new IllegalStateException("attachSubscriber did not return AttachmentToken");
+        } catch (NoSuchMethodException e) {
+            return attachLegacySubscriber(adapter, onChange, postChange);
+        } catch (Exception e) {
+            com.github.aeddddd.ae2enhanced.AE2Enhanced.LOGGER.warn(
+                    "[AE2E] Failed to attach adapter subscriber", e);
+            return null;
+        }
     }
 
     // ---- IActionHost (via ICellContainer) ----
@@ -237,8 +249,69 @@ public class TileHyperdimensionalController extends TileAENetworkBase implements
         }
     }
 
-    /** 把会话镜像到本 tile 字段并绑定回调（attach）。 */
+    @SuppressWarnings("rawtypes")
+    private static AttachmentToken attachLegacySubscriber(Object adapter, Runnable onChange,
+                                                           java.util.function.BiConsumer postChange) {
+        LegacySubscription subscription = new LegacySubscription(adapter, onChange, postChange);
+        synchronized (LEGACY_SUBSCRIPTIONS) {
+            LEGACY_SUBSCRIPTIONS.put(adapter, subscription);
+            try {
+                setLegacyCallbacks(subscription);
+            } catch (Exception e) {
+                LEGACY_SUBSCRIPTIONS.remove(adapter);
+                com.github.aeddddd.ae2enhanced.AE2Enhanced.LOGGER.warn(
+                        "[AE2E] Failed to attach legacy adapter subscriber", e);
+                return null;
+            }
+        }
+        return new AttachmentToken(() -> detachLegacySubscriber(subscription));
+    }
+
+    private static void detachLegacySubscriber(LegacySubscription subscription) {
+        synchronized (LEGACY_SUBSCRIPTIONS) {
+            if (LEGACY_SUBSCRIPTIONS.get(subscription.adapter) != subscription) return;
+            LEGACY_SUBSCRIPTIONS.remove(subscription.adapter);
+            try {
+                subscription.adapter.getClass().getMethod("setOnChangeCallback", Runnable.class)
+                        .invoke(subscription.adapter, (Runnable) null);
+                subscription.adapter.getClass()
+                        .getMethod("setPostChangeCallback", java.util.function.BiConsumer.class)
+                        .invoke(subscription.adapter, (Object) null);
+            } catch (Exception e) {
+                com.github.aeddddd.ae2enhanced.AE2Enhanced.LOGGER.warn(
+                        "[AE2E] Failed to detach legacy adapter subscriber", e);
+            }
+        }
+    }
+
+    private static void setLegacyCallbacks(LegacySubscription subscription) throws ReflectiveOperationException {
+        subscription.adapter.getClass().getMethod("setOnChangeCallback", Runnable.class)
+                .invoke(subscription.adapter, subscription.subscribedOnChange);
+        subscription.adapter.getClass()
+                .getMethod("setPostChangeCallback", java.util.function.BiConsumer.class)
+                .invoke(subscription.adapter, subscription.subscribedPostChange);
+    }
+
+    private static boolean isLegacyCurrent(LegacySubscription subscription) {
+        synchronized (LEGACY_SUBSCRIPTIONS) {
+            return LEGACY_SUBSCRIPTIONS.get(subscription.adapter) == subscription;
+        }
+    }
+
+    @Override
+    protected ItemStack getProxyRepresentation() {
+        return new ItemStack(getBlockType());
+    }
+
+    @Override
+    public void securityBreak() {
+        if (world != null) com.github.aeddddd.ae2enhanced.block.HyperdimensionalStructure.disassemble(world, pos);
+        else disassemble();
+    }
+
+    /** 把会话镜像到本 tile 字段并绑定独立订阅（attach）。 */
     private void attachSession() {
+        if (sessionAttachments != null) sessionAttachments.close();
         this.storageFile = session.getFile();
         this.itemAdapter = session.getItemAdapter();
         this.itemMonitor = session.getItemMonitor();
@@ -248,86 +321,35 @@ public class TileHyperdimensionalController extends TileAENetworkBase implements
         this.starlightAdapter = session.getStarlightAdapter();
         this.optionalStorage = session.getOptionalStorage();
 
-        itemAdapter.setOnChangeCallback(null);
-        itemAdapter.setPostChangeCallback(this::postItemAlteration);
-        fluidAdapter.setOnChangeCallback(null);
-        fluidAdapter.setPostChangeCallback(this::postFluidAlteration);
-        // energy/mana adapter 静态类型为 IStorageAdapter（可能是 AE2E 自有或外部通道实现），
-        // 其 setPostChangeCallback 泛型签名不一致，与可选 adapter 一样走反射绑定
-        energyAdapter.setOnChangeCallback(null);
+        java.util.List<AttachmentToken> attachments = new java.util.ArrayList<>();
+        java.util.function.BiConsumer<appeng.api.storage.data.IAEItemStack, appeng.api.networking.security.IActionSource> itemCallback = this::postItemAlteration;
+        attachments.add(itemAdapter.attachSubscriber(null, itemCallback));
+        java.util.function.BiConsumer<appeng.api.storage.data.IAEFluidStack, appeng.api.networking.security.IActionSource> fluidCallback = this::postFluidAlteration;
+        attachments.add(fluidAdapter.attachSubscriber(null, fluidCallback));
         java.util.function.BiConsumer<appeng.api.storage.data.IAEStack<?>, appeng.api.networking.security.IActionSource> energyCallback = this::postEnergyAlteration;
-        bindPostChange(energyAdapter, energyCallback);
+        attachments.add(attachSubscriber(energyAdapter, null, energyCallback));
         if (manaAdapter != null) {
-            manaAdapter.setOnChangeCallback(null);
             java.util.function.BiConsumer<appeng.api.storage.data.IAEStack<?>, appeng.api.networking.security.IActionSource> manaCallback = this::postManaAlteration;
-            bindPostChange(manaAdapter, manaCallback);
+            attachments.add(attachSubscriber(manaAdapter, null, manaCallback));
         }
         if (starlightAdapter != null) {
-            starlightAdapter.setOnChangeCallback(null);
-            starlightAdapter.setPostChangeCallback(this::postStarlightAlteration);
+            java.util.function.BiConsumer<com.github.aeddddd.ae2enhanced.storage.starlight.IAEStarlightStack, appeng.api.networking.security.IActionSource> starlightCallback = this::postStarlightAlteration;
+            attachments.add(starlightAdapter.attachSubscriber(null, starlightCallback));
         }
-        Object gasAdapter = optionalStorage.getGasAdapter();
-        if (gasAdapter != null) {
-            try {
-                java.util.function.BiConsumer<Object, appeng.api.networking.security.IActionSource> gasCallback = this::postGasAlteration;
-                gasAdapter.getClass().getMethod("setOnChangeCallback", Runnable.class).invoke(gasAdapter, (Runnable) null);
-                gasAdapter.getClass().getMethod("setPostChangeCallback", java.util.function.BiConsumer.class).invoke(gasAdapter, gasCallback);
-            } catch (Exception e) {
-                com.github.aeddddd.ae2enhanced.AE2Enhanced.LOGGER.warn("[AE2E] Failed to setup gas adapter callbacks", e);
-            }
-        }
-        Object essentiaAdapter = optionalStorage.getEssentiaAdapter();
-        if (essentiaAdapter != null) {
-            try {
-                java.util.function.BiConsumer<Object, appeng.api.networking.security.IActionSource> essentiaCallback = this::postEssentiaAlteration;
-                essentiaAdapter.getClass().getMethod("setOnChangeCallback", Runnable.class).invoke(essentiaAdapter, (Runnable) null);
-                essentiaAdapter.getClass().getMethod("setPostChangeCallback", java.util.function.BiConsumer.class).invoke(essentiaAdapter, essentiaCallback);
-            } catch (Exception e) {
-                com.github.aeddddd.ae2enhanced.AE2Enhanced.LOGGER.warn("[AE2E] Failed to setup essentia adapter callbacks", e);
-            }
-        }
+        java.util.function.BiConsumer<Object, appeng.api.networking.security.IActionSource> gasCallback = this::postGasAlteration;
+        attachments.add(attachSubscriber(optionalStorage.getGasAdapter(), null, gasCallback));
+        java.util.function.BiConsumer<Object, appeng.api.networking.security.IActionSource> essentiaCallback = this::postEssentiaAlteration;
+        attachments.add(attachSubscriber(optionalStorage.getEssentiaAdapter(), null, essentiaCallback));
+        sessionAttachments = AttachmentToken.combine(attachments.toArray(new AttachmentToken[0]));
     }
 
-    /** 反射绑定/解绑 IStorageAdapter 的 postChange 回调（泛型签名不一致，与可选 adapter 同款反射路径）。 */
-    @SuppressWarnings("rawtypes")
-    private static void bindPostChange(IStorageAdapter adapter, java.util.function.BiConsumer callback) {
-        if (adapter == null) return;
-        try {
-            adapter.getClass().getMethod("setPostChangeCallback", java.util.function.BiConsumer.class)
-                    .invoke(adapter, callback);
-        } catch (Exception e) {
-            com.github.aeddddd.ae2enhanced.AE2Enhanced.LOGGER.warn("[AE2E] Failed to bind adapter callback", e);
-        }
-    }
-
-    /** 解除回调绑定并清空字段镜像（detach）。会话与数据继续常驻注册表。 */
+    /** 只注销本 tile 的订阅并清空字段镜像；共享会话和外部网络附着不受影响。 */
     private void detachSession() {
         if (session == null) return;
         try {
-            itemAdapter.setPostChangeCallback(null);
-            fluidAdapter.setPostChangeCallback(null);
-            bindPostChange(energyAdapter, null);
-            if (manaAdapter != null) bindPostChange(manaAdapter, null);
-            if (starlightAdapter != null) starlightAdapter.setPostChangeCallback(null);
-            // 从外部 ME monitor 摘除监听，避免分离后会话仍被外部网络变化驱动
-            itemAdapter.setExternalMonitor(null);
-            Object gasAdapter = session.getOptionalStorage().getGasAdapter();
-            if (gasAdapter != null) {
-                try {
-                    gasAdapter.getClass().getMethod("setPostChangeCallback", java.util.function.BiConsumer.class).invoke(gasAdapter, (Object) null);
-                } catch (Exception e) {
-                    com.github.aeddddd.ae2enhanced.AE2Enhanced.LOGGER.warn("[AE2E] Failed to clear gas adapter callbacks", e);
-                }
-            }
-            Object essentiaAdapter = session.getOptionalStorage().getEssentiaAdapter();
-            if (essentiaAdapter != null) {
-                try {
-                    essentiaAdapter.getClass().getMethod("setPostChangeCallback", java.util.function.BiConsumer.class).invoke(essentiaAdapter, (Object) null);
-                } catch (Exception e) {
-                    com.github.aeddddd.ae2enhanced.AE2Enhanced.LOGGER.warn("[AE2E] Failed to clear essentia adapter callbacks", e);
-                }
-            }
+            if (sessionAttachments != null) sessionAttachments.close();
         } finally {
+            sessionAttachments = null;
             storageFile = null;
             itemAdapter = null;
             fluidAdapter = null;
@@ -336,6 +358,19 @@ public class TileHyperdimensionalController extends TileAENetworkBase implements
             starlightAdapter = null;
             itemMonitor = null;
             optionalStorage = null;
+        }
+    }
+
+    private void notifyMeInterfacesOfStateChange() {
+        if (world == null || world.isRemote) return;
+        IBlockState controllerState = world.getBlockState(pos);
+        if (!(TileBlockStates.is(controllerState, TileBlockStates.HYPERDIMENSIONAL_CONTROLLER))) return;
+        EnumFacing facing = TileBlockStates.facing(controllerState);
+        for (net.minecraft.util.math.BlockPos rel : com.github.aeddddd.ae2enhanced.block.HyperdimensionalStructure.ME_INTERFACE_SET) {
+            net.minecraft.util.math.BlockPos actual = pos.add(com.github.aeddddd.ae2enhanced.block.HyperdimensionalStructure.rotate(rel, facing));
+            IBlockState state = world.getBlockState(actual);
+            world.notifyBlockUpdate(actual, state, state, 2);
+            world.notifyNeighborsOfStateChange(actual, state.getBlock(), false);
         }
     }
 
@@ -526,19 +561,6 @@ public class TileHyperdimensionalController extends TileAENetworkBase implements
         }
     }
 
-    private void notifyMeInterfacesOfStateChange() {
-        if (world == null || world.isRemote) return;
-        IBlockState controllerState = world.getBlockState(pos);
-        if (!(controllerState.getBlock() instanceof BlockHyperdimensionalController)) return;
-        EnumFacing facing = controllerState.getValue(BlockHyperdimensionalController.FACING);
-        for (net.minecraft.util.math.BlockPos rel : com.github.aeddddd.ae2enhanced.structure.HyperdimensionalStructure.ME_INTERFACE_SET) {
-            net.minecraft.util.math.BlockPos actual = pos.add(com.github.aeddddd.ae2enhanced.structure.HyperdimensionalStructure.rotate(rel, facing));
-            IBlockState state = world.getBlockState(actual);
-            world.notifyBlockUpdate(actual, state, state, 2);
-            world.notifyNeighborsOfStateChange(actual, state.getBlock(), false);
-        }
-    }
-
     /**
      * 直接刷新 ME 接口相邻位置的 AE2 线缆连接.
      * ComputationCore 使用相同机制(调用 CableBusContainer.updateConnections),
@@ -547,10 +569,10 @@ public class TileHyperdimensionalController extends TileAENetworkBase implements
     private void updateCableConnections() {
         if (world == null || world.isRemote) return;
         IBlockState controllerState = world.getBlockState(pos);
-        if (!(controllerState.getBlock() instanceof BlockHyperdimensionalController)) return;
-        EnumFacing facing = controllerState.getValue(BlockHyperdimensionalController.FACING);
-        for (net.minecraft.util.math.BlockPos rel : com.github.aeddddd.ae2enhanced.structure.HyperdimensionalStructure.ME_INTERFACE_SET) {
-            net.minecraft.util.math.BlockPos actual = pos.add(com.github.aeddddd.ae2enhanced.structure.HyperdimensionalStructure.rotate(rel, facing));
+        if (!(TileBlockStates.is(controllerState, TileBlockStates.HYPERDIMENSIONAL_CONTROLLER))) return;
+        EnumFacing facing = TileBlockStates.facing(controllerState);
+        for (net.minecraft.util.math.BlockPos rel : com.github.aeddddd.ae2enhanced.block.HyperdimensionalStructure.ME_INTERFACE_SET) {
+            net.minecraft.util.math.BlockPos actual = pos.add(com.github.aeddddd.ae2enhanced.block.HyperdimensionalStructure.rotate(rel, facing));
             for (EnumFacing dir : EnumFacing.values()) {
                 net.minecraft.util.math.BlockPos neighborPos = actual.offset(dir);
                 net.minecraft.tileentity.TileEntity te = world.getTileEntity(neighborPos);
@@ -564,49 +586,6 @@ public class TileHyperdimensionalController extends TileAENetworkBase implements
         }
     }
 
-    /**
-     * 通知 AE2 重新扫描本控制器提供的存储元件（成型/网络拓扑变化后调用）.
-     * 会触发 GridStorageCache 全量重建存储视图，属于重操作，调用频率由
-     * {@link #armCellArrayNotify()} 的重发窗口约束。
-     */
-    private void postCellArrayUpdate() {
-        if (itemAdapter == null) return;
-        try {
-            appeng.api.networking.IGrid grid = getProxy().getGrid();
-            if (grid != null) {
-                grid.postEvent(new appeng.api.networking.events.MENetworkCellArrayUpdate());
-            }
-        } catch (appeng.me.GridAccessException e) {
-            // 网格尚未就绪，由重发窗口内的下一次重发覆盖
-        }
-    }
-
-    /** 开启 CellArrayUpdate 重发窗口（成型/网络启动/频道变化后调用）. */
-    private void armCellArrayNotify() {
-        if (world != null && !world.isRemote) {
-            cellArrayNotifyDeadline = world.getTotalWorldTime() + CELL_ARRAY_NOTIFY_WINDOW_TICKS;
-        }
-    }
-
-    // 网络启动/频道变化后重新武装重发窗口，覆盖网格重组导致的时序竞争
-    @appeng.api.networking.events.MENetworkEventSubscribe
-    public void onBootingStateChange(appeng.api.networking.events.MENetworkBootingStatusChange event) {
-        armCellArrayNotify();
-    }
-
-    @appeng.api.networking.events.MENetworkEventSubscribe
-    public void onChannelStateChange(appeng.api.networking.events.MENetworkChannelsChanged event) {
-        armCellArrayNotify();
-    }
-
-    private void closeStorage() {
-        if (session != null) {
-            detachSession();
-            com.github.aeddddd.ae2enhanced.storage.HyperdimensionalStorageManager.release(session);
-            session = null;
-        }
-    }
-
     @Override
     public void update() {
         if (world == null) return;
@@ -614,8 +593,8 @@ public class TileHyperdimensionalController extends TileAENetworkBase implements
             // Client-side: energy flow particles converging toward the multiblock center
             if (formed && networkActive && world.rand.nextInt(6) == 0) {
                 EnumFacing facing = EnumFacing.NORTH;
-                if (world.getBlockState(pos).getBlock() instanceof BlockHyperdimensionalController) {
-                    facing = world.getBlockState(pos).getValue(BlockHyperdimensionalController.FACING);
+                if (TileBlockStates.is(world.getBlockState(pos), TileBlockStates.HYPERDIMENSIONAL_CONTROLLER)) {
+                    facing = TileBlockStates.facing(world.getBlockState(pos));
                 }
                 double offX, offZ;
                 switch (facing) {
@@ -640,10 +619,10 @@ public class TileHyperdimensionalController extends TileAENetworkBase implements
         }
 
         // 性能埋点：采样率 1/20,总开关 /ae2e debug perf off
-        Timer perfTimer = null;
+        Observations.Timer perfTimer = null;
         long perfStart = 0L;
-        if (DiagSwitch.isEnabled(DiagSwitch.PERF)) {
-            perfTimer = MetricsRegistry.timer("storage.hdc.update");
+        if (Observations.isEnabled("perf")) {
+            perfTimer = Observations.timer("storage.hdc.update");
             if (perfTimer.shouldSample()) {
                 perfStart = System.nanoTime();
             } else {
@@ -693,8 +672,8 @@ public class TileHyperdimensionalController extends TileAENetworkBase implements
         flushPendingAlterations();
 
         // 兜底全量扫描：由配置控制间隔,日常高频读写不会触发
-        if (formed && AE2EnhancedConfig.storage.monitorFullScanIntervalTicks > 0
-                && tickCounter % AE2EnhancedConfig.storage.monitorFullScanIntervalTicks == 0) {
+        if (formed && com.github.aeddddd.ae2enhanced.config.ServerConfig.current().storage.monitorFullScanIntervalTicks > 0
+                && tickCounter % com.github.aeddddd.ae2enhanced.config.ServerConfig.current().storage.monitorFullScanIntervalTicks == 0) {
             refreshNetworkMonitor();
         }
 
@@ -765,6 +744,71 @@ public class TileHyperdimensionalController extends TileAENetworkBase implements
         if (perfTimer != null) {
             perfTimer.record(System.nanoTime() - perfStart);
         }
+    }
+
+    /**
+     * 通知 AE2 重新扫描本控制器提供的存储元件（成型/网络拓扑变化后调用）.
+     * 会触发 GridStorageCache 全量重建存储视图，属于重操作，调用频率由
+     * {@link #armCellArrayNotify()} 的重发窗口约束。
+     */
+    private void postCellArrayUpdate() {
+        if (itemAdapter == null) return;
+        try {
+            appeng.api.networking.IGrid grid = getProxy().getGrid();
+            if (grid != null) {
+                grid.postEvent(new appeng.api.networking.events.MENetworkCellArrayUpdate());
+            }
+        } catch (appeng.me.GridAccessException e) {
+            // 网格尚未就绪，由重发窗口内的下一次重发覆盖
+        }
+    }
+
+    /** 开启 CellArrayUpdate 重发窗口（成型/网络启动/频道变化后调用）. */
+    private void armCellArrayNotify() {
+        if (world != null && !world.isRemote) {
+            cellArrayNotifyDeadline = world.getTotalWorldTime() + CELL_ARRAY_NOTIFY_WINDOW_TICKS;
+        }
+    }
+
+    // 网络启动/频道变化后重新武装重发窗口，覆盖网格重组导致的时序竞争
+    @appeng.api.networking.events.MENetworkEventSubscribe
+    public void onBootingStateChange(appeng.api.networking.events.MENetworkBootingStatusChange event) {
+        armCellArrayNotify();
+    }
+
+    @appeng.api.networking.events.MENetworkEventSubscribe
+    public void onChannelStateChange(appeng.api.networking.events.MENetworkChannelsChanged event) {
+        armCellArrayNotify();
+    }
+
+    private void closeStorage() {
+        if (session != null) {
+            detachSession();
+            com.github.aeddddd.ae2enhanced.storage.HyperdimensionalStorageManager.release(session);
+            session = null;
+        }
+    }
+
+    @Override
+    @Nonnull
+    public AxisAlignedBB getRenderBoundingBox() {
+        if (world == null) return super.getRenderBoundingBox();
+        if (!(TileBlockStates.is(world.getBlockState(pos), TileBlockStates.HYPERDIMENSIONAL_CONTROLLER))) {
+            return super.getRenderBoundingBox();
+        }
+        EnumFacing facing = TileBlockStates.facing(world.getBlockState(pos));
+        double offX, offZ;
+        switch (facing) {
+            case SOUTH: offX = 0; offZ = -2.0; break;
+            case EAST:  offX = -2.0; offZ = 0; break;
+            case WEST:  offX = 2.0; offZ = 0; break;
+            default:    offX = 0; offZ = 2.0; break;
+        }
+        double cx = pos.getX() + 0.5 + offX;
+        double cy = pos.getY() + 4.0;
+        double cz = pos.getZ() + 0.5 + offZ;
+        double r = 5.5; // 覆盖超立方体全部渲染范围(半径约 4.5,留余量)
+        return new AxisAlignedBB(cx - r, cy - r, cz - r, cx + r, cy + r, cz + r);
     }
 
     public boolean isNetworkActive() {
@@ -917,26 +961,21 @@ public class TileHyperdimensionalController extends TileAENetworkBase implements
         }
     }
 
-    @Override
-    @Nonnull
-    public AxisAlignedBB getRenderBoundingBox() {
-        if (world == null) return super.getRenderBoundingBox();
-        if (!(world.getBlockState(pos).getBlock() instanceof BlockHyperdimensionalController)) {
-            return super.getRenderBoundingBox();
+    @SuppressWarnings("rawtypes")
+    private static final class LegacySubscription {
+        final Object adapter;
+        final Runnable subscribedOnChange;
+        final java.util.function.BiConsumer subscribedPostChange;
+
+        LegacySubscription(Object adapter, Runnable onChange, java.util.function.BiConsumer postChange) {
+            this.adapter = adapter;
+            this.subscribedOnChange = onChange == null ? null : () -> {
+                if (isLegacyCurrent(this)) onChange.run();
+            };
+            this.subscribedPostChange = postChange == null ? null : (change, source) -> {
+                if (isLegacyCurrent(this)) postChange.accept(change, source);
+            };
         }
-        EnumFacing facing = world.getBlockState(pos).getValue(BlockHyperdimensionalController.FACING);
-        double offX, offZ;
-        switch (facing) {
-            case SOUTH: offX = 0; offZ = -2.0; break;
-            case EAST:  offX = -2.0; offZ = 0; break;
-            case WEST:  offX = 2.0; offZ = 0; break;
-            default:    offX = 0; offZ = 2.0; break;
-        }
-        double cx = pos.getX() + 0.5 + offX;
-        double cy = pos.getY() + 4.0;
-        double cz = pos.getZ() + 0.5 + offZ;
-        double r = 5.5; // 覆盖超立方体全部渲染范围(半径约 4.5,留余量)
-        return new AxisAlignedBB(cx - r, cy - r, cz - r, cx + r, cy + r, cz + r);
     }
 
     @Override

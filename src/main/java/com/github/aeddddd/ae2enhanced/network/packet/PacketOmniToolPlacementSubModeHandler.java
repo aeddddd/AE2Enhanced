@@ -1,8 +1,8 @@
 package com.github.aeddddd.ae2enhanced.network.packet;
 
-import com.github.aeddddd.ae2enhanced.item.ItemAdvancedMEOmniTool;
-import com.github.aeddddd.ae2enhanced.util.placement.PlacementConfig;
-import com.github.aeddddd.ae2enhanced.util.placement.PlacementMode;
+import com.github.aeddddd.ae2enhanced.omnitool.ItemAdvancedMEOmniTool;
+import com.github.aeddddd.ae2enhanced.omnitool.placement.PlacementConfig;
+import com.github.aeddddd.ae2enhanced.omnitool.placement.PlacementMode;
 import net.minecraft.entity.player.EntityPlayerMP;
 import net.minecraft.item.ItemStack;
 import net.minecraft.util.EnumHand;

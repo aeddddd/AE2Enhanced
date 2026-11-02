@@ -3,16 +3,16 @@ package com.github.aeddddd.ae2enhanced.test.util;
 import java.util.Arrays;
 
 import net.minecraft.item.ItemStack;
-import net.minecraftforge.items.IItemHandler;
+import net.minecraftforge.items.IItemHandlerModifiable;
 
 /**
- * 测试用 {@link IItemHandler} 假实现：基于 ItemStack 数组的确定性槽位行为。
+ * 测试用 {@link IItemHandlerModifiable} 假实现：基于 ItemStack 数组的确定性槽位行为。
  *
  * <p>严格遵守 simulate 语义（simulate=true 时不修改内部状态），
  * 便于断言两阶段（模拟-真实）原子性。插入仅在同物品（含 NBT）堆叠或空槽时成功，
  * 抽取按请求数量与现有数量的较小值返回。</p>
  */
-public final class FakeItemHandler implements IItemHandler {
+public final class FakeItemHandler implements IItemHandlerModifiable {
 
     private final ItemStack[] slots;
     private final int slotLimit;
@@ -30,6 +30,11 @@ public final class FakeItemHandler implements IItemHandler {
     /** 直接放置初始内容（不经过 insert 逻辑）。 */
     public void setStack(int slot, ItemStack stack) {
         this.slots[slot] = stack;
+    }
+
+    @Override
+    public void setStackInSlot(int slot, ItemStack stack) {
+        setStack(slot, stack);
     }
 
     @Override

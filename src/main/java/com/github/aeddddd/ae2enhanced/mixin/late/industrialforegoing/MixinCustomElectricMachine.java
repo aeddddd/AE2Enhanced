@@ -123,22 +123,39 @@ public class MixinCustomElectricMachine {
         }
     }
 
+    private static void restoreOrDrop(IItemHandler handler, int slot, ItemStack stack,
+                                      World world, BlockPos pos) {
+        if (stack == null || stack.isEmpty()) {
+            return;
+        }
+        ItemStack remainder = handler.insertItem(slot, stack, false);
+        if (remainder != null && !remainder.isEmpty()) {
+            world.spawnEntity(new net.minecraft.entity.item.EntityItem(world,
+                    pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5, remainder));
+        }
+    }
+
     private void redirectHandler(IItemHandler handler, World world, BlockPos pos) {
         if (handler == null) {
             return;
         }
         for (int i = 0; i < handler.getSlots(); i++) {
-            ItemStack stack = handler.getStackInSlot(i);
-            if (stack == null || stack.isEmpty()) {
+            ItemStack current = handler.getStackInSlot(i);
+            if (current == null || current.isEmpty()) {
                 continue;
             }
-            ItemStack remainder = MachineOutputRedirector.tryRedirect(stack, world, pos);
-            if (remainder.getCount() != stack.getCount()) {
-                handler.extractItem(i, stack.getCount(), false);
-                if (!remainder.isEmpty()) {
-                    handler.insertItem(i, remainder, false);
-                }
+            ItemStack stack = current.copy();
+            ItemStack extracted = handler.extractItem(i, stack.getCount(), false);
+            if (extracted == null || extracted.isEmpty()) {
+                continue;
             }
+            if (!ItemStack.areItemsEqual(stack, extracted)
+                    || !ItemStack.areItemStackTagsEqual(stack, extracted)) {
+                restoreOrDrop(handler, i, extracted, world, pos);
+                continue;
+            }
+            ItemStack remainder = MachineOutputRedirector.tryRedirect(extracted, world, pos);
+            restoreOrDrop(handler, i, remainder, world, pos);
         }
     }
 }

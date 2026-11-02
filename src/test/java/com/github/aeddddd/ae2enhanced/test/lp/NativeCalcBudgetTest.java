@@ -55,7 +55,7 @@ public class NativeCalcBudgetTest {
         CraftingJob job = env.newLpJob(mult(b, 10));
         // 挂载已超期的预算(等价于原生路径跑了整个预算时长)
         NativeCalcBudget.arm(job);
-        ((com.github.aeddddd.ae2enhanced.mixin.bridge.ICraftingJobBudgetAccess) job)
+        ((com.github.aeddddd.ae2enhanced.craftingapi.CraftingJobBudgetAccess) job)
                 .ae2enhanced$armNativeCalcBudget(System.nanoTime() - 1);
 
         assertThat(job.isSimulation()).isFalse();

@@ -1,37 +1,36 @@
 package com.github.aeddddd.ae2enhanced.dimension;
 
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
-import com.github.aeddddd.ae2enhanced.config.AE2EnhancedConfig;
+import com.github.aeddddd.ae2enhanced.config.ServerConfig;
 import com.github.aeddddd.ae2enhanced.dimension.lighting.DimensionLightingFixer;
 import com.github.aeddddd.ae2enhanced.dimension.rules.PlayerAbilityApplier;
+import com.github.aeddddd.ae2enhanced.dimension.team.TeamDimensionAccess;
+import com.github.aeddddd.ae2enhanced.dimension.team.TeamInfo;
 import com.github.aeddddd.ae2enhanced.dimension.teleport.PersonalTeleporter;
+import com.github.aeddddd.ae2enhanced.util.TeleportWhitelist;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.entity.player.EntityPlayerMP;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.text.TextComponentTranslation;
 import net.minecraft.world.DimensionType;
 import net.minecraft.world.World;
 import net.minecraft.world.WorldServer;
-import net.minecraft.server.MinecraftServer;
 import net.minecraftforge.common.DimensionManager;
+import net.minecraftforge.event.entity.living.LivingDeathEvent;
+import net.minecraftforge.event.entity.living.LivingSpawnEvent;
+import net.minecraftforge.event.world.ExplosionEvent;
+import net.minecraftforge.event.world.WorldEvent;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.common.event.FMLServerStartedEvent;
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
 import net.minecraftforge.fml.common.gameevent.PlayerEvent;
 import net.minecraftforge.fml.common.gameevent.TickEvent;
-import net.minecraftforge.event.entity.living.LivingDeathEvent;
-import net.minecraftforge.event.entity.living.LivingSpawnEvent;
-import net.minecraftforge.event.world.WorldEvent;
-import net.minecraftforge.event.world.ExplosionEvent;
 import net.minecraftforge.fml.common.network.FMLNetworkEvent;
 
 import javax.annotation.Nullable;
 import java.io.File;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
 
 /**
  * 个人维度管理器：维度类型注册、ID 分配、传送、规则同步与事件分发。
@@ -69,6 +68,7 @@ public final class PersonalDimensionManager {
                 false
         );
         typeRegistered = true;
+        com.github.aeddddd.ae2enhanced.dimension.dev.PrivateDimensionHarness.registerFloorStyle();
         AE2Enhanced.LOGGER.info("[AE2E] Registered personal dimension type with id {}", typeId);
     }
 
@@ -100,8 +100,7 @@ public final class PersonalDimensionManager {
 
         if (entry.dimensionId != Integer.MIN_VALUE) {
             if (!ensureDimensionRegistered(entry.dimensionId)) {
-                // 重新分配新 ID
-                entry.dimensionId = Integer.MIN_VALUE;
+                data.updateDimensionMapping(player.getUniqueID(), Integer.MIN_VALUE);
             }
         }
 
@@ -145,13 +144,8 @@ public final class PersonalDimensionManager {
         if (PERSONAL_DIM_TYPE == null) return Integer.MIN_VALUE;
         synchronized (DimensionManager.class) {
             int dimId = DimensionManager.getNextFreeDimId();
-            // 防御性检查：分配到的 ID 已被注册时重试一次
-            if (DimensionManager.isDimensionRegistered(dimId)) {
-                dimId = DimensionManager.getNextFreeDimId();
-                if (DimensionManager.isDimensionRegistered(dimId)) {
-                    AE2Enhanced.LOGGER.error("[AE2E] No free dimension ID available for personal dimension");
-                    return Integer.MIN_VALUE;
-                }
+            while (DimensionManager.isDimensionRegistered(dimId) || isPrivateDimensionIdReserved(dimId)) {
+                dimId++;
             }
             try {
                 DimensionManager.registerDimension(dimId, PERSONAL_DIM_TYPE);
@@ -161,6 +155,23 @@ public final class PersonalDimensionManager {
                 return Integer.MIN_VALUE;
             }
         }
+    }
+
+    private static boolean isPrivateDimensionIdReserved(int dimId) {
+        WorldServer overworld = getOverworld();
+        if (overworld == null) {
+            return false;
+        }
+        PersonalDimensionData data = PersonalDimensionData.get(overworld);
+        if (data.getEntryByDimensionId(dimId) != null || data.getTeamEntryByDimensionId(dimId) != null) {
+            return true;
+        }
+        for (TeamDimEntry orphaned : data.getOrphanedTeamEntries()) {
+            if (orphaned.dimensionId == dimId) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -178,6 +189,109 @@ public final class PersonalDimensionManager {
         WorldServer overworld = getOverworld();
         if (overworld == null) return null;
         return PersonalDimensionData.get(overworld).getEntryByDimensionId(dimId);
+    }
+
+    @Nullable
+    public static DimensionOwner getOwnerByDimension(int dimId) {
+        WorldServer overworld = getOverworld();
+        return overworld == null ? null : PersonalDimensionData.get(overworld).getOwnerByDimensionId(dimId);
+    }
+
+    public static PersonalDimensionRules getDimensionRules(int dimId) {
+        DimensionOwner owner = getOwnerByDimension(dimId);
+        return owner != null ? owner.rules : new PersonalDimensionRules();
+    }
+
+    public static FloorPreset getFloorPreset(int dimId) {
+        DimensionOwner owner = getOwnerByDimension(dimId);
+        return FloorStyleRegistry.resolve(owner != null ? owner.floor : new FloorDefinition());
+    }
+
+    public static boolean enterDimension(EntityPlayerMP player, DimensionPreference preference) {
+        DimensionPreference requested = preference == null ? DimensionPreference.AUTO : preference;
+        Optional<TeamInfo> team = TeamDimensionAccess.currentTeam(player.getUniqueID());
+        if (requested == DimensionPreference.TEAM && !team.isPresent()) {
+            player.sendMessage(new TextComponentTranslation("chat.ae2enhanced.personal_dimension.no_team"));
+            return false;
+        }
+        if (requested == DimensionPreference.PERSONAL || requested == DimensionPreference.AUTO && !team.isPresent()) {
+            int dimId = getOrCreateDimension(player);
+            return dimId != Integer.MIN_VALUE && teleportToDimension(player, dimId);
+        }
+        return enterTeamDimension(player, team.get().getTeamId());
+    }
+
+    public static boolean enterTeamDimension(EntityPlayerMP player, String teamId) {
+        Optional<TeamInfo> current = TeamDimensionAccess.currentTeam(player.getUniqueID());
+        if (!current.isPresent() || !current.get().getTeamId().equals(teamId)
+                || !TeamDimensionAccess.isMember(teamId, player.getUniqueID())) {
+            return false;
+        }
+        WorldServer overworld = getOverworld();
+        if (overworld == null) {
+            return false;
+        }
+        PersonalDimensionData data = PersonalDimensionData.get(overworld);
+        TeamDimEntry entry = data.peekTeamEntry(teamId);
+        if (entry != null && !TeamDimensionAccess.hasValidBinding(teamId, entry.bindingId)) {
+            quarantineTeamWorld(data, teamId);
+            entry = null;
+        }
+        if (entry == null) {
+            String bindingId = UUID.randomUUID().toString();
+            TeamDimensionAccess.bind(teamId, bindingId);
+            entry = data.getTeamEntry(teamId, bindingId);
+        }
+        DimensionOwner owner = DimensionOwner.team(entry);
+        if (!PrivateDimensionPermissions.canEnter(player, data, owner)) {
+            return false;
+        }
+        if (entry.dimensionId != Integer.MIN_VALUE && !ensureDimensionRegistered(entry.dimensionId)) {
+            return false;
+        }
+        if (entry.dimensionId == Integer.MIN_VALUE) {
+            int dimId = createPersonalDimension(player);
+            if (dimId == Integer.MIN_VALUE) {
+                return false;
+            }
+            data.updateTeamDimensionMapping(teamId, dimId);
+            broadcastDimensionRegistrySync();
+        }
+        return teleportToOwnedDimension(player, DimensionOwner.team(entry));
+    }
+
+    private static boolean teleportToOwnedDimension(EntityPlayerMP player, DimensionOwner owner) {
+        BlockPos entryPos = owner.entryPoint;
+        double tx = entryPos.getX() + 0.5;
+        double ty = entryPos.getY() + 0.1;
+        double tz = entryPos.getZ() + 0.5;
+        if (!teleportTo(player, owner.dimensionId, tx, ty, tz, player.rotationYaw, player.rotationPitch)) {
+            return false;
+        }
+        DimensionLightingFixer.scheduleRelight(player.getServerWorld().getMinecraftServer(), owner.dimensionId, entryPos);
+        return true;
+    }
+
+    public static boolean bindEntryPoint(EntityPlayerMP player, BlockPos pos) {
+        WorldServer overworld = getOverworld();
+        if (overworld == null || !isPersonalDimension(player.dimension)) {
+            return false;
+        }
+        PersonalDimensionData data = PersonalDimensionData.get(overworld);
+        DimensionOwner owner = data.getOwnerByDimensionId(player.dimension);
+        if (!PrivateDimensionPermissions.canModifyRules(player, data, owner)) {
+            return false;
+        }
+        if (owner.isTeam()) {
+            TeamDimEntry entry = data.peekTeamEntry(owner.ownerId);
+            if (entry != null) {
+                entry.entryPoint = pos;
+            }
+        } else {
+            data.setEntryPoint(player.getUniqueID(), pos);
+        }
+        data.markDirty();
+        return true;
     }
 
     public static void setEntryPoint(EntityPlayer player, BlockPos pos) {
@@ -202,24 +316,21 @@ public final class PersonalDimensionManager {
         if (entry == null || !entry.hasReturnPoint) {
             // 没有记录则返回主世界出生点
             teleportToOverworldSpawn(player);
-            PlayerAbilityApplier.resetAbilities(player);
+            refreshPlayerAbilities(player);
             return;
         }
-        // 白名单校验：返回点若位于他人的个人维度，玩家必须仍在白名单中，
-        // 否则被移出组队的玩家可通过"埋点-返回"反复重进他人维度
+        // 返回点每次进入都重新走统一权限入口，团队离队与旧白名单移除均不能绕权
         if (isPersonalDimension(entry.returnDim)) {
-            PlayerDimEntry ownerEntry = getEntryByDimension(entry.returnDim);
-            boolean allowed = ownerEntry != null
-                    && (ownerEntry.playerId.equals(player.getUniqueID())
-                        || ownerEntry.allowedPlayers.contains(player.getUniqueID()));
-            if (!allowed) {
-                WorldServer ow = getOverworld();
+            WorldServer ow = getOverworld();
+            PersonalDimensionData data = ow != null ? PersonalDimensionData.get(ow) : null;
+            DimensionOwner owner = data != null ? data.getOwnerByDimensionId(entry.returnDim) : null;
+            if (data == null || !PrivateDimensionPermissions.canEnter(player, data, owner)) {
                 if (ow != null) {
-                    PersonalDimensionData.get(ow).clearReturnPoint(player.getUniqueID());
+                    data.clearReturnPoint(player.getUniqueID());
                 }
                 player.sendMessage(new TextComponentTranslation("chat.ae2enhanced.personal_dimension.no_permission_enter"));
                 teleportToOverworldSpawn(player);
-                PlayerAbilityApplier.resetAbilities(player);
+                refreshPlayerAbilities(player);
                 return;
             }
         }
@@ -228,7 +339,7 @@ public final class PersonalDimensionManager {
             player.sendMessage(new TextComponentTranslation("chat.ae2enhanced.personal_dimension.teleport_failed"));
             teleportToOverworldSpawn(player);
         }
-        PlayerAbilityApplier.resetAbilities(player);
+        refreshPlayerAbilities(player);
     }
 
     /**
@@ -242,15 +353,15 @@ public final class PersonalDimensionManager {
         teleportTo(player, 0, spawn.getX() + 0.5, spawn.getY() + 0.1, spawn.getZ() + 0.5, player.rotationYaw, player.rotationPitch);
     }
 
-    public static void teleportToDimension(EntityPlayerMP player, int dimId) {
+    public static boolean teleportToDimension(EntityPlayerMP player, int dimId) {
         PlayerDimEntry entry = getEntry(player.getUniqueID());
-        BlockPos entryPos = entry != null ? entry.entryPoint : new BlockPos(0, AE2EnhancedConfig.personalDimension.entryY, 0);
+        BlockPos entryPos = entry != null ? entry.entryPoint : new BlockPos(0, ServerConfig.current().personalDimension.entryY, 0);
         double tx = entryPos.getX() + 0.5;
         double ty = entryPos.getY() + 0.1;
         double tz = entryPos.getZ() + 0.5;
-        if (teleportTo(player, dimId, tx, ty, tz, player.rotationYaw, player.rotationPitch)) {
-            DimensionLightingFixer.scheduleRelight(player.getServerWorld().getMinecraftServer(), dimId, new BlockPos(tx, ty, tz));
-        }
+        if (!teleportTo(player, dimId, tx, ty, tz, player.rotationYaw, player.rotationPitch)) return false;
+        DimensionLightingFixer.scheduleRelight(player.getServerWorld().getMinecraftServer(), dimId, new BlockPos(tx, ty, tz));
+        return true;
     }
 
     /**
@@ -263,11 +374,7 @@ public final class PersonalDimensionManager {
     public static boolean teleportPlayerToDimension(EntityPlayerMP player, UUID ownerId) {
         if (player.getUniqueID().equals(ownerId)) {
             int dimId = getOrCreateDimension(player);
-            if (dimId != Integer.MIN_VALUE) {
-                teleportToDimension(player, dimId);
-                return true;
-            }
-            return false;
+            return dimId != Integer.MIN_VALUE && teleportToDimension(player, dimId);
         }
 
         WorldServer overworld = getOverworld();
@@ -276,7 +383,8 @@ public final class PersonalDimensionManager {
         if (entry == null || entry.dimensionId == Integer.MIN_VALUE) {
             return false;
         }
-        if (!entry.allowedPlayers.contains(player.getUniqueID())) {
+        PersonalDimensionData data = PersonalDimensionData.get(overworld);
+        if (!PrivateDimensionPermissions.canEnter(player, data, DimensionOwner.personal(entry))) {
             return false;
         }
         int dimId = entry.dimensionId;
@@ -353,6 +461,7 @@ public final class PersonalDimensionManager {
             return false;
         }
         int dimId = entry.dimensionId;
+        FloorRepaintManager.cancel(dimId);
         MinecraftServer server = overworld.getMinecraftServer();
         WorldServer dimWorld = DimensionManager.getWorld(dimId);
         if (dimWorld != null) {
@@ -384,6 +493,82 @@ public final class PersonalDimensionManager {
         PersonalDimensionData.get(overworld).removeEntry(playerId);
         broadcastDimensionRegistrySync();
         return true;
+    }
+
+    public static void onTeamChanged() {
+        broadcastDimensionRegistrySync();
+        broadcastInfo();
+    }
+
+    public static void onTeamLoaded(String teamId) {
+        WorldServer overworld = getOverworld();
+        if (overworld == null) {
+            return;
+        }
+        PersonalDimensionData data = PersonalDimensionData.get(overworld);
+        // TeamData 尚未恢复时保持延期，就绪后才允许恢复或按 bindingId 隔离。
+        restoreReadyTeamDimensions(data);
+        broadcastDimensionRegistrySync();
+        broadcastInfo();
+    }
+
+    public static void onTeamLeft(String teamId, UUID playerId) {
+        WorldServer overworld = getOverworld();
+        if (overworld == null) {
+            return;
+        }
+        TeamDimEntry entry = PersonalDimensionData.get(overworld).peekTeamEntry(teamId);
+        if (entry == null || entry.dimensionId == Integer.MIN_VALUE) {
+            return;
+        }
+        EntityPlayerMP player = overworld.getMinecraftServer().getPlayerList().getPlayerByUUID(playerId);
+        if (player != null && player.dimension == entry.dimensionId) {
+            clearReturnPointIfInDimension(playerId, entry.dimensionId);
+            teleportToOverworldSpawn(player);
+            refreshPlayerAbilities(player);
+        }
+    }
+
+    public static void onTeamDeleted(String teamId) {
+        WorldServer overworld = getOverworld();
+        if (overworld == null) {
+            return;
+        }
+        PersonalDimensionData data = PersonalDimensionData.get(overworld);
+        TeamDimEntry entry = data.peekTeamEntry(teamId);
+        if (entry == null) {
+            return;
+        }
+        if (entry.dimensionId != Integer.MIN_VALUE) {
+            WorldServer world = DimensionManager.getWorld(entry.dimensionId);
+            if (world != null) {
+                for (EntityPlayerMP player : new ArrayList<>(world.getPlayers(EntityPlayerMP.class, p -> true))) {
+                    clearReturnPointIfInDimension(player.getUniqueID(), entry.dimensionId);
+                    teleportToOverworldSpawn(player);
+                    refreshPlayerAbilities(player);
+                }
+            }
+        }
+        quarantineTeamWorld(data, teamId);
+        broadcastDimensionRegistrySync();
+    }
+
+    private static void quarantineTeamWorld(PersonalDimensionData data, String teamId) {
+        TeamDimEntry entry = data.peekTeamEntry(teamId);
+        if (entry == null) {
+            return;
+        }
+        int dimId = entry.dimensionId;
+        FloorRepaintManager.cancel(dimId);
+        MinecraftServer server = getOverworld() != null ? getOverworld().getMinecraftServer() : null;
+        if (dimId != Integer.MIN_VALUE && DimensionManager.isDimensionRegistered(dimId)) {
+            DimensionManager.unregisterDimension(dimId);
+        }
+        if (dimId != Integer.MIN_VALUE && server != null) {
+            DimensionManager.setWorld(dimId, null, server);
+        }
+        data.quarantineTeamEntry(teamId);
+        AE2Enhanced.LOGGER.info("[AE2E] Quarantined team dimension {} for team {}; world files retained", dimId, teamId);
     }
 
     /**
@@ -425,8 +610,10 @@ public final class PersonalDimensionManager {
      */
     public static boolean teleportTo(EntityPlayerMP player, int dimId, double x, double y, double z, float yaw, float pitch) {
         if (player.dimension == dimId) {
-            player.setPositionAndUpdate(x, y, z);
-            return true;
+            try (TeleportWhitelist.Scope ignored = TeleportWhitelist.open(player.getUniqueID())) {
+                player.setPositionAndUpdate(x, y, z);
+            }
+            return player.getDistanceSq(x, y, z) <= 1.0e-6;
         }
         MinecraftServer server = player.getServer();
         if (server == null) return false;
@@ -442,8 +629,19 @@ public final class PersonalDimensionManager {
         }
         if (targetWorld == null) return false;
 
-        player.changeDimension(dimId, new PersonalTeleporter(targetWorld, x, y, z, yaw, pitch));
-        return true;
+        try (TeleportWhitelist.Scope ignored = TeleportWhitelist.open(player.getUniqueID())) {
+            player.changeDimension(dimId, new PersonalTeleporter(targetWorld, x, y, z, yaw, pitch));
+        }
+        return player.dimension == dimId && player.getDistanceSq(x, y, z) <= 1.0e-6;
+    }
+
+    public static void refreshPlayerAbilities(EntityPlayerMP player) {
+        DimensionOwner owner = isPersonalDimension(player.dimension) ? getOwnerByDimension(player.dimension) : null;
+        if (owner != null) {
+            PlayerAbilityApplier.applyCapabilities(player, owner.rules);
+        } else {
+            PlayerAbilityApplier.resetAbilities(player);
+        }
     }
 
     public static void setRules(UUID playerId, PersonalDimensionRules rules) {
@@ -451,8 +649,48 @@ public final class PersonalDimensionManager {
         if (overworld == null) return;
         PersonalDimensionData data = PersonalDimensionData.get(overworld);
         data.setRules(playerId, rules);
-        // 规则变更后立即同步给玩家，确保客户端 GUI 与维度状态一致
-        sendRulesToPlayer(playerId);
+        PlayerDimEntry entry = data.peekEntry(playerId);
+        if (entry != null) {
+            applyRulesToWorld(DimensionOwner.personal(entry));
+        }
+    }
+
+    public static void submitRules(EntityPlayerMP player, PersonalDimensionRules rules) {
+        WorldServer overworld = getOverworld();
+        if (overworld == null || !isPersonalDimension(player.dimension)) {
+            return;
+        }
+        PersonalDimensionData data = PersonalDimensionData.get(overworld);
+        DimensionOwner owner = data.getOwnerByDimensionId(player.dimension);
+        if (!PrivateDimensionPermissions.canModifyRules(player, data, owner)) {
+            player.sendMessage(new TextComponentTranslation("chat.ae2enhanced.personal_dimension.no_permission_enter"));
+            return;
+        }
+        if (owner.isTeam()) {
+            TeamDimEntry entry = data.peekTeamEntry(owner.ownerId);
+            if (entry != null) {
+                entry.rules = rules.copy();
+                data.markDirty();
+                applyRulesToWorld(DimensionOwner.team(entry));
+            }
+        } else {
+            setRules(player.getUniqueID(), rules);
+        }
+    }
+
+    private static void applyRulesToWorld(DimensionOwner owner) {
+        WorldServer overworld = getOverworld();
+        MinecraftServer server = overworld != null ? overworld.getMinecraftServer() : null;
+        if (server == null) {
+            return;
+        }
+        for (EntityPlayerMP player : server.getPlayerList().getPlayers()) {
+            if (player.dimension == owner.dimensionId) {
+                sendRulesToPlayer(owner.rules, player);
+                sendInfoToPlayer(player);
+                PlayerAbilityApplier.applyCapabilities(player, owner.rules);
+            }
+        }
     }
 
     /**
@@ -463,6 +701,70 @@ public final class PersonalDimensionManager {
         PlayerDimEntry entry = getEntry(rulesOwnerId);
         if (entry == null) return;
         AE2Enhanced.network.sendTo(new com.github.aeddddd.ae2enhanced.network.packet.PacketPersonalDimensionRulesSync(entry.rules), target);
+    }
+
+    public static void sendInfoToPlayer(EntityPlayerMP player) {
+        if (AE2Enhanced.network == null) {
+            return;
+        }
+        WorldServer overworld = getOverworld();
+        if (overworld == null) {
+            return;
+        }
+        PersonalDimensionData data = PersonalDimensionData.get(overworld);
+        DimensionOwner owner = data.getOwnerByDimensionId(player.dimension);
+        DimensionPreference preference = data.getPreference(player.getUniqueID());
+        PrivateDimensionInfo info;
+        FloorDefinition floor;
+        if (owner == null) {
+            PlayerDimEntry entry = data.peekEntry(player.getUniqueID());
+            floor = entry != null ? entry.floor : new FloorDefinition();
+            info = new PrivateDimensionInfo(DimensionOwner.Scope.PERSONAL, player.getUniqueID().toString(),
+                    player.getName(), preference, floor.getFloorStyleId(), floor.getRevision(), true);
+        } else {
+            floor = owner.floor;
+            String display = owner.ownerId;
+            if (owner.isTeam()) {
+                Optional<TeamInfo> team = TeamDimensionAccess.currentTeam(player.getUniqueID());
+                if (team.isPresent() && team.get().getTeamId().equals(owner.ownerId)) {
+                    display = team.get().getDisplayName();
+                }
+            }
+            info = new PrivateDimensionInfo(owner.scope, owner.ownerId, display, preference,
+                    floor.getFloorStyleId(), floor.getRevision(),
+                    PrivateDimensionPermissions.canModifyRules(player, data, owner));
+        }
+        AE2Enhanced.network.sendTo(new com.github.aeddddd.ae2enhanced.network.packet.PacketPrivateDimensionInfo(info), player);
+        AE2Enhanced.network.sendTo(new com.github.aeddddd.ae2enhanced.network.packet.PacketPersonalDimensionFloorSync(
+                floor, FloorRepaintManager.getRepaintPending(owner)), player);
+    }
+
+    public static void sendInfoToPlayersInDimension(int dimensionId) {
+        WorldServer overworld = getOverworld();
+        MinecraftServer server = overworld != null ? overworld.getMinecraftServer() : null;
+        if (server != null) {
+            for (EntityPlayerMP player : server.getPlayerList().getPlayers()) {
+                if (player.dimension == dimensionId) {
+                    sendInfoToPlayer(player);
+                }
+            }
+        }
+    }
+
+    private static void broadcastInfo() {
+        WorldServer overworld = getOverworld();
+        MinecraftServer server = overworld != null ? overworld.getMinecraftServer() : null;
+        if (server != null) {
+            for (EntityPlayerMP player : server.getPlayerList().getPlayers()) {
+                sendInfoToPlayer(player);
+            }
+        }
+    }
+
+    private static void sendRulesToPlayer(PersonalDimensionRules rules, EntityPlayerMP target) {
+        if (AE2Enhanced.network != null && rules != null) {
+            AE2Enhanced.network.sendTo(new com.github.aeddddd.ae2enhanced.network.packet.PacketPersonalDimensionRulesSync(rules), target);
+        }
     }
 
     private static void sendRulesToPlayer(UUID playerId) {
@@ -503,6 +805,12 @@ public final class PersonalDimensionManager {
                 ids.add(entry.dimensionId);
             }
         }
+        for (TeamDimEntry entry : PersonalDimensionData.get(overworld).getAllTeamEntries()) {
+            if (entry.dimensionId != Integer.MIN_VALUE) {
+                ids.add(entry.dimensionId);
+            }
+        }
+        Collections.sort(ids);
         return ids;
     }
 
@@ -529,12 +837,37 @@ public final class PersonalDimensionManager {
                 AE2Enhanced.LOGGER.error("[AE2E] Saved personal dimension ID {} for player {} could not be re-registered. " +
                         "It may have been taken by another mod. Player will get a new dimension on next entry.",
                         entry.dimensionId, entry.playerId);
-                entry.dimensionId = Integer.MIN_VALUE;
-                data.markDirty();
+                data.updateDimensionMapping(entry.playerId, Integer.MIN_VALUE);
             }
         }
+        restoreReadyTeamDimensions(data);
         // 若某些旧维度 ID 因被占用而重置，需要同步最新的注册表给已登录玩家。
         broadcastDimensionRegistrySync();
+    }
+
+    private static void restoreReadyTeamDimensions(PersonalDimensionData data) {
+        if (!TeamDimensionAccess.isAvailable()) {
+            return;
+        }
+        for (TeamDimEntry entry : new ArrayList<>(data.getAllTeamEntries())) {
+            if (entry.dimensionId == Integer.MIN_VALUE || !TeamDimensionAccess.isBindingReady(entry.teamId)) {
+                continue;
+            }
+            if (!TeamDimensionAccess.hasValidBinding(entry.teamId, entry.bindingId)) {
+                quarantineTeamWorld(data, entry.teamId);
+                continue;
+            }
+            if (DimensionManager.getWorld(entry.dimensionId) != null) {
+                continue;
+            }
+            if (ensureDimensionRegistered(entry.dimensionId)) {
+                DimensionManager.initDimension(entry.dimensionId);
+            } else {
+                AE2Enhanced.LOGGER.error("[AE2E] Saved team dimension {} for {} could not be re-registered; entry frozen",
+                        entry.dimensionId, entry.teamId);
+                quarantineTeamWorld(data, entry.teamId);
+            }
+        }
     }
 
     /**
@@ -545,8 +878,8 @@ public final class PersonalDimensionManager {
         if (event.getWorld().isRemote) return;
         int dim = event.getWorld().provider.getDimension();
         if (!isPersonalDimension(dim)) return;
-        PlayerDimEntry entry = getEntryByDimension(dim);
-        if (entry != null && entry.rules.disableMobSpawning) {
+        DimensionOwner owner = getOwnerByDimension(dim);
+        if (owner != null && owner.rules.disableMobSpawning) {
             event.setResult(net.minecraftforge.fml.common.eventhandler.Event.Result.DENY);
         }
     }
@@ -568,12 +901,15 @@ public final class PersonalDimensionManager {
     public static void onWorldTick(TickEvent.WorldTickEvent event) {
         if (event.phase != TickEvent.Phase.END || event.world.isRemote) return;
         int dim = event.world.provider.getDimension();
+        if (dim == 0) {
+            restoreReadyTeamDimensions(PersonalDimensionData.get(event.world));
+        }
         if (!isPersonalDimension(dim)) return;
-        PlayerDimEntry entry = getEntryByDimension(dim);
-        if (entry == null) return;
+        DimensionOwner owner = getOwnerByDimension(dim);
+        if (owner == null) return;
 
         World world = event.world;
-        PersonalDimensionRules rules = entry.rules;
+        PersonalDimensionRules rules = owner.rules;
         if (rules.lockWeather) {
             if (world.isRaining()) world.getWorldInfo().setRaining(false);
             if (world.isThundering()) world.getWorldInfo().setThundering(false);
@@ -614,7 +950,7 @@ public final class PersonalDimensionManager {
         // 直接用 event.player.dimension 恒为主世界），避免带着维度内飞行能力重生
         Integer deathDim = DEATH_DIMENSIONS.remove(player.getUniqueID());
         if (deathDim != null && isPersonalDimension(deathDim)) {
-            PlayerAbilityApplier.resetAbilities(player);
+            refreshPlayerAbilities(player);
         }
     }
 
@@ -632,15 +968,15 @@ public final class PersonalDimensionManager {
         EntityPlayerMP player = (EntityPlayerMP) event.player;
         // 同步个人维度注册表到客户端，防止进入维度时客户端未注册而崩溃
         sendRegistrySync(player);
+        sendInfoToPlayer(player);
         if (isPersonalDimension(player.dimension)) {
             BlockPos pos = new BlockPos(player.posX, player.posY, player.posZ);
             DimensionLightingFixer.relightDimensionChunks(player.dimension, pos);
-            // 按所在维度所有者的条目应用规则，而非玩家自己的条目，
-            // 否则进入他人个人维度时会错误应用访客自己的规则
-            PlayerDimEntry entry = getEntryByDimension(player.dimension);
-            if (entry != null) {
-                PlayerAbilityApplier.applyCapabilities(player, entry.rules);
-                sendRulesToPlayer(entry.playerId, player);
+            // 按当前个人或团队所有者应用规则，不读取访客自己的条目
+            DimensionOwner owner = getOwnerByDimension(player.dimension);
+            if (owner != null) {
+                PlayerAbilityApplier.applyCapabilities(player, owner.rules);
+                sendRulesToPlayer(owner.rules, player);
             }
         }
     }
@@ -667,34 +1003,32 @@ public final class PersonalDimensionManager {
         if (event.player.world.isRemote) return;
         if (!(event.player instanceof EntityPlayerMP)) return;
         EntityPlayerMP player = (EntityPlayerMP) event.player;
+        refreshPlayerAbilities(player);
+        sendInfoToPlayer(player);
         if (isPersonalDimension(event.toDim)) {
-            // 按目标维度所有者的条目应用规则
-            PlayerDimEntry entry = getEntryByDimension(event.toDim);
-            if (entry != null) {
-                PlayerAbilityApplier.applyCapabilities(player, entry.rules);
-                sendRulesToPlayer(entry.playerId, player);
-            }
-            // 通过指令或其他 mod 进入个人维度时，校正光照
+            DimensionOwner owner = getOwnerByDimension(event.toDim);
+            if (owner != null) sendRulesToPlayer(owner.rules, player);
             BlockPos pos = new BlockPos(player.posX, player.posY, player.posZ);
             DimensionLightingFixer.relightDimensionChunks(event.toDim, pos);
-        } else if (isPersonalDimension(event.fromDim)) {
-            PlayerAbilityApplier.resetAbilities(player);
-            // 与 PersonalWorlds 一致：不强制 saveAllChunks，依赖 Minecraft 正常的 chunk 保存机制。
         }
     }
 
-    /**
-     * 玩家 tick 中持续应用个人维度能力，防止进出维度时状态不同步。
-     */
     @SubscribeEvent
     public static void onPlayerTick(TickEvent.PlayerTickEvent event) {
         if (event.phase != TickEvent.Phase.END || event.player.world.isRemote) return;
         if (!(event.player instanceof EntityPlayerMP)) return;
-        if (!isPersonalDimension(event.player.dimension)) return;
-        // 按所在维度所有者的条目应用规则
-        PlayerDimEntry entry = getEntryByDimension(event.player.dimension);
-        if (entry != null) {
-            PlayerAbilityApplier.tickNoFlightInertia((EntityPlayerMP) event.player, entry.rules);
+        EntityPlayerMP player = (EntityPlayerMP) event.player;
+        refreshPlayerAbilities(player);
+        if (isPersonalDimension(player.dimension)) {
+            PersonalDimensionData data = PersonalDimensionData.get(player.world);
+            DimensionOwner owner = data.getOwnerByDimensionId(player.dimension);
+            if (!PrivateDimensionPermissions.canEnter(player, data, owner)) {
+                clearReturnPointIfInDimension(player.getUniqueID(), player.dimension);
+                teleportToOverworldSpawn(player);
+                refreshPlayerAbilities(player);
+                return;
+            }
+            if (owner != null) PlayerAbilityApplier.tickNoFlightInertia(player, owner.rules);
         }
     }
 }

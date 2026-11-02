@@ -1,7 +1,5 @@
 package com.github.aeddddd.ae2enhanced.specialcrafting;
 
-import net.minecraft.world.World;
-
 import appeng.api.networking.IGrid;
 import appeng.api.networking.crafting.ICraftingCallback;
 import appeng.api.networking.security.IActionSource;
@@ -10,6 +8,7 @@ import appeng.crafting.CraftBranchFailure;
 import appeng.crafting.CraftingTreeNode;
 import appeng.crafting.MECraftingInventory;
 import appeng.hooks.TickHandler;
+import net.minecraft.world.World;
 
 /**
  * FALLBACK 模式合成计算器：原生先算,得出缺料（模拟）计划时 LP 重算,
@@ -28,6 +27,7 @@ public class FallbackLpCraftingJob extends LpCraftingJob {
     @Override
     public void run() {
         long planStart = System.nanoTime();
+        RequestConfigSnapshot config = requestConfig();
         // 标记是否经 super.run() 回落原生——该路径已由 MixinCraftingJob 的 run RETURN 钩子计数,避免重复
         boolean delegatedToNative = false;
         IActionSource src = Ae2CraftingReflect.getActionSrc(this);
@@ -40,7 +40,7 @@ public class FallbackLpCraftingJob extends LpCraftingJob {
             boolean nativeOk = false;
             // 原生首趟挂计算预算:病态计划的原生递归可能永不结束(见 NativeCalcBudget);
             // 超预算中断会钉模拟态并经 InterruptedException 走下方取消分支
-            NativeCalcBudget.arm(this);
+            NativeCalcBudget.arm(this, config.nativeCalcBudgetMs);
             try {
                 MECraftingInventory inv = new MECraftingInventory(Ae2CraftingReflect.getOriginal(this),
                         true, false, true);
@@ -56,7 +56,9 @@ public class FallbackLpCraftingJob extends LpCraftingJob {
             } else {
                 CraftingTreeNode lpRoot = null;
                 try {
-                    lpRoot = this.computeLpPlan();
+                    lpRoot = this.computeLpPlan(config);
+                } catch (InterruptedException e) {
+                    throw e;
                 } catch (Throwable t) {
                     SpecialLog.warn("[LP计划] FALLBACK:LP 重算异常({}),保留原生缺料报告", t.toString());
                 }
@@ -64,7 +66,8 @@ public class FallbackLpCraftingJob extends LpCraftingJob {
                     // 仅当 LP 真正解出(非模拟)才替换
                     Ae2CraftingReflect.setTree(this, lpRoot);
                     Ae2CraftingReflect.nodeDive(lpRoot, this);
-                    if (this.hasCycleBoundary) {
+                    revalidateMaterialization(lpRoot);
+                    if (this.hasCycleBoundary && !this.isSimulation() && config.specialCrafting) {
                         SpecialPlanMarker.mark(this);
                     }
                 } else {
@@ -92,20 +95,19 @@ public class FallbackLpCraftingJob extends LpCraftingJob {
             Ae2CraftingReflect.finish(this);
         } catch (InterruptedException e) {
             SpecialLog.info("[LP计划] FALLBACK:计算被取消");
-            NativeCalcBudget.warnIfAborted(this);
+            NativeCalcBudget.warnIfAborted(this, config.nativeCalcBudgetMs);
             Ae2CraftingReflect.finish(this);
         } catch (Throwable t) {
             com.github.aeddddd.ae2enhanced.AE2Enhanced.LOGGER
                     .warn("LP FALLBACK 异常,回落原生计算: {}", t.toString());
-            Ae2CraftingReflect.setAvailableCheck(this, null);
-            NativeCalcBudget.arm(this);
+            prepareNativeFallback();
+            NativeCalcBudget.arm(this, config.nativeCalcBudgetMs);
             delegatedToNative = true;
             super.run();
-            NativeCalcBudget.warnIfAborted(this);
+            NativeCalcBudget.warnIfAborted(this, config.nativeCalcBudgetMs);
         } finally {
             if (!delegatedToNative) {
-                com.github.aeddddd.ae2enhanced.diag.plan.PlanTracker.onJobComputed(this,
-                        System.nanoTime() - planStart);
+                PlanObservationFactory.onJobComputed(this, System.nanoTime() - planStart);
             }
         }
     }

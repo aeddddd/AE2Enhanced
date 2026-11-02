@@ -1,12 +1,6 @@
 package com.github.aeddddd.ae2enhanced.client.render;
 
-import com.github.aeddddd.ae2enhanced.config.AE2EnhancedConfig;
-import com.github.aeddddd.ae2enhanced.display.ChartType;
-import com.github.aeddddd.ae2enhanced.display.DisplayPalette;
-import com.github.aeddddd.ae2enhanced.display.DisplayTheme;
-import com.github.aeddddd.ae2enhanced.display.TimeRange;
-import com.github.aeddddd.ae2enhanced.display.TrendBuffer;
-import com.github.aeddddd.ae2enhanced.display.YAxisMode;
+import com.github.aeddddd.ae2enhanced.display.*;
 import com.github.aeddddd.ae2enhanced.tile.TileDisplayPanel;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.FontRenderer;
@@ -60,7 +54,7 @@ public class RenderDisplayWall extends TileEntitySpecialRenderer<TileDisplayPane
                        float partialTicks, int destroyStage, float alpha) {
         if (!te.isMasterRole()) return;
         // 距离剔除(isGlobalRenderer 关闭了默认剔除,这里手动按配置距离剔除)
-        double maxDist = AE2EnhancedConfig.displayWall.renderDistance;
+        double maxDist = com.github.aeddddd.ae2enhanced.config.ClientPreferences.current().displayWall.renderDistance;
         Entity view = Minecraft.getMinecraft().getRenderViewEntity();
         if (view != null && te.getDistanceSq(view.posX, view.posY, view.posZ) > maxDist * maxDist) {
             return;

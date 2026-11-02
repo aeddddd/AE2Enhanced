@@ -2,7 +2,7 @@ package com.github.aeddddd.ae2enhanced.mixin.late.ae2;
 
 import appeng.parts.AEBasePart;
 import appeng.util.inv.IAEAppEngInventory;
-import com.github.aeddddd.ae2enhanced.util.network.WirelessChannelConnectionHelper;
+import com.github.aeddddd.ae2enhanced.tile.network.WirelessChannelConnectionHelper;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;

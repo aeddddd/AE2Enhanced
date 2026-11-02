@@ -19,8 +19,8 @@ import java.util.List;
  * <p><b>持久化</b>：内容写入 NBT（键 {@code centralFluidBuffer}），chunk 卸载 /
  * 服务器重启后继续重试，不会因为设备暂时失效而丢流体。</p>
  *
- * <p><b>容量</b>：同一流体的数量不设上限（用 int 存 mB 会溢出，这里直接累计 FluidStack 的
- * amount）。条目数（= 不同流体种类）超过 {@link #MAX_ENTRIES} 只留痕提示，<b>不拒绝入队</b>：
+ * <p><b>容量</b>：同一流体的数量不设上限，超过 int 的部分拆成独立合法条目保管，不允许回绕。
+ * 条目数（= 不同流体种类）超过 {@link #MAX_ENTRIES} 只留痕提示，<b>不拒绝入队</b>：
  * 缓冲是这些流体唯一的落脚点，拒绝入队等于把它们交给"转物品"或"丢弃"两条真正的消失路径；
  * 实际条目数由机器真实产出的流体种类数封顶。</p>
  */
@@ -42,16 +42,27 @@ public class CentralFluidBuffer {
     private static final String NBT_ATTEMPTS = "Attempts";
 
     private final List<Entry> entries = new ArrayList<>();
+    private final List<NBTTagCompound> preservedEntries = new ArrayList<>();
     private final int maxEntries;
     private final int maxAttempts;
+    private final Runnable changeListener;
 
     public CentralFluidBuffer() {
         this(MAX_ENTRIES, MAX_RETRY_ATTEMPTS);
     }
 
     public CentralFluidBuffer(int maxEntries, int maxAttempts) {
+        this(maxEntries, maxAttempts, () -> { });
+    }
+
+    public CentralFluidBuffer(Runnable changeListener) {
+        this(MAX_ENTRIES, MAX_RETRY_ATTEMPTS, changeListener);
+    }
+
+    public CentralFluidBuffer(int maxEntries, int maxAttempts, Runnable changeListener) {
         this.maxEntries = Math.max(1, maxEntries);
         this.maxAttempts = Math.max(1, maxAttempts);
+        this.changeListener = changeListener;
     }
 
     /**
@@ -67,9 +78,17 @@ public class CentralFluidBuffer {
             if (entry.fluid.isFluidEqual(fluid)) {
                 // 数量与 NBT 都并入已有条目；重试计数<b>不清零</b>：
                 // 清零会让"流体通道长期收不下"的条目靠不断到货一直停留在阈值以下，日志失去意义。
-                entry.fluid.amount += fluid.amount;
+                long total = (long) entry.fluid.amount + fluid.amount;
+                entry.fluid.amount = (int) Math.min(total, Integer.MAX_VALUE);
                 if (fluid.tag != null) {
                     entry.fluid.tag = fluid.tag.copy();
+                }
+                this.changeListener.run();
+                if (total > Integer.MAX_VALUE) {
+                    FluidStack remainder = fluid.copy();
+                    remainder.amount = (int) (total - Integer.MAX_VALUE);
+                    this.entries.add(new Entry(remainder, this.changeListener));
+                    this.changeListener.run();
                 }
                 return;
             }
@@ -79,7 +98,8 @@ public class CentralFluidBuffer {
             AE2Enhanced.LOGGER.warn("[AE2E] CentralInterface fluid buffer already holds {} fluid types (threshold {});"
                     + " keeping holding them instead of dropping the fluid", this.entries.size(), this.maxEntries);
         }
-        this.entries.add(new Entry(fluid.copy()));
+        this.entries.add(new Entry(fluid.copy(), this.changeListener));
+        this.changeListener.run();
     }
 
     /** 当前条目快照（重试循环遍历用；条目对象本身可继续操作）. */
@@ -88,7 +108,9 @@ public class CentralFluidBuffer {
     }
 
     public boolean remove(Entry entry) {
-        return this.entries.remove(entry);
+        boolean removed = this.entries.remove(entry);
+        if (removed) this.changeListener.run();
+        return removed;
     }
 
     public boolean isEmpty() {
@@ -112,11 +134,15 @@ public class CentralFluidBuffer {
     }
 
     public void clear() {
-        this.entries.clear();
+        if (!this.entries.isEmpty()) {
+            this.entries.clear();
+            this.changeListener.run();
+        }
     }
 
     public void writeToNBT(NBTTagCompound data) {
         NBTTagList list = new NBTTagList();
+        for (NBTTagCompound raw : this.preservedEntries) list.appendTag(raw.copy());
         for (Entry entry : this.entries) {
             if (entry.fluid == null || entry.fluid.getFluid() == null || entry.fluid.amount <= 0) {
                 continue;
@@ -135,6 +161,7 @@ public class CentralFluidBuffer {
 
     public void readFromNBT(NBTTagCompound data) {
         this.entries.clear();
+        this.preservedEntries.clear();
         if (data == null || !data.hasKey(NBT_LIST, 9)) {
             return;
         }
@@ -143,9 +170,10 @@ public class CentralFluidBuffer {
             NBTTagCompound tag = list.getCompoundTagAt(i);
             FluidStack fluid = FluidStack.loadFluidStackFromNBT(tag);
             if (fluid == null || fluid.getFluid() == null || fluid.amount <= 0) {
+                this.preservedEntries.add(tag.copy());
                 continue;
             }
-            Entry entry = new Entry(fluid);
+            Entry entry = new Entry(fluid, this.changeListener);
             entry.attempts = tag.getInteger(NBT_ATTEMPTS);
             this.entries.add(entry);
         }
@@ -160,9 +188,11 @@ public class CentralFluidBuffer {
 
         private FluidStack fluid;
         private int attempts;
+        private final Runnable changeListener;
 
-        Entry(FluidStack fluid) {
+        Entry(FluidStack fluid, Runnable changeListener) {
             this.fluid = fluid;
+            this.changeListener = changeListener;
         }
 
         public FluidStack fluid() {
@@ -171,6 +201,7 @@ public class CentralFluidBuffer {
 
         public void setFluid(FluidStack fluid) {
             this.fluid = fluid;
+            this.changeListener.run();
         }
 
         public int attempts() {
@@ -179,6 +210,7 @@ public class CentralFluidBuffer {
 
         public void countAttempt() {
             this.attempts++;
+            this.changeListener.run();
         }
     }
 }

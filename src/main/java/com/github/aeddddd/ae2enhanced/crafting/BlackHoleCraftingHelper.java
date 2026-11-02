@@ -42,7 +42,7 @@ public class BlackHoleCraftingHelper {
             }
 
             boolean anyCrafted = false;
-            for (BlackHoleRecipe recipe : BlackHoleRecipeRegistry.getRecipes()) {
+            for (BlackHoleRecipe recipe : com.github.aeddddd.ae2enhanced.chamber.RecipeCatalog.blackHoleRecipes()) {
                 int batches = recipe.maxBatches(found);
                 if (batches <= 0) continue;
 
@@ -129,7 +129,7 @@ public class BlackHoleCraftingHelper {
     public static boolean isCraftingInput(ItemStack stack) {
         if (stack.isEmpty() || stack.getItem().getRegistryName() == null) return false;
         String itemId = stack.getItem().getRegistryName().toString() + ":" + stack.getMetadata();
-        for (BlackHoleRecipe recipe : BlackHoleRecipeRegistry.getRecipes()) {
+        for (BlackHoleRecipe recipe : com.github.aeddddd.ae2enhanced.chamber.RecipeCatalog.blackHoleRecipes()) {
             for (String inputKey : recipe.getInputs().keySet()) {
                 if (inputKey.equals(itemId) || inputKey.startsWith(itemId + "{")) {
                     return true;

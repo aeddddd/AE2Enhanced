@@ -1,23 +1,16 @@
 package com.github.aeddddd.ae2enhanced.specialcrafting;
 
-import java.util.Collections;
-import java.util.LinkedHashMap;
-import java.util.Map;
-import java.util.Optional;
-import java.util.WeakHashMap;
-
-import javax.annotation.Nullable;
-
+import appeng.api.networking.crafting.ICraftingPatternDetails;
+import appeng.api.storage.data.IAEItemStack;
+import appeng.container.ContainerNull;
+import com.github.aeddddd.ae2enhanced.craftingapi.PatternHelperAccess;
 import net.minecraft.inventory.InventoryCrafting;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.crafting.IRecipe;
 import net.minecraft.util.NonNullList;
 
-import appeng.api.networking.crafting.ICraftingPatternDetails;
-import appeng.api.storage.data.IAEItemStack;
-import appeng.container.ContainerNull;
-
-import com.github.aeddddd.ae2enhanced.mixin.bridge.IPatternHelperAccess;
+import javax.annotation.Nullable;
+import java.util.*;
 
 /**
  * 样板配方返还物解析：以样板构造时匹配的 {@code standardRecipe} 计算
@@ -47,7 +40,7 @@ public final class RecipeRemainingResolver {
      */
     @Nullable
     public static Map<IAEItemStack, Long> remainingPerCraft(ICraftingPatternDetails pattern) {
-        if (!pattern.isCraftable() || !(pattern instanceof IPatternHelperAccess)) {
+        if (!pattern.isCraftable() || !(pattern instanceof PatternHelperAccess)) {
             return null;
         }
         Optional<Map<IAEItemStack, Long>> cached = CACHE.get(pattern);
@@ -61,7 +54,7 @@ public final class RecipeRemainingResolver {
 
     @Nullable
     private static Map<IAEItemStack, Long> resolve(ICraftingPatternDetails pattern) {
-        IPatternHelperAccess access = (IPatternHelperAccess) pattern;
+        PatternHelperAccess access = (PatternHelperAccess) pattern;
         IRecipe recipe = access.ae2enhanced$standardRecipe();
         InventoryCrafting template = access.ae2enhanced$craftingTemplate();
         if (recipe == null || template == null) {

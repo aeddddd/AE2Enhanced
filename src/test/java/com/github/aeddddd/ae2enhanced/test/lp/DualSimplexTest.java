@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.File;
 
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import com.github.aeddddd.ae2enhanced.specialcrafting.lp.DualSimplex;
@@ -20,7 +21,8 @@ import com.github.aeddddd.ae2enhanced.specialcrafting.lp.SparseMatrix;
  * <li>lp-dumps/ 真实病态转储:原样(带 1e18 封顶,旧单纯形全灭于此)必须收敛;
  * 放开执行数上界后必须收敛到 HiGHS 基准 obj=0(该订单流平衡意义不缺料).</li>
  * </ul>
- * 用法:{code ./gradlew test --tests DualSimplexTest -Dae2e.lpdump.dir=<目录>}.
+ * 用法:{code ./gradlew test -PtestIncludeTags=replay --tests DualSimplexTest
+ * -Dae2e.lpdump.dir=<目录>}.
  */
 public class DualSimplexTest {
 
@@ -99,6 +101,7 @@ public class DualSimplexTest {
         assertThat(r.x[1]).isCloseTo(2.0, org.assertj.core.data.Offset.offset(1e-6));
     }
 
+    @Tag("replay")
     @Test
     public void dumpedModelsAsIs() throws Exception {
         for (File file : dumps()) {
@@ -116,6 +119,7 @@ public class DualSimplexTest {
         }
     }
 
+    @Tag("replay")
     @Test
     public void dumpedModelsRelaxed() throws Exception {
         for (File file : dumps()) {

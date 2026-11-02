@@ -1,29 +1,23 @@
 package com.github.aeddddd.ae2enhanced.test.execution;
 
-import static com.github.aeddddd.ae2enhanced.test.support.SimulationEnv.block;
-import static com.github.aeddddd.ae2enhanced.test.support.SimulationEnv.item;
-import static com.github.aeddddd.ae2enhanced.test.support.SimulationEnv.mult;
-import static org.assertj.core.api.Assertions.assertThat;
-
-import java.util.Map;
-
-import org.junit.jupiter.api.Test;
-
-import net.minecraft.init.Blocks;
-import net.minecraft.init.Items;
-
 import appeng.api.storage.data.IAEItemStack;
 import appeng.crafting.CraftingJob;
-
-import com.github.aeddddd.ae2enhanced.network.packet.PacketSpecialPlanInfo;
 import com.github.aeddddd.ae2enhanced.specialcrafting.RecursiveCraftingHelper;
 import com.github.aeddddd.ae2enhanced.specialcrafting.SpecialPlanDisplayHook;
 import com.github.aeddddd.ae2enhanced.specialcrafting.SpecialPlanInfo;
+import com.github.aeddddd.ae2enhanced.specialcrafting.packet.PacketSpecialPlanInfo;
 import com.github.aeddddd.ae2enhanced.test.support.ProcessingPatternBuilder;
 import com.github.aeddddd.ae2enhanced.test.support.SimulationEnv;
-
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
+import net.minecraft.init.Blocks;
+import net.minecraft.init.Items;
+import org.junit.jupiter.api.Test;
+
+import java.util.Map;
+
+import static com.github.aeddddd.ae2enhanced.test.support.SimulationEnv.*;
+import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * 特殊计划显示信息(SpecialPlanInfo)计算与编解码测试,1.12.2 移植版.

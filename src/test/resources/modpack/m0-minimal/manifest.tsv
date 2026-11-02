@@ -1,0 +1,11 @@
+# M0/L5 deterministic fixture; request = item, count, simulation, missing, fallback, degraded, timeout, timeoutMs
+format	1
+snapshot	snapshot.json
+sha256	02a3b38eb1ddc22fc26df661a744c250bc6d0e3be3c80e518548c2459103a64b
+snapshotFormat	2
+source	minimal-two-level-network
+sourceVersion	1
+mod	minecraft	1.12.2
+mod	ae2enhanced	m0-l5-fixture-1
+request	ae2enhanced:replay_target	4	false	0	0	0	false	10000
+request	ae2enhanced:replay_intermediate	3	false	0	0	0	false	10000

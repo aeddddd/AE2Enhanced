@@ -10,6 +10,9 @@ public class CommonProxy {
     }
 
     public void init(FMLInitializationEvent event) {
+        com.github.aeddddd.ae2enhanced.gui.GuiEndpointRegistry.register(
+                net.minecraftforge.fml.relauncher.Side.SERVER,
+                new com.github.aeddddd.ae2enhanced.gui.GuiServerEndpoint());
     }
 
     public void postInit(FMLPostInitializationEvent event) {

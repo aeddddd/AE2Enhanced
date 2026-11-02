@@ -44,6 +44,8 @@ public final class GuideManager implements net.minecraft.client.resources.IResou
     public void reload() {
         try {
             Map<String, GuidePage> pages = GuideLoader.loadPages();
+            com.github.aeddddd.ae2enhanced.guide.client.ScriptGuideClient.merge(
+                    pages, GuideLoader.getCurrentLanguage());
             this.book = GuideBook.build(pages);
             AE2Enhanced.LOGGER.info("[AE2E] Guide loaded: {} pages", pages.size());
         } catch (Exception e) {

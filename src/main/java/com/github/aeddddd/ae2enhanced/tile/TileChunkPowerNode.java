@@ -12,10 +12,9 @@ import appeng.api.util.AECableType;
 import appeng.api.util.AEPartLocation;
 import appeng.me.GridAccessException;
 import appeng.me.helpers.MachineSource;
-import com.github.aeddddd.ae2enhanced.network.packet.PacketChunkPowerNodeSync;
+import com.github.aeddddd.ae2enhanced.tile.packet.PacketChunkPowerNodeSync;
 import com.github.aeddddd.ae2enhanced.platform.energy.EnergyAdapterRegistry;
 import com.github.aeddddd.ae2enhanced.platform.energy.IEnergyAdapter;
-import com.github.aeddddd.ae2enhanced.registry.content.BlockRegistry;
 import com.github.aeddddd.ae2enhanced.storage.energy.EnergyChannelResolver;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.item.ItemStack;
@@ -119,7 +118,7 @@ public class TileChunkPowerNode extends TileAENetworkBase implements ITickable, 
 
     @Override
     protected ItemStack getProxyRepresentation() {
-        return new ItemStack(BlockRegistry.CHUNK_POWER_NODE);
+        return new ItemStack(getBlockType());
     }
 
     @Override

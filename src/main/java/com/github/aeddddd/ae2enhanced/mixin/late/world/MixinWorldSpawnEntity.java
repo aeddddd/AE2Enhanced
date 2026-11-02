@@ -1,7 +1,7 @@
 package com.github.aeddddd.ae2enhanced.mixin.late.world;
 
 import com.github.aeddddd.ae2enhanced.collector.CollectorRegistry;
-import com.github.aeddddd.ae2enhanced.tile.TileAdvancedMECollector;
+import com.github.aeddddd.ae2enhanced.collector.TileAdvancedMECollector;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.item.EntityItem;
 import net.minecraft.item.ItemStack;
@@ -32,6 +32,8 @@ public class MixinWorldSpawnEntity {
             ItemStack remaining = collector.tryCollectStackForced(item.getItem());
             if (remaining.isEmpty()) {
                 cir.setReturnValue(true);
+            } else {
+                item.setItem(remaining);
             }
         }
     }

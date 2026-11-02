@@ -76,6 +76,7 @@ public class PacketLoadOmniRecipe implements IMessage {
                 byte mode = data.getByte("mode");
                 boolean isCrafting = data.getBoolean("isCrafting");
                 int gridSize = data.hasKey("gridSize") ? data.getInteger("gridSize") : 3;
+                if (mode < 0 || mode > 2 || gridSize < 1 || gridSize > 9) return;
 
                 Map<Integer, net.minecraft.item.ItemStack> inputs = new HashMap<>();
                 Map<Integer, net.minecraft.item.ItemStack> outputs = new HashMap<>();

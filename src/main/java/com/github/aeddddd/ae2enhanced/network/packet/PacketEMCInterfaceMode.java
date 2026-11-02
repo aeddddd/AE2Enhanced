@@ -1,6 +1,6 @@
 package com.github.aeddddd.ae2enhanced.network.packet;
 
-import com.github.aeddddd.ae2enhanced.integration.projecte.ProjectEHelper;
+import com.github.aeddddd.ae2enhanced.storage.EmcStoragePort;
 import com.github.aeddddd.ae2enhanced.tile.TileEMCInterface;
 import io.netty.buffer.ByteBuf;
 import net.minecraft.entity.player.EntityPlayerMP;
@@ -68,7 +68,7 @@ public class PacketEMCInterfaceMode implements IMessage {
                 if (!tile.isBound()) return;
                 Object provider = tile.getKnowledgeProvider();
                 BigInteger balance = provider == null
-                        ? BigInteger.ZERO : ProjectEHelper.getEmcBig(provider);
+                        ? BigInteger.ZERO : EmcStoragePort.getEmcBig(provider);
                 if (balance.compareTo(TileEMCInterface.EMC_CAP) < 0) {
                     player.sendMessage(new TextComponentTranslation(
                             "chat.ae2enhanced.emc_interface.creative_denied"));

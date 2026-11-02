@@ -3,7 +3,7 @@ package com.github.aeddddd.ae2enhanced.mixin.late.ae2;
 import appeng.helpers.DualityInterface;
 import appeng.helpers.IInterfaceHost;
 import appeng.tile.misc.TileInterface;
-import com.github.aeddddd.ae2enhanced.util.network.WirelessChannelConnectionHelper;
+import com.github.aeddddd.ae2enhanced.tile.network.WirelessChannelConnectionHelper;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;

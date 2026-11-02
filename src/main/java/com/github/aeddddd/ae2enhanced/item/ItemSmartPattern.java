@@ -4,9 +4,9 @@ import appeng.api.implementations.ICraftingPatternItem;
 import appeng.api.networking.crafting.ICraftingPatternDetails;
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
 import com.github.aeddddd.ae2enhanced.crafting.smartpattern.SmartPatternData;
-import com.github.aeddddd.ae2enhanced.crafting.smartpattern.SmartPatternStorageFile;
+import com.github.aeddddd.ae2enhanced.crafting.smartpattern.SmartPatternRepository;
 import com.github.aeddddd.ae2enhanced.crafting.smartpattern.SmartPatternSubDetails;
-import com.github.aeddddd.ae2enhanced.registry.content.ItemRegistry;
+import com.github.aeddddd.ae2enhanced.item.ItemRegistry;
 import net.minecraft.client.resources.I18n;
 import net.minecraft.client.util.ITooltipFlag;
 import net.minecraft.item.Item;
@@ -32,6 +32,7 @@ public class ItemSmartPattern extends Item implements ICraftingPatternItem {
     private static final String NBT_DISABLED_MASK = "disabledMask";
     private static final String NBT_RECIPE_COUNT = "recipeCount";
     private static final String NBT_TARGET_BLOCK_ID = "targetBlockId";
+    private static final String NBT_REVISION = "revision";
 
     public ItemSmartPattern() {
         setRegistryName(AE2Enhanced.MOD_ID, "smart_pattern");
@@ -48,14 +49,29 @@ public class ItemSmartPattern extends Item implements ICraftingPatternItem {
                                            @Nonnull BitSet disabledMask,
                                            int recipeCount,
                                            @Nonnull String targetBlockId) {
+        return createPattern(patternDataId, disabledMask, recipeCount, targetBlockId, 0L);
+    }
+
+    @Nonnull
+    public static ItemStack createPattern(@Nonnull UUID patternDataId,
+                                           @Nonnull BitSet disabledMask,
+                                           int recipeCount,
+                                           @Nonnull String targetBlockId,
+                                           long revision) {
         ItemStack stack = new ItemStack(ItemRegistry.SMART_PATTERN);
         NBTTagCompound tag = new NBTTagCompound();
         tag.setUniqueId(NBT_PATTERN_DATA_ID, patternDataId);
         tag.setString(NBT_DISABLED_MASK, SmartPatternData.bitSetToBase64(disabledMask));
         tag.setInteger(NBT_RECIPE_COUNT, recipeCount);
         tag.setString(NBT_TARGET_BLOCK_ID, targetBlockId);
+        tag.setLong(NBT_REVISION, revision);
         stack.setTagCompound(tag);
         return stack;
+    }
+
+    public static long getRevision(@Nonnull ItemStack stack) {
+        NBTTagCompound tag = stack.getTagCompound();
+        return tag == null ? 0L : tag.getLong(NBT_REVISION);
     }
 
     /**
@@ -117,18 +133,18 @@ public class ItemSmartPattern extends Item implements ICraftingPatternItem {
      */
     @Nonnull
     public static List<SmartPatternSubDetails> expandPatterns(@Nonnull ItemStack stack, @Nullable World world) {
-        if (world == null) {
-            // TileEntity.readFromNBT 时 world 字段尚未设置,延迟到 initialize() 再展开
+        if (world == null || world.isRemote) {
             return Collections.emptyList();
         }
         UUID dataId = getPatternDataId(stack);
         if (dataId == null) {
             return Collections.emptyList();
         }
-        SmartPatternData data = SmartPatternStorageFile.load(world, dataId);
-        if (data == null) {
+        SmartPatternRepository.Snapshot snapshot = SmartPatternRepository.get(world).get(dataId);
+        if (snapshot == null) {
             return Collections.emptyList();
         }
+        SmartPatternData data = snapshot.data();
         BitSet disabledMask = getDisabledMask(stack);
         List<SmartPatternSubDetails> result = new java.util.ArrayList<>();
         for (int i = 0; i < data.getRecipes().size(); i++) {

@@ -21,6 +21,7 @@
     "world.MixinPlayerControllerMP",
     "terminal.MixinGuiScreenPlanHooks",
     "terminal.MixinGuiContainerPlanHooks",
+    "terminal.MixinGuiContainerTooltip",
     "dev.MixinPlayerControllerMPClickTrace"
   ],
   "server": []

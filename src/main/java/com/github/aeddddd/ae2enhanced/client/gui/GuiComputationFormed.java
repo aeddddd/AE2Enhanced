@@ -1,7 +1,6 @@
 package com.github.aeddddd.ae2enhanced.client.gui;
 
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
-import com.github.aeddddd.ae2enhanced.config.AE2EnhancedConfig;
 import com.github.aeddddd.ae2enhanced.container.ContainerComputationFormed;
 import com.github.aeddddd.ae2enhanced.tile.TileComputationCore;
 import net.minecraft.client.gui.inventory.GuiContainer;
@@ -89,7 +88,7 @@ public class GuiComputationFormed extends GuiContainer {
         y += lineHeight;
 
         // Max orders from config
-        int maxOrders = AE2EnhancedConfig.crafting.maxActiveOrders;
+        int maxOrders = com.github.aeddddd.ae2enhanced.config.ServerConfig.current().crafting.maxActiveOrders;
         fontRenderer.drawString(I18n.format("gui.ae2enhanced.computation.label.queue_capacity", maxOrders), x, y, TEXT_BODY);
         y += lineHeight + 4;
 
@@ -97,16 +96,19 @@ public class GuiComputationFormed extends GuiContainer {
         drawRect(x, y, guiLeft + xSize - 20, y + 1, 0xFF878FA5);
         y += 6;
 
-        // Placeholder for order list (P1 engine)
         if (orders == 0) {
             fontRenderer.drawString(I18n.format("gui.ae2enhanced.computation.orders.empty"), x, y, TEXT_DIM);
         } else {
-            fontRenderer.drawString(I18n.format("gui.ae2enhanced.computation.orders.placeholder"), x, y, TEXT_DIM);
+            java.util.List<com.github.aeddddd.ae2enhanced.tile.ComputationCoreTaskSummary> summaries = tile.getTaskSummaries();
+            for (int i = 0; i < summaries.size() && i < 3; i++) {
+                com.github.aeddddd.ae2enhanced.tile.ComputationCoreTaskSummary summary = summaries.get(i);
+                String output = summary.output.isEmpty() ? summary.name : summary.output.getDisplayName();
+                String progress = summary.startItemCount > 0
+                        ? " " + (summary.startItemCount - summary.remainingItemCount) + "/" + summary.startItemCount : "";
+                fontRenderer.drawString(fontRenderer.trimStringToWidth(output + progress, xSize - 40), x, y, TEXT_DIM);
+                y += 12;
+            }
         }
-        y += lineHeight + 4;
-
-        // Crafting engine placeholder
-        fontRenderer.drawString(I18n.format("gui.ae2enhanced.computation.engine.initializing"), x, y, TEXT_DIM);
 
         // Bottom hint
         String hint = I18n.format("gui.ae2enhanced.computation.hint.close");

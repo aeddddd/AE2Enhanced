@@ -14,7 +14,7 @@ import com.github.aeddddd.ae2enhanced.item.ItemOmniWirelessTerminal;
 import com.github.aeddddd.ae2enhanced.storage.OmniTerminalData;
 import com.github.aeddddd.ae2enhanced.storage.OmniTerminalInventory;
 import com.github.aeddddd.ae2enhanced.storage.OmniTerminalStorage;
-import com.github.aeddddd.ae2enhanced.util.OmniTerminalFinder;
+import com.github.aeddddd.ae2enhanced.omni.OmniTerminalFinder;
 import net.minecraft.entity.item.EntityItem;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.item.ItemStack;
@@ -54,7 +54,7 @@ public class MagnetEventHandler {
             return;
         }
 
-        UUID storageId = ItemOmniWirelessTerminal.getStorageId(terminal);
+        UUID storageId = ItemOmniWirelessTerminal.ensureStorageId(terminal);
         OmniTerminalStorage storage = OmniTerminalData.get(world).getOrCreate(storageId);
         OmniTerminalInventory upgrades = storage.getUpgradeInventory();
 

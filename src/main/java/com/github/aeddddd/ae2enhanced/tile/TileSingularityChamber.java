@@ -15,7 +15,6 @@ import com.github.aeddddd.ae2enhanced.chamber.ChamberRecipeIndex;
 import com.github.aeddddd.ae2enhanced.chamber.LongItemStore;
 import com.github.aeddddd.ae2enhanced.config.AE2EnhancedConfig;
 import com.github.aeddddd.ae2enhanced.item.ItemVirtualParallelCard;
-import com.github.aeddddd.ae2enhanced.registry.content.BlockRegistry;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
@@ -222,7 +221,7 @@ public class TileSingularityChamber extends TileAENetworkBase implements ITickab
 
     @Override
     protected ItemStack getProxyRepresentation() {
-        return new ItemStack(BlockRegistry.SINGULARITY_CHAMBER);
+        return new ItemStack(getBlockType());
     }
 
     @Override
@@ -258,7 +257,7 @@ public class TileSingularityChamber extends TileAENetworkBase implements ITickab
         }
         if (!flagsApplied) {
             flagsApplied = true;
-            if (AE2EnhancedConfig.chamber.requireChannel) {
+            if (com.github.aeddddd.ae2enhanced.config.ServerConfig.current().chamber.requireChannel) {
                 getProxy().setFlags(appeng.api.networking.GridFlags.REQUIRE_CHANNEL);
             }
         }
@@ -474,7 +473,7 @@ public class TileSingularityChamber extends TileAENetworkBase implements ITickab
         if (free <= 0 || jobs.size() >= MAX_JOBS) {
             return;
         }
-        int perBatch = AE2EnhancedConfig.chamber.energyPerBatch;
+        int perBatch = com.github.aeddddd.ae2enhanced.config.ServerConfig.current().chamber.energyPerBatch;
         long remaining = Math.min(free, energy / perBatch);
         if (remaining <= 0) {
             return;
@@ -791,13 +790,22 @@ public class TileSingularityChamber extends TileAENetworkBase implements ITickab
     /**
      * 活动任务快照（GUI 同步用）.
      */
-    public List<com.github.aeddddd.ae2enhanced.network.packet.PacketChamberSync.JobView> getJobViews() {
-        List<com.github.aeddddd.ae2enhanced.network.packet.PacketChamberSync.JobView> views = new ArrayList<>();
+    public List<com.github.aeddddd.ae2enhanced.chamber.packet.PacketChamberSync.JobView> getJobViews() {
+        List<com.github.aeddddd.ae2enhanced.chamber.packet.PacketChamberSync.JobView> views = new ArrayList<>();
         for (Job job : jobs) {
-            views.add(new com.github.aeddddd.ae2enhanced.network.packet.PacketChamberSync.JobView(
+            views.add(new com.github.aeddddd.ae2enhanced.chamber.packet.PacketChamberSync.JobView(
                     job.recipe.getOutput(), job.batches, job.progress, job.requiredTime));
         }
         return views;
+    }
+
+    /** 与 getJobViews() 同顺序的配方 ID，仅供只读 API 关联任务与配方。 */
+    public List<String> getJobRecipeIds() {
+        List<String> ids = new ArrayList<>();
+        for (Job job : jobs) {
+            ids.add(job.recipe.getId());
+        }
+        return ids;
     }
 
     // ---- 任务懒恢复 ----

@@ -1,13 +1,8 @@
 package com.github.aeddddd.ae2enhanced.dimension;
 
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
-import com.github.aeddddd.ae2enhanced.config.AE2EnhancedConfig;
-import com.github.aeddddd.ae2enhanced.registry.content.BlockRegistry;
-import com.google.gson.JsonArray;
-import com.google.gson.JsonElement;
-import com.google.gson.JsonObject;
-import com.google.gson.JsonParser;
-import com.google.gson.JsonSyntaxException;
+import com.github.aeddddd.ae2enhanced.config.ServerConfig;
+import com.google.gson.*;
 import net.minecraft.block.Block;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.init.Blocks;
@@ -31,7 +26,7 @@ public final class PresetLoader {
     public static FloorPreset getPreset() {
         FloorPreset preset = cached;
         if (preset == null) {
-            cached = load(AE2EnhancedConfig.personalDimension.presetPath);
+            cached = load(ServerConfig.current().personalDimension.presetPath);
             preset = cached;
         }
         return preset;
@@ -42,7 +37,7 @@ public final class PresetLoader {
      */
     public static void copyDefaultPresetToConfigIfMissing() {
         File configDir = net.minecraftforge.fml.common.Loader.instance().getConfigDir();
-        File target = new File(configDir, AE2EnhancedConfig.personalDimension.presetPath);
+        File target = new File(configDir, ServerConfig.current().personalDimension.presetPath);
         if (target.isFile()) return;
         target.getParentFile().mkdirs();
         try (InputStream in = AE2Enhanced.class.getResourceAsStream("/assets/ae2enhanced/presets/personal_dimension_floor.json")) {
@@ -206,8 +201,8 @@ public final class PresetLoader {
     private static IBlockState resolveState(String name) {
         // GTCEu 未加载时映射到本 Mod 的替代方块
         if ("gtceu:yellow_stripes_block_b".equals(name)) {
-            if (BlockRegistry.YELLOW_STRIPES_BLOCK_B != null) {
-                return BlockRegistry.YELLOW_STRIPES_BLOCK_B.getDefaultState();
+            if (Block.getBlockFromName("ae2enhanced:yellow_stripes_block_b") != null) {
+                return Block.getBlockFromName("ae2enhanced:yellow_stripes_block_b").getDefaultState();
             }
         }
         // 1.13+ 的彩色混凝土名称在 1.12 中对应 minecraft:concrete 的 metadata
@@ -232,8 +227,8 @@ public final class PresetLoader {
 
     private static FloorPreset fallback() {
         IBlockState[] palette = new IBlockState[] {
-                BlockRegistry.YELLOW_STRIPES_BLOCK_B != null
-                        ? BlockRegistry.YELLOW_STRIPES_BLOCK_B.getDefaultState()
+                Block.getBlockFromName("ae2enhanced:yellow_stripes_block_b") != null
+                        ? Block.getBlockFromName("ae2enhanced:yellow_stripes_block_b").getDefaultState()
                         : Blocks.BEDROCK.getDefaultState()
         };
         int[] states = new int[96 * 96];

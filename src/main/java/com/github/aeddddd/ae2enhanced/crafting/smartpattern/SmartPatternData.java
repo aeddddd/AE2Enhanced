@@ -50,6 +50,15 @@ public class SmartPatternData {
     }
 
     @Nonnull
+    public SmartPatternData copy() {
+        SmartPatternData copy = fromNBT(toNBT());
+        if (copy == null) {
+            throw new IllegalStateException("SmartPatternData could not copy itself");
+        }
+        return copy;
+    }
+
+    @Nonnull
     public UUID getPatternDataId() {
         return patternDataId;
     }
@@ -74,7 +83,7 @@ public class SmartPatternData {
     }
 
     public void setDisabledMask(@Nonnull BitSet disabledMask) {
-        this.disabledMask = disabledMask;
+        this.disabledMask = (BitSet) disabledMask.clone();
     }
 
     /**

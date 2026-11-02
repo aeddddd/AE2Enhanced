@@ -194,6 +194,7 @@ public final class Ae2ModernArt {
         }
         boolean pushed = NinePatch.pushZLevel(zLevel);
         Minecraft.getMinecraft().getTextureManager().bindTexture(tex);
+        GlStateManager.enableBlend();
         GlStateManager.color(1.0F, 1.0F, 1.0F, 1.0F);
         Gui.drawModalRectWithCustomSizedTexture(x, y, u, v, width, height, texWidth, texHeight);
         GlStateManager.color(1.0F, 1.0F, 1.0F, 1.0F);
@@ -208,6 +209,7 @@ public final class Ae2ModernArt {
         }
         boolean pushed = NinePatch.pushZLevel(zLevel);
         Minecraft.getMinecraft().getTextureManager().bindTexture(tex);
+        GlStateManager.enableBlend();
         GlStateManager.color(1.0F, 1.0F, 1.0F, 1.0F);
         Gui.drawScaledCustomSizeModalRect(x, y, u, v, srcWidth, srcHeight, width, height, texWidth, texHeight);
         GlStateManager.color(1.0F, 1.0F, 1.0F, 1.0F);
@@ -229,7 +231,6 @@ public final class Ae2ModernArt {
         Gui.drawModalRectWithCustomSizedTexture(x, y, icon.x(), icon.y(), icon.width(), icon.height(),
                 256, 256);
         GlStateManager.color(1.0F, 1.0F, 1.0F, 1.0F);
-        GlStateManager.disableBlend();
         NinePatch.popZLevel(pushed);
     }
 
@@ -274,6 +275,7 @@ public final class Ae2ModernArt {
         }
         boolean pushed = NinePatch.pushZLevel(zLevel);
         Minecraft.getMinecraft().getTextureManager().bindTexture(tex);
+        GlStateManager.enableBlend();
         GlStateManager.color(1.0F, 1.0F, 1.0F, 1.0F);
         int innerW = width - 2 * border;
         int innerH = height - 2 * border;
@@ -378,20 +380,30 @@ public final class Ae2ModernArt {
 
     // ==================== 输入框（S8 / E4） ====================
 
-    /** AE2 19.x 输入框底：左右 1px 边 + 中间拉伸，12px 高（聚焦/禁用换条带）。 */
+    /** AE2 19.x 输入框底：三列三行切片，只拉伸中间区域。 */
     public static void drawTextField(int x, int y, int width, int height, boolean focused,
             boolean enabled, float zLevel) {
-        if (width < 2 || height < 1) {
+        if (width < 3 || height < 3) {
             return;
         }
         int v = !enabled ? TEXT_FIELD_DISABLED : (focused ? TEXT_FIELD_FOCUSED : TEXT_FIELD_NORMAL);
-        blit(TEXT_FIELD, 128, 128, 0, v, 1, TEXT_FIELD_HEIGHT, x, y, zLevel);
-        int middle = Math.min(126, width - 2);
-        if (middle > 0) {
-            blitScaled(TEXT_FIELD, 128, 128, 1, v, middle, TEXT_FIELD_HEIGHT,
-                    x + 1, y, width - 2, height, zLevel);
+        int[] sourceX = {0, 1, 127};
+        int[] sourceY = {v, v + 1, v + TEXT_FIELD_HEIGHT - 1};
+        int[] sourceWidths = {1, 126, 1};
+        int[] sourceHeights = {1, TEXT_FIELD_HEIGHT - 2, 1};
+        int[] targetX = {x, x + 1, x + width - 1};
+        int[] targetY = {y, y + 1, y + height - 1};
+        int[] targetWidths = {1, width - 2, 1};
+        int[] targetHeights = {1, height - 2, 1};
+        boolean pushed = NinePatch.pushZLevel(zLevel);
+        for (int row = 0; row < 3; row++) {
+            for (int column = 0; column < 3; column++) {
+                blitScaled(TEXT_FIELD, 128, 128, sourceX[column], sourceY[row],
+                        sourceWidths[column], sourceHeights[row], targetX[column], targetY[row],
+                        targetWidths[column], targetHeights[row], 0.0F);
+            }
         }
-        blit(TEXT_FIELD, 128, 128, 127, v, 1, TEXT_FIELD_HEIGHT, x + width - 1, y, zLevel);
+        NinePatch.popZLevel(pushed);
     }
 
     // ==================== 合成箭头（S12） / 编码区底（S14） / 数量弹窗（S19） ====================
@@ -402,9 +414,9 @@ public final class Ae2ModernArt {
                 CRAFTING_ARROW_H, x, y, width, height, zLevel);
     }
 
-    /** 编码区模式底（124x66）：{@code craftMode} 选 craft(0,0) 或 process(0,70)。 */
+    /** 编码区模式底（126x68）：{@code craftMode} 选 craft(0,0) 或 process(0,70)。 */
     public static void drawPatternModeBlock(int x, int y, boolean craftMode, float zLevel) {
-        blit(PATTERN_MODES, 256, 256, 0, craftMode ? 0 : 70, 124, 66, x, y, zLevel);
+        blit(PATTERN_MODES, 256, 256, 0, craftMode ? 0 : 70, 126, 68, x, y, zLevel);
     }
 
     /** 数量弹窗底（176x107，源矩形与 AE2 的 craft_amount.json 一致）。 */

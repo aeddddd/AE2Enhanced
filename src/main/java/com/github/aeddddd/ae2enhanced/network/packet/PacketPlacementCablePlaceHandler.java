@@ -1,8 +1,8 @@
 package com.github.aeddddd.ae2enhanced.network.packet;
 
-import com.github.aeddddd.ae2enhanced.item.ItemAdvancedMEOmniTool;
-import com.github.aeddddd.ae2enhanced.item.ItemMEPlacementTool;
-import com.github.aeddddd.ae2enhanced.util.placement.PlacementToolHelper;
+import com.github.aeddddd.ae2enhanced.omnitool.ItemAdvancedMEOmniTool;
+import com.github.aeddddd.ae2enhanced.omnitool.ItemMEPlacementTool;
+import com.github.aeddddd.ae2enhanced.omnitool.placement.PlacementToolHelper;
 import net.minecraft.entity.player.EntityPlayerMP;
 import net.minecraft.item.ItemStack;
 import net.minecraft.util.EnumHand;
@@ -28,7 +28,7 @@ public class PacketPlacementCablePlaceHandler implements IMessageHandler<PacketP
             PlacementToolHelper.placeCableBetween(player, player.world,
                     message.getStart(), message.getEnd(), hand, stack);
             // 与右键两点流程保持一致：放置完成后清除起点
-            new com.github.aeddddd.ae2enhanced.util.placement.PlacementConfig(stack).setCableStart(null);
+            new com.github.aeddddd.ae2enhanced.omnitool.placement.PlacementConfig(stack).setCableStart(null);
         });
         return null;
     }

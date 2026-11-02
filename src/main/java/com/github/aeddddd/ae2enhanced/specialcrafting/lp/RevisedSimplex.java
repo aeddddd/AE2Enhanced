@@ -1,12 +1,7 @@
 package com.github.aeddddd.ae2enhanced.specialcrafting.lp;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Map;
-import java.util.TreeMap;
-
 import javax.annotation.Nullable;
+import java.util.*;
 
 /**
  * 有界变量两阶段修正单纯形, legacy LP 求解器, 无外部依赖.
@@ -51,19 +46,20 @@ public final class RevisedSimplex {
      * 默认轨迹求解后反缩放并按原模型口径校验; 未通过则依次回退缩放 Bland 轨迹,
      * 未缩放默认轨迹, 未缩放 Bland 轨迹. 任何返回的 OPTIMAL 都通过原模型校验.</p>
      */
-    /** 数值失败兜底重启次数, 微扰与列置换交替. */
-    private static final int PERTURB_RESTARTS = Integer.getInteger("ae2e.perturbRestarts", 6);
-
     public static LpResult solve(LpModel model) {
-        LpResult r = solveChainOnce(model);
+        return solve(model, Settings.fromSystemProperties());
+    }
+
+    public static LpResult solve(LpModel model, Settings settings) {
+        LpResult r = solveChainOnce(model, settings);
         if (r.status != LpResult.Status.NUMERIC_FAILURE) {
             return r;
         }
         // 数值失败兜底: 交替施加 b 微扰与列置换, 打散退化顶点后换轨迹重试.
         // 微扰量级 1e-9 相对, 远小于出口容差 1e-7; 解须按原模型口径校验.
-        for (int restart = 1; restart <= PERTURB_RESTARTS; restart++) {
+        for (int restart = 1; restart <= settings.perturbRestarts; restart++) {
             LpModel perturbed = (restart & 1) == 1 ? perturbB(model, restart) : permuteColumns(model, restart);
-            LpResult pr = solveChainOnce(perturbed);
+            LpResult pr = solveChainOnce(perturbed, settings);
             if (pr.status != LpResult.Status.OPTIMAL) {
                 continue;
             }
@@ -77,6 +73,36 @@ public final class RevisedSimplex {
             }
         }
         return r;
+    }
+
+    /** 单趟求解链: 缩放默认轨迹, 缩放 Bland 轨迹, 未缩放双轨迹. */
+    private static LpResult solveChainOnce(LpModel model, Settings settings) {
+        ScaledModel sm = scale(model);
+        LpResult r = solveInternal(sm.model, false, settings);
+        if (r.status == LpResult.Status.OPTIMAL) {
+            LpResult v = unscaleAndVerify(r, sm, model);
+            if (v != null) {
+                return v;
+            }
+        } else if (r.status == LpResult.Status.NUMERIC_FAILURE) {
+            LpResult r2 = solveInternal(sm.model, true, settings);
+            if (r2.status == LpResult.Status.OPTIMAL) {
+                LpResult v = unscaleAndVerify(r2, sm, model);
+                if (v != null) {
+                    return v;
+                }
+            }
+        } else {
+            return r; // INFEASIBLE/ITERATION_LIMIT: 缩放不改变可行性本质, 原样返回
+        }
+        // 缩放路径未收敛或反缩放校验未过: 未缩放原模型兜底, 两档轨迹
+        LpResult orig = solveInternal(model, false, settings);
+        if (orig.status == LpResult.Status.OPTIMAL
+                || orig.status != LpResult.Status.NUMERIC_FAILURE) {
+            return orig;
+        }
+        LpResult origBland = solveInternal(model, true, settings);
+        return origBland.status == LpResult.Status.OPTIMAL ? origBland : orig;
     }
 
     /** 确定性列置换, 按 restart 播种的 Fisher-Yates, 改变主元进入顺序以换轨迹. */
@@ -136,240 +162,13 @@ public final class RevisedSimplex {
         return obj;
     }
 
-    /** 单趟求解链: 缩放默认轨迹, 缩放 Bland 轨迹, 未缩放双轨迹. */
-    private static LpResult solveChainOnce(LpModel model) {
-        ScaledModel sm = scale(model);
-        LpResult r = solveInternal(sm.model, false);
-        if (r.status == LpResult.Status.OPTIMAL) {
-            LpResult v = unscaleAndVerify(r, sm, model);
-            if (v != null) {
-                return v;
-            }
-        } else if (r.status == LpResult.Status.NUMERIC_FAILURE) {
-            LpResult r2 = solveInternal(sm.model, true);
-            if (r2.status == LpResult.Status.OPTIMAL) {
-                LpResult v = unscaleAndVerify(r2, sm, model);
-                if (v != null) {
-                    return v;
-                }
-            }
-        } else {
-            return r; // INFEASIBLE/ITERATION_LIMIT: 缩放不改变可行性本质, 原样返回
-        }
-        // 缩放路径未收敛或反缩放校验未过: 未缩放原模型兜底, 两档轨迹
-        LpResult orig = solveInternal(model, false);
-        if (orig.status == LpResult.Status.OPTIMAL
-                || orig.status != LpResult.Status.NUMERIC_FAILURE) {
-            return orig;
-        }
-        LpResult origBland = solveInternal(model, true);
-        return origBland.status == LpResult.Status.OPTIMAL ? origBland : orig;
-    }
-
-    /** b 的确定性微扰, 按 restart 播种; 非零行按 1e-9 相对扰动, 零行不动. */
-    private static LpModel perturbB(LpModel model, int restart) {
-        double[] b = model.b.clone();
-        for (int i = 0; i < b.length; i++) {
-            if (b[i] == 0.0) {
-                continue;
-            }
-            // 确定性伪随机, 由行号与 restart 哈希播种, 幅度 ±1e-9×|b_i|
-            long h = (long) (i + 1) * 0x9E3779B97F4A7C15L * restart;
-            h ^= h >>> 33;
-            h *= 0xFF51AFD7ED558CCDL;
-            h ^= h >>> 33;
-            double noise = ((double) (h >>> 11) / (double) (1L << 53)) * 2.0 - 1.0;
-            b[i] = b[i] * (1.0 + 1e-9 * noise) + Math.signum(b[i]) * 1e-9;
-        }
-        return new LpModel(model.a, b, model.cost, model.lower, model.upper);
-    }
-
-    /** 微扰解在原模型口径下的界与残差复核, 与 {@link #unscaleAndVerify} 同容差. */
-    private static boolean feasibleOnOriginal(LpModel src, double[] x) {
-        int n = src.a.cols;
-        int m = src.a.rows;
-        double scaleTol = EXIT_SCALE_TOL * maxAbs(x);
-        for (int j = 0; j < n; j++) {
-            double lb = src.lower[j];
-            double ub = src.upper[j];
-            if (lb > -LpModel.INF / 2
-                    && x[j] < lb - EXIT_BOUND_TOL * (1 + Math.abs(lb)) - scaleTol) {
-                return false;
-            }
-            if (ub < LpModel.INF / 2
-                    && x[j] > ub + EXIT_BOUND_TOL * (1 + Math.abs(ub)) + scaleTol) {
-                return false;
-            }
-        }
-        double[] residual = new double[m];
-        double[] activity = new double[m];
-        for (int j = 0; j < n; j++) {
-            if (x[j] == 0) {
-                continue;
-            }
-            for (int p = src.a.colPtr[j]; p < src.a.colPtr[j + 1]; p++) {
-                double term = src.a.values[p] * x[j];
-                residual[src.a.rowIdx[p]] += term;
-                activity[src.a.rowIdx[p]] += Math.abs(term);
-            }
-        }
-        for (int i = 0; i < m; i++) {
-            double res = residual[i] - src.b[i];
-            if (Math.abs(res) > FEAS_TOL * (1 + Math.abs(src.b[i]) + activity[i])) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    /** 缩放后的模型与反缩放信息: x = C·x', C = diag(colScale). */
-    private static final class ScaledModel {
-        final LpModel model;
-        final double[] colScale;
-
-        ScaledModel(LpModel model, double[] colScale) {
-            this.model = model;
-            this.colScale = colScale;
-        }
-    }
-
-    private static final double LN2 = 0.6931471805599453;
-
-    /**
-     * 两轮 Ruiz 行列均衡, 即 R·A·C, 行与列的 max|系数| 轮流压到约 1.
-     * 因子一律取 2 的幂, 2 的幂乘法在双精度下无舍入, 缩放与反缩放全程精确;
-     * 无限界原样保留不缩放.
-     */
-    private static ScaledModel scale(LpModel src) {
-        SparseMatrix a = src.a;
-        int m = a.rows;
-        int n = a.cols;
-        double[] values = a.values.clone();
-        double[] rowScale = new double[m];
-        double[] colScale = new double[n];
-        Arrays.fill(rowScale, 1);
-        Arrays.fill(colScale, 1);
-        for (int round = 0; round < 2; round++) {
-            // 行均衡: 每行 max|a_ij| 压到约 1, 因子取 2 的幂
-            double[] rowMax = new double[m];
-            for (int p = 0; p < values.length; p++) {
-                rowMax[a.rowIdx[p]] = Math.max(rowMax[a.rowIdx[p]], Math.abs(values[p]));
-            }
-            double[] rowF = new double[m];
-            for (int i = 0; i < m; i++) {
-                rowF[i] = pow2Factor(rowMax[i]);
-                rowScale[i] *= rowF[i];
-            }
-            for (int p = 0; p < values.length; p++) {
-                if (rowF[a.rowIdx[p]] != 1) {
-                    values[p] *= rowF[a.rowIdx[p]];
-                }
-            }
-            // 列均衡: 每列 max|a_ij| 压到约 1, 因子取 2 的幂
-            for (int j = 0; j < n; j++) {
-                double colMax = 0;
-                for (int p = a.colPtr[j]; p < a.colPtr[j + 1]; p++) {
-                    colMax = Math.max(colMax, Math.abs(values[p]));
-                }
-                double f = pow2Factor(colMax);
-                if (f != 1) {
-                    colScale[j] *= f;
-                    for (int p = a.colPtr[j]; p < a.colPtr[j + 1]; p++) {
-                        values[p] *= f;
-                    }
-                }
-            }
-        }
-        // b' = R·b, c' = C·c, l' = l/C, u' = u/C, 由 x = C·x' 得出; 无限界原样保留
-        double[] b = new double[m];
-        for (int i = 0; i < m; i++) {
-            b[i] = src.b[i] * rowScale[i];
-        }
-        double[] cost = new double[n];
-        double[] lower = new double[n];
-        double[] upper = new double[n];
-        for (int j = 0; j < n; j++) {
-            cost[j] = src.cost[j] * colScale[j];
-            double lo = src.lower[j];
-            double up = src.upper[j];
-            lower[j] = lo <= -LpModel.INF / 2 ? -LpModel.INF : lo / colScale[j];
-            upper[j] = up >= LpModel.INF / 2 ? LpModel.INF : up / colScale[j];
-        }
-        return new ScaledModel(
-                new LpModel(SparseMatrix.of(m, n, a.colPtr, a.rowIdx, values), b, cost,
-                        lower, upper),
-                colScale);
-    }
-
-    /** 使 max 缩放到约 1 的 2 的幂因子, 0 或空行空列不缩放. */
-    private static double pow2Factor(double max) {
-        if (!(max > 0)) {
-            return 1;
-        }
-        int e = (int) Math.round(Math.log(max) / LN2);
-        if (e == 0) {
-            return 1;
-        }
-        return Math.pow(2.0, -e);
-    }
-
-    /**
-     * 反缩放, x = C·x', 并用原模型口径校验界与残差, 容差与出口自检相同.
-     * 校验通过返回 OPTIMAL 结果, 目标值按原模型重算; 不通过返回 null, 由调用方回退未缩放路径.
-     */
-    @Nullable
-    private static LpResult unscaleAndVerify(LpResult r, ScaledModel sm, LpModel src) {
-        int n = src.a.cols;
-        int m = src.a.rows;
-        double[] x = new double[n];
-        for (int j = 0; j < n; j++) {
-            x[j] = r.x[j] * sm.colScale[j];
-        }
-        double scaleTol = EXIT_SCALE_TOL * maxAbs(x);
-        for (int j = 0; j < n; j++) {
-            double lb = src.lower[j];
-            double ub = src.upper[j];
-            if (lb > -LpModel.INF / 2
-                    && x[j] < lb - EXIT_BOUND_TOL * (1 + Math.abs(lb)) - scaleTol) {
-                return null;
-            }
-            if (ub < LpModel.INF / 2
-                    && x[j] > ub + EXIT_BOUND_TOL * (1 + Math.abs(ub)) + scaleTol) {
-                return null;
-            }
-        }
-        double[] residual = new double[m];
-        double[] activity = new double[m];
-        for (int j = 0; j < n; j++) {
-            if (x[j] == 0) {
-                continue;
-            }
-            for (int p = src.a.colPtr[j]; p < src.a.colPtr[j + 1]; p++) {
-                double term = src.a.values[p] * x[j];
-                residual[src.a.rowIdx[p]] += term;
-                activity[src.a.rowIdx[p]] += Math.abs(term);
-            }
-        }
-        for (int i = 0; i < m; i++) {
-            double res = residual[i] - src.b[i];
-            if (Math.abs(res) > FEAS_TOL * (1 + Math.abs(src.b[i]) + activity[i])) {
-                return null;
-            }
-        }
-        double obj = 0;
-        for (int j = 0; j < n; j++) {
-            obj += src.cost[j] * x[j];
-        }
-        return LpResult.optimal(x, obj, r.iterations);
-    }
-
     /**
      * 求解主体.
      *
      * @param forceBland true 表示全程 Bland 规则, 反循环保证, 速度慢但轨迹稳健,
      *                   供 NUMERIC_FAILURE 后的重试使用
      */
-    private static LpResult solveInternal(LpModel model, boolean forceBland) {
+    private static LpResult solveInternal(LpModel model, boolean forceBland, Settings settings) {
         int m = model.a.rows;
         int n = model.a.cols;
         if (m == 0) {
@@ -424,16 +223,16 @@ public final class RevisedSimplex {
         boolean bland = forceBland;
         /** 基修补预算, 单位列替换病态基列的次数上限. 修补只能救偶发单列病态,
          * 基列集整体近相关时应快速失败, 交给上层换轨迹重试. */
-        int[] repairBudget = { Integer.getInteger("ae2e.repairBudget", 8) };
+        int[] repairBudget = { settings.repairBudget };
         /** 可行性恢复预算, 对偶单纯形步数上限, 防恢复死循环. */
-        int[] restoreBudget = { Integer.getInteger("ae2e.restoreBudget", 4 * m) };
+        int[] restoreBudget = { settings.restoreBudget == null ? 4 * m : settings.restoreBudget };
         /** 诊断: phase1 出口人工变量残留和, 失败时写入 reason 供日志定位. */
         double phase1Residue = Double.NaN;
         /** 诊断: phase1 到 phase2 钳制后基变量最大越界量. */
         double transitionMaxViol = 0;
 
         try {
-            refactor(basis, model, artSign, basic, where, x, lower, upper, n, m, repairBudget);
+            refactor(basis, model, artSign, basic, where, x, lower, upper, n, m, repairBudget, settings);
             while (true) {
                 // 原始解: x_B = B⁻¹(b − A_N·x_N), 必须扣除非基变量坐在非零界上的
                 // 列贡献, 否则界翻转后 RHS 即错
@@ -701,7 +500,7 @@ public final class RevisedSimplex {
                     // 出口抛光: 重分解清掉 eta 链尾段漂移, 全量重算 xb. 可行性恢复
                     // 判定与自检必须基于新鲜值, 否则漂移造成的假越界会触发无效恢复
                     refactor(basis, model, artSign, basic, where, x, lower, upper, n, m,
-                            repairBudget);
+                            repairBudget, settings);
                     double[] xbPolished = computeBasicRhs(model, artSign, where, x, b, n, total, m);
                     basis.ftran(xbPolished);
                     for (int i = 0; i < m; i++) {
@@ -843,7 +642,7 @@ public final class RevisedSimplex {
                                     IMMEDIATE_REFACTOR_ABS)
                                     || basis.etaCount() > Basis.MAX_ETA) {
                                 refactor(basis, model, artSign, basic, where, x, lower, upper,
-                                        n, m, repairBudget);
+                                        n, m, repairBudget, settings);
                             }
                         }
                         iterations++;
@@ -862,7 +661,7 @@ public final class RevisedSimplex {
                         return LpResult.failure(LpResult.Status.NUMERIC_FAILURE, iterations,
                                 "出口可行性自检未过: " + violation + " [phase1残留="
                                         + phase1Residue + " 相变跳变=" + transitionMaxViol
-                                        + " 修补=" + (8 - repairBudget[0]) + "]");
+                                        + " 修补=" + (settings.repairBudget - repairBudget[0]) + "]");
                     }
                     double obj = 0;
                     double[] result = new double[n];
@@ -918,7 +717,7 @@ public final class RevisedSimplex {
                                     IMMEDIATE_REFACTOR_REL * maxAbsAlpha,
                                     IMMEDIATE_REFACTOR_ABS)) {
                         refactor(basis, model, artSign, basic, where, x, lower, upper, n, m,
-                                repairBudget);
+                                repairBudget, settings);
                     }
                 }
                 // 停滞控制: 触发与解除 Bland. forceBland 重试必须锁定 Bland, 否则
@@ -938,6 +737,203 @@ public final class RevisedSimplex {
         }
     }
 
+    /** b 的确定性微扰, 按 restart 播种; 非零行按 1e-9 相对扰动, 零行不动. */
+    private static LpModel perturbB(LpModel model, int restart) {
+        double[] b = model.b.clone();
+        for (int i = 0; i < b.length; i++) {
+            if (b[i] == 0.0) {
+                continue;
+            }
+            // 确定性伪随机, 由行号与 restart 哈希播种, 幅度 ±1e-9×|b_i|
+            long h = (long) (i + 1) * 0x9E3779B97F4A7C15L * restart;
+            h ^= h >>> 33;
+            h *= 0xFF51AFD7ED558CCDL;
+            h ^= h >>> 33;
+            double noise = ((double) (h >>> 11) / (double) (1L << 53)) * 2.0 - 1.0;
+            b[i] = b[i] * (1.0 + 1e-9 * noise) + Math.signum(b[i]) * 1e-9;
+        }
+        return new LpModel(model.a, b, model.cost, model.lower, model.upper);
+    }
+
+    /** 微扰解在原模型口径下的界与残差复核, 与 {@link #unscaleAndVerify} 同容差. */
+    private static boolean feasibleOnOriginal(LpModel src, double[] x) {
+        int n = src.a.cols;
+        int m = src.a.rows;
+        double scaleTol = EXIT_SCALE_TOL * maxAbs(x);
+        for (int j = 0; j < n; j++) {
+            double lb = src.lower[j];
+            double ub = src.upper[j];
+            if (lb > -LpModel.INF / 2
+                    && x[j] < lb - EXIT_BOUND_TOL * (1 + Math.abs(lb)) - scaleTol) {
+                return false;
+            }
+            if (ub < LpModel.INF / 2
+                    && x[j] > ub + EXIT_BOUND_TOL * (1 + Math.abs(ub)) + scaleTol) {
+                return false;
+            }
+        }
+        double[] residual = new double[m];
+        double[] activity = new double[m];
+        for (int j = 0; j < n; j++) {
+            if (x[j] == 0) {
+                continue;
+            }
+            for (int p = src.a.colPtr[j]; p < src.a.colPtr[j + 1]; p++) {
+                double term = src.a.values[p] * x[j];
+                residual[src.a.rowIdx[p]] += term;
+                activity[src.a.rowIdx[p]] += Math.abs(term);
+            }
+        }
+        for (int i = 0; i < m; i++) {
+            double res = residual[i] - src.b[i];
+            if (Math.abs(res) > FEAS_TOL * (1 + Math.abs(src.b[i]) + activity[i])) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** 缩放后的模型与反缩放信息: x = C·x', C = diag(colScale). */
+    private static final class ScaledModel {
+        final LpModel model;
+        final double[] colScale;
+
+        ScaledModel(LpModel model, double[] colScale) {
+            this.model = model;
+            this.colScale = colScale;
+        }
+    }
+
+    private static final double LN2 = 0.6931471805599453;
+
+    /**
+     * 两轮 Ruiz 行列均衡, 即 R·A·C, 行与列的 max|系数| 轮流压到约 1.
+     * 因子一律取 2 的幂, 2 的幂乘法在双精度下无舍入, 缩放与反缩放全程精确;
+     * 无限界原样保留不缩放.
+     */
+    private static ScaledModel scale(LpModel src) {
+        SparseMatrix a = src.a;
+        int m = a.rows;
+        int n = a.cols;
+        double[] values = a.values.clone();
+        double[] rowScale = new double[m];
+        double[] colScale = new double[n];
+        Arrays.fill(rowScale, 1);
+        Arrays.fill(colScale, 1);
+        for (int round = 0; round < 2; round++) {
+            // 行均衡: 每行 max|a_ij| 压到约 1, 因子取 2 的幂
+            double[] rowMax = new double[m];
+            for (int p = 0; p < values.length; p++) {
+                rowMax[a.rowIdx[p]] = Math.max(rowMax[a.rowIdx[p]], Math.abs(values[p]));
+            }
+            double[] rowF = new double[m];
+            for (int i = 0; i < m; i++) {
+                rowF[i] = pow2Factor(rowMax[i]);
+                rowScale[i] *= rowF[i];
+            }
+            for (int p = 0; p < values.length; p++) {
+                if (rowF[a.rowIdx[p]] != 1) {
+                    values[p] *= rowF[a.rowIdx[p]];
+                }
+            }
+            // 列均衡: 每列 max|a_ij| 压到约 1, 因子取 2 的幂
+            for (int j = 0; j < n; j++) {
+                double colMax = 0;
+                for (int p = a.colPtr[j]; p < a.colPtr[j + 1]; p++) {
+                    colMax = Math.max(colMax, Math.abs(values[p]));
+                }
+                double f = pow2Factor(colMax);
+                if (f != 1) {
+                    colScale[j] *= f;
+                    for (int p = a.colPtr[j]; p < a.colPtr[j + 1]; p++) {
+                        values[p] *= f;
+                    }
+                }
+            }
+        }
+        // b' = R·b, c' = C·c, l' = l/C, u' = u/C, 由 x = C·x' 得出; 无限界原样保留
+        double[] b = new double[m];
+        for (int i = 0; i < m; i++) {
+            b[i] = src.b[i] * rowScale[i];
+        }
+        double[] cost = new double[n];
+        double[] lower = new double[n];
+        double[] upper = new double[n];
+        for (int j = 0; j < n; j++) {
+            cost[j] = src.cost[j] * colScale[j];
+            double lo = src.lower[j];
+            double up = src.upper[j];
+            lower[j] = lo <= -LpModel.INF / 2 ? -LpModel.INF : lo / colScale[j];
+            upper[j] = up >= LpModel.INF / 2 ? LpModel.INF : up / colScale[j];
+        }
+        return new ScaledModel(
+                new LpModel(SparseMatrix.of(m, n, a.colPtr, a.rowIdx, values), b, cost,
+                        lower, upper),
+                colScale);
+    }
+
+    /** 使 max 缩放到约 1 的 2 的幂因子, 0 或空行空列不缩放. */
+    private static double pow2Factor(double max) {
+        if (!(max > 0)) {
+            return 1;
+        }
+        int e = (int) Math.round(Math.log(max) / LN2);
+        if (e == 0) {
+            return 1;
+        }
+        return Math.pow(2.0, -e);
+    }
+
+    /**
+     * 反缩放, x = C·x', 并用原模型口径校验界与残差, 容差与出口自检相同.
+     * 校验通过返回 OPTIMAL 结果, 目标值按原模型重算; 不通过返回 null, 由调用方回退未缩放路径.
+     */
+    @Nullable
+    private static LpResult unscaleAndVerify(LpResult r, ScaledModel sm, LpModel src) {
+        int n = src.a.cols;
+        int m = src.a.rows;
+        double[] x = new double[n];
+        for (int j = 0; j < n; j++) {
+            x[j] = r.x[j] * sm.colScale[j];
+        }
+        double scaleTol = EXIT_SCALE_TOL * maxAbs(x);
+        for (int j = 0; j < n; j++) {
+            double lb = src.lower[j];
+            double ub = src.upper[j];
+            if (lb > -LpModel.INF / 2
+                    && x[j] < lb - EXIT_BOUND_TOL * (1 + Math.abs(lb)) - scaleTol) {
+                return null;
+            }
+            if (ub < LpModel.INF / 2
+                    && x[j] > ub + EXIT_BOUND_TOL * (1 + Math.abs(ub)) + scaleTol) {
+                return null;
+            }
+        }
+        double[] residual = new double[m];
+        double[] activity = new double[m];
+        for (int j = 0; j < n; j++) {
+            if (x[j] == 0) {
+                continue;
+            }
+            for (int p = src.a.colPtr[j]; p < src.a.colPtr[j + 1]; p++) {
+                double term = src.a.values[p] * x[j];
+                residual[src.a.rowIdx[p]] += term;
+                activity[src.a.rowIdx[p]] += Math.abs(term);
+            }
+        }
+        for (int i = 0; i < m; i++) {
+            double res = residual[i] - src.b[i];
+            if (Math.abs(res) > FEAS_TOL * (1 + Math.abs(src.b[i]) + activity[i])) {
+                return null;
+            }
+        }
+        double obj = 0;
+        for (int j = 0; j < n; j++) {
+            obj += src.cost[j] * x[j];
+        }
+        return LpResult.optimal(x, obj, r.iterations);
+    }
+
     /**
      * 重分解当前基, 结构列经 CSC 视图, 人工列经 ±e_i 视图.
      * 分解失败即基奇异或病态时做单位列修补: 失败位置的旧基变量退基坐到最近界上,
@@ -946,7 +942,7 @@ public final class RevisedSimplex {
      */
     private static void refactor(Basis basis, LpModel model, double[] artSign, int[] basic,
             int[] where, double[] x, double[] lower, double[] upper, int n, int m,
-            int[] repairBudget) throws Basis.NumericException {
+            int[] repairBudget, Settings settings) throws Basis.NumericException {
         while (true) {
             List<Basis.SparseCol> columns = new ArrayList<>(m);
             for (int i = 0; i < m; i++) {
@@ -982,7 +978,7 @@ public final class RevisedSimplex {
                 if (row < 0) {
                     throw new Basis.NumericException(e.getMessage() + " [放弃修补:无空闲人工列]");
                 }
-                if (Boolean.getBoolean("ae2e.basisDump")) {
+                if (settings.basisDump) {
                     StringBuilder sb = new StringBuilder("[BASIS-DUMP] failPos=" + e.failPos
                             + " bestRow=" + e.bestRow + " chosenRow=" + row + " basic=");
                     for (int i = 0; i < m; i++) {
@@ -1004,6 +1000,32 @@ public final class RevisedSimplex {
                 basic[pos] = n + row;
                 where[n + row] = pos;
             }
+        }
+    }
+
+    /** legacy 单次请求的不可变数值预算与诊断设置，纯数学层不读取 Forge 配置。 */
+    public static final class Settings {
+        public final int perturbRestarts;
+        public final int repairBudget;
+        /** null = 沿用每模型 4×rows 的默认值；显式属性值（含非正数）原样保留。 */
+        @Nullable
+        public final Integer restoreBudget;
+        public final boolean basisDump;
+
+        public Settings(int perturbRestarts, int repairBudget, @Nullable Integer restoreBudget,
+                boolean basisDump) {
+            this.perturbRestarts = perturbRestarts;
+            this.repairBudget = repairBudget;
+            this.restoreBudget = restoreBudget;
+            this.basisDump = basisDump;
+        }
+
+        /** 只在请求或兼容求解入口调用一次。 */
+        public static Settings fromSystemProperties() {
+            return new Settings(Integer.getInteger("ae2e.perturbRestarts", 6),
+                    Integer.getInteger("ae2e.repairBudget", 8),
+                    Integer.getInteger("ae2e.restoreBudget"),
+                    Boolean.getBoolean("ae2e.basisDump"));
         }
     }
 

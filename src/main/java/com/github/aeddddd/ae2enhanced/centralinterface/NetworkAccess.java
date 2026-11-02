@@ -141,10 +141,13 @@ public final class NetworkAccess {
      */
     public static List<FluidStack> injectFluidsToNetwork(IGridConnection grid, IActionHost host, List<FluidStack> fluids) {
         List<FluidStack> overflow = new ArrayList<>();
-        try {
-            IFluidStorageChannel channel = AEApi.instance().storage().getStorageChannel(IFluidStorageChannel.class);
-            for (FluidStack fluid : fluids) {
-                if (fluid == null || fluid.amount <= 0) continue;
+        if (fluids == null) {
+            return overflow;
+        }
+        for (FluidStack fluid : fluids) {
+            if (fluid == null || fluid.amount <= 0) continue;
+            try {
+                IFluidStorageChannel channel = AEApi.instance().storage().getStorageChannel(IFluidStorageChannel.class);
                 IAEFluidStack toInsert = channel.createStack(fluid);
                 if (toInsert == null) {
                     overflow.add(fluid.copy());
@@ -153,16 +156,16 @@ public final class NetworkAccess {
                 IAEFluidStack remaining = poweredInsertFluid(grid, host, toInsert);
                 if (remaining != null && remaining.getStackSize() > 0) {
                     FluidStack leftover = remaining.getFluidStack();
-                    AE2Enhanced.LOGGER.warn("[AE2E] CentralInterface fluid overflow: {} mb of {}", leftover.amount, leftover.getFluid().getName());
-                    overflow.add(leftover.copy());
+                    if (leftover != null && leftover.amount > 0) {
+                        overflow.add(leftover.copy());
+                    } else {
+                        overflow.add(fluid.copy());
+                    }
                 }
-            }
-        } catch (GridAccessException e) {
-            AE2Enhanced.LOGGER.warn("[AE2E] CentralInterface failed to inject fluids to network", e);
-            for (FluidStack fluid : fluids) {
-                if (fluid != null && fluid.amount > 0) {
-                    overflow.add(fluid.copy());
-                }
+            } catch (Throwable t) {
+                AE2Enhanced.LOGGER.warn("[AE2E] CentralInterface failed to inject one fluid stack; preserving only that stack: {}",
+                        t.toString());
+                overflow.add(fluid.copy());
             }
         }
         return overflow;

@@ -106,7 +106,7 @@ public final class PerfAlerts {
 
     private static void broadcastToOps(MinecraftServer server, List<ITextComponent> alerts) {
         for (EntityPlayerMP player : server.getPlayerList().getPlayers()) {
-            if (!player.canUseCommand(2, "ae2enhanced")) {
+            if (!player.canUseCommand(2, com.github.aeddddd.ae2enhanced.dimension.PrivateDimensionPermissions.ADMIN)) {
                 continue;
             }
             ITextComponent header = new TextComponentTranslation(KEY_PREFIX + "header");

@@ -1,6 +1,5 @@
 package com.github.aeddddd.ae2enhanced.crafting;
 
-import com.github.aeddddd.ae2enhanced.tile.TileMicroSingularity;
 import net.minecraft.block.Block;
 import net.minecraft.entity.item.EntityItem;
 import net.minecraft.item.ItemStack;
@@ -39,12 +38,12 @@ public class SingularityRecipe {
         this.droppedInputs = droppedInputs != null ? new ArrayList<>(droppedInputs) : Collections.emptyList();
         this.heldItem = heldItem != null ? heldItem : ItemStack.EMPTY;
         this.targetBlock = targetBlock;
-        this.lifetimeTicks = lifetimeTicks > 0 ? lifetimeTicks : TileMicroSingularity.DEFAULT_LIFE_TICKS;
+        this.lifetimeTicks = lifetimeTicks > 0 ? lifetimeTicks : 6000;
     }
 
     /** 简化构造函数, 向后兼容: 仅支持 droppedInputs, 其余使用默认值. */
     public SingularityRecipe(String id, List<ItemStack> droppedInputs) {
-        this(id, droppedInputs, ItemStack.EMPTY, null, TileMicroSingularity.DEFAULT_LIFE_TICKS);
+        this(id, droppedInputs, ItemStack.EMPTY, null, 6000);
     }
 
     public String getId() {
@@ -143,10 +142,10 @@ public class SingularityRecipe {
         }
 
         // 生成微型奇点方块
-        world.setBlockState(center, com.github.aeddddd.ae2enhanced.registry.content.BlockRegistry.MICRO_SINGULARITY.getDefaultState());
+        world.setBlockState(center, com.github.aeddddd.ae2enhanced.block.BlockRegistry.MICRO_SINGULARITY.getDefaultState());
         TileEntity te = world.getTileEntity(center);
-        if (te instanceof TileMicroSingularity) {
-            ((TileMicroSingularity) te).setLifetimeTicks(lifetimeTicks);
+        if (te instanceof com.github.aeddddd.ae2enhanced.craftingapi.SingularityLifetime) {
+            ((com.github.aeddddd.ae2enhanced.craftingapi.SingularityLifetime) te).setLifetimeTicks(lifetimeTicks);
         }
     }
 }

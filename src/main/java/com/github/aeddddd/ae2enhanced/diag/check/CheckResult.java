@@ -36,6 +36,10 @@ public final class CheckResult {
         return new CheckResult(Level.ERROR, key, args);
     }
 
+    static CheckResult create(Level level, String key, Object... args) {
+        return new CheckResult(level, key, args);
+    }
+
     /** 聊天栏显示组件（客户端本地化渲染）。 */
     public TextComponentTranslation toComponent() {
         return new TextComponentTranslation(key, args);

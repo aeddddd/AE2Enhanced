@@ -1,8 +1,8 @@
 package com.github.aeddddd.ae2enhanced.client.render;
 
-import com.github.aeddddd.ae2enhanced.item.ItemAdvancedMEOmniTool;
-import com.github.aeddddd.ae2enhanced.item.ItemMEPlacementTool;
-import com.github.aeddddd.ae2enhanced.util.placement.*;
+import com.github.aeddddd.ae2enhanced.omnitool.ItemAdvancedMEOmniTool;
+import com.github.aeddddd.ae2enhanced.omnitool.ItemMEPlacementTool;
+import com.github.aeddddd.ae2enhanced.omnitool.placement.*;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.BufferBuilder;
 import net.minecraft.client.renderer.GlStateManager;
@@ -90,11 +90,11 @@ public class PlacementPreviewRenderer {
         PlacementMode mode = config.getPlacementMode();
         ItemStack target = PlacementTargetResolver.resolveBulk(player, world, ray.getBlockPos());
         if (mode == PlacementMode.BULK && !target.isEmpty()) {
-            com.github.aeddddd.ae2enhanced.util.placement.PlacementRestriction restriction = config.getPlacementRestriction();
+            com.github.aeddddd.ae2enhanced.omnitool.placement.PlacementRestriction restriction = config.getPlacementRestriction();
             // 参数开关：禁用方向锁时按无锁预览
             if (isOmniPlacement && !com.github.aeddddd.ae2enhanced.omnitool.OmniToolUpgrades.isParamEnabled(
                     stack, com.github.aeddddd.ae2enhanced.omnitool.OmniToolUpgrades.PARAM_PLACEMENT_RESTRICTION)) {
-                restriction = com.github.aeddddd.ae2enhanced.util.placement.PlacementRestriction.NO_LOCK;
+                restriction = com.github.aeddddd.ae2enhanced.omnitool.placement.PlacementRestriction.NO_LOCK;
             }
             List<BlockPos> positions = ConstructionWandHelper.calculatePositions(world, ray.getBlockPos(), ray.sideHit, restriction);
             for (BlockPos pos : positions) {

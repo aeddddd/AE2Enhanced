@@ -1,7 +1,6 @@
 package com.github.aeddddd.ae2enhanced.client.gui;
 
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
-import com.github.aeddddd.ae2enhanced.config.AE2EnhancedConfig;
 import com.github.aeddddd.ae2enhanced.container.ContainerRingConfig;
 import com.github.aeddddd.ae2enhanced.network.packet.PacketRingConfig;
 import com.github.aeddddd.ae2enhanced.ring.RingLocator;
@@ -121,7 +120,7 @@ public class GuiRingConfig extends GuiContainer {
                 0, 1, tier(0),
                 c -> boolVal(c, RingNBT.NIGHT_VISION, false), (c, v) -> c.setBoolean(RingNBT.NIGHT_VISION, v > 0)),
         new ParamDef(PID_REACH, "gui.ae2enhanced.ring.reach", "gui.ae2enhanced.ring.reach.desc",
-                50, (int) (AE2EnhancedConfig.ring.maxReachDistance * 10), tier(0),
+                50, (int) (com.github.aeddddd.ae2enhanced.config.ServerConfig.current().ring.maxReachDistance * 10), tier(0),
                 c -> Math.round((c.hasKey(RingNBT.REACH) ? c.getFloat(RingNBT.REACH) : 5.0f) * 10),
                 (c, v) -> c.setFloat(RingNBT.REACH, v / 10f)),
         new ParamDef(PID_WALK_TWEAK, "gui.ae2enhanced.ring.walk_tweak", "gui.ae2enhanced.ring.walk_tweak.desc",
@@ -150,7 +149,7 @@ public class GuiRingConfig extends GuiContainer {
                 0, 1, tier(1),
                 c -> boolVal(c, RingNBT.NO_INERTIA, false), (c, v) -> c.setBoolean(RingNBT.NO_INERTIA, v > 0)),
         new ParamDef(PID_JUMP, "gui.ae2enhanced.ring.jump", "gui.ae2enhanced.ring.jump.desc",
-                100, AE2EnhancedConfig.ring.maxJumpPercent, tier(1),
+                100, com.github.aeddddd.ae2enhanced.config.ServerConfig.current().ring.maxJumpPercent, tier(1),
                 c -> c.hasKey(RingNBT.JUMP_PCT) ? c.getInteger(RingNBT.JUMP_PCT) : 100,
                 (c, v) -> c.setInteger(RingNBT.JUMP_PCT, v)),
         new ParamDef(PID_HEAL_AUTO, "gui.ae2enhanced.ring.heal_auto", "gui.ae2enhanced.ring.heal_auto.desc",
@@ -194,7 +193,7 @@ public class GuiRingConfig extends GuiContainer {
     }
 
     private static int maxSpeedPct() {
-        return AE2EnhancedConfig.ring.maxSpeedPercent;
+        return com.github.aeddddd.ae2enhanced.config.ServerConfig.current().ring.maxSpeedPercent;
     }
 
     private static int boolVal(NBTTagCompound c, String key, boolean def) {

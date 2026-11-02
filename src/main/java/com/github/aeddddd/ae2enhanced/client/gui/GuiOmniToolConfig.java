@@ -2,12 +2,12 @@ package com.github.aeddddd.ae2enhanced.client.gui;
 
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
 import com.github.aeddddd.ae2enhanced.container.ContainerOmniToolConfig;
-import com.github.aeddddd.ae2enhanced.item.ItemAdvancedMEOmniTool;
+import com.github.aeddddd.ae2enhanced.network.packet.PacketOmniToolConfig;
+import com.github.aeddddd.ae2enhanced.omnitool.ItemAdvancedMEOmniTool;
 import com.github.aeddddd.ae2enhanced.omnitool.OmniToolEnchantments;
 import com.github.aeddddd.ae2enhanced.omnitool.OmniToolUpgrades;
-import com.github.aeddddd.ae2enhanced.network.packet.PacketOmniToolConfig;
-import com.github.aeddddd.ae2enhanced.util.placement.PlacementConfig;
-import com.github.aeddddd.ae2enhanced.util.placement.PlacementRestriction;
+import com.github.aeddddd.ae2enhanced.omnitool.placement.PlacementConfig;
+import com.github.aeddddd.ae2enhanced.omnitool.placement.PlacementRestriction;
 import net.minecraft.client.gui.inventory.GuiContainer;
 import net.minecraft.client.renderer.GlStateManager;
 import net.minecraft.client.resources.I18n;
@@ -16,7 +16,6 @@ import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.nbt.NBTTagList;
-import net.minecraft.util.EnumHand;
 import net.minecraft.util.ResourceLocation;
 import net.minecraft.util.math.MathHelper;
 
@@ -57,7 +56,25 @@ public class GuiOmniToolConfig extends GuiContainer {
     private static final int PID_CABLE_COLOR = OmniToolUpgrades.PARAM_CABLE_COLOR;
     private static final int PID_REACH_DISTANCE = OmniToolUpgrades.PARAM_REACH_DISTANCE;
     private static final int PID_PLACEMENT_RESTRICTION = OmniToolUpgrades.PARAM_PLACEMENT_RESTRICTION;
-    private static final int PID_COUNT = 12;
+    private static final int PID_RING_MINING = 12;
+    private static final int PID_RING_NIGHT_VISION = 13;
+    private static final int PID_RING_REACH = 14;
+    private static final int PID_RING_WALK_TWEAK = 15;
+    private static final int PID_RING_WALK_SPEED = 16;
+    private static final int PID_RING_FEED = 17;
+    private static final int PID_RING_FEED_MODE = 18;
+    private static final int PID_RING_POTION_MODE = 19;
+    private static final int PID_RING_FLIGHT = 20;
+    private static final int PID_RING_FLY_SPEED = 21;
+    private static final int PID_RING_NO_INERTIA = 22;
+    private static final int PID_RING_JUMP = 23;
+    private static final int PID_RING_HEAL_AUTO = 24;
+    private static final int PID_RING_HEAL_PCT = 25;
+    private static final int PID_RING_WALL_PHASE = 26;
+    private static final int PID_RING_DMG_BLOCK = 27;
+    private static final int PID_RING_FORCE_FLIGHT = 28;
+    private static final int PID_RING_NO_PULL = 29;
+    private static final int PID_COUNT = 30;
     private static final int PID_ENCHANT_BASE = 1000;
 
     // ---- UV坐标：顶部按钮区 ----
@@ -192,6 +209,88 @@ public class GuiOmniToolConfig extends GuiContainer {
                 0, PlacementRestriction.values().length - 1, s -> true,
                 s -> new PlacementConfig(s).getPlacementRestriction().ordinal(),
                 (s, v) -> {}), // 实际应用在 apply() 中通过 PlacementConfig 写入
+        new ParamDef(PID_RING_MINING, "gui.ae2enhanced.ring.mining", "gui.ae2enhanced.ring.mining.desc",
+                0, 1, com.github.aeddddd.ae2enhanced.ring.RingNBT::hasRingModule,
+                s -> com.github.aeddddd.ae2enhanced.ring.RingNBT.getBool(s, com.github.aeddddd.ae2enhanced.ring.RingNBT.MINING_FIX, true) ? 1 : 0,
+                (s, v) -> com.github.aeddddd.ae2enhanced.ring.RingNBT.setBool(s, com.github.aeddddd.ae2enhanced.ring.RingNBT.MINING_FIX, v > 0)),
+        new ParamDef(PID_RING_NIGHT_VISION, "gui.ae2enhanced.ring.night_vision", "gui.ae2enhanced.ring.night_vision.desc",
+                0, 1, com.github.aeddddd.ae2enhanced.ring.RingNBT::hasRingModule,
+                s -> com.github.aeddddd.ae2enhanced.ring.RingNBT.getBool(s, com.github.aeddddd.ae2enhanced.ring.RingNBT.NIGHT_VISION, false) ? 1 : 0,
+                (s, v) -> com.github.aeddddd.ae2enhanced.ring.RingNBT.setBool(s, com.github.aeddddd.ae2enhanced.ring.RingNBT.NIGHT_VISION, v > 0)),
+        new ParamDef(PID_RING_REACH, "gui.ae2enhanced.ring.reach", "gui.ae2enhanced.ring.reach.desc",
+                50, 500, com.github.aeddddd.ae2enhanced.ring.RingNBT::hasRingModule,
+                s -> Math.round(com.github.aeddddd.ae2enhanced.ring.RingNBT.getReach(s) * 10),
+                (s, v) -> com.github.aeddddd.ae2enhanced.ring.RingNBT.setReach(s, v / 10.0f)),
+        new ParamDef(PID_RING_WALK_TWEAK, "gui.ae2enhanced.ring.walk_tweak", "gui.ae2enhanced.ring.walk_tweak.desc",
+                0, 1, com.github.aeddddd.ae2enhanced.ring.RingNBT::hasRingModule,
+                s -> com.github.aeddddd.ae2enhanced.ring.RingNBT.getBool(s, com.github.aeddddd.ae2enhanced.ring.RingNBT.WALK_TWEAK, false) ? 1 : 0,
+                (s, v) -> com.github.aeddddd.ae2enhanced.ring.RingNBT.setBool(s, com.github.aeddddd.ae2enhanced.ring.RingNBT.WALK_TWEAK, v > 0)),
+        new ParamDef(PID_RING_WALK_SPEED, "gui.ae2enhanced.ring.walk_speed", "gui.ae2enhanced.ring.walk_speed.desc",
+                50, 1000, com.github.aeddddd.ae2enhanced.ring.RingNBT::hasRingModule,
+                s -> Math.round(com.github.aeddddd.ae2enhanced.ring.RingNBT.getWalkSpeed(s) * 1000),
+                (s, v) -> com.github.aeddddd.ae2enhanced.ring.RingNBT.setWalkSpeed(s, v / 1000.0f)),
+        new ParamDef(PID_RING_FEED, "gui.ae2enhanced.ring.feed", "gui.ae2enhanced.ring.feed.desc",
+                0, 1, com.github.aeddddd.ae2enhanced.ring.RingNBT::hasRingModule,
+                s -> com.github.aeddddd.ae2enhanced.ring.RingNBT.getBool(s, com.github.aeddddd.ae2enhanced.ring.RingNBT.FEED, false) ? 1 : 0,
+                (s, v) -> com.github.aeddddd.ae2enhanced.ring.RingNBT.setBool(s, com.github.aeddddd.ae2enhanced.ring.RingNBT.FEED, v > 0)),
+        new ParamDef(PID_RING_FEED_MODE, "gui.ae2enhanced.ring.feed_mode", "gui.ae2enhanced.ring.feed_mode.desc",
+                0, 1, com.github.aeddddd.ae2enhanced.ring.RingNBT::hasRingModule,
+                com.github.aeddddd.ae2enhanced.ring.RingNBT::getFeedMode,
+                com.github.aeddddd.ae2enhanced.ring.RingNBT::setFeedMode),
+        new ParamDef(PID_RING_POTION_MODE, "gui.ae2enhanced.ring.potion_mode", "gui.ae2enhanced.ring.potion_mode.desc",
+                0, 2, com.github.aeddddd.ae2enhanced.ring.RingNBT::hasRingModule,
+                com.github.aeddddd.ae2enhanced.ring.RingNBT::getPotionMode,
+                com.github.aeddddd.ae2enhanced.ring.RingNBT::setPotionMode),
+        new ParamDef(PID_RING_FLIGHT, "gui.ae2enhanced.ring.flight", "gui.ae2enhanced.ring.flight.desc",
+                0, 1, s -> com.github.aeddddd.ae2enhanced.ring.RingNBT.hasRingModule(s)
+                        && com.github.aeddddd.ae2enhanced.ring.RingNBT.tierAtLeast(s, 1),
+                s -> com.github.aeddddd.ae2enhanced.ring.RingNBT.getBool(s, com.github.aeddddd.ae2enhanced.ring.RingNBT.FLIGHT, false) ? 1 : 0,
+                (s, v) -> com.github.aeddddd.ae2enhanced.ring.RingNBT.setBool(s, com.github.aeddddd.ae2enhanced.ring.RingNBT.FLIGHT, v > 0)),
+        new ParamDef(PID_RING_FLY_SPEED, "gui.ae2enhanced.ring.fly_speed", "gui.ae2enhanced.ring.fly_speed.desc",
+                100, 1000, s -> com.github.aeddddd.ae2enhanced.ring.RingNBT.hasRingModule(s)
+                        && com.github.aeddddd.ae2enhanced.ring.RingNBT.tierAtLeast(s, 1),
+                s -> Math.round(com.github.aeddddd.ae2enhanced.ring.RingNBT.getFlySpeed(s) * 2000),
+                (s, v) -> com.github.aeddddd.ae2enhanced.ring.RingNBT.setFlySpeed(s, v / 2000.0f)),
+        new ParamDef(PID_RING_NO_INERTIA, "gui.ae2enhanced.ring.no_inertia", "gui.ae2enhanced.ring.no_inertia.desc",
+                0, 1, s -> com.github.aeddddd.ae2enhanced.ring.RingNBT.hasRingModule(s)
+                        && com.github.aeddddd.ae2enhanced.ring.RingNBT.tierAtLeast(s, 1),
+                s -> com.github.aeddddd.ae2enhanced.ring.RingNBT.getBool(s, com.github.aeddddd.ae2enhanced.ring.RingNBT.NO_INERTIA, false) ? 1 : 0,
+                (s, v) -> com.github.aeddddd.ae2enhanced.ring.RingNBT.setBool(s, com.github.aeddddd.ae2enhanced.ring.RingNBT.NO_INERTIA, v > 0)),
+        new ParamDef(PID_RING_JUMP, "gui.ae2enhanced.ring.jump", "gui.ae2enhanced.ring.jump.desc",
+                100, 500, s -> com.github.aeddddd.ae2enhanced.ring.RingNBT.hasRingModule(s)
+                        && com.github.aeddddd.ae2enhanced.ring.RingNBT.tierAtLeast(s, 1),
+                com.github.aeddddd.ae2enhanced.ring.RingNBT::getJumpPercent,
+                com.github.aeddddd.ae2enhanced.ring.RingNBT::setJumpPercent),
+        new ParamDef(PID_RING_HEAL_AUTO, "gui.ae2enhanced.ring.heal_auto", "gui.ae2enhanced.ring.heal_auto.desc",
+                0, 1, s -> com.github.aeddddd.ae2enhanced.ring.RingNBT.hasRingModule(s)
+                        && com.github.aeddddd.ae2enhanced.ring.RingNBT.tierAtLeast(s, 1),
+                s -> com.github.aeddddd.ae2enhanced.ring.RingNBT.getBool(s, com.github.aeddddd.ae2enhanced.ring.RingNBT.HEAL_AUTO, false) ? 1 : 0,
+                (s, v) -> com.github.aeddddd.ae2enhanced.ring.RingNBT.setBool(s, com.github.aeddddd.ae2enhanced.ring.RingNBT.HEAL_AUTO, v > 0)),
+        new ParamDef(PID_RING_HEAL_PCT, "gui.ae2enhanced.ring.heal_pct", "gui.ae2enhanced.ring.heal_pct.desc",
+                1, 100, s -> com.github.aeddddd.ae2enhanced.ring.RingNBT.hasRingModule(s)
+                        && com.github.aeddddd.ae2enhanced.ring.RingNBT.tierAtLeast(s, 1),
+                com.github.aeddddd.ae2enhanced.ring.RingNBT::getHealThreshold,
+                com.github.aeddddd.ae2enhanced.ring.RingNBT::setHealThreshold),
+        new ParamDef(PID_RING_WALL_PHASE, "gui.ae2enhanced.ring.wall_phase", "gui.ae2enhanced.ring.wall_phase.desc",
+                0, 1, s -> com.github.aeddddd.ae2enhanced.ring.RingNBT.hasRingModule(s)
+                        && com.github.aeddddd.ae2enhanced.ring.RingNBT.tierAtLeast(s, 2),
+                s -> com.github.aeddddd.ae2enhanced.ring.RingNBT.getBool(s, com.github.aeddddd.ae2enhanced.ring.RingNBT.WALL_PHASE, false) ? 1 : 0,
+                (s, v) -> com.github.aeddddd.ae2enhanced.ring.RingNBT.setBool(s, com.github.aeddddd.ae2enhanced.ring.RingNBT.WALL_PHASE, v > 0)),
+        new ParamDef(PID_RING_DMG_BLOCK, "gui.ae2enhanced.ring.dmg_block", "gui.ae2enhanced.ring.dmg_block.desc",
+                0, 1, s -> com.github.aeddddd.ae2enhanced.ring.RingNBT.hasRingModule(s)
+                        && com.github.aeddddd.ae2enhanced.ring.RingNBT.tierAtLeast(s, 2),
+                s -> com.github.aeddddd.ae2enhanced.ring.RingNBT.getBool(s, com.github.aeddddd.ae2enhanced.ring.RingNBT.DMG_BLOCK, true) ? 1 : 0,
+                (s, v) -> com.github.aeddddd.ae2enhanced.ring.RingNBT.setBool(s, com.github.aeddddd.ae2enhanced.ring.RingNBT.DMG_BLOCK, v > 0)),
+        new ParamDef(PID_RING_FORCE_FLIGHT, "gui.ae2enhanced.ring.force_flight", "gui.ae2enhanced.ring.force_flight.desc",
+                0, 1, s -> com.github.aeddddd.ae2enhanced.ring.RingNBT.hasRingModule(s)
+                        && com.github.aeddddd.ae2enhanced.ring.RingNBT.isAscended(s),
+                s -> com.github.aeddddd.ae2enhanced.ring.RingNBT.getBool(s, com.github.aeddddd.ae2enhanced.ring.RingNBT.FORCE_FLIGHT, false) ? 1 : 0,
+                (s, v) -> com.github.aeddddd.ae2enhanced.ring.RingNBT.setBool(s, com.github.aeddddd.ae2enhanced.ring.RingNBT.FORCE_FLIGHT, v > 0)),
+        new ParamDef(PID_RING_NO_PULL, "gui.ae2enhanced.ring.no_pull", "gui.ae2enhanced.ring.no_pull.desc",
+                0, 1, s -> com.github.aeddddd.ae2enhanced.ring.RingNBT.hasRingModule(s)
+                        && com.github.aeddddd.ae2enhanced.ring.RingNBT.isAscended(s),
+                s -> com.github.aeddddd.ae2enhanced.ring.RingNBT.getBool(s, com.github.aeddddd.ae2enhanced.ring.RingNBT.NO_PULL, true) ? 1 : 0,
+                (s, v) -> com.github.aeddddd.ae2enhanced.ring.RingNBT.setBool(s, com.github.aeddddd.ae2enhanced.ring.RingNBT.NO_PULL, v > 0)),
     };
 
     private final EntityPlayer player;
@@ -225,14 +324,7 @@ public class GuiOmniToolConfig extends GuiContainer {
     }
 
     private void reload() {
-        toolStack = ItemStack.EMPTY;
-        for (EnumHand hand : EnumHand.values()) {
-            ItemStack s = player.getHeldItem(hand);
-            if (!s.isEmpty() && s.getItem() instanceof ItemAdvancedMEOmniTool) {
-                toolStack = s;
-                break;
-            }
-        }
+        toolStack = ((ContainerOmniToolConfig) this.inventorySlots).getToolStack(player);
         if (toolStack.isEmpty()) {
             mc.displayGuiScreen(null);
             return;
@@ -250,6 +342,11 @@ public class GuiOmniToolConfig extends GuiContainer {
         values[PID_CABLE_COLOR] = new PlacementConfig(toolStack).getCableColor().ordinal();
         values[PID_REACH_DISTANCE] = (int) new PlacementConfig(toolStack).getReachDistance();
         values[PID_PLACEMENT_RESTRICTION] = new PlacementConfig(toolStack).getPlacementRestriction().ordinal();
+        for (ParamDef p : BASE_PARAMS) {
+            if (p.id >= PID_RING_MINING) {
+                values[p.id] = p.getter.apply(toolStack);
+            }
+        }
 
         paramEnabledMask = 0;
         for (int i = 0; i < PID_COUNT; i++) {
@@ -341,9 +438,8 @@ public class GuiOmniToolConfig extends GuiContainer {
         if (slot == 0) return -2; // prev
         int base = 7 + (currentPage - 1) * 6;
         int idx = base + (slot - 1);
-        if (idx < n) return idx;
-        // 如果当前不是最后一页，最后一槽为 next
         if (slot == 7 && hasNextPage()) return -1;
+        if (idx < n) return idx;
         return -3;
     }
 
@@ -541,11 +637,22 @@ public class GuiOmniToolConfig extends GuiContainer {
 
     private boolean isParamEnabled(int paramId) {
         if (paramId >= PID_ENCHANT_BASE) return true; // 附魔参数始终启用
+        if (paramId >= PID_RING_MINING) {
+            ParamDef param = getParamDefById(paramId);
+            return param == null || param.min != 0 || param.max != 1 || values[paramId] > 0;
+        }
         return (paramEnabledMask & (1 << paramId)) != 0;
     }
 
     private void setParamEnabled(int paramId, boolean enabled) {
         if (paramId >= PID_ENCHANT_BASE) return;
+        if (paramId >= PID_RING_MINING) {
+            ParamDef param = getParamDefById(paramId);
+            if (param != null && param.min == 0 && param.max == 1) {
+                values[paramId] = enabled ? 1 : 0;
+            }
+            return;
+        }
         if (enabled) paramEnabledMask |= (1 << paramId);
         else paramEnabledMask &= ~(1 << paramId);
     }
@@ -663,8 +770,17 @@ public class GuiOmniToolConfig extends GuiContainer {
         placementConfig.setReachDistance(values[PID_REACH_DISTANCE]);
         placementConfig.setPlacementRestriction(PlacementRestriction.fromOrdinal(values[PID_PLACEMENT_RESTRICTION]));
 
-        for (int i = 0; i < PID_COUNT; i++) {
+        for (int i = 0; i <= PID_PLACEMENT_RESTRICTION; i++) {
             OmniToolUpgrades.setParamEnabled(toolStack, i, (paramEnabledMask & (1 << i)) != 0);
+        }
+        for (ParamDef p : BASE_PARAMS) {
+            if (p.id >= PID_RING_MINING) {
+                p.setter.accept(toolStack, values[p.id]);
+            }
+        }
+        if (com.github.aeddddd.ae2enhanced.ring.RingNBT.hasRingModule(toolStack)) {
+            AE2Enhanced.network.sendToServer(new com.github.aeddddd.ae2enhanced.network.packet.PacketRingConfig(
+                    com.github.aeddddd.ae2enhanced.ring.RingNBT.snapshot(toolStack)));
         }
 
         // 应用附魔调整
@@ -681,7 +797,7 @@ public class GuiOmniToolConfig extends GuiContainer {
         AE2Enhanced.network.sendToServer(new PacketOmniToolConfig(
                 values[PID_MODE], values[PID_DROP], values[PID_SILK] > 0,
                 OmniToolUpgrades.getFortuneLevel(toolStack), values[PID_BLINK], values[PID_COOLDOWN],
-                paramEnabledMask, values[PID_CHAOS_KILL] > 0, values[PID_CONFORMAL] > 0,
+                paramEnabledMask & 0xFFF, values[PID_CHAOS_KILL] > 0, values[PID_CONFORMAL] > 0,
                 values[PID_ADVANCED_SILK] > 0, values[PID_WALL_PHASE] > 0,
                 values[PID_CABLE_COLOR], values[PID_REACH_DISTANCE],
                 values[PID_PLACEMENT_RESTRICTION], enchList));

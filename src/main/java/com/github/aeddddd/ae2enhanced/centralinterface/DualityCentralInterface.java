@@ -19,7 +19,7 @@ import appeng.util.IConfigManagerHost;
 import appeng.util.inv.InvOperation;
 import appeng.util.item.AEItemStack;
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
-import com.github.aeddddd.ae2enhanced.config.AE2EnhancedConfig;
+import com.github.aeddddd.ae2enhanced.config.ServerConfig;
 import com.github.aeddddd.ae2enhanced.item.ItemVirtualParallelCard;
 import net.minecraft.inventory.InventoryCrafting;
 import net.minecraft.item.ItemStack;
@@ -55,7 +55,8 @@ import java.util.*;
  *   <li>{@link PendingProductQueue} —— 虚拟产物暂存队列（NBT 持久化）</li>
  * </ul>
  */
-public class DualityCentralInterface implements appeng.util.inv.IAEAppEngInventory {
+public class DualityCentralInterface implements appeng.util.inv.IAEAppEngInventory,
+        com.github.aeddddd.ae2enhanced.crafting.VirtualBatchCraftingHandler {
 
     public static final int NUMBER_OF_PATTERN_SLOTS = 36;
     public static final int NUMBER_OF_CONFIG_SLOTS = 9;
@@ -77,11 +78,13 @@ public class DualityCentralInterface implements appeng.util.inv.IAEAppEngInvento
     private String boundBlockId = null;
     // 每个绑定目标对应一个 TargetSession,集中管理 PUSHING/PROCESSING/COLLECTING/IDLE/UNAVAILABLE
     final Map<TargetBinding, TargetSession> sessions = new HashMap<>();
+    final java.util.Map<java.util.UUID, PhysicalSessionRecord> inflightSessions = new HashMap<>();
+    final CentralRecoveryOutbox recoveryOutbox = new CentralRecoveryOutbox(this::saveChanges);
     // 虚拟合成产物暂存队列(等待 waitingFor 注册后再注入网络)
-    final PendingProductQueue pendingProducts = new PendingProductQueue();
+    final PendingProductQueue pendingProducts = new PendingProductQueue(this::saveChanges);
 
     // 流体缓冲：流体通道暂时收不下的流体产物在这里等重试（每 tick 一次，仍走流体通道）
-    private final CentralFluidBuffer fluidBuffer = new CentralFluidBuffer();
+    private final CentralFluidBuffer fluidBuffer = new CentralFluidBuffer(this::saveChanges);
 
     // 虚拟合成冷却：每个目标成功执行一批后进入冷却
     final Map<TargetBinding, Integer> virtualCooldowns = new HashMap<>();
@@ -259,7 +262,7 @@ public class DualityCentralInterface implements appeng.util.inv.IAEAppEngInvento
             if (actualParallel > 0) {
                 this.lastVirtualBatchSize = actualParallel;
                 if (actualParallel > 1 || !vh.skipCooldownOnSingleBatch()) {
-                    this.globalVirtualCooldown = AE2EnhancedConfig.centralInterface.virtualCooldownGlobalTicks;
+                    this.globalVirtualCooldown = ServerConfig.current().centralInterface.virtualCooldownGlobalTicks;
                 }
                 tryWakeTickDevice();
                 return true;
@@ -269,7 +272,7 @@ public class DualityCentralInterface implements appeng.util.inv.IAEAppEngInvento
         // 尝试了虚拟批量但未成功，进入全局冷却防止 CPU 同 tick 反复重试。
         // 若所有尝试过的虚拟 handler 都声明“单份跳过冷却”（如 Extended Crafting 工作台），则不设置冷却。
         if (attemptedNonSkippableVirtual) {
-            this.globalVirtualCooldown = AE2EnhancedConfig.centralInterface.virtualCooldownGlobalTicks;
+            this.globalVirtualCooldown = ServerConfig.current().centralInterface.virtualCooldownGlobalTicks;
             tryWakeTickDevice();
         }
         return false;
@@ -431,26 +434,39 @@ public class DualityCentralInterface implements appeng.util.inv.IAEAppEngInvento
     }
 
     /**
-     * 将物品列表注入 AE 网络,溢出部分先进入 storage slots,再溢出则掉落.
+     * 逐条注入 AE 网络并返回实际余量；单条异常只保留该条，不重放此前成功项。
      * 流体假物品走物品通道,由 ae2fc 的 FakeMonitor 体系接管(若 ae2fc 未安装,
      * 则由本 mod 的 MixinNetworkMonitorFluid 转注入流体通道).
      */
-    boolean injectItemsToNetwork(IGridConnection grid, World world, List<ItemStack> items) {
-        try {
-            for (ItemStack product : items) {
-                if (product.isEmpty()) continue;
+    List<ItemStack> injectItemsToNetwork(IGridConnection grid, World world, List<ItemStack> items) {
+        List<ItemStack> overflow = new ArrayList<>();
+        if (items == null) {
+            return overflow;
+        }
+        for (ItemStack product : items) {
+            if (product == null || product.isEmpty()) continue;
+            try {
                 IAEItemStack toInsert = AEItemStack.fromItemStack(product);
-                IAEItemStack remaining = NetworkAccess.poweredInsertItem(grid, this.host, toInsert);
+                if (toInsert == null) {
+                    overflow.add(product.copy());
+                    continue;
+                }
+                IAEItemStack remaining = insertItemToNetwork(grid, toInsert);
                 if (remaining != null && remaining.getStackSize() > 0) {
                     ItemStack leftover = remaining.createItemStack();
-                    stashItemToStorage(world, leftover);
+                    overflow.add(leftover.isEmpty() ? product.copy() : leftover);
                 }
+            } catch (Throwable t) {
+                AE2Enhanced.LOGGER.warn("[AE2E] CentralInterface failed to inject one item stack; preserving only that stack: {}",
+                        t.toString());
+                overflow.add(product.copy());
             }
-            return true;
-        } catch (GridAccessException e) {
-            AE2Enhanced.LOGGER.warn("[AE2E] CentralInterface failed to inject items to network", e);
-            return false;
         }
+        return overflow;
+    }
+
+    IAEItemStack insertItemToNetwork(IGridConnection grid, IAEItemStack stack) throws GridAccessException {
+        return NetworkAccess.poweredInsertItem(grid, this.host, stack);
     }
 
     /**
@@ -475,6 +491,40 @@ public class DualityCentralInterface implements appeng.util.inv.IAEAppEngInvento
     void stashItemsToStorage(World world, List<ItemStack> items) {
         for (ItemStack item : items) {
             stashItemToStorage(world, item);
+        }
+    }
+
+    void preserveVirtualRollback(List<appeng.api.storage.data.IAEStack> remaining) {
+        if (remaining == null) return;
+        for (appeng.api.storage.data.IAEStack stack : remaining) {
+            if (stack == null || stack.getStackSize() <= 0) continue;
+            if (stack instanceof IAEItemStack) {
+                ItemStack item = ((IAEItemStack) stack).createItemStack();
+                if (!item.isEmpty()) {
+                    this.pendingProducts.addAll(Collections.singletonList(item));
+                    continue;
+                }
+            } else if (stack instanceof appeng.api.storage.data.IAEFluidStack) {
+                FluidStack fluid = ((appeng.api.storage.data.IAEFluidStack) stack).getFluidStack();
+                if (fluid != null && fluid.amount > 0) {
+                    this.fluidBuffer.add(fluid);
+                    continue;
+                }
+            }
+            AE2Enhanced.LOGGER.error("[AE2E] Virtual rollback could not restore {} x{}; no lossless fallback exists for this channel",
+                    stack.getClass().getName(), stack.getStackSize());
+        }
+    }
+
+    void recordPhysicalSession(TargetSession session) {
+        PhysicalSessionRecord record = PhysicalSessionRecord.of(session);
+        this.inflightSessions.put(record.id, record);
+        this.host.saveChanges();
+    }
+
+    void completePhysicalSession(java.util.UUID id) {
+        if (id != null && this.inflightSessions.remove(id) != null) {
+            this.host.saveChanges();
         }
     }
 
@@ -550,7 +600,14 @@ public class DualityCentralInterface implements appeng.util.inv.IAEAppEngInvento
 
         boolean didWork = false;
         World world = this.host.getTileEntity().getWorld();
-        int timeoutTicks = AE2EnhancedConfig.centralInterface.processingTimeoutTicks;
+        int timeoutTicks = ServerConfig.current().centralInterface.processingTimeoutTicks;
+
+        if (this.physicalDispatcher.recoverPending(grid, world)) {
+            didWork = true;
+        }
+        if (this.physicalDispatcher.flushRecoveryOutbox(grid, world)) {
+            didWork = true;
+        }
 
         // 物理 session 处理（PROCESSING / COLLECTING）
         if (this.physicalDispatcher.tick(grid, world, timeoutTicks)) {
@@ -596,6 +653,9 @@ public class DualityCentralInterface implements appeng.util.inv.IAEAppEngInvento
     }
 
     private boolean hasWorkToDo() {
+        if (!this.inflightSessions.isEmpty() || !this.recoveryOutbox.isEmpty()) {
+            return true;
+        }
         if (isOnGlobalVirtualCooldown()) {
             return true;
         }
@@ -747,12 +807,23 @@ public class DualityCentralInterface implements appeng.util.inv.IAEAppEngInvento
         postPatternChangeEvent();
     }
 
+    void deferPhysicalSession(TargetSession session) {
+        if (session.getSessionId() == null) {
+            session.reset();
+            return;
+        }
+        PhysicalSessionRecord record = PhysicalSessionRecord.of(session);
+        this.inflightSessions.put(record.id, record);
+        session.defer();
+        this.host.saveChanges();
+    }
+
     /**
      * 接口销毁时调用，释放所有持有的目标所有权。
      */
     public void destroy() {
         for (TargetSession session : new ArrayList<>(this.sessions.values())) {
-            session.reset();
+            deferPhysicalSession(session);
         }
         TargetOwnershipTracker.instance().releaseAll(this);
     }
@@ -807,6 +878,16 @@ public class DualityCentralInterface implements appeng.util.inv.IAEAppEngInvento
             }
         }
 
+        this.inflightSessions.clear();
+        if (data.hasKey("inflightSessions", 9)) {
+            NBTTagList records = data.getTagList("inflightSessions", 10);
+            for (int i = 0; i < records.tagCount(); i++) {
+                PhysicalSessionRecord record = PhysicalSessionRecord.readFromNBT(records.getCompoundTagAt(i));
+                this.inflightSessions.put(record.id, record);
+            }
+        }
+        this.recoveryOutbox.readFromNBT(data);
+
         // 恢复待注入的虚拟合成产物
         this.pendingProducts.readFromNBT(data);
 
@@ -840,6 +921,13 @@ public class DualityCentralInterface implements appeng.util.inv.IAEAppEngInvento
         // 持久化待注入的虚拟合成产物
         this.pendingProducts.writeToNBT(data);
 
+        NBTTagList records = new NBTTagList();
+        for (PhysicalSessionRecord record : this.inflightSessions.values()) {
+            records.appendTag(record.writeToNBT());
+        }
+        if (records.tagCount() > 0) data.setTag("inflightSessions", records);
+        this.recoveryOutbox.writeToNBT(data);
+
         // 持久化流体缓冲
         this.fluidBuffer.writeToNBT(data);
     }
@@ -853,29 +941,26 @@ public class DualityCentralInterface implements appeng.util.inv.IAEAppEngInvento
         for (int i = 0; i < this.patterns.getSlots(); i++) {
             ItemStack stack = this.patterns.getStackInSlot(i);
             if (!stack.isEmpty()) {
-                NetworkAccess.spawnDrops(world, pos, Collections.singletonList(stack));
+                dropItems(world, pos, Collections.singletonList(stack));
                 this.patterns.setStackInSlot(i, ItemStack.EMPTY);
             }
         }
         for (int i = 0; i < this.storage.getSlots(); i++) {
             ItemStack stack = this.storage.getStackInSlot(i);
             if (!stack.isEmpty()) {
-                NetworkAccess.spawnDrops(world, pos, Collections.singletonList(stack));
+                dropItems(world, pos, Collections.singletonList(stack));
                 this.storage.setStackInSlot(i, ItemStack.EMPTY);
             }
         }
-        // 流体缓冲里还留着的流体：设备即将消失，缓冲没有别的落脚点，
-        // 趁网格节点在 breakBlock 阶段仍然有效，先送进 ME 流体通道。
-        injectBufferedFluids();
+        List<ItemStack> pending = this.pendingProducts.drainAll();
+        if (!pending.isEmpty()) {
+            dropItems(world, pos, pending);
+        }
+        injectBufferedFluids(world, pos);
     }
 
-    /**
-     * 把流体缓冲的内容送进 ME 流体通道（仅在方块被拆掉时调用）.
-     *
-     * <p>缓冲随方块一并消失，所以这里只做一次注入尝试；送不走的量会真正损失，按数量与流体名
-     * 留下 warn。不转成流体假物品：那会让流体离开流体通道，玩家在流体终端里看不到它。</p>
-     */
-    private void injectBufferedFluids() {
+    /** 拆方块时先回网；网络拒收的余量以流体假物品掉落，不随缓冲一起销毁。 */
+    private void injectBufferedFluids(World world, BlockPos pos) {
         if (this.fluidBuffer.isEmpty()) {
             return;
         }
@@ -889,21 +974,37 @@ public class DualityCentralInterface implements appeng.util.inv.IAEAppEngInvento
         if (buffered.isEmpty()) {
             return;
         }
+
+        List<FluidStack> rejected = new ArrayList<>();
         IGridConnection grid = gridConnection();
-        if (!grid.isActive()) {
-            long lost = 0;
+        if (grid.isActive()) {
             for (FluidStack fluid : buffered) {
-                lost += fluid.amount;
+                try {
+                    rejected.addAll(NetworkAccess.injectFluidsToNetwork(
+                            grid, this.host, Collections.singletonList(fluid)));
+                } catch (Throwable t) {
+                    AE2Enhanced.LOGGER.warn("[AE2E] CentralInterface break-time fluid injection threw: {}", t.toString());
+                    rejected.add(fluid);
+                }
             }
-            AE2Enhanced.LOGGER.warn("[AE2E] CentralInterface broken with {} fluid stack(s) buffered and no active grid; {} mb lost",
-                    buffered.size(), lost);
-            return;
+        } else {
+            rejected.addAll(buffered);
         }
-        List<FluidStack> rejected = NetworkAccess.injectFluidsToNetwork(grid, this.host, buffered);
+
+        List<ItemStack> drops = new ArrayList<>();
         for (FluidStack fluid : rejected) {
-            AE2Enhanced.LOGGER.warn("[AE2E] CentralInterface broken: {} mb of {} could not enter the ME fluid channel",
-                    fluid.amount, fluid.getFluid() != null ? fluid.getFluid().getName() : "unknown");
+            ItemStack drop = com.github.aeddddd.ae2enhanced.item.ItemFluidDrop.createStack(fluid);
+            if (!drop.isEmpty()) {
+                drops.add(drop);
+            }
         }
+        if (!drops.isEmpty()) {
+            dropItems(world, pos, drops);
+        }
+    }
+
+    void dropItems(World world, BlockPos pos, List<ItemStack> items) {
+        NetworkAccess.spawnDrops(world, pos, items);
     }
 
     public IConfigManager getConfigManager() {

@@ -2,7 +2,6 @@ package com.github.aeddddd.ae2enhanced.network.packet;
 
 import io.netty.buffer.ByteBuf;
 import net.minecraft.util.math.BlockPos;
-import net.minecraft.world.World;
 import net.minecraftforge.fml.common.network.ByteBufUtils;
 import net.minecraftforge.fml.common.network.simpleimpl.IMessage;
 import net.minecraftforge.fml.common.network.simpleimpl.IMessageHandler;
@@ -72,11 +71,14 @@ public class PacketSmartPatternModify implements IMessage {
         @Override
         public IMessage onMessage(PacketSmartPatternModify message, MessageContext ctx) {
             ctx.getServerHandler().player.getServerWorld().addScheduledTask(() -> {
-                World world = ctx.getServerHandler().player.world;
-                net.minecraft.tileentity.TileEntity te = world.getTileEntity(message.getPos());
-                if (te instanceof com.github.aeddddd.ae2enhanced.tile.TileSmartPatternInterface) {
-                    com.github.aeddddd.ae2enhanced.tile.TileSmartPatternInterface tile =
-                            (com.github.aeddddd.ae2enhanced.tile.TileSmartPatternInterface) te;
+                com.github.aeddddd.ae2enhanced.tile.TileSmartPatternInterface tile =
+                        com.github.aeddddd.ae2enhanced.network.RequestContext.smartPatternTile(
+                                ctx.getServerHandler().player, message.getPos());
+                if (tile != null && message.getAction() != null) {
+                    com.github.aeddddd.ae2enhanced.container.ContainerSmartPatternInterface container =
+                            (com.github.aeddddd.ae2enhanced.container.ContainerSmartPatternInterface)
+                                    ctx.getServerHandler().player.openContainer;
+                    long expectedRevision = container.getExpectedRevision();
                     switch (message.getAction()) {
                         case "lock":
                             tile.lockRecipe(message.getRecipeIndex());
@@ -85,19 +87,20 @@ public class PacketSmartPatternModify implements IMessage {
                             tile.unlockRecipe();
                             break;
                         case "keepPrimary":
-                            tile.modifyLockedRecipe("keepPrimary");
+                            tile.modifyLockedRecipe("keepPrimary", expectedRevision);
                             break;
                         case "deleteDisabled":
-                            tile.deleteDisabledRecipes();
+                            tile.deleteDisabledRecipes(expectedRevision);
                             break;
                         case "addRecipe":
-                            tile.addNewRecipe();
+                            tile.addNewRecipe(expectedRevision);
                             break;
                         default:
                             // 其他小按钮操作(multiply2, divide2, clearInputs 等)
-                            tile.modifyLockedRecipe(message.getAction());
+                            tile.modifyLockedRecipe(message.getAction(), expectedRevision);
                             break;
                     }
+                    container.setExpectedRevision(tile.getPatternRevision());
                 }
             });
             return null;

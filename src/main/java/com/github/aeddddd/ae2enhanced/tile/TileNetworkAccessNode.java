@@ -14,7 +14,6 @@ import appeng.api.util.AEPartLocation;
 import appeng.me.GridAccessException;
 import appeng.me.helpers.MachineSource;
 import com.github.aeddddd.ae2enhanced.config.AE2EnhancedConfig;
-import com.github.aeddddd.ae2enhanced.registry.content.BlockRegistry;
 import com.github.aeddddd.ae2enhanced.storage.energy.EnergyChannelResolver;
 import com.github.aeddddd.ae2enhanced.storage.mana.AEManaStack;
 import com.github.aeddddd.ae2enhanced.storage.mana.IAEManaStack;
@@ -120,7 +119,7 @@ public class TileNetworkAccessNode extends TileAENetworkBase
 
     @Override
     protected ItemStack getProxyRepresentation() {
-        return new ItemStack(BlockRegistry.NETWORK_ACCESS_NODE);
+        return new ItemStack(getBlockType());
     }
 
     @Override
@@ -196,7 +195,7 @@ public class TileNetworkAccessNode extends TileAENetworkBase
 
     @SuppressWarnings({"rawtypes", "unchecked"})
     private void doCreativeBoostTick() {
-        if (!AE2EnhancedConfig.energy.creativeRfSourceBoostEnabled) return;
+        if (!com.github.aeddddd.ae2enhanced.config.ServerConfig.current().energy.creativeRfSourceBoostEnabled) return;
         if (creativeBoostCooldown-- > 0) return;
         creativeBoostCooldown = 20;
 
@@ -205,7 +204,7 @@ public class TileNetworkAccessNode extends TileAENetworkBase
         IMEMonitor monitor = getEnergyMonitor();
         if (monitor == null) return;
 
-        long amount = AE2EnhancedConfig.energy.getParsedBoostAmount();
+        long amount = com.github.aeddddd.ae2enhanced.config.ServerConfig.current().energy.getParsedBoostAmount();
         if (amount <= 0) return;
 
         IAEStack request = EnergyChannelResolver.createStack(amount);
@@ -253,7 +252,7 @@ public class TileNetworkAccessNode extends TileAENetworkBase
             rfDemandBackoff[idx] = RF_NEIGHBOR_BACKOFF_TICKS;
             return;
         }
-        demand = Math.min(demand, AE2EnhancedConfig.energy.rfAccessNodeMaxTransfer);
+        demand = Math.min(demand, com.github.aeddddd.ae2enhanced.config.ServerConfig.current().energy.rfAccessNodeMaxTransfer);
 
         IAEStack request = EnergyChannelResolver.createStack(demand);
         if (request == null) return;
@@ -299,7 +298,7 @@ public class TileNetworkAccessNode extends TileAENetworkBase
     @SuppressWarnings({"rawtypes", "unchecked"})
     public int receiveEnergy(int maxReceive, boolean simulate) {
         if (maxReceive <= 0 || this.mode != MODE_INPUT) return 0;
-        int limit = AE2EnhancedConfig.energy.rfAccessNodeMaxTransfer;
+        int limit = com.github.aeddddd.ae2enhanced.config.ServerConfig.current().energy.rfAccessNodeMaxTransfer;
         if (maxReceive > limit) maxReceive = limit;
         IMEMonitor monitor = getEnergyMonitor();
         if (monitor == null) return 0;
@@ -316,7 +315,7 @@ public class TileNetworkAccessNode extends TileAENetworkBase
     @SuppressWarnings({"rawtypes", "unchecked"})
     public int extractEnergy(int maxExtract, boolean simulate) {
         if (maxExtract <= 0 || this.mode != MODE_OUTPUT) return 0;
-        int limit = AE2EnhancedConfig.energy.rfAccessNodeMaxTransfer;
+        int limit = com.github.aeddddd.ae2enhanced.config.ServerConfig.current().energy.rfAccessNodeMaxTransfer;
         if (maxExtract > limit) maxExtract = limit;
         IMEMonitor monitor = getEnergyMonitor();
         if (monitor == null) return 0;
@@ -365,7 +364,7 @@ public class TileNetworkAccessNode extends TileAENetworkBase
         Integer current = getPoolMana(pool);
         if (current == null || current <= 0) return;
 
-        int maxTransfer = AE2EnhancedConfig.mana.manaAccessNodeMaxTransfer;
+        int maxTransfer = com.github.aeddddd.ae2enhanced.config.ServerConfig.current().mana.manaAccessNodeMaxTransfer;
         int drain = Math.min(current, maxTransfer);
         if (drain <= 0) return;
 
@@ -386,7 +385,7 @@ public class TileNetworkAccessNode extends TileAENetworkBase
         Integer cap = getPoolManaCap(pool);
         if (current == null || cap == null || current >= cap) return;
 
-        int space = Math.min(cap - current, AE2EnhancedConfig.mana.manaAccessNodeMaxTransfer);
+        int space = Math.min(cap - current, com.github.aeddddd.ae2enhanced.config.ServerConfig.current().mana.manaAccessNodeMaxTransfer);
         if (space <= 0) return;
 
         IMEMonitor<IAEManaStack> monitor = getManaMonitor();
@@ -456,7 +455,7 @@ public class TileNetworkAccessNode extends TileAENetworkBase
         if (this.mode != MODE_INPUT || mana <= 0) return;
         IMEMonitor<IAEManaStack> monitor = getManaMonitor();
         if (monitor == null) return;
-        int limit = AE2EnhancedConfig.mana.manaAccessNodeMaxTransfer;
+        int limit = com.github.aeddddd.ae2enhanced.config.ServerConfig.current().mana.manaAccessNodeMaxTransfer;
         if (mana > limit) mana = limit;
         monitor.injectItems(AEManaStack.create(mana), Actionable.MODULATE, getMachineSource());
     }
@@ -483,7 +482,7 @@ public class TileNetworkAccessNode extends TileAENetworkBase
     private void doStarlightCollection() {
         if (!canCollectStarlight()) return;
 
-        int maxInput = AE2EnhancedConfig.starlight.starlightAccessNodeMaxInput;
+        int maxInput = com.github.aeddddd.ae2enhanced.config.ServerConfig.current().starlight.starlightAccessNodeMaxInput;
         if (maxInput <= 0) return;
 
         IMEMonitor<IAEStarlightStack> monitor = getStarlightMonitor();
@@ -509,7 +508,7 @@ public class TileNetworkAccessNode extends TileAENetworkBase
         if (stored == null || max == null || stored >= max) return;
 
         int space = max - stored;
-        int maxOutput = AE2EnhancedConfig.starlight.starlightAccessNodeMaxOutput;
+        int maxOutput = com.github.aeddddd.ae2enhanced.config.ServerConfig.current().starlight.starlightAccessNodeMaxOutput;
         int toTransfer = Math.min(space, maxOutput);
         if (toTransfer <= 0) return;
 

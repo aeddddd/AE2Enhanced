@@ -17,13 +17,13 @@ import appeng.api.util.AECableType;
 import appeng.api.util.AEPartLocation;
 import appeng.me.helpers.AENetworkProxy;
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
-import com.github.aeddddd.ae2enhanced.block.BlockAssemblyController;
 import com.github.aeddddd.ae2enhanced.config.AE2EnhancedConfig;
-import com.github.aeddddd.ae2enhanced.crafting.*;
+import com.github.aeddddd.ae2enhanced.crafting.AssemblyHubEnergy;
+import com.github.aeddddd.ae2enhanced.crafting.AssemblyHubUpgradeRegistry;
+import com.github.aeddddd.ae2enhanced.crafting.AssemblyParallelBudget;
+import com.github.aeddddd.ae2enhanced.crafting.BlackHoleRecipe;
 import com.github.aeddddd.ae2enhanced.item.ItemUpgradeCard;
-import com.github.aeddddd.ae2enhanced.registry.content.BlockRegistry;
 import com.github.aeddddd.ae2enhanced.storage.ItemDescriptor;
-import com.github.aeddddd.ae2enhanced.structure.AssemblyStructure;
 import com.github.aeddddd.ae2enhanced.util.FeEnergyPayment;
 import com.github.aeddddd.ae2enhanced.util.ForceKillHelper;
 import com.github.aeddddd.ae2enhanced.util.compat.Ae2fcFluidPatternHelper;
@@ -118,6 +118,8 @@ public class TileAssemblyController extends TileAENetworkBase implements ICrafti
     /** 样板解码缓存: 槽位 -> (物品快照, 解码结果). 避免网格每次重算都重建 PatternHelper + 配方匹配 */
     private final Map<Integer, PatternCacheEntry> patternDetailsCache = new HashMap<>();
     private final List<ItemStack> pendingOutputs = new ArrayList<>();
+    private final List<NBTTagCompound> pendingOutputUnknownEntries = new ArrayList<>();
+    private final List<NBTTagCompound> blackHoleUnknownEntries = new ArrayList<>();
     private static final int MAX_PENDING_OUTPUTS = 4096;
     private static final int BLACK_HOLE_OVERFLOW_TYPES = 5;
 
@@ -216,39 +218,13 @@ public class TileAssemblyController extends TileAENetworkBase implements ICrafti
         return Math.min(pages, PATTERN_PAGES_MAX);
     }
 
-    /**
-     * 客户端：在几何中心周围生成紫色 REDSTONE 粒子,模拟黑洞粒子光环.
-     * 粒子沿切向运动并螺旋向内,颜色为偏紫的随机色调.
-     */
-    private void spawnBlackHoleParticles() {
-        if (world == null || !(world.getBlockState(pos).getBlock() instanceof BlockAssemblyController)) return;
-        EnumFacing controllerFacing = world.getBlockState(pos).getValue(BlockAssemblyController.FACING);
-        BlockPos origin = AssemblyStructure.getOriginFromController(pos, controllerFacing);
-        double cx = origin.getX() + 0.5;
-        double cy = origin.getY() + 0.5;
-        double cz = origin.getZ() + 0.5;
-
-        for (int i = 0; i < 8; i++) {
-            double angle = world.rand.nextDouble() * Math.PI * 2;
-            double radius = 2.8 + world.rand.nextDouble() * 1.8;
-            double px = cx + Math.cos(angle) * radius;
-            double pz = cz + Math.sin(angle) * radius;
-            double py = cy + (world.rand.nextDouble() - 0.5) * 0.4;
-
-            double tangentSpeed = 0.05 + world.rand.nextDouble() * 0.03;
-            double inwardSpeed = 0.01 + world.rand.nextDouble() * 0.01;
-
-            // 切向速度(逆时针)+ 径向速度(向内)
-            double vx = -Math.sin(angle) * tangentSpeed - Math.cos(angle) * inwardSpeed;
-            double vz = Math.cos(angle) * tangentSpeed - Math.sin(angle) * inwardSpeed;
-            double vy = (world.rand.nextDouble() - 0.5) * 0.005;
-
-            // REDSTONE 粒子的 velocity 参数解释为颜色 (R, G, B)
-            float red = 0.4f + world.rand.nextFloat() * 0.2f;
-            float green = 0.05f + world.rand.nextFloat() * 0.1f;
-            float blue = 0.7f + world.rand.nextFloat() * 0.2f;
-
-            world.spawnParticle(EnumParticleTypes.REDSTONE, px, py, pz, red, green, blue);
+    private static void appendStackChunks(List<ItemStack> destination, ItemStack prototype, long count) {
+        while (count > 0) {
+            int chunk = (int) Math.min(count, Integer.MAX_VALUE);
+            ItemStack stack = prototype.copy();
+            stack.setCount(chunk);
+            destination.add(stack);
+            count -= chunk;
         }
     }
 
@@ -372,9 +348,20 @@ public class TileAssemblyController extends TileAENetworkBase implements ICrafti
         return "assembly_controller";
     }
 
-    @Override
-    protected ItemStack getProxyRepresentation() {
-        return new ItemStack(BlockRegistry.ASSEMBLY_CONTROLLER);
+    private static int requiredPendingSlots(Iterable<IAEItemStack> outputs) {
+        int requiredSlots = 0;
+        for (IAEItemStack output : outputs) {
+            if (output == null) continue;
+            long count = output.getStackSize();
+            if (count < 0) return -1;
+            if (count == 0) continue;
+            long chunks = (count - 1) / Integer.MAX_VALUE + 1;
+            if (chunks > MAX_PENDING_OUTPUTS || requiredSlots > MAX_PENDING_OUTPUTS - (int) chunks) {
+                return -1;
+            }
+            requiredSlots += (int) chunks;
+        }
+        return requiredSlots;
     }
 
     @Nonnull
@@ -383,9 +370,23 @@ public class TileAssemblyController extends TileAENetworkBase implements ICrafti
         return formed ? AECableType.SMART : AECableType.NONE;
     }
 
-    @Override
-    public void securityBreak() {
-        disassemble();
+    private static void readQueuedStacks(NBTTagCompound compound, String key, List<ItemStack> destination,
+            List<NBTTagCompound> unknownEntries) {
+        destination.clear();
+        unknownEntries.clear();
+        NBTTagList list = compound.getTagList(key, Constants.NBT.TAG_COMPOUND);
+        for (int i = 0; i < list.tagCount(); i++) {
+            NBTTagCompound tag = list.getCompoundTagAt(i);
+            if (Item.getByNameOrId(tag.getString("id")) == null) {
+                unknownEntries.add(tag.copy());
+                AE2Enhanced.LOGGER.warn("[AE2E] Preserving orphaned item '{}' in {}, mod may have been removed.",
+                        tag.getString("id"), key);
+                continue;
+            }
+            ItemStack stack = new ItemStack(tag);
+            stack.setCount(tag.getInteger("Count"));
+            destination.add(stack);
+        }
     }
 
     public void assemble() {
@@ -399,11 +400,85 @@ public class TileAssemblyController extends TileAENetworkBase implements ICrafti
         }
     }
 
+    private static NBTTagList writeQueuedStacks(List<ItemStack> stacks, List<NBTTagCompound> unknownEntries) {
+        NBTTagList list = new NBTTagList();
+        for (NBTTagCompound unknown : unknownEntries) {
+            list.appendTag(unknown.copy());
+        }
+        for (ItemStack stack : stacks) {
+            if (stack.isEmpty()) {
+                continue;
+            }
+            NBTTagCompound tag = stack.serializeNBT();
+            tag.setInteger("Count", stack.getCount());
+            list.appendTag(tag);
+        }
+        return list;
+    }
+
+    /**
+     * 客户端：在几何中心周围生成紫色 REDSTONE 粒子,模拟黑洞粒子光环.
+     * 粒子沿切向运动并螺旋向内,颜色为偏紫的随机色调.
+     */
+    private void spawnBlackHoleParticles() {
+        if (world == null || !(TileBlockStates.is(world.getBlockState(pos), TileBlockStates.ASSEMBLY_CONTROLLER))) return;
+        EnumFacing controllerFacing = TileBlockStates.facing(world.getBlockState(pos));
+        BlockPos origin = AssemblyStructure.getOriginFromController(pos, controllerFacing);
+        double cx = origin.getX() + 0.5;
+        double cy = origin.getY() + 0.5;
+        double cz = origin.getZ() + 0.5;
+
+        for (int i = 0; i < 8; i++) {
+            double angle = world.rand.nextDouble() * Math.PI * 2;
+            double radius = 2.8 + world.rand.nextDouble() * 1.8;
+            double px = cx + Math.cos(angle) * radius;
+            double pz = cz + Math.sin(angle) * radius;
+            double py = cy + (world.rand.nextDouble() - 0.5) * 0.4;
+
+            double tangentSpeed = 0.05 + world.rand.nextDouble() * 0.03;
+            double inwardSpeed = 0.01 + world.rand.nextDouble() * 0.01;
+
+            // 切向速度(逆时针)+ 径向速度(向内)
+            double vx = -Math.sin(angle) * tangentSpeed - Math.cos(angle) * inwardSpeed;
+            double vz = Math.cos(angle) * tangentSpeed - Math.sin(angle) * inwardSpeed;
+            double vy = (world.rand.nextDouble() - 0.5) * 0.005;
+
+            // REDSTONE 粒子的 velocity 参数解释为颜色 (R, G, B)
+            float red = 0.4f + world.rand.nextFloat() * 0.2f;
+            float green = 0.05f + world.rand.nextFloat() * 0.1f;
+            float blue = 0.7f + world.rand.nextFloat() * 0.2f;
+
+            world.spawnParticle(EnumParticleTypes.REDSTONE, px, py, pz, red, green, blue);
+        }
+    }
+
+    @Override
+    protected ItemStack getProxyRepresentation() {
+        return new ItemStack(getBlockType());
+    }
+
+    @Override
+    public void securityBreak() {
+        if (world != null) AssemblyStructure.disassemble(world, pos);
+        else disassemble();
+    }
+
+    public boolean isNetworkActive() {
+        return networkActive;
+    }
+
+    public boolean isNetworkPowered() {
+        return networkPowered;
+    }
+
     public void disassemble() {
+        if (world != null && !world.isRemote) {
+            tryInjectPendingOutputs();
+            dropStoredContents();
+        }
         if (formed) {
             formed = false;
             markDirty();
-            pendingOutputs.clear();
             jobTimers.clear();
             parallelBudget.clear();
             patternVirtualCache.clear();
@@ -415,12 +490,76 @@ public class TileAssemblyController extends TileAENetworkBase implements ICrafti
         }
     }
 
-    public boolean isNetworkActive() {
-        return networkActive;
+    private void dropStoredContents() {
+        for (int slot = 0; slot < itemHandler.getSlots(); slot++) {
+            ItemStack stack = itemHandler.getStackInSlot(slot);
+            if (dropStack(stack)) {
+                itemHandler.setStackInSlot(slot, ItemStack.EMPTY);
+            }
+        }
+        dropQueuedStacks(pendingOutputs);
+        dropQueuedStacks(blackHoleBuffer);
     }
 
-    public boolean isNetworkPowered() {
-        return networkPowered;
+    // ---------- 产物注入(BatchExporter 风格,合并后批量注入) ----------
+
+    private void dropQueuedStacks(List<ItemStack> stacks) {
+        boolean changed = false;
+        Iterator<ItemStack> iterator = stacks.iterator();
+        while (iterator.hasNext()) {
+            if (dropStack(iterator.next())) {
+                iterator.remove();
+                changed = true;
+            }
+        }
+        if (changed) markDirty();
+    }
+
+    private boolean dropStack(ItemStack stack) {
+        if (stack == null || stack.isEmpty()) return true;
+        if (world == null || world.isRemote) return false;
+        EntityItem drop = new EntityItem(world,
+                pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5, stack.copy());
+        drop.setDefaultPickupDelay();
+        return world.spawnEntity(drop);
+    }
+
+    // ---------- ICraftingMedium ----------
+
+    @Override
+    public boolean pushPattern(ICraftingPatternDetails patternDetails, InventoryCrafting table) {
+        if (world == null || world.isRemote || isBusy()) return false;
+        // ae2fc 流体替换合成样板:走专用分支(批量 Mixin 不可用时的逐次回退路径)
+        if (Ae2fcFluidPatternHelper.isFluidCraftPattern(patternDetails)) {
+            return executeFluidCrafting(patternDetails, table);
+        }
+        if (!patternDetails.isCraftable()) return false;
+
+        Boolean cached = patternVirtualCache.get(patternDetails);
+        boolean isVirtual;
+        IRecipe recipe = null;
+        NonNullList<ItemStack> remaining = null;
+
+        if (cached != null) {
+            isVirtual = cached;
+        } else {
+            recipe = CraftingManager.findMatchingRecipe(table, world);
+            if (recipe == null) return false;
+            remaining = recipe.getRemainingItems(table);
+            isVirtual = remaining.stream().allMatch(ItemStack::isEmpty);
+            patternVirtualCache.put(patternDetails, isVirtual);
+        }
+
+        if (isVirtual) {
+            return executeVirtualCrafting(patternDetails, table);
+        } else {
+            if (recipe == null) {
+                recipe = CraftingManager.findMatchingRecipe(table, world);
+                if (recipe == null) return false;
+                remaining = recipe.getRemainingItems(table);
+            }
+            return executeRealCrafting(patternDetails, table, recipe, remaining);
+        }
     }
 
     @Override
@@ -428,16 +567,28 @@ public class TileAssemblyController extends TileAENetworkBase implements ICrafti
     public AxisAlignedBB getRenderBoundingBox() {
         if (world == null) return super.getRenderBoundingBox();
         // 防御性检查：TileEntity 可能残留但 Block 已被移除(如死亡重生时区块加载异常)
-        if (!(world.getBlockState(pos).getBlock() instanceof BlockAssemblyController)) {
+        if (!(TileBlockStates.is(world.getBlockState(pos), TileBlockStates.ASSEMBLY_CONTROLLER))) {
             return super.getRenderBoundingBox();
         }
-        EnumFacing controllerFacing = world.getBlockState(pos).getValue(BlockAssemblyController.FACING);
+        EnumFacing controllerFacing = TileBlockStates.facing(world.getBlockState(pos));
         BlockPos origin = AssemblyStructure.getOriginFromController(pos, controllerFacing);
         // 黑洞半径最大约 6.5,bounding box 必须完全覆盖渲染区域(origin 为中心 ±7)
         return new AxisAlignedBB(
             origin.getX() - 7, origin.getY() - 7, origin.getZ() - 7,
             origin.getX() + 8, origin.getY() + 8, origin.getZ() + 8
         );
+    }
+
+    /**
+     * ae2fc 流体替换合成样板的逐次派发路径.
+     * ae2fc 的 CPU Mixin 已将传入 table Packet 化(FLUID_DROP -> FluidPacket,
+     * Packet 带流体容器 capability,可命中原版流体容器配方),因此直接按真实合成处理：
+     * 被流体替换的槽位 Packet 被消耗、不产生空容器；未替换的容器槽位按配方 remaining 返还.
+     */
+    private boolean executeFluidCrafting(ICraftingPatternDetails patternDetails, InventoryCrafting table) {
+        IRecipe recipe = CraftingManager.findMatchingRecipe(table, world);
+        if (recipe == null) return false;
+        return executeRealCrafting(patternDetails, table, recipe, recipe.getRemainingItems(table));
     }
 
     @Override
@@ -462,15 +613,15 @@ public class TileAssemblyController extends TileAENetworkBase implements ICrafti
         if (formed) {
             eventHorizonTickCounter++;
             if (eventHorizonTickCounter >= 5
-                    && world.getBlockState(pos).getBlock() instanceof BlockAssemblyController) {
+                    && TileBlockStates.is(world.getBlockState(pos), TileBlockStates.ASSEMBLY_CONTROLLER)) {
             eventHorizonTickCounter = 0;
-            EnumFacing controllerFacing = world.getBlockState(pos).getValue(BlockAssemblyController.FACING);
+            EnumFacing controllerFacing = TileBlockStates.facing(world.getBlockState(pos));
             BlockPos origin = AssemblyStructure.getOriginFromController(pos, controllerFacing);
             AxisAlignedBB eventHorizon = new AxisAlignedBB(
                 origin.getX() - 2, origin.getY() - 2, origin.getZ() - 2,
                 origin.getX() + 3, origin.getY() + 3, origin.getZ() + 3
             );
-            if (AE2EnhancedConfig.blackHole.getDamageMode() != AE2EnhancedConfig.BlackHole.DamageMode.NONE) {
+            if (com.github.aeddddd.ae2enhanced.config.ServerConfig.current().blackHole.getDamageMode() != AE2EnhancedConfig.BlackHole.DamageMode.NONE) {
                 DamageSource spacetime = new DamageSource("spacetime") {
                     @Override
                     public ITextComponent getDeathMessage(EntityLivingBase entityLivingBaseIn) {
@@ -480,7 +631,7 @@ public class TileAssemblyController extends TileAENetworkBase implements ICrafti
                 List<EntityLivingBase> inHorizon = world.getEntitiesWithinAABB(EntityLivingBase.class, eventHorizon);
                 for (EntityLivingBase entity : inHorizon) {
                     if (!entity.isEntityAlive()) continue;
-                    if (AE2EnhancedConfig.blackHole.getDamageMode() == AE2EnhancedConfig.BlackHole.DamageMode.NON_CREATIVE) {
+                    if (com.github.aeddddd.ae2enhanced.config.ServerConfig.current().blackHole.getDamageMode() == AE2EnhancedConfig.BlackHole.DamageMode.NON_CREATIVE) {
                         if (entity instanceof EntityPlayer && ((EntityPlayer) entity).isCreative()) {
                             continue;
                         }
@@ -529,7 +680,7 @@ public class TileAssemblyController extends TileAENetworkBase implements ICrafti
         // 如果 activeMeInterfacePos 为 null,先尝试从结构坐标恢复,避免死锁：
         // patternsDirty=true → 无法发送事件 → AE2 不扫描 → provideCrafting 不调用 → 永远无法恢复
         if (patternsDirty && activeMeInterfacePos == null && formed) {
-            EnumFacing controllerFacing = world.getBlockState(pos).getValue(BlockAssemblyController.FACING);
+            EnumFacing controllerFacing = TileBlockStates.facing(world.getBlockState(pos));
             BlockPos origin = AssemblyStructure.getOriginFromController(pos, controllerFacing);
             for (BlockPos rel : AssemblyStructure.PART1_SET) {
                 BlockPos mePos = origin.add(rel);
@@ -602,8 +753,6 @@ public class TileAssemblyController extends TileAENetworkBase implements ICrafti
         }
     }
 
-    // ---------- 产物注入(BatchExporter 风格,合并后批量注入) ----------
-
     private void tryInjectPendingOutputs() {
         AENetworkProxy proxy = getProxy();
         if (proxy == null) return;
@@ -633,197 +782,32 @@ public class TileAssemblyController extends TileAENetworkBase implements ICrafti
             ItemStack proto = prototypes.get(entry.getKey());
             long count = entry.getValue();
 
-            IAEItemStack aeStack = channel.createStack(proto);
-            if (aeStack == null) continue;
-
-            while (count > 0) {
-                long batch = Math.min(count, Integer.MAX_VALUE);
-                aeStack.setStackSize(batch);
-                IAEItemStack remainder = monitor.injectItems(aeStack, Actionable.MODULATE, getEffectiveSource());
-
-                if (remainder == null || remainder.getStackSize() == 0) {
-                    count = 0;
-                } else {
-                    count = remainder.getStackSize();
-                    // 网络满载,将剩余转回 pendingOutputs,下一 tick 再试
-                    ItemStack leftover = proto.copy();
-                    leftover.setCount((int) Math.min(count, Integer.MAX_VALUE));
-                    pendingOutputs.add(leftover);
-                    break;
-                }
-            }
-        }
-    }
-
-    // ---------- ICraftingMedium ----------
-
-    @Override
-    public boolean pushPattern(ICraftingPatternDetails patternDetails, InventoryCrafting table) {
-        if (world == null || world.isRemote || isBusy()) return false;
-        // ae2fc 流体替换合成样板:走专用分支(批量 Mixin 不可用时的逐次回退路径)
-        if (Ae2fcFluidPatternHelper.isFluidCraftPattern(patternDetails)) {
-            return executeFluidCrafting(patternDetails, table);
-        }
-        if (!patternDetails.isCraftable()) return false;
-
-        Boolean cached = patternVirtualCache.get(patternDetails);
-        boolean isVirtual;
-        IRecipe recipe = null;
-        NonNullList<ItemStack> remaining = null;
-
-        if (cached != null) {
-            isVirtual = cached;
-        } else {
-            recipe = CraftingManager.findMatchingRecipe(table, world);
-            if (recipe == null) return false;
-            remaining = recipe.getRemainingItems(table);
-            isVirtual = remaining.stream().allMatch(ItemStack::isEmpty);
-            patternVirtualCache.put(patternDetails, isVirtual);
-        }
-
-        if (isVirtual) {
-            return executeVirtualCrafting(patternDetails, table);
-        } else {
-            if (recipe == null) {
-                recipe = CraftingManager.findMatchingRecipe(table, world);
-                if (recipe == null) return false;
-                remaining = recipe.getRemainingItems(table);
-            }
-            return executeRealCrafting(patternDetails, table, recipe, remaining);
-        }
-    }
-
-    /**
-     * 虚拟轨道：普通合成,产出 1 份产物.
-     * 并行度由 isBusy() 控制：AE2 会多次调用 pushPattern,每次 1 份.
-     * 网络未就绪时返回 false,让 AE2 重试.
-     *
-     * <p>产物必须经 pendingOutputs 异步弹出（与 executeRealCrafting 一致），
-     * 不得在 pushPattern 内同步注入网络：CPU 在 pushPattern 返回后才登记
-     * waitingFor 预期（CraftingCPUCluster 原生 :595-599），同步注入的回流产物
-     * 会因找不到预期而落入网络存储，预期永不消解——任务残留"合成中"无法完成。</p>
-     */
-    private boolean executeVirtualCrafting(ICraftingPatternDetails patternDetails, InventoryCrafting table) {
-        // 输出为构造期快照,9 槽校验结果对固定样板不变:命中缓存时整体跳过 getOutput
-        ItemStack output = patternOutputCache.get(patternDetails);
-        if (output == null) {
-            output = patternDetails.getOutput(table, world);
-            if (output.isEmpty()) return false;
-            patternOutputCache.put(patternDetails, output.copy());
-        }
-
-        // 网络未就绪：拒绝,让 AE2 稍后重试
-        AENetworkProxy proxy = getProxy();
-        IGridNode node = proxy.getNode();
-        if (node == null || node.getGrid() == null) return false;
-
-        pendingOutputs.add(output.copy());
-        jobTimers.add(getCraftingTicks());
-        return true;
-    }
-
-    /**
-     * ae2fc 流体替换合成样板的逐次派发路径.
-     * ae2fc 的 CPU Mixin 已将传入 table Packet 化(FLUID_DROP -> FluidPacket,
-     * Packet 带流体容器 capability,可命中原版流体容器配方),因此直接按真实合成处理：
-     * 被流体替换的槽位 Packet 被消耗、不产生空容器；未替换的容器槽位按配方 remaining 返还.
-     */
-    private boolean executeFluidCrafting(ICraftingPatternDetails patternDetails, InventoryCrafting table) {
-        IRecipe recipe = CraftingManager.findMatchingRecipe(table, world);
-        if (recipe == null) return false;
-        return executeRealCrafting(patternDetails, table, recipe, recipe.getRemainingItems(table));
-    }
-
-    /**
-     * 真实轨道：特例合成(含耐久扣减、容器返还等).
-     * 输出和剩余物品均加入 pendingOutputs,由 tryInjectPendingOutputs 统一注入.
-     */
-    private boolean executeRealCrafting(ICraftingPatternDetails patternDetails, InventoryCrafting table,
-                                        IRecipe recipe, NonNullList<ItemStack> remaining) {
-        ItemStack output = recipe.getCraftingResult(table);
-        if (output.isEmpty()) return false;
-
-        pendingOutputs.add(output.copy());
-
-        for (ItemStack rem : remaining) {
-            if (!rem.isEmpty()) {
-                pendingOutputs.add(rem.copy());
-            }
-        }
-
-        jobTimers.add(getCraftingTicks());
-        return true;
-    }
-
-    /**
-     * 尝试用黑洞缓存中的物品匹配配方并产出.
-     * 缓存物品种类超过 5 种时触发溢出销毁；
-     * 配方不匹配时保留缓存,等待更多材料.
-     * @return 本次是否实际执行了合成(消耗材料并产出)
-     */
-    private boolean tryBlackHoleCraft() {
-        if (blackHoleBuffer.isEmpty()) return false;
-
-        // 统计物品种类(区分 metadata)
-        Set<String> uniqueTypes = new HashSet<>();
-        for (ItemStack stack : blackHoleBuffer) {
-            if (!stack.isEmpty()) {
-                uniqueTypes.add(BlackHoleRecipe.keyOf(stack));
-            }
-        }
-        if (uniqueTypes.size() > BLACK_HOLE_OVERFLOW_TYPES) {
-            // 溢出销毁：清空缓存并释放特效
-            blackHoleBuffer.clear();
-            EnumFacing controllerFacing = world.getBlockState(pos).getValue(BlockAssemblyController.FACING);
-            BlockPos origin = AssemblyStructure.getOriginFromController(pos, controllerFacing);
-            world.spawnParticle(EnumParticleTypes.EXPLOSION_HUGE,
-                    origin.getX() + 0.5, origin.getY() + 0.5, origin.getZ() + 0.5, 0, 0, 0);
-            world.playSound(null, origin, SoundEvents.ENTITY_GENERIC_EXPLODE,
-                    SoundCategory.BLOCKS, 2.0f, 0.5f);
-            return false;
-        }
-
-        // 累加物品数量(区分 metadata)
-        Map<String, Integer> found = new HashMap<>();
-        for (ItemStack stack : blackHoleBuffer) {
-            if (!stack.isEmpty()) {
-                found.merge(BlackHoleRecipe.keyOf(stack), stack.getCount(), Integer::sum);
-            }
-        }
-
-        // 匹配配方
-        BlackHoleRecipe recipe = BlackHoleRecipeRegistry.findMatching(found);
-        if (recipe != null) {
-            // 消耗材料
-            Map<String, Integer> remaining = new HashMap<>(recipe.getInputs());
-            Iterator<ItemStack> it = blackHoleBuffer.iterator();
-            while (it.hasNext()) {
-                ItemStack stack = it.next();
-                if (stack.isEmpty()) {
-                    it.remove();
+            try {
+                IAEItemStack aeStack = channel.createStack(proto);
+                if (aeStack == null) {
+                    appendStackChunks(pendingOutputs, proto, count);
                     continue;
                 }
-                String key = BlackHoleRecipe.keyOf(stack);
-                int needed = remaining.getOrDefault(key, 0);
-                if (needed > 0) {
-                    int consume = Math.min(needed, stack.getCount());
-                    stack.shrink(consume);
-                    remaining.put(key, needed - consume);
-                    if (stack.isEmpty()) {
-                        it.remove();
+
+                while (count > 0) {
+                    long batch = Math.min(count, Integer.MAX_VALUE);
+                    aeStack.setStackSize(batch);
+                    IAEItemStack remainder = monitor.injectItems(aeStack, Actionable.MODULATE, getEffectiveSource());
+
+                    if (remainder == null || remainder.getStackSize() == 0) {
+                        count = 0;
+                    } else {
+                        count = remainder.getStackSize();
+                        appendStackChunks(pendingOutputs, proto, count);
+                        break;
                     }
                 }
+            } catch (RuntimeException e) {
+                appendStackChunks(pendingOutputs, proto, count);
+                AE2Enhanced.LOGGER.error("[AE2E] Failed to inject assembly output; preserving remainder", e);
             }
-            // 生成产物(控制器上方)
-            EntityItem result = new EntityItem(world,
-                    pos.getX() + 0.5, pos.getY() + 1.5, pos.getZ() + 0.5,
-                    recipe.getOutput().copy());
-            result.setNoPickupDelay();
-            world.spawnEntity(result);
-            return true;
         }
-        // 配方不匹配时保留缓存,等待玩家继续丢入材料
-        return false;
+        markDirty();
     }
 
     /**
@@ -928,14 +912,56 @@ public class TileAssemblyController extends TileAENetworkBase implements ICrafti
         return stack.getCount();
     }
 
-    /** 单份合成能耗（FE）：基础单价每级减半，满级不耗能（{@link AssemblyHubEnergy}）. */
-    public long getEnergyPerCraft() {
-        return AssemblyHubEnergy.perCraftCost(AE2EnhancedConfig.assemblyHub.energyPerCraft, getEfficiencyCards());
+    /**
+     * 虚拟轨道：普通合成,产出 1 份产物.
+     * 并行度由 isBusy() 控制：AE2 会多次调用 pushPattern,每次 1 份.
+     * 网络未就绪时返回 false,让 AE2 重试.
+     *
+     * <p>产物必须经 pendingOutputs 异步弹出（与 executeRealCrafting 一致），
+     * 不得在 pushPattern 内同步注入网络：CPU 在 pushPattern 返回后才登记
+     * waitingFor 预期（CraftingCPUCluster 原生 :595-599），同步注入的回流产物
+     * 会因找不到预期而落入网络存储，预期永不消解——任务残留"合成中"无法完成。</p>
+     */
+    private boolean executeVirtualCrafting(ICraftingPatternDetails patternDetails, InventoryCrafting table) {
+        // 输出为构造期快照,9 槽校验结果对固定样板不变:命中缓存时整体跳过 getOutput
+        ItemStack output = patternOutputCache.get(patternDetails);
+        if (output == null) {
+            output = patternDetails.getOutput(table, world);
+            if (output.isEmpty()) return false;
+            patternOutputCache.put(patternDetails, output.copy());
+        }
+
+        // 网络未就绪：拒绝,让 AE2 稍后重试
+        AENetworkProxy proxy = getProxy();
+        IGridNode node = proxy.getNode();
+        if (node == null || node.getGrid() == null) return false;
+
+        pendingOutputs.add(output.copy());
+        markDirty();
+        jobTimers.add(getCraftingTicks());
+        return true;
     }
 
-    /** 单 tick 额定功耗上限（FE，默认 2.1G）. */
-    public long getEnergyCapPerTick() {
-        return AE2EnhancedConfig.assemblyHub.energyCapPerTick;
+    /**
+     * 真实轨道：特例合成(含耐久扣减、容器返还等).
+     * 输出和剩余物品均加入 pendingOutputs,由 tryInjectPendingOutputs 统一注入.
+     */
+    private boolean executeRealCrafting(ICraftingPatternDetails patternDetails, InventoryCrafting table,
+                                        IRecipe recipe, NonNullList<ItemStack> remaining) {
+        ItemStack output = recipe.getCraftingResult(table);
+        if (output.isEmpty()) return false;
+
+        pendingOutputs.add(output.copy());
+
+        for (ItemStack rem : remaining) {
+            if (!rem.isEmpty()) {
+                pendingOutputs.add(rem.copy());
+            }
+        }
+        markDirty();
+
+        jobTimers.add(getCraftingTicks());
+        return true;
     }
 
     /**
@@ -1147,19 +1173,74 @@ public class TileAssemblyController extends TileAENetworkBase implements ICrafti
     }
 
     /**
-     * 供 Mixin 调用：批量执行虚拟合成,一次性扣除原材料并注入 batchSize 份产物.
+     * 尝试用黑洞缓存中的物品匹配配方并产出.
+     * 缓存物品种类超过 5 种时触发溢出销毁；
+     * 配方不匹配时保留缓存,等待更多材料.
+     * @return 本次是否实际执行了合成(消耗材料并产出)
      */
-    public boolean executeBatch(ICraftingPatternDetails details, long batchSize) {
-        // 实际原料扣除与产物注入已移至 MixinCraftingCPUCluster.batchProcessVirtualTasks
-        // 中直接操作 CraftingCPUCluster.getInventory() 的内部列表,
-        // 以保证嵌套配方时产物能被上层 canCraft() 正确识别.
-        // 这里仅作为 batch 可行性确认(控制器在线、网络就绪).
-        if (world == null || world.isRemote) return false;
-        if (batchSize <= 0) return false;
+    private boolean tryBlackHoleCraft() {
+        if (blackHoleBuffer.isEmpty()) return false;
 
-        AENetworkProxy proxy = getProxy();
-        IGridNode node = proxy.getNode();
-        return node != null && node.getGrid() != null;
+        // 统计物品种类(区分 metadata)
+        Set<String> uniqueTypes = new HashSet<>();
+        for (ItemStack stack : blackHoleBuffer) {
+            if (!stack.isEmpty()) {
+                uniqueTypes.add(BlackHoleRecipe.keyOf(stack));
+            }
+        }
+        if (uniqueTypes.size() > BLACK_HOLE_OVERFLOW_TYPES) {
+            // 溢出销毁：清空缓存并释放特效
+            blackHoleBuffer.clear();
+            EnumFacing controllerFacing = TileBlockStates.facing(world.getBlockState(pos));
+            BlockPos origin = AssemblyStructure.getOriginFromController(pos, controllerFacing);
+            world.spawnParticle(EnumParticleTypes.EXPLOSION_HUGE,
+                    origin.getX() + 0.5, origin.getY() + 0.5, origin.getZ() + 0.5, 0, 0, 0);
+            world.playSound(null, origin, SoundEvents.ENTITY_GENERIC_EXPLODE,
+                    SoundCategory.BLOCKS, 2.0f, 0.5f);
+            return false;
+        }
+
+        // 累加物品数量(区分 metadata)
+        Map<String, Integer> found = new HashMap<>();
+        for (ItemStack stack : blackHoleBuffer) {
+            if (!stack.isEmpty()) {
+                found.merge(BlackHoleRecipe.keyOf(stack), stack.getCount(), Integer::sum);
+            }
+        }
+
+        // 匹配配方
+        BlackHoleRecipe recipe = com.github.aeddddd.ae2enhanced.chamber.RecipeCatalog.findBlackHole(found);
+        if (recipe != null) {
+            // 消耗材料
+            Map<String, Integer> remaining = new HashMap<>(recipe.getInputs());
+            Iterator<ItemStack> it = blackHoleBuffer.iterator();
+            while (it.hasNext()) {
+                ItemStack stack = it.next();
+                if (stack.isEmpty()) {
+                    it.remove();
+                    continue;
+                }
+                String key = BlackHoleRecipe.keyOf(stack);
+                int needed = remaining.getOrDefault(key, 0);
+                if (needed > 0) {
+                    int consume = Math.min(needed, stack.getCount());
+                    stack.shrink(consume);
+                    remaining.put(key, needed - consume);
+                    if (stack.isEmpty()) {
+                        it.remove();
+                    }
+                }
+            }
+            // 生成产物(控制器上方)
+            EntityItem result = new EntityItem(world,
+                    pos.getX() + 0.5, pos.getY() + 1.5, pos.getZ() + 0.5,
+                    recipe.getOutput().copy());
+            result.setNoPickupDelay();
+            world.spawnEntity(result);
+            return true;
+        }
+        // 配方不匹配时保留缓存,等待玩家继续丢入材料
+        return false;
     }
 
     /**
@@ -1242,78 +1323,62 @@ public class TileAssemblyController extends TileAENetworkBase implements ICrafti
         return info;
     }
 
+    /** 单份合成能耗（FE）：基础单价每级减半，满级不耗能（{@link AssemblyHubEnergy}）. */
+    public long getEnergyPerCraft() {
+        return AssemblyHubEnergy.perCraftCost(com.github.aeddddd.ae2enhanced.config.ServerConfig.current().assemblyHub.energyPerCraft, getEfficiencyCards());
+    }
+
+    /** 单 tick 额定功耗上限（FE，默认 2.1G）. */
+    public long getEnergyCapPerTick() {
+        return com.github.aeddddd.ae2enhanced.config.ServerConfig.current().assemblyHub.energyCapPerTick;
+    }
+
+    /**
+     * 供 Mixin 调用：批量执行虚拟合成,一次性扣除原材料并注入 batchSize 份产物.
+     */
+    public boolean executeBatch(ICraftingPatternDetails details, long batchSize) {
+        // 实际原料扣除与产物注入已移至 AssemblyBatchService
+        // 中直接操作 CraftingCPUCluster.getInventory() 的内部列表,
+        // 以保证嵌套配方时产物能被上层 canCraft() 正确识别.
+        // 这里仅作为 batch 可行性确认(控制器在线、网络就绪).
+        if (world == null || world.isRemote) return false;
+        if (batchSize <= 0) return false;
+
+        AENetworkProxy proxy = getProxy();
+        IGridNode node = proxy.getNode();
+        return node != null && node.getGrid() != null;
+    }
+
     /**
      * 供 Mixin 调用：检查 pendingOutputs 是否还能接受指定数量的 stack.
      */
     public boolean canAcceptRealBatch(int stackCount) {
-        return pendingOutputs.size() + stackCount <= MAX_PENDING_OUTPUTS;
+        return stackCount >= 0 && pendingOutputs.size() + stackCount <= MAX_PENDING_OUTPUTS;
     }
 
     /**
      * 供 Mixin 调用：安全地将产物加入 pendingOutputs.
      */
-    public void addPendingOutput(ItemStack stack) {
-        if (stack == null || stack.isEmpty()) return;
-        if (pendingOutputs.size() >= MAX_PENDING_OUTPUTS) {
-            AE2Enhanced.LOGGER.error("[AE2E] pendingOutputs overflow, dropping {}", stack);
-            return;
+    public boolean addPendingOutput(ItemStack stack) {
+        if (stack == null || stack.isEmpty()) return true;
+        if (stack.getCount() <= 0 || pendingOutputs.size() >= MAX_PENDING_OUTPUTS) {
+            AE2Enhanced.LOGGER.error("[AE2E] Rejecting invalid or overflowed assembly output: {}", stack);
+            return false;
         }
-        pendingOutputs.add(stack);
+        pendingOutputs.add(stack.copy());
+        markDirty();
+        return true;
+    }
+
+    public boolean addPendingOutput(IAEItemStack stack) {
+        return addPendingOutputs(Collections.singletonList(stack));
     }
 
     // ---------- ICraftingProvider ----------
 
-    @Override
-    public void provideCrafting(ICraftingProviderHelper craftingTracker) {
-        if (world == null || world.isRemote) return;
-
-        // 旧存档可能未保存 activeMeInterfacePos,尝试从结构坐标恢复
-        if (activeMeInterfacePos == null && formed) {
-            EnumFacing controllerFacing = world.getBlockState(pos).getValue(BlockAssemblyController.FACING);
-            BlockPos origin = AssemblyStructure.getOriginFromController(pos, controllerFacing);
-            for (BlockPos rel : AssemblyStructure.PART1_SET) {
-                BlockPos mePos = origin.add(rel);
-                TileEntity te = world.getTileEntity(mePos);
-                if (te instanceof TileAssemblyMeInterface) {
-                    TileAssemblyMeInterface me = (TileAssemblyMeInterface) te;
-                    if (me.getControllerPos() != null && me.getControllerPos().equals(pos)) {
-                        activeMeInterfacePos = mePos;
-                        markDirty();
-                        break;
-                    }
-                }
-            }
-        }
-
-        // 使用 TileAssemblyMeInterface 作为 medium 注册样板,
-        // 这样 CraftingGridCache.getMediums() 返回的是 TileAssemblyMeInterface 而不是 TileAssemblyController
-        appeng.api.networking.crafting.ICraftingMedium medium = this;
-        if (activeMeInterfacePos != null) {
-            TileEntity te = world.getTileEntity(activeMeInterfacePos);
-            if (te instanceof TileAssemblyMeInterface) {
-                medium = (TileAssemblyMeInterface) te;
-            }
-        }
-
-        int patternSlots = getPatternSlotCount();
-        for (int i = UPGRADE_SLOTS; i < UPGRADE_SLOTS + patternSlots; i++) {
-            ItemStack stack = itemHandler.getStackInSlot(i);
-            if (stack.isEmpty()) {
-                patternDetailsCache.remove(i);
-                continue;
-            }
-
-            if (stack.getItem() instanceof ICraftingPatternItem) {
-                ICraftingPatternDetails pattern = getCachedPatternDetails(i, stack);
-                // ae2fc 流体替换合成样板 isCraftable() 恒为 false,需显式放行
-                if (pattern != null && (pattern.isCraftable() || Ae2fcFluidPatternHelper.isFluidCraftPattern(pattern))) {
-                    craftingTracker.addCraftingOption(medium, pattern);
-                    prefillVirtualCache(pattern);
-                }
-            } else {
-                patternDetailsCache.remove(i);
-            }
-        }
+    public boolean canAcceptPendingOutputs(Iterable<IAEItemStack> outputs) {
+        int requiredSlots = requiredPendingSlots(outputs);
+        return requiredSlots >= 0 && pendingOutputs.size() <= MAX_PENDING_OUTPUTS - requiredSlots;
     }
 
     /** 样板解码缓存条目: 以物品快照做命中校验(忽略数量),避免槽位内容变化后误用旧解码结果 */
@@ -1346,40 +1411,22 @@ public class TileAssemblyController extends TileAENetworkBase implements ICrafti
         return details;
     }
 
-    /**
-     * 预填充 patternVirtualCache,避免 CPU 首次派发任务时因缓存未命中而回退到 AE2 原生 pushPattern 路径.
-     * 回退会导致：1) 性能骤降(逐次处理)；2) waitingFor 残留(原生逻辑添加记录但产物直接进网络,无法被 injectItems 清除).
-     */
-    private void prefillVirtualCache(ICraftingPatternDetails pattern) {
-        if (world == null || world.isRemote) return;
-        if (patternVirtualCache.containsKey(pattern)) return;
-        // ae2fc 流体替换合成样板永不走虚拟轨道(其 getOutput 恒 null),
-        // 批量结算由 MixinCraftingCPUClusterBatch 的流体专用分支处理
-        if (Ae2fcFluidPatternHelper.isFluidCraftPattern(pattern) || !pattern.isCraftable()) {
-            patternVirtualCache.put(pattern, false);
-            return;
-        }
-
-        IAEItemStack[] inputs = pattern.getInputs();
-        InventoryCrafting ic = new InventoryCrafting(new net.minecraft.inventory.Container() {
-            @Override
-            public boolean canInteractWith(net.minecraft.entity.player.EntityPlayer playerIn) {
-                return false;
+    /** long 数量拆成多个 int 堆；容量不足或数量非法时整批不入队。 */
+    public boolean addPendingOutputs(Iterable<IAEItemStack> outputs) {
+        if (!canAcceptPendingOutputs(outputs)) return false;
+        for (IAEItemStack request : outputs) {
+            if (request == null) continue;
+            long count = request.getStackSize();
+            while (count > 0) {
+                long chunk = Math.min(count, Integer.MAX_VALUE);
+                IAEItemStack part = request.copy();
+                part.setStackSize(chunk);
+                pendingOutputs.add(part.createItemStack());
+                count -= chunk;
             }
-        }, 3, 3);
-
-        for (int i = 0; i < inputs.length && i < 9; i++) {
-            ic.setInventorySlotContents(i, inputs[i] != null ? inputs[i].createItemStack() : ItemStack.EMPTY);
         }
-
-        IRecipe recipe = CraftingManager.findMatchingRecipe(ic, world);
-        if (recipe != null) {
-            NonNullList<ItemStack> remaining = recipe.getRemainingItems(ic);
-            boolean isVirtual = remaining.stream().allMatch(ItemStack::isEmpty);
-            patternVirtualCache.put(pattern, isVirtual);
-        } else {
-            patternVirtualCache.put(pattern, false);
-        }
+        markDirty();
+        return true;
     }
 
     // ---------- Capability ----------
@@ -1437,6 +1484,95 @@ public class TileAssemblyController extends TileAENetworkBase implements ICrafti
     }
 
     @Override
+    public void provideCrafting(ICraftingProviderHelper craftingTracker) {
+        if (world == null || world.isRemote) return;
+
+        // 旧存档可能未保存 activeMeInterfacePos,尝试从结构坐标恢复
+        if (activeMeInterfacePos == null && formed) {
+            EnumFacing controllerFacing = TileBlockStates.facing(world.getBlockState(pos));
+            BlockPos origin = AssemblyStructure.getOriginFromController(pos, controllerFacing);
+            for (BlockPos rel : AssemblyStructure.PART1_SET) {
+                BlockPos mePos = origin.add(rel);
+                TileEntity te = world.getTileEntity(mePos);
+                if (te instanceof TileAssemblyMeInterface) {
+                    TileAssemblyMeInterface me = (TileAssemblyMeInterface) te;
+                    if (me.getControllerPos() != null && me.getControllerPos().equals(pos)) {
+                        activeMeInterfacePos = mePos;
+                        markDirty();
+                        break;
+                    }
+                }
+            }
+        }
+
+        // 使用 TileAssemblyMeInterface 作为 medium 注册样板,
+        // 这样 CraftingGridCache.getMediums() 返回的是 TileAssemblyMeInterface 而不是 TileAssemblyController
+        appeng.api.networking.crafting.ICraftingMedium medium = this;
+        if (activeMeInterfacePos != null) {
+            TileEntity te = world.getTileEntity(activeMeInterfacePos);
+            if (te instanceof TileAssemblyMeInterface) {
+                medium = (TileAssemblyMeInterface) te;
+            }
+        }
+
+        int patternSlots = getPatternSlotCount();
+        for (int i = UPGRADE_SLOTS; i < UPGRADE_SLOTS + patternSlots; i++) {
+            ItemStack stack = itemHandler.getStackInSlot(i);
+            if (stack.isEmpty()) {
+                patternDetailsCache.remove(i);
+                continue;
+            }
+
+            if (stack.getItem() instanceof ICraftingPatternItem) {
+                ICraftingPatternDetails pattern = getCachedPatternDetails(i, stack);
+                // ae2fc 流体替换合成样板 isCraftable() 恒为 false,需显式放行
+                if (pattern != null && (pattern.isCraftable() || Ae2fcFluidPatternHelper.isFluidCraftPattern(pattern))) {
+                    craftingTracker.addCraftingOption(medium, pattern);
+                    prefillVirtualCache(pattern);
+                }
+            } else {
+                patternDetailsCache.remove(i);
+            }
+        }
+    }
+
+    /**
+     * 预填充 patternVirtualCache,避免 CPU 首次派发任务时因缓存未命中而回退到 AE2 原生 pushPattern 路径.
+     * 回退会导致：1) 性能骤降(逐次处理)；2) waitingFor 残留(原生逻辑添加记录但产物直接进网络,无法被 injectItems 清除).
+     */
+    private void prefillVirtualCache(ICraftingPatternDetails pattern) {
+        if (world == null || world.isRemote) return;
+        if (patternVirtualCache.containsKey(pattern)) return;
+        // ae2fc 流体替换合成样板永不走虚拟轨道(其 getOutput 恒 null),
+        // 批量结算由 AssemblyBatchService 的流体专用分支处理
+        if (Ae2fcFluidPatternHelper.isFluidCraftPattern(pattern) || !pattern.isCraftable()) {
+            patternVirtualCache.put(pattern, false);
+            return;
+        }
+
+        IAEItemStack[] inputs = pattern.getInputs();
+        InventoryCrafting ic = new InventoryCrafting(new net.minecraft.inventory.Container() {
+            @Override
+            public boolean canInteractWith(net.minecraft.entity.player.EntityPlayer playerIn) {
+                return false;
+            }
+        }, 3, 3);
+
+        for (int i = 0; i < inputs.length && i < 9; i++) {
+            ic.setInventorySlotContents(i, inputs[i] != null ? inputs[i].createItemStack() : ItemStack.EMPTY);
+        }
+
+        IRecipe recipe = CraftingManager.findMatchingRecipe(ic, world);
+        if (recipe != null) {
+            NonNullList<ItemStack> remaining = recipe.getRemainingItems(ic);
+            boolean isVirtual = remaining.stream().allMatch(ItemStack::isEmpty);
+            patternVirtualCache.put(pattern, isVirtual);
+        } else {
+            patternVirtualCache.put(pattern, false);
+        }
+    }
+
+    @Override
     public void readFromNBT(NBTTagCompound compound) {
         super.readFromNBT(compound);
         this.formed = compound.getBoolean("formed");
@@ -1463,42 +1599,10 @@ public class TileAssemblyController extends TileAENetworkBase implements ICrafti
             ensurePatternCapacity();
         }
         if (compound.hasKey("pendingOutputs")) {
-            pendingOutputs.clear();
-            NBTTagList list = compound.getTagList("pendingOutputs", Constants.NBT.TAG_COMPOUND);
-            for (int i = 0; i < list.tagCount(); i++) {
-                NBTTagCompound tag = list.getCompoundTagAt(i);
-                Item item = Item.getByNameOrId(tag.getString("id"));
-                if (item == null) {
-                    AE2Enhanced.LOGGER.warn("[AE2E] Skipping orphaned item '{}' in pendingOutputs, mod may have been removed.", tag.getString("id"));
-                    continue;
-                }
-                int count = tag.getInteger("Count"); // 自定义格式用 int 存 count
-                int meta = tag.getInteger("Damage");
-                ItemStack stack = new ItemStack(item, count, meta);
-                if (tag.hasKey("tag", Constants.NBT.TAG_COMPOUND)) {
-                    stack.setTagCompound(tag.getCompoundTag("tag"));
-                }
-                pendingOutputs.add(stack);
-            }
+            readQueuedStacks(compound, "pendingOutputs", pendingOutputs, pendingOutputUnknownEntries);
         }
         if (compound.hasKey("blackHoleBuffer")) {
-            blackHoleBuffer.clear();
-            NBTTagList list = compound.getTagList("blackHoleBuffer", Constants.NBT.TAG_COMPOUND);
-            for (int i = 0; i < list.tagCount(); i++) {
-                NBTTagCompound tag = list.getCompoundTagAt(i);
-                Item item = Item.getByNameOrId(tag.getString("id"));
-                if (item == null) {
-                    AE2Enhanced.LOGGER.warn("[AE2E] Skipping orphaned item '{}' in blackHoleBuffer, mod may have been removed.", tag.getString("id"));
-                    continue;
-                }
-                int count = tag.getInteger("Count");
-                int meta = tag.getInteger("Damage");
-                ItemStack stack = new ItemStack(item, count, meta);
-                if (tag.hasKey("tag", Constants.NBT.TAG_COMPOUND)) {
-                    stack.setTagCompound(tag.getCompoundTag("tag"));
-                }
-                blackHoleBuffer.add(stack);
-            }
+            readQueuedStacks(compound, "blackHoleBuffer", blackHoleBuffer, blackHoleUnknownEntries);
         }
         if (compound.hasKey("blackHoleCraftTicks")) {
             blackHoleCraftTicks = compound.getInteger("blackHoleCraftTicks");
@@ -1535,32 +1639,8 @@ public class TileAssemblyController extends TileAENetworkBase implements ICrafti
         }
         compound.setTag("items", itemHandler.serializeNBT());
 
-        NBTTagList list = new NBTTagList();
-        for (ItemStack stack : pendingOutputs) {
-            if (stack.isEmpty()) continue; // 双保险：跳过空栈,避免 getItem() NPE
-            NBTTagCompound tag = new NBTTagCompound();
-            tag.setString("id", Objects.toString(stack.getItem().getRegistryName()));
-            tag.setInteger("Count", stack.getCount()); // int 存 count,突破 byte 限制
-            tag.setInteger("Damage", stack.getMetadata());
-            if (stack.hasTagCompound()) {
-                tag.setTag("tag", stack.getTagCompound().copy());
-            }
-            list.appendTag(tag);
-        }
-        compound.setTag("pendingOutputs", list);
-
-        NBTTagList bhList = new NBTTagList();
-        for (ItemStack stack : blackHoleBuffer) {
-            NBTTagCompound tag = new NBTTagCompound();
-            tag.setString("id", Objects.toString(stack.getItem().getRegistryName()));
-            tag.setInteger("Count", stack.getCount());
-            tag.setInteger("Damage", stack.getMetadata());
-            if (stack.hasTagCompound()) {
-                tag.setTag("tag", stack.getTagCompound().copy());
-            }
-            bhList.appendTag(tag);
-        }
-        compound.setTag("blackHoleBuffer", bhList);
+        compound.setTag("pendingOutputs", writeQueuedStacks(pendingOutputs, pendingOutputUnknownEntries));
+        compound.setTag("blackHoleBuffer", writeQueuedStacks(blackHoleBuffer, blackHoleUnknownEntries));
         compound.setInteger("blackHoleCraftTicks", blackHoleCraftTicks);
         if (proxy != null) {
             NBTTagCompound proxyTag = new NBTTagCompound();

@@ -4,7 +4,7 @@ import appeng.api.storage.data.IAEItemStack;
 import appeng.util.Platform;
 import appeng.util.item.AEItemStack;
 import com.github.aeddddd.ae2enhanced.crafting.smartpattern.SmartPatternData;
-import com.github.aeddddd.ae2enhanced.crafting.smartpattern.SmartPatternStorageFile;
+import com.github.aeddddd.ae2enhanced.crafting.smartpattern.SmartPatternRepository;
 import com.github.aeddddd.ae2enhanced.crafting.smartpattern.SmartRecipe;
 import com.github.aeddddd.ae2enhanced.item.ItemSmartBlankPattern;
 import com.github.aeddddd.ae2enhanced.item.ItemSmartPattern;
@@ -41,6 +41,7 @@ public class TileSmartPatternInterface extends TileEntity {
     private static final String NBT_BOUND_DIM = "boundDim";
     private static final String NBT_BOUND_BLOCK_ID = "boundBlockId";
     private static final String NBT_PATTERN_DATA_ID = "patternDataId";
+    private static final String NBT_PATTERN_REVISION = "revision";
 
     // 绑定目标信息
     @Nullable
@@ -49,7 +50,10 @@ public class TileSmartPatternInterface extends TileEntity {
     @Nonnull
     private String boundBlockId = "";
 
-    // 当前的 SmartPatternData(编码前/编码后都可能存在)
+    // 服务端仅持久化 UUID/revision；这里是 repository 快照或客户端 DTO，不是第二权威。
+    @Nullable
+    private UUID patternDataId;
+    private long patternRevision;
     @Nullable
     private SmartPatternData patternData;
 
@@ -168,41 +172,68 @@ public class TileSmartPatternInterface extends TileEntity {
         return id;
     }
 
+    private static void applyRecipeAction(@Nonnull SmartRecipe recipe, @Nonnull String action) {
+        switch (action) {
+            case "keepPrimary": recipe.keepPrimary(); break;
+            case "multiply2": recipe.multiplyAmounts(2); break;
+            case "multiply3": recipe.multiplyAmounts(3); break;
+            case "multiply4": recipe.multiplyAmounts(4); break;
+            case "multiply5": recipe.multiplyAmounts(5); break;
+            case "divide2": recipe.divideAmounts(2); break;
+            case "divide3": recipe.divideAmounts(3); break;
+            case "divide4": recipe.divideAmounts(4); break;
+            case "divide5": recipe.divideAmounts(5); break;
+            case "add1": recipe.addToAmounts(1); break;
+            case "add-1": recipe.addToAmounts(-1); break;
+            case "rotateInputs": recipe.rotateInputs(); break;
+            case "rotateOutputs": recipe.rotateOutputs(); break;
+            case "clearInputs": recipe.clearInputs(); break;
+            case "clearOutputs": recipe.clearOutputs(); break;
+            case "stack": recipe.stackInputs(); break;
+            case "unstack": recipe.unstackInputs(); break;
+            default: break;
+        }
+    }
+
     public void setBinding(@Nullable BlockPos pos, int dim, @Nonnull String blockId) {
         this.boundPos = pos;
         this.boundDim = dim;
         this.boundBlockId = blockId;
-        this.patternData = null; // 重新绑定后清除旧数据
+        clearPatternSnapshot();
         this.lockedRecipeIndex = -1;
         clearMiniGuiInventory();
         markDirty();
         syncToClient();
     }
 
-    /**
-     * 绑定目标信息并同时设置配方数据(记忆卡绑定流程).
-     * 与 {@link #setBinding} 不同,不会清除传入的 patternData.
-     */
-    public void bindWithData(@Nullable BlockPos pos, int dim, @Nonnull String blockId, @Nonnull SmartPatternData data) {
-        this.boundPos = pos;
-        this.boundDim = dim;
-        this.boundBlockId = blockId;
-        this.patternData = data;
-        this.lockedRecipeIndex = -1;
-        clearMiniGuiInventory();
-        markDirty();
-        syncToClient();
+    public boolean bindWithData(@Nullable BlockPos pos, int dim, @Nonnull String blockId,
+                                @Nonnull SmartPatternData data) {
+        return bindWithData(pos, dim, blockId, data,
+                data.getPatternDataId().equals(patternDataId) ? patternRevision : 0L);
     }
 
-    public void clearBinding() {
-        this.boundPos = null;
-        this.boundDim = Integer.MIN_VALUE;
-        this.boundBlockId = "";
-        this.patternData = null;
+    public boolean bindWithData(@Nullable BlockPos pos, int dim, @Nonnull String blockId,
+                                @Nonnull SmartPatternData data, long expectedRevision) {
+        if (world == null || world.isRemote) return false;
+        long expectedForId = data.getPatternDataId().equals(patternDataId) ? expectedRevision : 0L;
+        SmartPatternRepository.UpdateResult result = SmartPatternRepository.get(world)
+                .migrate(data, expectedForId);
+        if (!result.committed() && result.status() != SmartPatternRepository.Status.STALE) return false;
+        applySnapshot(result.snapshot());
+        if (patternData != null) patternData.setDisabledMask(data.getDisabledMask());
+        if (result.committed()) {
+            this.boundPos = pos;
+            this.boundDim = dim;
+            this.boundBlockId = blockId;
+        } else {
+            reloadBindingFromSnapshot();
+        }
         this.lockedRecipeIndex = -1;
         clearMiniGuiInventory();
+        updateRecipeDisplay();
         markDirty();
         syncToClient();
+        return result.committed();
     }
 
     // ---- SmartPatternData 管理 ----
@@ -212,12 +243,50 @@ public class TileSmartPatternInterface extends TileEntity {
         return patternData;
     }
 
-    public void setPatternData(@Nullable SmartPatternData data) {
-        this.patternData = data;
+    public void clearBinding() {
+        this.boundPos = null;
+        this.boundDim = Integer.MIN_VALUE;
+        this.boundBlockId = "";
+        clearPatternSnapshot();
         this.lockedRecipeIndex = -1;
         clearMiniGuiInventory();
         markDirty();
         syncToClient();
+    }
+
+    @Nullable
+    public UUID getPatternDataId() {
+        return patternDataId;
+    }
+
+    public long getPatternRevision() {
+        return patternRevision;
+    }
+
+    public void setPatternData(@Nullable SmartPatternData data) {
+        if (data == null) {
+            clearPatternSnapshot();
+        } else if (world != null && !world.isRemote) {
+            bindWithData(boundPos, boundDim, data.getTargetBlockId(), data);
+            return;
+        } else {
+            this.patternDataId = data.getPatternDataId();
+            this.patternData = data;
+        }
+        this.lockedRecipeIndex = -1;
+        clearMiniGuiInventory();
+        markDirty();
+        syncToClient();
+    }
+
+    private void clearPatternSnapshot() {
+        patternDataId = null;
+        patternRevision = 0L;
+        patternData = null;
+    }
+
+    private void reloadBindingFromSnapshot() {
+        boundBlockId = patternData == null ? "" : patternData.getTargetBlockId();
     }
 
     /**
@@ -229,99 +298,82 @@ public class TileSmartPatternInterface extends TileEntity {
      * @return 是否编码成功
      */
     public boolean encodePattern(@Nonnull EntityPlayer player) {
-        if (patternData == null || patternData.hasConflicts()) {
+        return encodePattern(patternRevision);
+    }
+
+    public boolean encodePattern(long expectedRevision) {
+        if (patternData == null || patternDataId == null || patternData.hasConflicts()
+                || !isCurrent(expectedRevision)) {
+            reloadFromRepository(expectedRevision);
             return false;
         }
 
         ItemStack output = inventory.getStackInSlot(1);
-        if (!output.isEmpty()) {
-            // 输出槽已有物品：只有是同一份智能样板时才允许更新
-            if (!(output.getItem() instanceof ItemSmartPattern)) {
-                return false;
-            }
-            if (!isSamePatternData(output)) {
-                return false;
-            }
-
-            boolean saved = SmartPatternStorageFile.save(world, patternData);
-            if (!saved) {
-                return false;
-            }
-
-            ItemStack updated = ItemSmartPattern.createPattern(
-                    patternData.getPatternDataId(),
-                    patternData.getDisabledMask(),
-                    patternData.getRecipeCount(),
-                    patternData.getTargetBlockId()
-            );
-
-            isUpdatingEncodedPattern = true;
-            try {
-                inventory.setStackInSlot(1, updated);
-            } finally {
-                isUpdatingEncodedPattern = false;
-            }
-            markDirty();
-            syncToClient();
-            return true;
+        if (!output.isEmpty() && (!(output.getItem() instanceof ItemSmartPattern)
+                || !patternDataId.equals(ItemSmartPattern.getPatternDataId(output)))) {
+            return false;
         }
-
         ItemStack input = inventory.getStackInSlot(0);
-        if (input.isEmpty() || !(input.getItem() instanceof ItemSmartBlankPattern)) {
+        if (output.isEmpty() && (input.isEmpty()
+                || !(input.getItem() instanceof ItemSmartBlankPattern))) {
             return false;
         }
 
-        // 保存配方数据到文件
-        boolean saved = SmartPatternStorageFile.save(world, patternData);
-        if (!saved) {
-            return false;
+        ItemStack encoded = ItemSmartPattern.createPattern(patternDataId, patternData.getDisabledMask(),
+                patternData.getRecipeCount(), patternData.getTargetBlockId(), patternRevision);
+        if (output.isEmpty()) {
+            input.shrink(1);
+            if (input.isEmpty()) inventory.setStackInSlot(0, ItemStack.EMPTY);
         }
-
-        // 创建编码后的样板
-        ItemStack encoded = ItemSmartPattern.createPattern(
-                patternData.getPatternDataId(),
-                patternData.getDisabledMask(),
-                patternData.getRecipeCount(),
-                patternData.getTargetBlockId()
-        );
-
-        // 消耗一个空白样板,输出编码样板
-        input.shrink(1);
-        if (input.isEmpty()) {
-            inventory.setStackInSlot(0, ItemStack.EMPTY);
+        isUpdatingEncodedPattern = true;
+        try {
+            inventory.setStackInSlot(1, encoded);
+        } finally {
+            isUpdatingEncodedPattern = false;
         }
-        inventory.setStackInSlot(1, encoded);
         markDirty();
+        syncToClient();
         return true;
     }
 
-    /**
-     * 检查输出槽中的已编码样板是否与当前 patternData 属于同一份数据.
-     */
-    private boolean isSamePatternData(@Nonnull ItemStack output) {
-        if (!output.hasTagCompound()) {
-            return false;
-        }
-        UUID outputId = output.getTagCompound().getUniqueId("patternDataId");
-        return outputId != null && outputId.equals(patternData.getPatternDataId());
-    }
-
-    /**
-     * 从已编码样板反向读取配方数据并加载.
-     */
+    /** 从物品重载共享内容，但 disabledMask 始终以该物品自己的 NBT 为准。 */
     private void reloadPatternFromStack(@Nonnull ItemStack stack) {
-        NBTTagCompound tag = stack.getTagCompound();
-        if (tag == null) return;
-        UUID dataId = tag.getUniqueId("patternDataId");
-        if (dataId == null) return;
-        SmartPatternData data = SmartPatternStorageFile.load(world, dataId);
-        if (data == null) return;
-        this.patternData = data;
+        UUID dataId = ItemSmartPattern.getPatternDataId(stack);
+        if (dataId == null || world == null || world.isRemote) return;
+        SmartPatternRepository.Snapshot snapshot = SmartPatternRepository.get(world).get(dataId);
+        if (snapshot == null) return;
+        applySnapshot(snapshot);
+        if (patternData != null) patternData.setDisabledMask(ItemSmartPattern.getDisabledMask(stack));
         this.lockedRecipeIndex = -1;
         clearMiniGuiInventory();
         updateRecipeDisplay();
         markDirty();
         syncToClient();
+    }
+
+    private boolean isCurrent(long expectedRevision) {
+        return patternDataId != null && expectedRevision == patternRevision && world != null && !world.isRemote
+                && isCurrentInRepository();
+    }
+
+    private boolean isCurrentInRepository() {
+        SmartPatternRepository.Snapshot current = SmartPatternRepository.get(world).get(patternDataId);
+        return current != null && current.revision() == patternRevision;
+    }
+
+    private void reloadFromRepository(long attemptedRevision) {
+        if (attemptedRevision != patternRevision || patternDataId == null || world == null || world.isRemote) return;
+        SmartPatternRepository.Snapshot current = SmartPatternRepository.get(world).get(patternDataId);
+        if (current != null && current.revision() != patternRevision) {
+            java.util.BitSet disabled = patternData == null ? new java.util.BitSet() : patternData.getDisabledMask();
+            applySnapshot(current);
+            if (patternData != null) patternData.setDisabledMask(disabled);
+            lockedRecipeIndex = -1;
+            clearMiniGuiInventory();
+            updateRecipeDisplay();
+            markDirty();
+            syncToClient();
+        }
     }
 
     // ---- 物品槽位 ----
@@ -404,142 +456,145 @@ public class TileSmartPatternInterface extends TileEntity {
         syncToClient();
     }
 
-    public void modifyLockedRecipe(@Nonnull String action) {
-        if (lockedRecipeIndex < 0 || patternData == null) return;
-        if (lockedRecipeIndex >= patternData.getRecipeCount()) return;
-        SmartRecipe recipe = patternData.getRecipes().get(lockedRecipeIndex);
-        switch (action) {
-            case "keepPrimary":
-                recipe.keepPrimary();
-                break;
-            case "multiply2":
-                recipe.multiplyAmounts(2);
-                break;
-            case "multiply3":
-                recipe.multiplyAmounts(3);
-                break;
-            case "multiply4":
-                recipe.multiplyAmounts(4);
-                break;
-            case "multiply5":
-                recipe.multiplyAmounts(5);
-                break;
-            case "divide2":
-                recipe.divideAmounts(2);
-                break;
-            case "divide3":
-                recipe.divideAmounts(3);
-                break;
-            case "divide4":
-                recipe.divideAmounts(4);
-                break;
-            case "divide5":
-                recipe.divideAmounts(5);
-                break;
-            case "add1":
-                recipe.addToAmounts(1);
-                break;
-            case "add-1":
-                recipe.addToAmounts(-1);
-                break;
-            case "rotateInputs":
-                recipe.rotateInputs();
-                break;
-            case "rotateOutputs":
-                recipe.rotateOutputs();
-                break;
-            case "clearInputs":
-                recipe.clearInputs();
-                break;
-            case "clearOutputs":
-                recipe.clearOutputs();
-                break;
-            case "stack":
-                recipe.stackInputs();
-                break;
-            case "unstack":
-                recipe.unstackInputs();
-                break;
+    private void applySnapshot(@Nullable SmartPatternRepository.Snapshot snapshot) {
+        if (snapshot == null) {
+            clearPatternSnapshot();
+            return;
         }
-        patternData.detectConflicts();
-        updateMiniGuiFromRecipe();
-        updateRecipeDisplay();
-        markDirty();
-        syncToClient();
-        SmartPatternStorageFile.save(world, patternData);
+        this.patternData = snapshot.data();
+        this.patternDataId = patternData.getPatternDataId();
+        this.patternRevision = snapshot.revision();
     }
 
-    /**
-     * 删除所有已禁用的配方.
-     */
+    public void modifyLockedRecipe(@Nonnull String action) {
+        modifyLockedRecipe(action, patternRevision);
+    }
+
+    public boolean modifyLockedRecipe(@Nonnull String action, long expectedRevision) {
+        int recipeIndex = lockedRecipeIndex;
+        if (recipeIndex < 0 || patternData == null || recipeIndex >= patternData.getRecipeCount()) return false;
+        boolean committed = commitEdit(expectedRevision, data -> {
+            SmartRecipe recipe = data.getRecipes().get(recipeIndex);
+            applyRecipeAction(recipe, action);
+            data.detectConflicts();
+            return data;
+        });
+        if (committed) updateMiniGuiFromRecipe();
+        return committed;
+    }
+
     public void deleteDisabledRecipes() {
-        if (patternData == null) return;
-        patternData.deleteDisabledRecipes();
-        if (lockedRecipeIndex >= 0) {
+        deleteDisabledRecipes(patternRevision);
+    }
+
+    public boolean deleteDisabledRecipes(long expectedRevision) {
+        boolean committed = commitEdit(expectedRevision, data -> {
+            data.deleteDisabledRecipes();
+            return data;
+        });
+        if (committed && lockedRecipeIndex >= 0) {
             lockedRecipeIndex = -1;
             clearMiniGuiInventory();
         }
-        setScrollOffset(scrollOffset); // 重新限制页码
-        updateRecipeDisplay();
-        markDirty();
-        syncToClient();
-        SmartPatternStorageFile.save(world, patternData);
+        setScrollOffset(scrollOffset);
+        return committed;
     }
 
-    /**
-     * 在所有配方中替换物品.如果 to 为空,则清除匹配的输入输出.
-     */
     public void replaceInAllRecipes(@Nonnull ItemStack from, @Nonnull ItemStack to) {
-        if (patternData == null || from.isEmpty()) return;
+        replaceInAllRecipes(from, to, patternRevision);
+    }
+
+    public boolean replaceInAllRecipes(@Nonnull ItemStack from, @Nonnull ItemStack to, long expectedRevision) {
+        if (from.isEmpty()) return false;
         IAEItemStack fromAE = AEItemStack.fromItemStack(from);
-        if (fromAE == null) return;
+        if (fromAE == null) return false;
         IAEItemStack toAE = to.isEmpty() ? null : AEItemStack.fromItemStack(to);
-        patternData.replaceInAllRecipes(fromAE, toAE);
-        if (lockedRecipeIndex >= 0) {
+        boolean committed = commitEdit(expectedRevision, data -> {
+            data.replaceInAllRecipes(fromAE, toAE);
+            return data;
+        });
+        if (committed && lockedRecipeIndex >= 0) updateMiniGuiFromRecipe();
+        return committed;
+    }
+
+    public void addNewRecipe() {
+        addNewRecipe(patternRevision);
+    }
+
+    public boolean addNewRecipe(long expectedRevision) {
+        if (patternData == null) return false;
+        boolean committed = commitEdit(expectedRevision, data -> {
+            if (data.getRecipeCount() < com.github.aeddddd.ae2enhanced.config.ServerConfig.current().smartPattern.maxRecipes) {
+                data.addEmptyRecipe();
+            }
+            return data;
+        });
+        if (committed) {
+            int original = patternData.getRecipeCount() - 1;
+            this.lockedRecipeIndex = original;
+            this.miniGuiScrollOffset = 0;
+            int sorted = patternData.getSortedIndex(original);
+            if (sorted >= 0) this.scrollOffset = sorted / 45;
             updateMiniGuiFromRecipe();
         }
-        updateRecipeDisplay();
-        markDirty();
-        syncToClient();
-        SmartPatternStorageFile.save(world, patternData);
+        return committed;
     }
 
-    /**
-     * 新增一条空配方并自动锁定,跳转到其所在页面.
-     */
-    public void addNewRecipe() {
-        if (patternData == null) return;
-        if (patternData.getRecipeCount() >= com.github.aeddddd.ae2enhanced.config.AE2EnhancedConfig.smartPattern.maxRecipes) return;
-        int original = patternData.addEmptyRecipe();
-        this.lockedRecipeIndex = original;
-        this.miniGuiScrollOffset = 0;
-        int sorted = patternData.getSortedIndex(original);
-        if (sorted >= 0) {
-            this.scrollOffset = sorted / 45;
-        }
-        updateMiniGuiFromRecipe();
-        updateRecipeDisplay();
-        markDirty();
-        syncToClient();
-        SmartPatternStorageFile.save(world, patternData);
-    }
-
-    /**
-     * 用给定的输入输出整体覆盖当前锁定的配方(JEI 一键转移).
-     * 数组长度由调用方限制(输入 ≤ 81,输出 ≤ 9).
-     */
     public void fillLockedRecipe(@Nonnull IAEItemStack[] inputs, @Nonnull IAEItemStack[] outputs) {
-        if (lockedRecipeIndex < 0 || patternData == null
-                || lockedRecipeIndex >= patternData.getRecipeCount()) return;
-        SmartRecipe recipe = patternData.getRecipes().get(lockedRecipeIndex);
-        recipe.setInputs(inputs);
-        recipe.setOutputs(outputs);
-        patternData.detectConflicts();
-        updateMiniGuiFromRecipe();
+        fillLockedRecipe(inputs, outputs, patternRevision);
+    }
+
+    public boolean fillLockedRecipe(@Nonnull IAEItemStack[] inputs, @Nonnull IAEItemStack[] outputs,
+                                    long expectedRevision) {
+        int recipeIndex = lockedRecipeIndex;
+        if (recipeIndex < 0 || patternData == null || recipeIndex >= patternData.getRecipeCount()) return false;
+        boolean committed = commitEdit(expectedRevision, data -> {
+            SmartRecipe recipe = data.getRecipes().get(recipeIndex);
+            recipe.setInputs(inputs);
+            recipe.setOutputs(outputs);
+            data.detectConflicts();
+            return data;
+        });
+        if (committed) updateMiniGuiFromRecipe();
+        return committed;
+    }
+
+    private boolean commitEdit(long expectedRevision,
+                               @Nonnull java.util.function.UnaryOperator<SmartPatternData> editor) {
+        if (patternDataId == null || world == null || world.isRemote) return false;
+        java.util.BitSet disabled = patternData == null ? new java.util.BitSet() : patternData.getDisabledMask();
+        SmartPatternRepository.UpdateResult result = SmartPatternRepository.get(world)
+                .edit(patternDataId, expectedRevision, editor);
+        if (result.committed() || result.status() == SmartPatternRepository.Status.STALE) {
+            applySnapshot(result.snapshot());
+            if (patternData != null) patternData.setDisabledMask(disabled);
+        }
+        if (!result.committed()) {
+            lockedRecipeIndex = -1;
+            clearMiniGuiInventory();
+            updateRecipeDisplay();
+            syncToClient();
+            return false;
+        }
+        refreshEncodedPattern();
         updateRecipeDisplay();
         markDirty();
         syncToClient();
-        SmartPatternStorageFile.save(world, patternData);
+        return true;
+    }
+
+    private void refreshEncodedPattern() {
+        ItemStack output = inventory.getStackInSlot(1);
+        if (output.isEmpty() || patternData == null
+                || !patternDataId.equals(ItemSmartPattern.getPatternDataId(output))) return;
+        ItemStack updated = ItemSmartPattern.createPattern(patternDataId, patternData.getDisabledMask(),
+                patternData.getRecipeCount(), patternData.getTargetBlockId(), patternRevision);
+        isUpdatingEncodedPattern = true;
+        try {
+            inventory.setStackInSlot(1, updated);
+        } finally {
+            isUpdatingEncodedPattern = false;
+        }
     }
 
     private void clearMiniGuiInventory() {
@@ -585,18 +640,24 @@ public class TileSmartPatternInterface extends TileEntity {
     }
 
     private void syncMiniGuiSlotToRecipe(int slot) {
-        if (lockedRecipeIndex < 0 || lockedRecipeIndex >= patternData.getRecipeCount()) return;
-        SmartRecipe recipe = patternData.getRecipes().get(lockedRecipeIndex);
+        int recipeIndex = lockedRecipeIndex;
+        if (recipeIndex < 0 || patternData == null || recipeIndex >= patternData.getRecipeCount()) return;
         ItemStack stack = miniGuiInventory.getStackInSlot(slot);
         IAEItemStack aeStack = stack.isEmpty() ? null : AEItemStack.fromItemStack(stack);
-        if (slot < 81) {
-            recipe.setInput(slot, aeStack);
-        } else {
-            recipe.setOutput(slot - 81, aeStack);
-        }
-        patternData.detectConflicts();
-        updateRecipeDisplay();
-        syncToClient();
+        commitEdit(patternRevision, data -> {
+            SmartRecipe recipe = data.getRecipes().get(recipeIndex);
+            if (slot < 81) recipe.setInput(slot, aeStack);
+            else recipe.setOutput(slot - 81, aeStack);
+            data.detectConflicts();
+            return data;
+        });
+    }
+
+    /** Container 的幽灵槽没有独立网络包，进入原槽位写路径前先用每容器 expectedRevision 闸门。 */
+    public boolean prepareEdit(long expectedRevision) {
+        if (isCurrent(expectedRevision)) return true;
+        reloadFromRepository(expectedRevision);
+        return false;
     }
 
     public int getMiniGuiScrollOffset() {
@@ -646,13 +707,19 @@ public class TileSmartPatternInterface extends TileEntity {
      * 切换指定配方索引的禁用/启用状态.
      */
     public void toggleRecipe(int sortedRecipeIndex) {
-        if (patternData == null) return;
+        toggleRecipe(sortedRecipeIndex, patternRevision);
+    }
+
+    public boolean toggleRecipe(int sortedRecipeIndex, long expectedRevision) {
+        if (patternData == null || !prepareEdit(expectedRevision)) return false;
         int originalIndex = patternData.getDisplayIndex(sortedRecipeIndex);
-        if (originalIndex < 0 || originalIndex >= patternData.getRecipeCount()) return;
+        if (originalIndex < 0 || originalIndex >= patternData.getRecipeCount()) return false;
         patternData.getDisabledMask().flip(originalIndex);
+        refreshEncodedPattern();
         updateRecipeDisplay();
         markDirty();
         syncToClient();
+        return true;
     }
 
     /**
@@ -687,12 +754,12 @@ public class TileSmartPatternInterface extends TileEntity {
         scrollOffset = compound.getInteger("scrollOffset");
         lockedRecipeIndex = compound.getInteger("lockedRecipeIndex");
         miniGuiScrollOffset = compound.getInteger("miniGuiScrollOffset");
-        if (compound.hasKey("recipeDisplay")) {
+        if (world != null && world.isRemote && compound.hasKey("recipeDisplay")) {
             NBTTagCompound tag = compound.getCompoundTag("recipeDisplay").copy();
             tag.setInteger("Size", 45);
             recipeDisplayInventory.deserializeNBT(tag);
         }
-        if (compound.hasKey("miniGuiInventory")) {
+        if (world != null && world.isRemote && compound.hasKey("miniGuiInventory")) {
             NBTTagCompound tag = compound.getCompoundTag("miniGuiInventory").copy();
             tag.setInteger("Size", 90);
             miniGuiInventory.deserializeNBT(tag);
@@ -700,12 +767,28 @@ public class TileSmartPatternInterface extends TileEntity {
         if (compound.hasKey("replaceInventory")) {
             replaceInventory.deserializeNBT(compound.getCompoundTag("replaceInventory"));
         }
-        // patternData 优先直接反序列化(支持客户端同步),回退到文件加载
-        if (compound.hasKey("patternData")) {
-            patternData = SmartPatternData.fromNBT(compound.getCompoundTag("patternData"));
+        clearPatternSnapshot();
+        patternRevision = compound.getLong(NBT_PATTERN_REVISION);
+        SmartPatternData embedded = compound.hasKey("patternData")
+                ? SmartPatternData.fromNBT(compound.getCompoundTag("patternData")) : null;
+        if (world != null && world.isRemote) {
+            if (embedded != null) {
+                patternData = embedded;
+                patternDataId = embedded.getPatternDataId();
+            }
+        } else if (embedded != null) {
+            SmartPatternRepository.UpdateResult migrated = SmartPatternRepository.get(world)
+                    .migrate(embedded, patternRevision);
+            applySnapshot(migrated.snapshot());
+            if (patternData != null) patternData.setDisabledMask(embedded.getDisabledMask());
         } else if (compound.hasKey(NBT_PATTERN_DATA_ID + "Most")) {
             UUID dataId = compound.getUniqueId(NBT_PATTERN_DATA_ID);
-            patternData = SmartPatternStorageFile.load(world, dataId);
+            applySnapshot(SmartPatternRepository.get(world).get(dataId));
+        }
+        ItemStack encoded = inventory.getStackInSlot(1);
+        if (patternData != null && patternDataId != null
+                && patternDataId.equals(ItemSmartPattern.getPatternDataId(encoded))) {
+            patternData.setDisabledMask(ItemSmartPattern.getDisabledMask(encoded));
         }
     }
 
@@ -722,12 +805,10 @@ public class TileSmartPatternInterface extends TileEntity {
         compound.setInteger("scrollOffset", scrollOffset);
         compound.setInteger("lockedRecipeIndex", lockedRecipeIndex);
         compound.setInteger("miniGuiScrollOffset", miniGuiScrollOffset);
-        compound.setTag("recipeDisplay", recipeDisplayInventory.serializeNBT());
-        compound.setTag("miniGuiInventory", miniGuiInventory.serializeNBT());
         compound.setTag("replaceInventory", replaceInventory.serializeNBT());
-        if (patternData != null) {
-            compound.setUniqueId(NBT_PATTERN_DATA_ID, patternData.getPatternDataId());
-            compound.setTag("patternData", patternData.toNBT());
+        if (patternDataId != null) {
+            compound.setUniqueId(NBT_PATTERN_DATA_ID, patternDataId);
+            compound.setLong(NBT_PATTERN_REVISION, patternRevision);
         }
         return compound;
     }
@@ -737,7 +818,13 @@ public class TileSmartPatternInterface extends TileEntity {
     @Override
     @Nonnull
     public NBTTagCompound getUpdateTag() {
-        return writeToNBT(super.getUpdateTag());
+        NBTTagCompound tag = writeToNBT(super.getUpdateTag());
+        tag.setTag("recipeDisplay", recipeDisplayInventory.serializeNBT());
+        tag.setTag("miniGuiInventory", miniGuiInventory.serializeNBT());
+        if (patternData != null) {
+            tag.setTag("patternData", patternData.toNBT());
+        }
+        return tag;
     }
 
     @Override

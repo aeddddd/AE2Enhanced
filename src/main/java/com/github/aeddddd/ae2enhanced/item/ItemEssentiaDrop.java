@@ -1,8 +1,7 @@
 package com.github.aeddddd.ae2enhanced.item;
 
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
-import com.github.aeddddd.ae2enhanced.client.render.EssentiaItemRenderer;
-import com.github.aeddddd.ae2enhanced.registry.content.ItemRegistry;
+import com.github.aeddddd.ae2enhanced.item.ItemRegistry;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
@@ -106,12 +105,4 @@ public class ItemEssentiaDrop extends Item {
         return !stack.isEmpty() && stack.getItem() instanceof ItemEssentiaDrop;
     }
 
-    /**
-     * 客户端初始化：注册自定义 TileEntityItemStackRenderer.
-     * RenderItem 在 isBuiltInRenderer=true 时会优先使用 Item 自己的 renderer.
-     */
-    @SideOnly(Side.CLIENT)
-    public void initModel() {
-        this.setTileEntityItemStackRenderer(EssentiaItemRenderer.INSTANCE);
-    }
 }

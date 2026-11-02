@@ -1,11 +1,10 @@
 package com.github.aeddddd.ae2enhanced.integration.jei;
 
+import com.github.aeddddd.ae2enhanced.block.BlockRegistry;
 import com.github.aeddddd.ae2enhanced.client.JEISearchKeyHandler;
 import com.github.aeddddd.ae2enhanced.crafting.BlackHoleRecipe;
-import com.github.aeddddd.ae2enhanced.crafting.BlackHoleRecipeRegistry;
 import com.github.aeddddd.ae2enhanced.item.ItemEssentiaDrop;
-import com.github.aeddddd.ae2enhanced.registry.content.BlockRegistry;
-import com.github.aeddddd.ae2enhanced.registry.content.ItemRegistry;
+import com.github.aeddddd.ae2enhanced.item.ItemRegistry;
 import com.github.aeddddd.ae2enhanced.util.compat.HeiCompat;
 import mezz.jei.api.IJeiRuntime;
 import mezz.jei.api.IModPlugin;
@@ -65,14 +64,13 @@ public class AE2EnhancedJEIPlugin implements IModPlugin {
         if (ItemRegistry.GUIDE_BOOK != null) {
             blacklist.addIngredientToBlacklist(new ItemStack(ItemRegistry.GUIDE_BOOK));
         }
-        // V2 可拼接终端当前仅 dev 可见（创造栏已置 null，这里同步从 JEI 隐藏）
-        if (ItemRegistry.OMNI_WIRELESS_TERMINAL_II != null) {
-            blacklist.addIngredientToBlacklist(new ItemStack(ItemRegistry.OMNI_WIRELESS_TERMINAL_II));
+        // 旧指环物品仅为存档与转换配方保留，正常配置在 ME 工具内完成
+        if (ItemRegistry.NETWORK_LINK_CREDENTIAL != null) {
+            blacklist.addIngredientToBlacklist(new ItemStack(ItemRegistry.NETWORK_LINK_CREDENTIAL));
         }
-
         // 必须将 BlackHoleRecipe 包装为 BlackHoleRecipeWrapper,与 IRecipeCategory 的泛型匹配
         List<BlackHoleRecipeWrapper> wrappers = new ArrayList<>();
-        for (BlackHoleRecipe recipe : BlackHoleRecipeRegistry.getRecipes()) {
+        for (BlackHoleRecipe recipe : com.github.aeddddd.ae2enhanced.chamber.RecipeCatalog.blackHoleRecipes()) {
             wrappers.add(new BlackHoleRecipeWrapper(recipe));
         }
         registry.addRecipes(wrappers, BlackHoleRecipeCategory.UID);

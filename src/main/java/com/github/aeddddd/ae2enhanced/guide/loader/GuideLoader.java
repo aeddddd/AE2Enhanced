@@ -48,9 +48,7 @@ public final class GuideLoader {
                 continue;
             }
             try {
-                FrontMatterParser.ParseResult result = FrontMatterParser.parse(content);
-                List<BlockElement> blocks = MarkdownParser.parse(result.body);
-                pages.put(pageId, new GuidePage(pageId, result.frontMatter, blocks));
+                pages.put(pageId, parsePage(pageId, content));
             } catch (Exception e) {
                 // 解析失败：降级为错误占位页，不影响其他页面（对齐 GuideME buildErrorPage）
                 AE2Enhanced.LOGGER.error("[AE2E] Failed to parse guide page '{}'", pageId, e);
@@ -58,6 +56,12 @@ public final class GuideLoader {
             }
         }
         return pages;
+    }
+
+    public static GuidePage parsePage(String pageId, String content) {
+        FrontMatterParser.ParseResult result = FrontMatterParser.parse(content);
+        List<BlockElement> blocks = MarkdownParser.parse(result.body);
+        return new GuidePage(pageId, result.frontMatter, blocks);
     }
 
     /**
@@ -108,7 +112,7 @@ public final class GuideLoader {
     /**
      * 当前语言代码（小写，对齐 GuideME LangUtil）.
      */
-    private static String getCurrentLanguage() {
+    public static String getCurrentLanguage() {
         try {
             String code = Minecraft.getMinecraft().getLanguageManager().getCurrentLanguage().getLanguageCode();
             return code.toLowerCase(Locale.ROOT);

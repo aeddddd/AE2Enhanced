@@ -1,11 +1,13 @@
 package com.github.aeddddd.ae2enhanced.centralinterface;
 
+import com.github.aeddddd.ae2enhanced.runtime.RuntimeScopes;
+
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 
 /**
- * 全局坐标所有权跟踪器.
+ * 每服务器坐标所有权跟踪器.
  *
  * <p>Central ME Interface 的核心设计是“一个接口 → 多台机器”,但同一块物理机器可能被多个接口同时绑定。
  * 本跟踪器保证同一 {@code (维度, 坐标, 方块ID)} 在同一时刻只被一个 {@link DualityCentralInterface} 占用，
@@ -17,17 +19,15 @@ import java.util.Map;
  *
  * <p>所有权在推送成功时获取，在目标回到 IDLE、绑定移除、接口销毁或处理超时时释放。</p>
  */
-public final class TargetOwnershipTracker {
-
-    private static final TargetOwnershipTracker INSTANCE = new TargetOwnershipTracker();
+public final class TargetOwnershipTracker implements AutoCloseable {
 
     private final Map<TargetBinding, DualityCentralInterface> owners = new HashMap<>();
 
-    private TargetOwnershipTracker() {
+    public TargetOwnershipTracker() {
     }
 
     public static TargetOwnershipTracker instance() {
-        return INSTANCE;
+        return RuntimeScopes.requireServer().service(TargetOwnershipTracker.class, TargetOwnershipTracker::new);
     }
 
     /**
@@ -81,19 +81,17 @@ public final class TargetOwnershipTracker {
         }
     }
 
-    /**
-     * 清空全部所有权记录。在服务器停止（FMLServerStoppingEvent）时调用，
-     * 避免静态表残留旧存档的 DualityCentralInterface 实例导致新存档中机器被永久锁定。
-     */
     public synchronized void clearAll() {
         owners.clear();
     }
 
-    /**
-     * 清空全部所有权记录。<b>仅供单元测试使用</b>：全局单例状态需要在测试间隔离，
-     * 生产代码不得调用此方法。
-     */
-    public static synchronized void resetForTesting() {
-        INSTANCE.owners.clear();
+    @Override
+    public void close() {
+        clearAll();
     }
+
+    public synchronized int trackedTargetCount() {
+        return owners.size();
+    }
+
 }

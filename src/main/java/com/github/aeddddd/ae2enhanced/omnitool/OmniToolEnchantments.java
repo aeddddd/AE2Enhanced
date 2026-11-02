@@ -1,6 +1,6 @@
 package com.github.aeddddd.ae2enhanced.omnitool;
 
-import com.github.aeddddd.ae2enhanced.config.AE2EnhancedConfig;
+import com.github.aeddddd.ae2enhanced.config.ServerConfig;
 import net.minecraft.enchantment.Enchantment;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
@@ -107,8 +107,8 @@ public final class OmniToolEnchantments {
         for (int i = 0; i < stored.tagCount(); i++) {
             NBTTagCompound src = stored.getCompoundTagAt(i);
             short lvl = src.getShort("lvl");
-            short max = AE2EnhancedConfig.omniTool.maxEnchantmentLevel > 0
-                    ? (short) Math.min(lvl, AE2EnhancedConfig.omniTool.maxEnchantmentLevel)
+            short max = ServerConfig.current().omniTool.maxEnchantmentLevel > 0
+                    ? (short) Math.min(lvl, ServerConfig.current().omniTool.maxEnchantmentLevel)
                     : lvl;
             NBTTagCompound dst = new NBTTagCompound();
             dst.setShort("id", src.getShort("id"));

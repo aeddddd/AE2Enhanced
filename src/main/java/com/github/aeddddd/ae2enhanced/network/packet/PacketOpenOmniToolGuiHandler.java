@@ -1,8 +1,8 @@
 package com.github.aeddddd.ae2enhanced.network.packet;
 
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
-import com.github.aeddddd.ae2enhanced.gui.GuiHandler;
-import com.github.aeddddd.ae2enhanced.item.ItemAdvancedMEOmniTool;
+import com.github.aeddddd.ae2enhanced.guiapi.GuiCatalog;
+import com.github.aeddddd.ae2enhanced.omnitool.ItemAdvancedMEOmniTool;
 import net.minecraft.entity.player.EntityPlayerMP;
 import net.minecraft.item.ItemStack;
 import net.minecraft.util.EnumHand;
@@ -23,7 +23,7 @@ public class PacketOpenOmniToolGuiHandler implements IMessageHandler<PacketOpenO
             EnumHand hand = EnumHand.values()[handOrdinal];
             ItemStack stack = player.getHeldItem(hand);
             if (stack.getItem() instanceof ItemAdvancedMEOmniTool) {
-                player.openGui(AE2Enhanced.instance, GuiHandler.GUI_OMNI_TOOL_CONFIG,
+                player.openGui(AE2Enhanced.instance, GuiCatalog.GUI_OMNI_TOOL_CONFIG,
                         player.world, hand.ordinal(), 0, 0);
             }
         });

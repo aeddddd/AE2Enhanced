@@ -1,11 +1,11 @@
 package com.github.aeddddd.ae2enhanced.client.hud;
 
-import com.github.aeddddd.ae2enhanced.item.ItemAdvancedMEOmniTool;
-import com.github.aeddddd.ae2enhanced.item.ItemMEPlacementTool;
-import com.github.aeddddd.ae2enhanced.util.placement.PlacementConfig;
-import com.github.aeddddd.ae2enhanced.util.placement.PlacementMode;
-import com.github.aeddddd.ae2enhanced.util.placement.PlacementTargetResolver;
-import com.github.aeddddd.ae2enhanced.util.placement.SecurityTerminalBindingHelper;
+import com.github.aeddddd.ae2enhanced.omnitool.ItemAdvancedMEOmniTool;
+import com.github.aeddddd.ae2enhanced.omnitool.ItemMEPlacementTool;
+import com.github.aeddddd.ae2enhanced.omnitool.placement.PlacementConfig;
+import com.github.aeddddd.ae2enhanced.omnitool.placement.PlacementMode;
+import com.github.aeddddd.ae2enhanced.omnitool.placement.PlacementTargetResolver;
+import com.github.aeddddd.ae2enhanced.omnitool.placement.SecurityTerminalBindingHelper;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.ScaledResolution;
 import net.minecraft.client.renderer.GlStateManager;

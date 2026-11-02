@@ -3,40 +3,33 @@ navigation:
   title: Omni Terminal
   parent: tools.md
   position: 10
-  icon: omni_wireless_terminal
-item_ids: [omni_wireless_terminal, omni_upgrade_card]
+  icon: omni_wireless_terminal_ii
+item_ids: [omni_wireless_terminal, omni_wireless_terminal_ii, omni_upgrade_card]
 ---
 
-# Omni Terminal
+# Omni Terminal II
 
-The <ItemLink id="omni_wireless_terminal" /> **Omni Wireless Terminal** is a powered wireless terminal: item grid + crafting grid + pattern encoding (81 slots) + extra storage in one GUI. It must be linked in an ME security terminal like any wireless terminal, and can be worn in a Baubles trinket slot.
+The <ItemLink id="omni_wireless_terminal_ii" /> **Omni Wireless Terminal II** is a powered wireless terminal with a spliced panel interface. Link it in an ME security terminal and keep it charged before use. It can also be worn in a Baubles trinket slot.
 
-## Item Grid
+## Panels and layout
 
-- 18 columns wide (a standard ME terminal has 9).
-- SMALL mode: 5 rows, 90 visible slots; TALL mode adapts to screen height.
-- Sorting options: by name, ascending, show all.
-- Press **Shift+E** (default) to open the terminal anywhere.
+- Item repository, crafting, crafting management, interface terminal, pattern encoding, storage, upgrades, player inventory and View Cell are independent panels.
+- Drag, dock, float, close and reopen panels to build your own workspace. The repository column count follows panel width. Drag the bottom-right grip to resize; hold Shift while dragging to preserve the aspect ratio.
+- The layout editor provides undo, reset, three presets and layout import/export/share.
+- Layouts are stored in the terminal item's `omni_layout` NBT and validated by the server.
+- Local backups and presets are isolated by terminal `storageId`; a new terminal does not inherit another terminal's layout or active preset.
 
-## Crafting Grid
+## Crafting and encoding
 
-- Standard 3x3 grid drawing from network storage.
-- **JEI transfer**: click a JEI recipe to fill the crafting grid and the encoding area together; Shift fills only the encoding area; Alt fills only the crafting grid. Large Extended Crafting grids are recognized.
+- Extract items from the network and use the 3x3 crafting grid.
+- The Interface Terminal uses AE2's native provider list, pattern synchronization and slot actions rather than a parallel protocol.
+- Encode crafting and processing patterns, with JEI/HEI recipe transfer support.
+- Search and repository pages are synchronized with the server; separate clients have independent sessions.
 
-## Pattern Encoding
+## Legacy terminals
 
-- Crafting mode: 9 input slots, encodes crafting patterns.
-- Processing mode: 81 input slots and 27 output slots.
-- With an Auto-Upload Module installed in the [Assembly Hub](machines/assembly-hub.md), encoded crafting patterns upload to the nearest assembled hub automatically.
+The original <ItemLink id="omni_wireless_terminal" /> is deprecated but remains usable. Its normal crafting recipe now produces Terminal II. Use the legacy-to-II conversion recipe to preserve network binding, storage ID, inventories, upgrades and layout NBT.
 
-## Upgrade Cards
+## Upgrades and search
 
-The terminal has 9 upgrade slots for <ItemLink id="omni_upgrade_card" /> **Omni Upgrade Cards** (and Channel Receiver Cards):
-
-- **Advanced Magnet Card**: press **H** to cycle Off / Inventory / Network. Pulls item drops within 7 blocks into your inventory, or inserts them into the network directly.
-- **Picker Interaction Card**: middle-click an item in the ME grid to extract a full stack into your inventory.
-
-## Search and JEI
-
-- The search box syncs with the JEI search.
-- Hover an item in JEI and press **F** to copy its display name into the terminal search box.
+The terminal retains upgrade slots and View Cell filtering. Press **Shift+E** to open it. The search box can synchronize with JEI/HEI; hover an ingredient and press **F** to copy its display name.

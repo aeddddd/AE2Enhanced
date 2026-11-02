@@ -7,8 +7,8 @@ import appeng.core.sync.packets.PacketInventoryAction;
 import appeng.helpers.InventoryAction;
 import appeng.util.item.AEItemStack;
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
-import com.github.aeddddd.ae2enhanced.util.fakeitem.FakeEssentiaSafe;
-import com.github.aeddddd.ae2enhanced.util.fakeitem.FakeFluids;
+import com.github.aeddddd.ae2enhanced.item.fakeitem.FakeEssentiaSafe;
+import com.github.aeddddd.ae2enhanced.item.fakeitem.FakeFluids;
 import mezz.jei.api.gui.IGhostIngredientHandler;
 import net.minecraft.inventory.Slot;
 import net.minecraft.item.ItemStack;
@@ -100,7 +100,7 @@ public class GhostIngredientTarget implements IGhostIngredientHandler.Target<Obj
 
     private static IAEItemStack tryResolveGas(Object ingredient) {
         try {
-            Class<?> fakeGasesClass = Class.forName("com.github.aeddddd.ae2enhanced.util.fakeitem.FakeGases");
+            Class<?> fakeGasesClass = Class.forName("com.github.aeddddd.ae2enhanced.item.fakeitem.FakeGases");
             return (IAEItemStack) fakeGasesClass.getMethod("tryPackJEIGas", Object.class).invoke(null, ingredient);
         } catch (Throwable e) {
             return null;
@@ -109,7 +109,7 @@ public class GhostIngredientTarget implements IGhostIngredientHandler.Target<Obj
 
     private static IAEItemStack tryResolveGasFromItem(ItemStack is) {
         try {
-            Class<?> fakeGasesClass = Class.forName("com.github.aeddddd.ae2enhanced.util.fakeitem.FakeGases");
+            Class<?> fakeGasesClass = Class.forName("com.github.aeddddd.ae2enhanced.item.fakeitem.FakeGases");
             return (IAEItemStack) fakeGasesClass.getMethod("tryPackJEIGasFromItem", ItemStack.class).invoke(null, is);
         } catch (Throwable e) {
             return null;

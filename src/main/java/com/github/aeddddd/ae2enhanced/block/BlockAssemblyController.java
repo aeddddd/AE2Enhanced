@@ -1,9 +1,8 @@
 package com.github.aeddddd.ae2enhanced.block;
 
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
-import com.github.aeddddd.ae2enhanced.gui.GuiHandler;
-import com.github.aeddddd.ae2enhanced.structure.AssemblyStructure;
-import com.github.aeddddd.ae2enhanced.structure.ControllerIndex;
+import com.github.aeddddd.ae2enhanced.guiapi.GuiCatalog;
+import com.github.aeddddd.ae2enhanced.tile.AssemblyStructure;
 import com.github.aeddddd.ae2enhanced.tile.TileAssemblyController;
 import net.minecraft.block.Block;
 import net.minecraft.block.material.Material;
@@ -95,7 +94,16 @@ public class BlockAssemblyController extends Block {
         if (!world.isRemote) {
             TileEntity te = world.getTileEntity(pos);
             if (te instanceof TileAssemblyController) {
-                player.openGui(AE2Enhanced.instance, GuiHandler.GUI_ASSEMBLY_CONTROLLER, world, pos.getX(), pos.getY(), pos.getZ());
+                TileAssemblyController tile = (TileAssemblyController) te;
+                com.github.aeddddd.ae2enhanced.structureapi.StructureValidationResult result = AssemblyStructure.validate(world, pos);
+                if (result == com.github.aeddddd.ae2enhanced.structureapi.StructureValidationResult.VALID && !tile.isFormed()) {
+                    AssemblyStructure.assemble(world, pos);
+                } else if (result == com.github.aeddddd.ae2enhanced.structureapi.StructureValidationResult.INVALID && tile.isFormed()) {
+                    AssemblyStructure.disassemble(world, pos);
+                } else if (result == com.github.aeddddd.ae2enhanced.structureapi.StructureValidationResult.DEFER_UNLOADED) {
+                    StructureEventHandler.defer(world, pos);
+                }
+                player.openGui(AE2Enhanced.instance, GuiCatalog.GUI_ASSEMBLY_CONTROLLER, world, pos.getX(), pos.getY(), pos.getZ());
             }
         }
         return true;

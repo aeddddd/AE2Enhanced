@@ -1,27 +1,5 @@
 package com.github.aeddddd.ae2enhanced.test.lp;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.Mockito.mock;
-
-import java.io.ByteArrayOutputStream;
-import java.io.File;
-import java.io.PrintStream;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.TreeMap;
-import java.util.function.Supplier;
-
-import org.junit.jupiter.api.Assumptions;
-import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Test;
-
-import net.minecraft.init.Blocks;
-import net.minecraft.item.Item;
-
 import appeng.api.AEApi;
 import appeng.api.networking.crafting.ICraftingGrid;
 import appeng.api.networking.crafting.ICraftingPatternDetails;
@@ -31,22 +9,32 @@ import appeng.api.storage.data.IAEItemStack;
 import appeng.api.storage.data.IItemList;
 import appeng.crafting.CraftingTreeNode;
 import appeng.crafting.MECraftingInventory;
-
 import com.github.aeddddd.ae2enhanced.diag.plansnapshot.PlanSnapshot;
-import com.github.aeddddd.ae2enhanced.specialcrafting.CondensationPlanner;
+import com.github.aeddddd.ae2enhanced.specialcrafting.*;
 import com.github.aeddddd.ae2enhanced.specialcrafting.CondensationPlanner.LpPlanOutcome;
-import com.github.aeddddd.ae2enhanced.specialcrafting.FlowReconciler;
-import com.github.aeddddd.ae2enhanced.specialcrafting.NetworkPatternIndex;
-import com.github.aeddddd.ae2enhanced.specialcrafting.PruneSettings;
 import com.github.aeddddd.ae2enhanced.specialcrafting.PruneSettings.Mode;
-import com.github.aeddddd.ae2enhanced.specialcrafting.RecursiveCraftingHelper;
-import com.github.aeddddd.ae2enhanced.specialcrafting.StableOrder;
 import com.github.aeddddd.ae2enhanced.specialcrafting.lp.SccLpModelBuilder;
 import com.github.aeddddd.ae2enhanced.specialcrafting.lp.SccLpSolve.Execution;
 import com.github.aeddddd.ae2enhanced.test.support.LpTestSupport.MiniWeb;
 import com.github.aeddddd.ae2enhanced.test.support.ProcessingPatternBuilder;
 import com.github.aeddddd.ae2enhanced.test.support.ReusePatternBuilder;
 import com.github.aeddddd.ae2enhanced.test.support.SimulationEnv;
+import net.minecraft.init.Blocks;
+import net.minecraft.item.Item;
+import org.junit.jupiter.api.Assumptions;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.Test;
+
+import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.PrintStream;
+import java.util.*;
+import java.util.function.Supplier;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.mock;
 
 /**
  * 查询域剪枝等价性测试(任务 2:P1 需求门控 / P2 平凡单元闭式 / P3 单元划分 memo / P4 候选可达性)。
@@ -618,6 +606,7 @@ public class PruningEquivalenceTest {
      * 真实快照(5319 样板)上的 off vs full 等价性:根请求 + 若干确定性采样请求。
      * 这是 P1/P2 在真实数据(巨单元 + 上千平凡单元)上的主验收。
      */
+    @Tag("replay")
     @Test
     public void snapshotEquivalence() throws Exception {
         File file = latestSnapshot();

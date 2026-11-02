@@ -8,8 +8,8 @@ import net.minecraft.inventory.Slot;
 import com.github.aeddddd.ae2enhanced.container.ContainerSplicedTerm;
 
 /**
- * 右侧存储模块：承接 {@code ContainerOmniTerm.setupRightStorage} 的 27 个 {@code SlotHighCapacity}
- * （9×3），摆成与旧终端右侧一致的格子带。
+ * 右侧存储模块：承接 {@code ContainerOmniTerm.setupRightStorage} 的 36 个 {@code SlotHighCapacity}
+ * （9×4），摆成与旧终端右侧一致的格子带。
  *
  * <p>槽位角色 {@code BOTH}：既能被 shift-click 填充（旧终端行为），也可以作为来源把物品
  * shift-click 回背包。高容量上限由 {@code SlotHighCapacity.getSlotStackLimit()} 提供，
@@ -20,7 +20,7 @@ public final class StoragePanel extends SlotHostPanel {
 
     private static final int SLOT_SIZE = 18;
     private static final int COLUMNS = 9;
-    private static final int ROWS = 3;
+    private static final int ROWS = 4;
 
     public StoragePanel(ContainerSplicedTerm container) {
         super(container);
@@ -37,7 +37,7 @@ public final class StoragePanel extends SlotHostPanel {
         return I18n.format("gui.ae2enhanced.spliced_term.storage");
     }
 
-    /** 9×3 格子带的内容尺寸。 */
+    /** 9×4 格子带的内容尺寸。 */
     public static int contentWidthForGrid() {
         return COLUMNS * SLOT_SIZE;
     }

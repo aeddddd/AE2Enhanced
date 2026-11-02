@@ -139,6 +139,8 @@ dependencies {
     // TII: GitHub Release 上的 1.0.0 构件过旧(缺少 getEmptyContainer 等接口方法),
     // 必须使用 libs/ 下的新版本地构件
     compileOnly files('libs/terminal_interaction_integration-1.0.jar')
+    compileOnly files('libs-unused/FTBLib-5.4.7.2.jar')
+    compileOnly files('libs-unused/FTBUtilities-5.4.1.131.jar')
 
     // --- 公共 Maven  ---
     compileOnly('vazkii.botania:Botania:r1.10-364.4') { transitive = false }
@@ -154,10 +156,11 @@ dependencies {
     // fastutil
     implementation "it.unimi.dsi:fastutil:${project.fastutil_version}"
 
-    // JEI / CraftTweaker (JEI 完整 jar 同时供编译与开发运行时; CT 仅编译期)
+    // JEI / CraftTweaker (JEI 完整 jar 同时供编译与开发运行时; CT 生产仅编译期, 动作单测复用同一版本)
     implementation rfg.deobf("mezz.jei:jei_${project.minecraft_version}:${project.jei_version}")
     compileOnly rfg.deobf("mezz.jei:jei_${project.minecraft_version}:${project.jei_version}:api")
     compileOnly rfg.deobf("CraftTweaker2:CraftTweaker2-MC1120-Main:${project.crafttweaker_version}")
+    testImplementation rfg.deobf("CraftTweaker2:CraftTweaker2-MC1120-Main:${project.crafttweaker_version}")
 
     // 单元测试用 SRG→MCP 重映射工具 (显式依赖, 不再从构建插件缓存目录取 jar)
     specialSource 'net.md-5:SpecialSource:1.8.3:shaded'
@@ -194,8 +197,33 @@ configurations.testRuntimeClasspath.extendsFrom(configurations.lwjgl2Classpath)
 }
 
 test {
-    useJUnitPlatform()
+    def requestedTagExpression = project.findProperty('testIncludeTags')
+    useJUnitPlatform {
+        // 默认只跑语义回归; 显式诊断入口: ./gradlew test -PtestIncludeTags=replay
+        if (requestedTagExpression) {
+            includeTags(requestedTagExpression)
+        } else {
+            excludeTags 'replay', 'benchmark'
+        }
+    }
     dependsOn 'remapAe2ForTest'
+    systemProperty 'ae2e.projectDir', rootDir
+    def junitTempDir = file("$buildDir/junit-tmp")
+    junitTempDir.mkdirs()
+    systemProperty 'java.io.tmpdir', junitTempDir.absolutePath
+    systemProperty 'junit.jupiter.tempdir.cleanup.mode.default', 'NEVER'
+    doLast {
+        // Windows 下安全软件可能在逐用例清理时重新占用/创建文件；测试 JVM 退出后统一清理并重试。
+        for (int attempt = 0; attempt < 40 && junitTempDir.exists(); attempt++) {
+            if (junitTempDir.deleteDir()) {
+                break
+            }
+            Thread.sleep(250)
+        }
+        if (junitTempDir.exists()) {
+            throw new GradleException("Failed to delete JUnit temp directory after retries: $junitTempDir")
+        }
+    }
     // 全套测试共享一个 JVM, AE2/MC 类加载累积量大, 512m 默认堆会 GC overhead OOM
     maxHeapSize = '2g'
     javaLauncher.set(javaToolchains.launcherFor {
@@ -213,6 +241,36 @@ test {
     }
 }
 
+// 可重复整合包回放: fixture 由调用方显式提供, 不读取 research/ 下的本地快照。
+tasks.register('modpackReplayTest', Test) {
+    description = 'Runs manifest-driven semantic modpack replays from -Pfixture=<directory>.'
+    group = 'verification'
+    dependsOn testClasses, remapAe2ForTest
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    useJUnitPlatform {
+        includeTags 'replay'
+        excludeTags 'benchmark', 'legacy', 'census', 'repro'
+    }
+    filter {
+        includeTestsMatching 'com.github.aeddddd.ae2enhanced.test.modpack.ModpackReplayTest'
+    }
+    javaLauncher.set(javaToolchains.launcherFor {
+        languageVersion = JavaLanguageVersion.of(8)
+    })
+    maxHeapSize = '2g'
+    maxParallelForks = 1
+    forkEvery = 1
+    outputs.upToDateWhen { false }
+    doFirst {
+        String fixture = project.findProperty('fixture')
+        if (fixture == null || fixture.trim().isEmpty()) {
+            throw new GradleException('modpackReplayTest 必须指定 -Pfixture=<目录>')
+        }
+        systemProperty 'ae2e.modpack.fixture', file(fixture).absolutePath
+    }
+}
+
 // ----------------------------------------------------------------------------
 // 单元测试环境: 开发环境运行时 MC 为 MCP 命名,而 AE2-UEL jar 保留 SRG 名
 // (field_*/func_*),普通 JVM 测试无运行时重映射器,需预先用 SpecialSource 将
@@ -226,8 +284,8 @@ def genSrgMappings = tasks.named('generateForgeSrgMappings')
 tasks.register('remapAe2ForTest', JavaExec) {
     dependsOn genSrgMappings
     inputs.file(genSrgMappings.flatMap { it.srgToMcp })
+    inputs.files(configurations.compileClasspath.filter { it.name.startsWith('ae2-uel') })
     outputs.file(ae2McpJar)
-    outputs.upToDateWhen { ae2McpJar.get().asFile.exists() }
     mainClass.set('net.md_5.specialsource.SpecialSource')
     classpath = configurations.specialSource
     doFirst {
@@ -262,8 +320,16 @@ processResources {
 // 已无存在必要; 需要联调可选 mod 时把 jar 放进 run/mods/ 即可(FML 照常扫描)。
 // ----------------------------------------------------------------------------
 afterEvaluate {
+    if (project.hasProperty('clientUsername')) minecraft.username.set(project.property('clientUsername').toString())
     tasks.named('runClient', JavaExec) {
         doFirst {
+            if (project.hasProperty('clientRunDir')) workingDir = file(project.property('clientRunDir'))
+            if (project.hasProperty('harnessE5')) systemProperty 'ae2e.harness.e5', project.property('harnessE5')
+            if (project.hasProperty('privateDimensionHarness')) systemProperty 'ae2e.harness.privateDimension', project.property('privateDimensionHarness')
+            if (project.hasProperty('harnessE5Peer')) systemProperty 'ae2e.harness.e5Peer', project.property('harnessE5Peer')
+            if (project.hasProperty('harnessServerAddress')) {
+                systemProperty 'ae2e.harness.serverAddress', project.property('harnessServerAddress')
+            }
             // 先快照原始 classpath, 闭包内不得再引用 classpath 自身(否则 filter 递归求值 → StackOverflow)
             def original = classpath
             def hasHEI = fileTree('run/mods').matching { include '**/HadEnoughItems*.jar' }.files.size() > 0
@@ -292,12 +358,15 @@ afterEvaluate {
 // ----------------------------------------------------------------------------
 afterEvaluate {
     tasks.named('runServer', JavaExec) {
-        // 独立运行目录(覆盖 RFG 默认的 run/)
-        workingDir = file('runServer')
+        // 独立运行目录(覆盖 RFG 默认的 run/；E5 可通过参数再隔离)
+        workingDir = file(project.hasProperty('serverRunDir') ? project.property('serverRunDir') : 'runServer')
         // Gradle 的 JavaExec 默认不把 stdin 接给子进程: MC 服务端(nogui 模式)会立刻读到 EOF
         // 然后"干净退出"(BUILD SUCCESSFUL, 但服务端根本没起来)。接上 stdin 即可。
         standardInput = System.in
         doFirst {
+            if (project.hasProperty('harnessE5')) systemProperty 'ae2e.harness.e5', project.property('harnessE5')
+            if (project.hasProperty('privateDimensionHarness')) systemProperty 'ae2e.harness.privateDimension', project.property('privateDimensionHarness')
+            if (project.hasProperty('privateRestartHarness')) systemProperty 'ae2e.harness.privateRestart', project.property('privateRestartHarness')
             def original = classpath
             classpath = files(original.filter { file ->
                 if (file.name.contains("jei_${project.minecraft_version}")) {
@@ -351,4 +420,723 @@ jar {
         include '*.txt'
         into 'licenses'
     }
+}
+
+// ----------------------------------------------------------------------------
+// M0 L4: 独立真实服务端验收。verification 不发布、不进入生产 jar。
+// ----------------------------------------------------------------------------
+sourceSets {
+    verification {
+        java.srcDir 'src/verification/java'
+        resources.srcDir 'src/verification/resources'
+    }
+}
+
+configurations {
+    verificationCompileOnly.extendsFrom compileOnly
+    verificationImplementation.extendsFrom implementation
+}
+
+dependencies {
+    verificationImplementation sourceSets.main.output
+}
+
+// RFG 只自动连接内建源码集；显式复用主源码集的 patched MC/Forge 编译与运行类路径。
+sourceSets.verification.compileClasspath += sourceSets.main.compileClasspath
+sourceSets.verification.runtimeClasspath += sourceSets.main.runtimeClasspath
+
+processVerificationResources {
+    duplicatesStrategy = org.gradle.api.file.DuplicatesStrategy.EXCLUDE
+}
+
+tasks.register('verificationJar', Jar) {
+    group = 'verification'
+    description = 'Assembles the isolated dedicated-server verification mod.'
+    archiveBaseName = 'AE2Enhanced-ServerSmoke'
+    archiveVersion = project.version
+    from sourceSets.verification.output
+}
+
+// 在任务创建回调之外触发 RFG 的 reobf<JarTaskName> 规则，避免嵌套注册任务。
+def reobfVerificationJarTask = tasks.named('reobfVerificationJar')
+
+def serverSmokeDir = layout.buildDirectory.dir('verification/serverSmoke')
+def serverSmokeReportDir = layout.buildDirectory.dir('reports/verification/serverSmoke')
+def serverSmokeHold = providers.gradleProperty('smokeHoldForClient').isPresent()
+def serverSmokeWatchdog = providers.gradleProperty('smokeWatchdogSeconds').orElse('300')
+
+tasks.register('cleanServerSmoke', Delete) {
+    description = 'Removes the previous smoke server, including its generated world.'
+    delete serverSmokeDir
+}
+
+tasks.register('prepareServerSmokeMods', Sync) {
+    group = 'verification'
+    description = 'Stages filtered reobfuscated mods and records their SHA-256 hashes.'
+    dependsOn cleanServerSmoke, reobfJar, reobfVerificationJar
+    into serverSmokeDir.map { new File(it.asFile, 'mods') }
+    from(tasks.named('reobfJar'))
+    from(tasks.named('reobfVerificationJar'))
+    from(configurations.obfuscatedRuntimeClasspath) {
+        // FML 按文件名发现 coremod；确保 MixinBooter 接口先于 AE2Enhanced core plugin 可加载。
+        rename { name -> name.startsWith('mixinbooter-') ? '!' + name : name }
+    }
+    duplicatesStrategy = org.gradle.api.file.DuplicatesStrategy.EXCLUDE
+    exclude { details ->
+        def name = details.file.name.toLowerCase(java.util.Locale.ROOT)
+        name.endsWith('-dev.jar') || name.endsWith('-deobf.jar') ||
+                name.contains('jei_') || name.contains('hadenoughitems')
+    }
+    doLast {
+        def root = serverSmokeDir.get().asFile
+        root.mkdirs()
+        new File(root, 'eula.txt').text = 'eula=true\n'
+        new File(root, 'server.properties').text = '''server-port=0
+online-mode=false
+level-name=world
+spawn-protection=0
+enable-command-block=true
+max-tick-time=-1
+sync-chunk-writes=false
+'''
+        if (providers.gradleProperty('guideVerification').isPresent()) {
+            def runtimeDir = new File(project.buildDir, 'verification/mmce')
+            ['CraftTweaker2-MC1120-Main-1.12-4.1.20.718-srg.jar',
+             'CraftTweaker2-API-4.1.20.718.jar', 'ZenScript-4.1.20.718.jar'].each { name ->
+                def source = new File(runtimeDir, name)
+                if (!source.isFile()) {
+                    throw new GradleException("guideVerification requires prepared CT runtime: ${source}")
+                }
+                copy { from source; into new File(root, 'mods') }
+            }
+            copy {
+                from new File(project.projectDir, 'src/verification/resources/ae2e_wp6.zs')
+                into new File(root, 'scripts')
+            }
+            copy {
+                from new File(project.projectDir, 'src/verification/resources/ae2e_wp6_external.md')
+                into new File(root, 'config/ae2enhanced/guides/mymod')
+                rename { 'external.md' }
+            }
+        }
+        if (providers.gradleProperty('ftbVerification').isPresent()) {
+            ['FTBLib-5.4.7.2.jar', 'FTBUtilities-5.4.1.131.jar'].each { name ->
+                copy { from new File(project.projectDir, "libs-unused/${name}"); into new File(root, 'mods') }
+            }
+        }
+        if (providers.gradleProperty('mmceVerification').isPresent()) {
+            def runtimeDir = new File(project.buildDir, 'verification/mmce')
+            ['CraftTweaker2-MC1120-Main-1.12-4.1.20.718-srg.jar',
+             'CraftTweaker2-API-4.1.20.718.jar', 'ZenScript-4.1.20.718.jar'].each { name ->
+                copy { from new File(runtimeDir, name); into new File(root, 'mods') }
+            }
+            def mmceVersion = providers.gradleProperty('mmceVersion').orElse('2.2.2').get()
+            copy {
+                from new File(runtimeDir, "ModularMachinery-CE-${mmceVersion}.jar")
+                into new File(root, 'mods')
+            }
+        }
+        def report = serverSmokeReportDir.get().asFile
+        report.mkdirs()
+        def manifest = new StringBuilder()
+        fileTree(new File(root, 'mods')).matching { include '*.jar' }.files.sort { it.name }.each { jarFile ->
+            manifest.append(jarFile.name).append('  ')
+                    .append(java.security.MessageDigest.getInstance('SHA-256').digest(jarFile.bytes)
+                            .encodeHex().toString()).append('\n')
+        }
+        new File(report, 'jar-sha256.txt').text = manifest.toString()
+    }
+}
+
+tasks.register('runServerSmoke', JavaExec) {
+    group = 'verification'
+    description = 'Runs the real obfuscated dedicated server in an isolated generated world.'
+    dependsOn downloadVanillaJars, prepareServerSmokeMods, reobfJar, reobfVerificationJar
+    workingDir = serverSmokeDir
+    standardInput = new ByteArrayInputStream(new byte[0])
+    outputs.upToDateWhen { false }
+    systemProperty 'ae2e.smoke.enabled', true
+    systemProperty 'ae2e.smoke.expectedVersion', project.version
+    systemProperty 'ae2e.smoke.holdForClient', serverSmokeHold
+    systemProperty 'ae2e.smoke.guide', providers.gradleProperty('guideVerification').isPresent()
+    systemProperty 'ae2e.smoke.ftb', providers.gradleProperty('ftbVerification').isPresent()
+    systemProperty 'ae2e.smoke.mmce', providers.gradleProperty('mmceVerification').isPresent()
+    systemProperty 'ae2e.smoke.watchdogSeconds', serverSmokeWatchdog.get()
+    doFirst {
+        def launch = tasks.named('runObfServer').get()
+        def smokeProperties = new LinkedHashMap(systemProperties)
+        classpath = launch.classpath.filter { classPathFile ->
+            def name = classPathFile.name.toLowerCase(java.util.Locale.ROOT)
+            !name.endsWith('-dev.jar') && !name.endsWith('-deobf.jar') &&
+                    !name.contains('jei_') && !name.contains('hadenoughitems')
+        }
+        mainClass.set(launch.mainClass.get())
+        systemProperties = launch.systemProperties + smokeProperties
+        setArgs(launch.calculateArgs() + ['--nogui'])
+        jvmArgs launch.calculateJvmArgs()
+        logger.lifecycle("[AE2Enhanced] serverSmokeTest launcher: ${mainClass.get()}")
+        logger.lifecycle("[AE2Enhanced] serverSmokeTest directory: ${workingDir}")
+    }
+}
+
+tasks.register('verifyServerSmoke') {
+    group = 'verification'
+    description = 'Archives smoke logs and validates exit markers and Mixin failures.'
+    outputs.upToDateWhen { false }
+    doLast {
+        def root = serverSmokeDir.get().asFile
+        def report = serverSmokeReportDir.get().asFile
+        def reportLogs = new File(report, 'logs')
+        delete(reportLogs)
+        reportLogs.mkdirs()
+        copy {
+            from(new File(root, 'logs')) { include '*.log' }
+            into reportLogs
+        }
+        def latest = new File(root, 'logs/latest.log')
+        if (!latest.isFile()) {
+            throw new GradleException("serverSmokeTest failed: ${latest} was not created; process must also exit 0")
+        }
+        String logText = latest.getText('UTF-8')
+        if (logText.count('SMOKE_PASS') != 1) {
+            throw new GradleException('serverSmokeTest failed: latest.log must contain exactly one SMOKE_PASS')
+        }
+        if (logText.contains('SMOKE_FAIL')) {
+            throw new GradleException('serverSmokeTest failed: latest.log contains SMOKE_FAIL')
+        }
+        if (providers.gradleProperty('guideVerification').isPresent() && logText.count('GUIDE_PASS') != 1) {
+            throw new GradleException('serverSmokeTest failed: guide verification requires exactly one GUIDE_PASS')
+        }
+        if (providers.gradleProperty('ftbVerification').isPresent() && logText.count('FTB_PASS') != 1) {
+            throw new GradleException('serverSmokeTest failed: FTB verification requires exactly one FTB_PASS')
+        }
+        if (providers.gradleProperty('mmceVerification').isPresent()
+                && (logText.count('MMCE_PASS') != 1 || logText.count('MMCE_DISPATCH_PASS') != 1)) {
+            throw new GradleException('serverSmokeTest failed: MMCE requires expansion and real dispatch markers')
+        }
+        def lines = logText.readLines()
+        def mixinFatals = lines.findAll { line ->
+            line =~ /(?i)(mixin.*(fatal|critical injection failure|apply failed)|InjectionError|InvalidMixinException)/
+        }
+        if (!mixinFatals.isEmpty()) {
+            throw new GradleException('serverSmokeTest failed: unexempted Mixin fatal:\n' + mixinFatals.join('\n'))
+        }
+        def knownOverwrites = [
+                'ae2enhanced$isItemChannel in mixins.ae2enhanced.late.tii.json:starlight.MixinNetworkMonitorStarlight',
+                'ae2enhanced$notifyListeners in mixins.ae2enhanced.late.tii.json:starlight.MixinNetworkMonitorStarlight',
+                'ae2enhanced$isItemChannel in mixins.ae2enhanced.late.fluid.json:fluid.MixinNetworkMonitorFluid',
+                'ae2enhanced$notifyListeners in mixins.ae2enhanced.late.fluid.json:fluid.MixinNetworkMonitorFluid'
+        ]
+        def newOverwrites = lines.findAll { line ->
+            line.contains('Method overwrite conflict') && !knownOverwrites.any { line.contains(it) }
+        }
+        if (!newOverwrites.isEmpty()) {
+            throw new GradleException('serverSmokeTest failed: new Mixin overwrite conflict:\n' + newOverwrites.join('\n'))
+        }
+        logger.lifecycle('[AE2Enhanced] serverSmokeTest verified exactly one SMOKE_PASS; logs: ' + reportLogs)
+    }
+}
+
+runServerSmoke.configure {
+    finalizedBy verifyServerSmoke
+}
+
+// M2a: 三个真实专用服 JVM 依次执行 A1 -> B -> A2，保留逐事件生命周期证据。
+def scopeChainDir = layout.buildDirectory.dir('verification/serverScopeChain')
+def scopeChainReportDir = layout.buildDirectory.dir('reports/verification/serverScopeChain')
+def scopeChainJournal = scopeChainDir.map { new File(it.asFile, 'scope-lifecycle.tsv') }
+
+tasks.register('prepareServerScopeChain') {
+    group = 'verification'
+    dependsOn prepareServerSmokeMods
+    outputs.upToDateWhen { false }
+    doLast {
+        def root = scopeChainDir.get().asFile
+        delete(root)
+        ['A', 'B'].each { saveName ->
+            def saveRoot = new File(root, saveName)
+            saveRoot.mkdirs()
+            copy {
+                from(new File(serverSmokeDir.get().asFile, 'mods'))
+                into(new File(saveRoot, 'mods'))
+            }
+            new File(saveRoot, 'eula.txt').text = 'eula=true\n'
+            new File(saveRoot, 'server.properties').text = '''server-port=0
+online-mode=false
+level-name=world
+spawn-protection=0
+enable-command-block=true
+max-tick-time=-1
+sync-chunk-writes=false
+'''
+            if (providers.gradleProperty('storageVerification').isPresent()) {
+                def config = new File(saveRoot, 'config/ae2enhanced.cfg')
+                config.parentFile.mkdirs()
+                config.text = 'general {\n    storagechannels {\n        B:energy=' + (saveName == 'B' ? 'false' : 'true') + '\n    }\n}\n'
+            }
+        }
+    }
+}
+
+def configureScopeChainLaunch = { JavaExec task, String phase, String saveName ->
+    def launchSaveName = providers.gradleProperty('storageVerification').isPresent() ? 'A' : saveName
+    def saveRoot = scopeChainDir.map { new File(it.asFile, launchSaveName) }
+    task.workingDir = saveRoot
+    task.standardInput = new ByteArrayInputStream(new byte[0])
+    task.outputs.upToDateWhen { false }
+    task.systemProperty 'ae2e.smoke.enabled', true
+    task.systemProperty 'ae2e.smoke.expectedVersion', project.version
+    task.systemProperty 'ae2e.smoke.watchdogSeconds', serverSmokeWatchdog.get()
+    task.systemProperty 'ae2e.smoke.scopeCase', phase
+    task.systemProperty 'ae2e.smoke.scopeRoot', saveRoot.map { new File(it, 'world').absolutePath }.get()
+    task.systemProperty 'ae2e.smoke.scopeJournal', scopeChainJournal.get().absolutePath
+    if (providers.gradleProperty('storageVerification').isPresent()) {
+        task.systemProperty 'ae2e.smoke.storagePhase', phase
+    }
+    task.doFirst {
+        if (providers.gradleProperty('storageVerification').isPresent()) {
+            def config = new File(saveRoot.get(), 'config/ae2enhanced.cfg')
+            config.parentFile.mkdirs()
+            config.text = 'general {\n    storagechannels {\n        B:energy=' + (phase == 'B' ? 'false' : 'true') + '\n    }\n}\n'
+        }
+        def launch = tasks.named('runObfServer').get()
+        def chainProperties = new LinkedHashMap(task.systemProperties)
+        task.classpath = launch.classpath.filter { classPathFile ->
+            def name = classPathFile.name.toLowerCase(java.util.Locale.ROOT)
+            !name.endsWith('-dev.jar') && !name.endsWith('-deobf.jar') &&
+                    !name.contains('jei_') && !name.contains('hadenoughitems')
+        }
+        task.mainClass.set(launch.mainClass.get())
+        task.systemProperties = launch.systemProperties + chainProperties
+        task.setArgs(launch.calculateArgs() + ['--nogui'])
+        task.jvmArgs launch.calculateJvmArgs()
+        task.logger.lifecycle("[AE2Enhanced] scope chain ${phase} directory: ${task.workingDir}")
+    }
+    task.doLast {
+        def latest = new File(saveRoot.get(), 'logs/latest.log')
+        if (!latest.isFile() || latest.getText('UTF-8').count('SCOPE_CHAIN_PASS') != 1 ||
+                latest.getText('UTF-8').contains('SMOKE_FAIL')) {
+            throw new GradleException("M2a scope chain failed: ${phase} has no unique PASS marker")
+        }
+        copy { from latest; into scopeChainDir; rename { "${phase}-latest.log" } }
+    }
+}
+
+tasks.register('runServerScopeChainA1', JavaExec) {
+    group = 'verification'
+    dependsOn downloadVanillaJars, prepareServerScopeChain, reobfJar, reobfVerificationJar
+    configureScopeChainLaunch(delegate, 'A1', 'A')
+}
+
+tasks.register('runServerScopeChainB', JavaExec) {
+    group = 'verification'
+    dependsOn runServerScopeChainA1
+    configureScopeChainLaunch(delegate, 'B', 'B')
+}
+
+tasks.register('runServerScopeChainA2', JavaExec) {
+    group = 'verification'
+    dependsOn runServerScopeChainB
+    configureScopeChainLaunch(delegate, 'A2', 'A')
+}
+
+tasks.register('verifyServerScopeChain') {
+    group = 'verification'
+    outputs.upToDateWhen { false }
+    doLast {
+        def journal = scopeChainJournal.get()
+        if (!journal.isFile()) {
+            throw new GradleException('M2a scope chain failed: lifecycle journal is missing')
+        }
+        def rows = journal.readLines('UTF-8').findAll { !it.trim().isEmpty() }.collect { it.split('\t', -1) }
+        def expectedOrder = ['A1', 'B', 'A2'].collectMany { phase -> ['started', 'stopping', 'stopped'].collect { event -> [phase, event] } }
+        def actualOrder = rows.collect { [it.length > 1 ? it[0] : '', it.length > 1 ? it[1] : ''] }
+        if (rows.size() != 9 || actualOrder != expectedOrder) {
+            throw new GradleException('M2a scope chain failed: expected A1/B/A2 started-stopping-stopped order, got ' + actualOrder)
+        }
+        def byPhase = ['A1', 'B', 'A2'].collectEntries { phase -> [phase, rows.findAll { it[0] == phase }] }
+        byPhase.each { phase, events ->
+            def started = events[0]
+            def stopping = events[1]
+            def stopped = events[2]
+            if (started[2] != stopped[2] || started[3] != stopping[3] || started[3] != stopped[3]) {
+                throw new GradleException("M2a scope chain failed: ${phase} root/scope identity changed")
+            }
+            if (started[4] != '1' || !started[5].isInteger() || started[5].toInteger() < 2
+                    || started[6] != 'true' || started[7] != 'false' || started[8] != 'true') {
+                throw new GradleException("M2a scope chain failed: ${phase} started evidence is invalid")
+            }
+            [stopping, stopped].each { event ->
+                if (event[4] != '0' || event[5] != '0' || event[6] != 'false' || event[7] != 'true') {
+                    throw new GradleException("M2a scope chain failed: ${phase} close evidence is invalid")
+                }
+            }
+            if (stopping[8] != 'true' || stopped[8] != 'false') {
+                throw new GradleException("M2a scope chain failed: ${phase} release order is invalid")
+            }
+        }
+        if (!providers.gradleProperty('storageVerification').isPresent()
+                && (byPhase.A1[0][2] != byPhase.A2[0][2] || byPhase.A1[0][2] == byPhase.B[0][2])) {
+            throw new GradleException('M2a scope chain failed: save roots are not A/B/A isolated')
+        }
+        if ([byPhase.A1[0][3], byPhase.B[0][3], byPhase.A2[0][3]].toSet().size() != 3) {
+            throw new GradleException('M2a scope chain failed: scope IDs were reused')
+        }
+        if (providers.gradleProperty('storageVerification').isPresent()) {
+            ['A1', 'B', 'A2'].each { phase ->
+                def log = new File(scopeChainDir.get().asFile, "${phase}-latest.log").getText('UTF-8')
+                if (log.count('STORAGE_CHANNEL_PASS') != 1) {
+                    throw new GradleException("storage channel verification failed: ${phase} marker missing")
+                }
+            }
+        }
+        def report = scopeChainReportDir.get().asFile
+        delete(report)
+        report.mkdirs()
+        copy { from journal; into report }
+        byPhase.keySet().each { phase ->
+            copy { from(new File(scopeChainDir.get().asFile, "${phase}-latest.log")); into report }
+        }
+        logger.lifecycle('[AE2Enhanced] M2a real-server A1/B/A2 scope chain verified; reports: ' + report)
+    }
+}
+
+runServerScopeChainA2.configure {
+    finalizedBy verifyServerScopeChain
+}
+
+tasks.register('serverSmokeTest') {
+    group = 'verification'
+    description = 'L4 smoke plus M2a real-server A1/B/A2 lifecycle acceptance.'
+    dependsOn runServerSmoke, runServerScopeChainA2
+}
+
+// ----------------------------------------------------------------------------
+// M0 L2: 当前 AE2-UEL reobf + SRG 环境的 Mixin injection 契约。
+// 独立于默认 build；显式运行 ./gradlew mixinContractTest [--rerun]。
+// ----------------------------------------------------------------------------
+def mixinContractDir = layout.buildDirectory.dir('verification/mixinContract')
+def mixinContractReportDir = layout.buildDirectory.dir('reports/verification/mixinContract')
+
+tasks.register('cleanMixinContract', Delete) {
+    delete mixinContractDir
+}
+
+tasks.register('prepareMixinContractMods', Sync) {
+    dependsOn cleanMixinContract, reobfJar, reobfVerificationJar
+    into mixinContractDir.map { new File(it.asFile, 'mods') }
+    from(tasks.named('reobfJar'))
+    from(tasks.named('reobfVerificationJar'))
+    from(configurations.obfuscatedRuntimeClasspath) {
+        rename { name -> name.startsWith('mixinbooter-') ? '!' + name : name }
+    }
+    duplicatesStrategy = org.gradle.api.file.DuplicatesStrategy.EXCLUDE
+    exclude { details ->
+        def name = details.file.name.toLowerCase(java.util.Locale.ROOT)
+        name.endsWith('-dev.jar') || name.endsWith('-deobf.jar') ||
+                name.contains('jei_') || name.contains('hadenoughitems')
+    }
+    doLast {
+        def root = mixinContractDir.get().asFile
+        root.mkdirs()
+        new File(root, 'eula.txt').text = 'eula=true\n'
+        new File(root, 'server.properties').text = '''server-port=0
+online-mode=false
+level-name=world
+spawn-protection=0
+max-tick-time=-1
+sync-chunk-writes=false
+'''
+    }
+}
+
+tasks.register('runMixinContract', JavaExec) {
+    group = 'verification'
+    description = 'Runs transformed-bytecode Mixin contracts on the real obfuscated server.'
+    dependsOn downloadVanillaJars, prepareMixinContractMods, reobfJar, reobfVerificationJar
+    workingDir = mixinContractDir
+    standardInput = new ByteArrayInputStream(new byte[0])
+    outputs.upToDateWhen { false }
+    systemProperty 'ae2e.mixinContract.enabled', true
+    systemProperty 'ae2e.mixinContract.watchdogSeconds', providers.gradleProperty('mixinContractWatchdogSeconds').orElse('300').get()
+    systemProperty 'ae2e.mixinContract.exportDir', mixinContractDir.map { new File(it.asFile, '.mixin.out/class') }.get().absolutePath
+    systemProperty 'mixin.audit', true
+    systemProperty 'mixin.debug.countInjections', true
+    systemProperty 'mixin.debug.export', true
+    doFirst {
+        def launch = tasks.named('runObfServer').get()
+        def contractProperties = new LinkedHashMap(systemProperties)
+        classpath = launch.classpath.filter { classPathFile ->
+            def name = classPathFile.name.toLowerCase(java.util.Locale.ROOT)
+            !name.endsWith('-dev.jar') && !name.endsWith('-deobf.jar') &&
+                    !name.contains('jei_') && !name.contains('hadenoughitems')
+        }
+        mainClass.set(launch.mainClass.get())
+        systemProperties = launch.systemProperties + contractProperties
+        setArgs(launch.calculateArgs() + ['--nogui'])
+        jvmArgs launch.calculateJvmArgs()
+        logger.lifecycle("[AE2Enhanced] mixinContractTest launcher: ${mainClass.get()}")
+        logger.lifecycle("[AE2Enhanced] mixinContractTest directory: ${workingDir}")
+    }
+}
+
+tasks.register('verifyMixinContract') {
+    group = 'verification'
+    outputs.upToDateWhen { false }
+    doLast {
+        def root = mixinContractDir.get().asFile
+        def report = mixinContractReportDir.get().asFile
+        def reportLogs = new File(report, 'logs')
+        delete(reportLogs)
+        reportLogs.mkdirs()
+        copy {
+            from(new File(root, 'logs')) { include '*.log' }
+            into reportLogs
+        }
+        def result = new File(root, 'mixin-contract-results.tsv')
+        if (result.isFile()) {
+            copy { from result; into report }
+        }
+        def latest = new File(root, 'logs/latest.log')
+        if (!latest.isFile()) {
+            throw new GradleException('mixinContractTest failed: latest.log missing; process must also exit 0')
+        }
+        String logText = latest.getText('UTF-8')
+        if (logText.count('MIXIN_CONTRACT_PASS') != 1 || logText.contains('MIXIN_CONTRACT_FAIL')) {
+            def known = logText.readLines().findAll { it.contains('MIXIN_CONTRACT_KNOWN_DEFECT') }
+            def detail = known.isEmpty() ? '' : '\nKnown required defects:\n' + known.join('\n')
+            throw new GradleException('mixinContractTest failed: required contracts did not all pass' + detail)
+        }
+        logger.lifecycle('[AE2Enhanced] mixinContractTest verified exactly one MIXIN_CONTRACT_PASS; logs: ' + reportLogs)
+    }
+}
+
+runMixinContract.configure {
+    finalizedBy verifyMixinContract
+}
+
+def clientMixinContractDir = layout.buildDirectory.dir('verification/clientMixinContract')
+def clientMixinContractReportDir = layout.buildDirectory.dir('reports/verification/clientMixinContract')
+
+tasks.register('prepareClientMixinContractMods', Sync) {
+    dependsOn prepareMixinContractMods
+    into clientMixinContractDir.map { new File(it.asFile, 'mods') }
+    from(new File(mixinContractDir.get().asFile, 'mods'))
+    doLast {
+        def root = clientMixinContractDir.get().asFile
+        new File(root, 'options.txt').text = 'soundCategory_master:0.0\npauseOnLostFocus:false\n'
+    }
+}
+
+tasks.register('runClientMixinContract', JavaExec) {
+    group = 'verification'
+    description = 'Runs client-only transformed-bytecode Mixin contracts on the real obfuscated client.'
+    dependsOn downloadVanillaJars, prepareClientMixinContractMods, reobfJar, reobfVerificationJar
+    workingDir = clientMixinContractDir
+    outputs.upToDateWhen { false }
+    systemProperty 'ae2e.mixinContract.client.enabled', true
+    systemProperty 'ae2e.mixinContract.watchdogSeconds', providers.gradleProperty('mixinContractWatchdogSeconds').orElse('300').get()
+    systemProperty 'ae2e.mixinContract.exportDir', clientMixinContractDir.map { new File(it.asFile, '.mixin.out/class') }.get().absolutePath
+    systemProperty 'mixin.audit', true
+    systemProperty 'mixin.debug.countInjections', true
+    systemProperty 'mixin.debug.export', true
+    doFirst {
+        def launch = tasks.named('runObfClient').get()
+        def contractProperties = new LinkedHashMap(systemProperties)
+        classpath = launch.classpath.filter { classPathFile ->
+            def name = classPathFile.name.toLowerCase(java.util.Locale.ROOT)
+            !name.endsWith('-dev.jar') && !name.endsWith('-deobf.jar') &&
+                    !name.contains('jei_') && !name.contains('hadenoughitems')
+        }
+        mainClass.set(launch.mainClass.get())
+        systemProperties = launch.systemProperties + contractProperties
+        def launchArgs = new ArrayList(launch.calculateArgs())
+        int gameDir = launchArgs.indexOf('--gameDir')
+        if (gameDir >= 0) {
+            launchArgs[gameDir + 1] = workingDir.absolutePath
+        }
+        setArgs(launchArgs)
+        jvmArgs launch.calculateJvmArgs()
+    }
+}
+
+tasks.register('verifyClientMixinContract') {
+    group = 'verification'
+    outputs.upToDateWhen { false }
+    doLast {
+        def root = clientMixinContractDir.get().asFile
+        def report = clientMixinContractReportDir.get().asFile
+        def reportLogs = new File(report, 'logs')
+        delete(reportLogs)
+        reportLogs.mkdirs()
+        copy {
+            from(new File(root, 'logs')) { include '*.log' }
+            into reportLogs
+        }
+        def result = new File(root, 'mixin-contract-results.tsv')
+        if (result.isFile()) {
+            copy { from result; into report }
+        }
+        def latest = new File(root, 'logs/latest.log')
+        if (!latest.isFile()) {
+            throw new GradleException('client mixin contract failed: latest.log missing; process must also exit 0')
+        }
+        String logText = latest.getText('UTF-8')
+        if (logText.count('MIXIN_CLIENT_CONTRACT_PASS') != 1 || logText.contains('MIXIN_CONTRACT_FAIL')
+                || logText.contains('MIXIN_CLIENT_CONTRACT_FAIL') || logText.contains('Mixin apply for mod')) {
+            throw new GradleException('client mixin contract failed: required client transforms did not pass')
+        }
+        logger.lifecycle('[AE2Enhanced] client Mixin contract verified exactly one MIXIN_CLIENT_CONTRACT_PASS; logs: ' + reportLogs)
+    }
+}
+
+runClientMixinContract.configure {
+    mustRunAfter runMixinContract
+    finalizedBy verifyClientMixinContract
+}
+
+tasks.register('mixinContractTest') {
+    group = 'verification'
+    description = 'M0 L2 injection-level Mixin contracts on real obfuscated server and client.'
+    dependsOn runMixinContract, runClientMixinContract
+}
+
+// ----------------------------------------------------------------------------
+// M0 L3: 真实 AE2 网格/CPU，integrationWrite 与 integrationVerify 分属两个 JVM。
+// ----------------------------------------------------------------------------
+def integrationDir = layout.buildDirectory.dir('verification/integration')
+def integrationReportDir = layout.buildDirectory.dir('reports/verification/integration')
+
+tasks.register('cleanIntegration', Delete) {
+    delete integrationDir
+}
+
+tasks.register('prepareIntegrationMods', Sync) {
+    dependsOn cleanIntegration, reobfJar, reobfVerificationJar
+    into integrationDir.map { new File(it.asFile, 'mods') }
+    from(tasks.named('reobfJar'))
+    from(tasks.named('reobfVerificationJar'))
+    from(configurations.obfuscatedRuntimeClasspath) {
+        rename { name -> name.startsWith('mixinbooter-') ? '!' + name : name }
+    }
+    duplicatesStrategy = org.gradle.api.file.DuplicatesStrategy.EXCLUDE
+    exclude { details ->
+        def name = details.file.name.toLowerCase(java.util.Locale.ROOT)
+        name.endsWith('-dev.jar') || name.endsWith('-deobf.jar') ||
+                name.contains('jei_') || name.contains('hadenoughitems')
+    }
+    doLast {
+        def root = integrationDir.get().asFile
+        root.mkdirs()
+        new File(root, 'eula.txt').text = 'eula=true\n'
+        new File(root, 'server.properties').text = '''server-port=0
+online-mode=false
+level-name=world
+spawn-protection=0
+max-tick-time=-1
+sync-chunk-writes=false
+'''
+    }
+}
+
+def configureIntegrationLaunch = { JavaExec task, String phase ->
+    task.workingDir = integrationDir
+    task.standardInput = new ByteArrayInputStream(new byte[0])
+    task.outputs.upToDateWhen { false }
+    task.systemProperty 'ae2e.integration.mode', phase
+    task.systemProperty 'ae2e.integration.watchdogSeconds', providers.gradleProperty('integrationWatchdogSeconds').orElse('300').get()
+    task.doFirst {
+        def launch = tasks.named('runObfServer').get()
+        def integrationProperties = new LinkedHashMap(task.systemProperties)
+        task.classpath = launch.classpath.filter { classPathFile ->
+            def name = classPathFile.name.toLowerCase(java.util.Locale.ROOT)
+            !name.endsWith('-dev.jar') && !name.endsWith('-deobf.jar') &&
+                    !name.contains('jei_') && !name.contains('hadenoughitems')
+        }
+        task.mainClass.set(launch.mainClass.get())
+        task.systemProperties = launch.systemProperties + integrationProperties
+        task.setArgs(launch.calculateArgs() + ['--nogui'])
+        task.jvmArgs launch.calculateJvmArgs()
+        task.logger.lifecycle("[AE2Enhanced] integration ${phase} launcher: ${task.mainClass.get()}")
+        task.logger.lifecycle("[AE2Enhanced] integration ${phase} directory: ${task.workingDir}")
+    }
+}
+
+tasks.register('integrationWrite', JavaExec) {
+    group = 'verification'
+    description = 'Runs ordinary delivery, cancellation, and captures an in-flight job in JVM one.'
+    dependsOn downloadVanillaJars, prepareIntegrationMods, reobfJar, reobfVerificationJar
+    configureIntegrationLaunch(delegate, 'write')
+}
+
+tasks.register('verifyIntegrationWrite') {
+    group = 'verification'
+    outputs.upToDateWhen { false }
+    doLast {
+        def report = integrationReportDir.get().asFile
+        report.mkdirs()
+        def latest = new File(integrationDir.get().asFile, 'logs/latest.log')
+        if (!latest.isFile()) {
+            throw new GradleException('integrationWrite failed: latest.log missing; process must also exit 0')
+        }
+        copy { from latest; into report; rename { 'write-latest.log' } }
+        def results = new File(integrationDir.get().asFile, 'integration-write-results.tsv')
+        if (results.isFile()) {
+            copy { from results; into report }
+        }
+        String logText = latest.getText('UTF-8')
+        if (logText.count('INTEGRATION_WRITE_PASS') != 1 || logText.contains('INTEGRATION_FAIL')) {
+            throw new GradleException('integrationWrite failed: ordinary/cancel/in-flight fixture did not complete')
+        }
+    }
+}
+
+integrationWrite.configure {
+    finalizedBy verifyIntegrationWrite
+}
+
+tasks.register('integrationVerify', JavaExec) {
+    group = 'verification'
+    description = 'Reloads the same temporary world in JVM two and resumes the persisted CPU job.'
+    dependsOn integrationWrite
+    configureIntegrationLaunch(delegate, 'verify')
+}
+
+tasks.register('verifyIntegration') {
+    group = 'verification'
+    outputs.upToDateWhen { false }
+    doLast {
+        def root = integrationDir.get().asFile
+        def report = integrationReportDir.get().asFile
+        def latest = new File(root, 'logs/latest.log')
+        if (!latest.isFile()) {
+            throw new GradleException('integrationVerify failed: latest.log missing; process must also exit 0')
+        }
+        copy { from latest; into report; rename { 'verify-latest.log' } }
+        def results = new File(root, 'integration-verify-results.tsv')
+        if (results.isFile()) {
+            copy { from results; into report }
+        }
+        def recovery = new File(root, 'integration-recovery.properties')
+        if (recovery.isFile()) {
+            copy { from recovery; into report }
+        }
+        String logText = latest.getText('UTF-8')
+        if (logText.count('INTEGRATION_PASS') != 1 || logText.contains('INTEGRATION_FAIL')) {
+            def known = logText.readLines().findAll { it.contains('INTEGRATION_KNOWN_DEFECT') }
+            throw new GradleException('integrationTest failed: resumed grid/CPU scenario failed' +
+                    (known.isEmpty() ? '' : '\n' + known.join('\n')))
+        }
+        logger.lifecycle('[AE2Enhanced] integrationTest verified exactly one INTEGRATION_PASS; reports: ' + report)
+    }
+}
+
+integrationVerify.configure {
+    finalizedBy verifyIntegration
+}
+
+tasks.register('integrationTest') {
+    group = 'verification'
+    description = 'M0 L3 real AE2 grid/CPU delivery, cancellation, and two-JVM recovery.'
+    dependsOn integrationVerify
 }

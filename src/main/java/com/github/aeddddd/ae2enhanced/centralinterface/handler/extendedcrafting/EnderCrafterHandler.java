@@ -1,13 +1,12 @@
 package com.github.aeddddd.ae2enhanced.centralinterface.handler.extendedcrafting;
 
-import com.github.aeddddd.ae2enhanced.centralinterface.TargetSession;
-
 import appeng.api.networking.security.IActionSource;
 import appeng.api.storage.data.IAEItemStack;
 import appeng.api.storage.data.IAEStack;
 import appeng.util.item.AEItemStack;
 import com.github.aeddddd.ae2enhanced.centralinterface.IRemoteHandler;
 import com.github.aeddddd.ae2enhanced.centralinterface.IVirtualBatchCraftingHandler;
+import com.github.aeddddd.ae2enhanced.centralinterface.TargetSession;
 import net.minecraft.inventory.InventoryCrafting;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.crafting.IRecipe;
@@ -18,10 +17,9 @@ import net.minecraft.util.NonNullList;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
 
-import java.util.Arrays;
-
 import java.lang.reflect.Method;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -315,23 +313,18 @@ public class EnderCrafterHandler implements IRemoteHandler, IVirtualBatchCraftin
 
     // ---- IVirtualCraftingHandler / IVirtualBatchCraftingHandler ----
 
-    @Override
-    public boolean canCraftVirtually(World world, BlockPos pos, InventoryCrafting ingredients, IAEItemStack[] outputs) {
-        initBaseReflection();
-        TileEntity te = world.getTileEntity(pos);
-        if (!CLASS_TILE_ENDER_CRAFTER.isInstance(te)) return false;
-        if (outputs == null || outputs.length == 0 || outputs[0] == null) return false;
-
-        Object recipe = findRecipe(ingredients);
-        if (recipe == null) return false;
-
-        // 验证产物是否匹配（忽略 NBT 预览与精确产物的差异，仅校验物品类型）
-        IRecipe irecipe = (IRecipe) recipe;
-        ItemStack recipeOutput = irecipe.getRecipeOutput();
-        if (recipeOutput.isEmpty()) return false;
-        ItemStack expected = outputs[0].createItemStack();
-        return recipeOutput.getItem() == expected.getItem()
-                && recipeOutput.getMetadata() == expected.getMetadata();
+    /**
+     * 按输入物品反查末影工作台配方(不依赖槽位顺序).
+     *
+     * <p>调用点只剩两处：物理路径的 {@code pushMaterials}(配方只用于
+     * {@code getIngredients()} 的槽序摆放) 与虚拟路径的 {@code canCraftVirtually}(配方校验)。</p>
+     */
+    private static com.github.aeddddd.ae2enhanced.centralinterface.recipe.RecipeBinding bind(
+            Object recipe, InventoryCrafting ingredients, IAEItemStack[] expectedOutputs) {
+        if (!(recipe instanceof IRecipe)) return null;
+        ItemStack actualOutput = ((IRecipe) recipe).getCraftingResult(ingredients);
+        return com.github.aeddddd.ae2enhanced.centralinterface.recipe.RecipeBinding.of(
+                recipe, expectedOutputs, actualOutput);
     }
 
     @Override
@@ -345,36 +338,47 @@ public class EnderCrafterHandler implements IRemoteHandler, IVirtualBatchCraftin
     }
 
     @Override
+    public boolean canCraftVirtually(World world, BlockPos pos, InventoryCrafting ingredients, IAEItemStack[] outputs) {
+        initBaseReflection();
+        TileEntity te = world.getTileEntity(pos);
+        if (!CLASS_TILE_ENDER_CRAFTER.isInstance(te)) return false;
+        if (outputs == null || outputs.length == 0 || outputs[0] == null) return false;
+
+        Object recipe = findRecipe(ingredients);
+        return bind(recipe, ingredients, outputs) != null;
+    }
+
+    @Override
     public List<IAEStack> getVirtualCost(World world, BlockPos pos,
                                          InventoryCrafting ingredients, IAEItemStack[] outputs, long count) {
+        if (count <= 0 || bind(findRecipe(ingredients), ingredients, outputs) == null) return null;
         List<IAEStack> costs = new ArrayList<>();
-        for (int i = 0; i < ingredients.getSizeInventory(); i++) {
-            ItemStack stack = ingredients.getStackInSlot(i);
-            if (!stack.isEmpty()) {
-                IAEItemStack cost = AEItemStack.fromItemStack(stack.copy());
-                cost.setStackSize((long) stack.getCount() * count);
-                costs.add(cost);
+        try {
+            for (int i = 0; i < ingredients.getSizeInventory(); i++) {
+                ItemStack stack = ingredients.getStackInSlot(i);
+                if (!stack.isEmpty()) {
+                    IAEItemStack cost = AEItemStack.fromItemStack(stack.copy());
+                    cost.setStackSize(Math.multiplyExact((long) stack.getCount(), count));
+                    costs.add(cost);
+                }
             }
+        } catch (ArithmeticException overflow) {
+            return null;
         }
         return costs;
     }
 
+    // ---- 配方查找与匹配 ----
+
     @Override
     public List<ItemStack> virtualCraftBatch(World world, BlockPos pos,
                                              InventoryCrafting ingredients, IAEItemStack[] outputs, long count, IActionSource source) {
-        List<ItemStack> products = new ArrayList<>();
-        if (!canCraftVirtually(world, pos, ingredients, outputs)) return products;
-        return scaleOutputsByCount(outputs, count);
+        com.github.aeddddd.ae2enhanced.centralinterface.recipe.RecipeBinding binding =
+                bind(findRecipe(ingredients), ingredients, outputs);
+        if (binding == null) return new ArrayList<>();
+        return scaleOutputsByCount(binding.getOutputs(), count);
     }
 
-    // ---- 配方查找与匹配 ----
-
-    /**
-     * 按输入物品反查末影工作台配方(不依赖槽位顺序).
-     *
-     * <p>调用点只剩两处：物理路径的 {@code pushMaterials}(配方只用于
-     * {@code getIngredients()} 的槽序摆放) 与虚拟路径的 {@code canCraftVirtually}(配方校验)。</p>
-     */
     @SuppressWarnings("unchecked")
     private static Object findRecipe(InventoryCrafting ingredients) {
         initRecipeReflection();

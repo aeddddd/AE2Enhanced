@@ -8,6 +8,7 @@ import java.util.Set;
 import org.junit.jupiter.api.Test;
 
 import net.minecraft.nbt.NBTTagCompound;
+import com.github.aeddddd.ae2enhanced.block.ControllerIndex;
 import net.minecraft.util.math.BlockPos;
 
 /**
@@ -15,6 +16,11 @@ import net.minecraft.util.math.BlockPos;
  * 静态 get(World) 依赖服务端运行环境，不在本测试范围内。
  */
 public class ControllerIndexTest {
+
+    @org.junit.jupiter.api.BeforeAll
+    public static void boot() {
+        com.github.aeddddd.ae2enhanced.test.util.AE2TestBootstrap.boot();
+    }
 
     private static final BlockPos POS_A = new BlockPos(10, 64, -20);
     private static final BlockPos POS_B = new BlockPos(-5, 70, 300);
@@ -110,5 +116,22 @@ public class ControllerIndexTest {
         index.readFromNBT(new NBTTagCompound());
 
         assertThat(index.getAll()).isEmpty();
+    }
+
+    @Test
+    public void chunkLookupIsRestoredFromNbtAndSelfHealsReplacedController() {
+        ControllerIndex index = new ControllerIndex();
+        index.add(POS_A);
+        ControllerIndex restored = new ControllerIndex();
+        restored.readFromNBT(index.writeToNBT(new NBTTagCompound()));
+        net.minecraft.world.World world = org.mockito.Mockito.mock(net.minecraft.world.World.class);
+        org.mockito.Mockito.when(world.isBlockLoaded(POS_A)).thenReturn(true);
+        org.mockito.Mockito.when(world.getBlockState(POS_A)).thenReturn(net.minecraft.init.Blocks.STONE.getDefaultState());
+        net.minecraft.util.math.ChunkPos chunk = new net.minecraft.util.math.ChunkPos(POS_A);
+
+        assertThat(restored.getInChunk(world, chunk, net.minecraft.init.Blocks.STONE)).containsExactly(POS_A);
+        assertThat(restored.getInChunk(world, chunk, net.minecraft.init.Blocks.DIRT)).isEmpty();
+        assertThat(restored.getAll()).isEmpty();
+        assertThat(restored.isDirty()).isTrue();
     }
 }

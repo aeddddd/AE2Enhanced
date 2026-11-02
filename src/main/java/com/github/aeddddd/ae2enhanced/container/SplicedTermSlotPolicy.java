@@ -1,17 +1,8 @@
 package com.github.aeddddd.ae2enhanced.container;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.IdentityHashMap;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-
-import com.github.aeddddd.ae2enhanced.client.gui.dock.ModulePanel;
-
 import net.minecraft.inventory.Slot;
+
+import java.util.*;
 
 /**
  * "哪些槽位由哪个模块承接、能否参与 shift-click"的唯一判据。
@@ -31,8 +22,8 @@ import net.minecraft.inventory.Slot;
  * <p>本类只做纯粹的分类与隐藏动作，便于脱离 MC 渲染环境做单元测试。</p>
  */
 public final class SplicedTermSlotPolicy {
-    /** 屏幕外坐标（与 {@code ModulePanel.hideSlot} 一致，编译期常量会被内联，不引入客户端类依赖）。 */
-    public static final int HIDDEN_SLOT_POSITION = ModulePanel.HIDDEN_SLOT_POSITION;
+    /** 屏幕外坐标；客户端 ModulePanel 复用此公共常量，避免服务端反向依赖客户端。 */
+    public static final int HIDDEN_SLOT_POSITION = -9999;
 
     // ---- 模块 id（必须与 client/gui/panel/*Panel.MODULE_ID 逐一对应，见 SplicedTermSlotPolicyTest） ----
     public static final String MODULE_PLAYER = "playerinv";
@@ -213,6 +204,9 @@ public final class SplicedTermSlotPolicy {
     }
 
     public TransferRole roleOf(Slot slot) {
+        if (slot instanceof appeng.container.slot.SlotDisabled) {
+            return TransferRole.NONE;
+        }
         String moduleId = moduleOfSlot.get(slot);
         return moduleId == null ? TransferRole.NONE : roleFor(moduleId);
     }

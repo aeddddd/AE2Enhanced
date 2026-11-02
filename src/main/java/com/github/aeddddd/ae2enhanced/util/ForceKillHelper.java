@@ -1,6 +1,7 @@
 package com.github.aeddddd.ae2enhanced.util;
 
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
+import com.github.aeddddd.ae2enhanced.util.termination.TerminationRegistry;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityLivingBase;
 import net.minecraft.entity.MultiPartEntityPart;
@@ -19,10 +20,10 @@ import java.util.Map;
 /**
  * 通用强制击杀/强制移除辅助类。
  * <p>
- * 提供绕过实体内部保护机制、直接修改底层数据管理器、强制标记死亡、
- * 通知外部管理器以及清理多碰撞箱子实体等底层工具。
- * 所有实现均基于对 Minecraft 基类（Entity / EntityLivingBase / EntityDataManager）
- * 的反射或模式匹配，不依赖任何特定模组的具体类名。
+ * 击杀主路径为 L4 终止事务：一次 {@link EntityLivingBase#onDeath} 保留掉落与归属，
+ * 直写 {@link Entity#isDead} 交给世界 tick 移除，再由终止登记做有界复核。
+ * 反射仅用于内部保护开关、isDead 字段兜底、Boss 管理器通知与多部件清理，
+ * 不再在击杀路径上枚举或推断健康数据通道。
  */
 public final class ForceKillHelper {
 
@@ -182,9 +183,9 @@ public final class ForceKillHelper {
     /**
      * 读取实体的真实血量。
      * <p>
-     * 禁疗实体的 {@code getHealth()} 会被 MixinEntityLivingBase 伪装为 0（用于对外表现"已死"），
-     * 因此涉及存活判断/伤害计算时必须通过 DataManager 读取底层真实值。
-     * 读取失败时回退到 {@code getHealth()}。
+     * 终止窗口内的 {@code getHealth()} 会被 {@code MixinEntityLivingBase} 伪装为 0，
+     * 因此窗口内的存活判断必须通过 DataManager 读取底层真实值。L4 击杀路径本身不再依赖
+     * 该值，此方法保留给诊断与非击杀调用方。读取失败时回退到 {@code getHealth()}。
      */
     public static float getRawHealth(EntityLivingBase target) {
         try {
@@ -203,69 +204,52 @@ public final class ForceKillHelper {
     }
 
     /**
-     * 综合强制击杀流程。
+     * 综合强制击杀流程（L4）。
      * <p>
-     * 依次执行：绕过内部保护开关 → 直接扣除血量（必要时回退到 DataEntry 修改）
-     * → 触发 {@link EntityLivingBase#onDeath} → 强制标记死亡并清理子实体
-     * → 尝试通知外部管理器。
+     * 只依赖引擎的死亡契约：一次 {@code onDeath} 保留掉落与归属，直写 {@code isDead}
+     * 交给世界 tick 移除，并在有界窗口内复核。不再写 DataManager、不再猜健康通道。
      *
      * @param target     目标实体
      * @param attacker   攻击者（用于设置复仇目标等；可为 null）
-     * @param damage     伤害值
+     * @param damage     历史参数，L4 路径不再使用（保留签名以兼容现有调用）
      * @param deathSource 死亡事件使用的 DamageSource
      */
     public static void applyForceKill(EntityLivingBase target, Entity attacker, float damage, net.minecraft.util.DamageSource deathSource) {
-        if (target.world.isRemote) return;
+        if (target == null || target.world == null || target.world.isRemote) return;
         // 飞升网络链接指环的绝对防护：拦截成功则整个强杀流程中止
         if (com.github.aeddddd.ae2enhanced.ring.RingProtection.tryBlockForceKill(target)) return;
-        // 必须读取真实血量：禁疗实体的 getHealth() 会被 Mixin 伪装为 0,
-        // 若直接用 getHealth() 判断,强杀流程会被误判为"目标已死"而整体跳过
-        float rawHealth = getRawHealth(target);
-        if (rawHealth <= 0.0f) return;
-
-        if (attacker instanceof EntityLivingBase) {
-            target.setRevengeTarget((EntityLivingBase) attacker);
-        }
-
-        float newHealth = rawHealth - damage;
-
-        // Bypass internal protection gates
-        forceBypassProtection(target);
-
-        // Attempt standard setHealth; if overridden and blocked, fallback to DataManager
-        target.setHealth(Math.max(0.0f, newHealth));
-        if (getRawHealth(target) >= rawHealth) {
-            forceSetHealthViaDataManager(target, Math.max(0.0f, newHealth));
-        }
-
-        // Trigger death callback
-        target.onDeath(deathSource);
-        if (!target.isDead) {
-            forceBypassProtection(target);
-            target.setDead();
-            forceSetIsDead(target, true);
-            removeMultipartChildren(target);
-            tryNotifyBossManager(target);
-        }
+        applyTermination(target, attacker, deathSource);
     }
 
     /**
-     * 环境型强制击杀（黑洞 / 微型奇点等）。
+     * 不经指环防护判定的终止入口，供真实伤害等已经完成目标选择的路径使用。
      * <p>
-     * 针对玩家和非玩家实体采用不同策略：
-     * <ul>
-     *   <li>玩家：仅使用标准 {@code attackEntityFrom} / {@code setHealth(0)} + {@code onDeath}，
-     *       避免触发强力装备（如神龙套 / 无尽套）的复活、拦截或反伤副作用。</li>
-     *   <li>非玩家实体：使用完整三层递进流程（绕过保护 → 标准伤害 → DataManager / isDead 强制移除
-     *       → 多碰撞箱子清理 → Boss 管理器通知），确保混沌守卫等受保护实体被彻底移除。</li>
-     * </ul>
+     * 仍然只走 L4：一次死亡入口 + isDead + 有界复核。
+     */
+    public static void applyTermination(EntityLivingBase target, Entity attacker, net.minecraft.util.DamageSource deathSource) {
+        if (target == null || target.world == null || target.world.isRemote || deathSource == null) return;
+        if (attacker instanceof EntityLivingBase) {
+            target.setRevengeTarget((EntityLivingBase) attacker);
+        }
+        // 仅保留"内部保护开关"绕过；血量写入交由终止登记一次完成。
+        forceBypassProtection(target);
+        TerminationRegistry.terminate(target, attacker, deathSource);
+        removeMultipartChildren(target);
+        tryNotifyBossManager(target);
+    }
+
+    /**
+     * 环境型强制击杀（黑洞 / 微型奇点等，L4）。
+     * <p>
+     * 玩家保留原版管线（避免 isDead 直写造成畸形状态），随后进入有限次血量重申；
+     * 非玩家直接进入终止登记：一次死亡入口 + isDead + 有界复核。
      *
      * @param target 目标实体
      * @param source 伤害源
      * @param damage 伤害值
      */
     public static void applyEnvironmentDamage(EntityLivingBase target, net.minecraft.util.DamageSource source, float damage) {
-        if (target.world.isRemote) return;
+        if (target == null || target.world == null || target.world.isRemote || source == null) return;
         if (target.getHealth() <= 0.0f) return;
         // 飞升网络链接指环的绝对防护：拦截成功则整个强杀流程中止
         if (com.github.aeddddd.ae2enhanced.ring.RingProtection.tryBlockForceKill(target)) return;
@@ -273,32 +257,17 @@ public final class ForceKillHelper {
         if (target instanceof net.minecraft.entity.player.EntityPlayer) {
             target.hurtResistantTime = 0;
             target.hurtTime = 0;
-            if (!target.attackEntityFrom(source, damage)) {
+            boolean hurt = target.attackEntityFrom(source, damage);
+            if (!hurt || target.isEntityAlive()) {
                 target.setHealth(0.0f);
                 target.onDeath(source);
             }
+            TerminationRegistry.trackPlayer((net.minecraft.entity.player.EntityPlayer) target, source);
         } else {
             forceBypassProtection(target);
-            target.hurtResistantTime = 0;
-            target.hurtTime = 0;
-            boolean killed = false;
-            if (target.attackEntityFrom(source, damage)) {
-                if (!target.isEntityAlive()) killed = true;
-            }
-            if (!killed) {
-                target.setHealth(0.0f);
-                target.onDeath(source);
-            }
-            if (target.isEntityAlive()) {
-                forceSetHealthViaDataManager(target, 0.0f);
-                target.onDeath(source);
-                if (!target.isDead) {
-                    target.setDead();
-                    forceSetIsDead(target, true);
-                }
-                removeMultipartChildren(target);
-                tryNotifyBossManager(target);
-            }
+            TerminationRegistry.terminate(target, source.getTrueSource(), source);
+            removeMultipartChildren(target);
+            tryNotifyBossManager(target);
         }
     }
 
@@ -340,10 +309,11 @@ public final class ForceKillHelper {
     }
 
     /**
-     * 直接通过底层数据管理器修改实体的血量参数。
+     * 直接通过底层数据管理器修改实体的血量参数（兼容/诊断用）。
      * <p>
-     * 适用于实体的 {@code setHealth()} 被子类覆盖、导致常规血量修改被拦截的场景。
-     * 本方法会先扫描实体类及其父类中所有 {@code DataParameter<Float>} 静态字段，
+     * L4 击杀主路径不再调用本方法：它只对"重写 setHealth 但仍用 DataManager 存血"的实体有效，
+     * 且对虚拟血量、事件层免伤与 isDead 守卫都没有帮助。保留它是为了让旧的兼容代码与诊断
+     * 工具仍能按需使用。实现会先扫描实体类及其父类中所有 {@code DataParameter<Float>} 静态字段，
      * 然后直接修改对应的 DataEntry.value 并标记 dirty，最后反射调用 {@code set}/{@code setEntry}。
      *
      * @param entity 目标实体

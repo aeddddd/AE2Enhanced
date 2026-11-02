@@ -225,12 +225,12 @@ class RepoPanelSlotTest {
         assertEquals(withBar.gridLeft() + RepoPanel.DEFAULT_COLUMNS * RepoPanel.SLOT_SIZE
                 + RepoPanel.SCROLLBAR_GAP, bar.getLeft());
         assertEquals(withBar.gridTop(), bar.getTop());
-        assertEquals(RepoPanel.DEFAULT_ROWS * RepoPanel.SLOT_SIZE, bar.getHeight());
+        assertEquals(RepoPanel.DEFAULT_ROWS * RepoPanel.SLOT_SIZE - 2, bar.getHeight());
         assertEquals(RepoPanel.SCROLLBAR_WIDTH, bar.getWidth());
     }
 
     @Test
-    void moduleSwitchesAreRightAlignedAndHitTestInsideTheirBoxes() {
+    void layoutEditorEntryIsRightAlignedAndHitTestInsideItsBox() {
         RepoPanel panel = panel();
         final int[] toggled = { -1 };
         panel.setModuleSwitchHost(new RepoPanel.ModuleSwitchHost() {
@@ -258,31 +258,36 @@ class RepoPanelSlotTest {
             public void toggleSwitch(int index) {
                 toggled[0] = index;
             }
+
+            @Override
+            public boolean hasEditorButton() {
+                return true;
+            }
+
+            @Override
+            public void onEditorButton() {
+                toggled[0] = 99;
+            }
         });
 
-        int rowRight = panel.gridLeft() + 18 * RepoPanel.SLOT_SIZE + RepoPanel.SCROLLBAR_GAP
+        int rowRight = panel.gridLeft() + RepoPanel.DEFAULT_COLUMNS * RepoPanel.SLOT_SIZE + RepoPanel.SCROLLBAR_GAP
                 + RepoPanel.SCROLLBAR_WIDTH;
-        int last = 2;
-        assertEquals(rowRight - RepoPanel.MODULE_SWITCH_SIZE, panel.moduleSwitchX(last));
-        assertEquals(rowRight - 3 * RepoPanel.MODULE_SWITCH_SIZE - 2 * RepoPanel.MODULE_SWITCH_GAP,
-                panel.moduleSwitchX(0));
-        // 开关行落在搜索框那一行里
-        assertEquals(panel.contentTop() + 1, panel.moduleSwitchY());
+        assertEquals(rowRight - RepoPanel.MODULE_SWITCH_EDITOR_SIZE - RepoPanel.MODULE_SWITCH_GAP,
+                panel.editorButtonX());
+        assertEquals(panel.contentTop() + 1, panel.editorButtonY());
+        int x0 = panel.editorButtonX() + 5;
+        int y0 = panel.editorButtonY() + 5;
+        assertTrue(panel.editorButtonAt(x0, y0));
+        assertFalse(panel.editorButtonAt(x0 - RepoPanel.MODULE_SWITCH_EDITOR_SIZE, y0));
+        assertEquals(-1, panel.moduleSwitchAt(x0, y0));
 
-        int x0 = panel.moduleSwitchX(0) + 5;
-        int y0 = panel.moduleSwitchY() + 5;
-        assertEquals(0, panel.moduleSwitchAt(x0, y0));
-        assertEquals(2, panel.moduleSwitchAt(panel.moduleSwitchX(2) + 1, y0));
-        assertEquals(-1, panel.moduleSwitchAt(panel.moduleSwitchX(0) - 4, y0), "开关左侧不是开关");
-        assertEquals(-1, panel.moduleSwitchAt(x0, panel.moduleSwitchY() - 4), "开关行上沿之外");
-
-        assertTrue(panel.mouseClicked(x0, y0, 0), "左键点开关由面板消费");
-        assertEquals(0, toggled[0]);
-        assertFalse(panel.mouseClicked(x0, y0, 1), "右键不切开关");
+        assertTrue(panel.mouseClicked(x0, y0, 0), "左键点布局编辑入口由面板消费");
+        assertEquals(99, toggled[0]);
+        assertFalse(panel.mouseClicked(x0, y0, 1), "右键不打开编辑器");
     }
 
     @Test
-    void moduleSwitchRowShrinksTheSearchField() {
+    void layoutEditorEntryShrinksTheSearchField() {
         RepoPanel panel = panel();
         int[] before = panel.searchFieldBounds();
         panel.setModuleSwitchHost(new RepoPanel.ModuleSwitchHost() {
@@ -309,13 +314,17 @@ class RepoPanelSlotTest {
             @Override
             public void toggleSwitch(int index) {
             }
+
+            @Override
+            public boolean hasEditorButton() {
+                return true;
+            }
         });
         int[] after = panel.searchFieldBounds();
         assertEquals(before[0], after[0]);
-        assertTrue(after[2] < before[2], "搜索框要给开关行让位");
+        assertTrue(after[2] < before[2], "搜索框要给布局编辑入口让位");
         assertTrue(after[2] >= 40, "让位后仍不小于下限");
-        // 开关行右端不越出内容区
-        assertTrue(panel.moduleSwitchX(6) + RepoPanel.MODULE_SWITCH_SIZE
+        assertTrue(panel.editorButtonX() + RepoPanel.MODULE_SWITCH_EDITOR_SIZE
                 <= panel.contentLeft() + panel.contentWidth());
     }
 

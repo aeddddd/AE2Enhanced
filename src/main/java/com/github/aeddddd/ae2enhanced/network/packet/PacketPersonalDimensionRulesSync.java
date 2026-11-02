@@ -1,13 +1,11 @@
 package com.github.aeddddd.ae2enhanced.network.packet;
 
-import com.github.aeddddd.ae2enhanced.client.ClientPersonalDimensionRules;
+import com.github.aeddddd.ae2enhanced.clientapi.ClientPacketHandlers;
 import com.github.aeddddd.ae2enhanced.dimension.PersonalDimensionRules;
 import io.netty.buffer.ByteBuf;
 import net.minecraftforge.fml.common.network.simpleimpl.IMessage;
 import net.minecraftforge.fml.common.network.simpleimpl.IMessageHandler;
 import net.minecraftforge.fml.common.network.simpleimpl.MessageContext;
-import net.minecraftforge.fml.relauncher.Side;
-import net.minecraftforge.fml.relauncher.SideOnly;
 
 /**
  * 服务端 -> 客户端的个人维度规则同步包。
@@ -54,14 +52,8 @@ public class PacketPersonalDimensionRulesSync implements IMessage {
     public static class Handler implements IMessageHandler<PacketPersonalDimensionRulesSync, IMessage> {
         @Override
         public IMessage onMessage(PacketPersonalDimensionRulesSync message, MessageContext ctx) {
-            scheduleUpdate(message.rules);
+            ClientPacketHandlers.accept(ClientPacketHandlers.DIMENSION_RULES, message.rules);
             return null;
-        }
-
-        @SideOnly(Side.CLIENT)
-        private void scheduleUpdate(PersonalDimensionRules rules) {
-            net.minecraft.client.Minecraft.getMinecraft().addScheduledTask(() ->
-                    ClientPersonalDimensionRules.update(rules));
         }
     }
 }

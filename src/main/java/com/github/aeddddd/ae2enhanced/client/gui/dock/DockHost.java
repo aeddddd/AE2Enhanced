@@ -1,11 +1,11 @@
 package com.github.aeddddd.ae2enhanced.client.gui.dock;
 
-import com.github.aeddddd.ae2enhanced.client.gui.dock.model.DockWorkspace;
-import com.github.aeddddd.ae2enhanced.client.gui.dock.model.ModuleCatalog;
-import com.github.aeddddd.ae2enhanced.client.gui.dock.workspace.DockLayoutCodec;
 import com.github.aeddddd.ae2enhanced.client.gui.dock.workspace.DockLayoutPersistence;
-import com.github.aeddddd.ae2enhanced.client.gui.dock.workspace.DockWorkspaceDefaults;
-import com.github.aeddddd.ae2enhanced.client.gui.dock.workspace.LegacyMigrationContext;
+import com.github.aeddddd.ae2enhanced.dock.model.DockWorkspace;
+import com.github.aeddddd.ae2enhanced.dock.model.ModuleCatalog;
+import com.github.aeddddd.ae2enhanced.dock.workspace.DockLayoutCodec;
+import com.github.aeddddd.ae2enhanced.dock.workspace.DockWorkspaceDefaults;
+import com.github.aeddddd.ae2enhanced.dock.workspace.LegacyMigrationContext;
 
 /**
  * {@link DockManager} 与宿主 GUI 之间的唯一接口。
@@ -36,6 +36,11 @@ public interface DockHost {
 
     /** Ctrl 键（1.12.2 的 {@code Screen.hasControlDown()}）；按下时拖标题条移动整个窗口。 */
     default boolean controlDown() {
+        return false;
+    }
+
+    /** Shift 键；拖动右下握把时按比例缩放窗口。 */
+    default boolean shiftDown() {
         return false;
     }
 

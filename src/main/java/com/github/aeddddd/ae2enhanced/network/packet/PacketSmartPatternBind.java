@@ -1,12 +1,10 @@
 package com.github.aeddddd.ae2enhanced.network.packet;
 
 import com.github.aeddddd.ae2enhanced.crafting.smartpattern.SmartPatternData;
-import com.github.aeddddd.ae2enhanced.crafting.smartpattern.SmartPatternStorageFile;
 import com.github.aeddddd.ae2enhanced.tile.TileSmartPatternInterface;
 import io.netty.buffer.ByteBuf;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.util.math.BlockPos;
-import net.minecraft.world.World;
 import net.minecraftforge.fml.common.network.ByteBufUtils;
 import net.minecraftforge.fml.common.network.simpleimpl.IMessage;
 import net.minecraftforge.fml.common.network.simpleimpl.IMessageHandler;
@@ -72,16 +70,17 @@ public class PacketSmartPatternBind implements IMessage {
         @Override
         public IMessage onMessage(PacketSmartPatternBind message, MessageContext ctx) {
             ctx.getServerHandler().player.getServerWorld().addScheduledTask(() -> {
-                World world = ctx.getServerHandler().player.world;
-                net.minecraft.tileentity.TileEntity te = world.getTileEntity(message.getPos());
-                if (te instanceof TileSmartPatternInterface) {
-                    TileSmartPatternInterface tile = (TileSmartPatternInterface) te;
+                net.minecraft.entity.player.EntityPlayerMP player = ctx.getServerHandler().player;
+                TileSmartPatternInterface tile = com.github.aeddddd.ae2enhanced.network.RequestContext
+                        .smartPatternTile(player, message.getPos());
+                if (tile != null && message.getData() != null) {
                     SmartPatternData data = SmartPatternData.fromNBT(message.getData());
                     if (data != null) {
                         tile.bindWithData(message.getBoundPos(), message.getBoundDim(), data.getTargetBlockId(), data);
                         tile.updateRecipeDisplay();
                         tile.markDirty();
-                        SmartPatternStorageFile.save(world, data);
+                        ((com.github.aeddddd.ae2enhanced.container.ContainerSmartPatternInterface) player.openContainer)
+                                .setExpectedRevision(tile.getPatternRevision());
                     }
                 }
             });

@@ -2,7 +2,7 @@ package com.github.aeddddd.ae2enhanced.client.gui;
 
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
 import com.github.aeddddd.ae2enhanced.container.ContainerMENetworkRecycler;
-import com.github.aeddddd.ae2enhanced.tile.TileMENetworkRecycler;
+import com.github.aeddddd.ae2enhanced.recycler.TileMENetworkRecycler;
 import net.minecraft.client.gui.inventory.GuiContainer;
 import net.minecraft.client.resources.I18n;
 import net.minecraft.entity.player.InventoryPlayer;

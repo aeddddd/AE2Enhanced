@@ -21,7 +21,7 @@ import javax.annotation.Nonnull;
  */
 public class AssemblyInterfaceTracker {
 
-    private static long nextId = 0;
+    private static long nextId = 1;
 
     private final long which;
     private final long sortBy;

@@ -16,12 +16,12 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
-import com.github.aeddddd.ae2enhanced.client.gui.dock.model.DockRect;
-import com.github.aeddddd.ae2enhanced.client.gui.dock.model.DockWorkspace;
-import com.github.aeddddd.ae2enhanced.client.gui.dock.model.FloatingRoot;
-import com.github.aeddddd.ae2enhanced.client.gui.dock.model.LayoutTrees;
-import com.github.aeddddd.ae2enhanced.client.gui.dock.model.LeafNode;
-import com.github.aeddddd.ae2enhanced.client.gui.dock.workspace.DockLayoutCodec;
+import com.github.aeddddd.ae2enhanced.dock.model.DockRect;
+import com.github.aeddddd.ae2enhanced.dock.model.DockWorkspace;
+import com.github.aeddddd.ae2enhanced.dock.model.FloatingRoot;
+import com.github.aeddddd.ae2enhanced.dock.model.LayoutTrees;
+import com.github.aeddddd.ae2enhanced.dock.model.LeafNode;
+import com.github.aeddddd.ae2enhanced.dock.workspace.DockLayoutCodec;
 import com.github.aeddddd.ae2enhanced.client.gui.dock.workspace.DockLayoutPersistence;
 
 /**

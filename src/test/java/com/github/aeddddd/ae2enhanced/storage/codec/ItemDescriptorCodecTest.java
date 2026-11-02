@@ -76,25 +76,14 @@ public class ItemDescriptorCodecTest {
         assertThat(restored.getNbt()).isNull();
     }
 
-    /** 无注册名物品 write 走 "minecraft:air" 回退（与 ItemDescriptor.toNBT 一致），不抛 NPE。 */
+    /** 无注册名物品拒绝写成空气，编码失败交给既有隔离流程处理。 */
     @Test
-    public void testWriteUnregisteredItemFallsBackToAir() throws IOException {
-        // 未注册的 Item 没有 registryName
+    public void testWriteUnregisteredItemIsRejected() throws IOException {
         ItemDescriptor unregistered = new ItemDescriptor(new ItemStack(new net.minecraft.item.Item(), 1, 0));
 
-        byte[] bytes = write(unregistered);
-
-        // 解析字节流首部：id 长度 + id 字符串，断言回退为 "minecraft:air"
-        DataInputStream in = new DataInputStream(new ByteArrayInputStream(bytes));
-        int idLen = in.readInt();
-        byte[] idBytes = new byte[idLen];
-        in.readFully(idBytes);
-        assertThat(new String(idBytes, StandardCharsets.UTF_8)).isEqualTo("minecraft:air");
-
-        // 完整读回应为 air 描述符而非 null
-        ItemDescriptor restored = read(bytes);
-        assertThat(restored).isNotNull();
-        assertThat(restored.getItem()).isEqualTo(Items.AIR);
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> write(unregistered))
+                .isInstanceOf(IOException.class)
+                .hasMessageContaining("refusing to substitute minecraft:air");
     }
 
     /**

@@ -173,12 +173,9 @@ public class OmniTerminalInventoryTest {
         assertThat(slot.getTagCompound()).isEqualTo(tag);
     }
 
-    /**
-     * 反序列化防御分支：未知物品 id 的条目被跳过（槽位保持为空）。
-     * 已验证 Forge 1.12.2 中 Item.REGISTRY.getObject 对未注册 id 返回 null。
-     */
+    /** 未知物品不进入当前库存视图，但原始条目保留；主动删除不得复活。 */
     @Test
-    public void testDeserializeSkipsUnknownItemId() {
+    public void testDeserializePreservesUnknownItemIdUntilExplicitRemoval() {
         NBTTagCompound nbt = new NBTTagCompound();
         nbt.setInteger("Size", 9);
         NBTTagList list = new NBTTagList();
@@ -191,6 +188,9 @@ public class OmniTerminalInventoryTest {
         assertThat(inv.getStackInSlot(0).isEmpty()).isTrue();
         assertThat(inv.getStackInSlot(2).getItem()).isEqualTo(Items.APPLE);
         assertThat(inv.getStackInSlot(2).getCount()).isEqualTo(5);
+        assertThat(inv.serializeNBT().toString()).contains("minecraft:no_such_item_zzz");
+        inv.setStackInSlot(0, ItemStack.EMPTY);
+        assertThat(inv.serializeNBT().toString()).doesNotContain("minecraft:no_such_item_zzz");
     }
 
     /** 反序列化防御分支：越界槽位索引被忽略，不抛异常。 */
@@ -226,5 +226,29 @@ public class OmniTerminalInventoryTest {
         assertThat(inv.getStackInSlot(0).getItem()).isEqualTo(Items.APPLE);
         // 旧的槽位 1 内容被清除
         assertThat(inv.getStackInSlot(1).isEmpty()).isTrue();
+    }
+
+    @Test
+    public void testMultipleListenersDoNotOverwriteAndUnregisterIndependently() {
+        AtomicInteger first = new AtomicInteger();
+        AtomicInteger second = new AtomicInteger();
+        Runnable firstListener = first::incrementAndGet;
+        Runnable secondListener = second::incrementAndGet;
+        inv.addOnContentsChangedListener(firstListener);
+        inv.addOnContentsChangedListener(secondListener);
+
+        inv.setStackInSlot(0, new ItemStack(Items.APPLE, 1));
+        assertThat(first).hasValue(1);
+        assertThat(second).hasValue(1);
+
+        inv.removeOnContentsChangedListener(firstListener);
+        inv.setStackInSlot(0, new ItemStack(Items.WHEAT, 1));
+        assertThat(first).hasValue(1);
+        assertThat(second).hasValue(2);
+
+        inv.removeOnContentsChangedListener(secondListener);
+        inv.setStackInSlot(0, ItemStack.EMPTY);
+        assertThat(first).hasValue(1);
+        assertThat(second).hasValue(2);
     }
 }

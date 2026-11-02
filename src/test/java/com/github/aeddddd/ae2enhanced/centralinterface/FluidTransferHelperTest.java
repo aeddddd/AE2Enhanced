@@ -1,6 +1,7 @@
 package com.github.aeddddd.ae2enhanced.centralinterface;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -14,6 +15,10 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import net.minecraft.entity.player.EntityPlayer;
+import net.minecraft.inventory.Container;
+import net.minecraft.inventory.InventoryCrafting;
+import net.minecraft.item.ItemStack;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.EnumFacing;
 import net.minecraft.util.math.BlockPos;
@@ -26,7 +31,7 @@ import net.minecraftforge.fluids.capability.IFluidHandler;
 import net.minecraftforge.fluids.capability.IFluidTankProperties;
 
 import com.github.aeddddd.ae2enhanced.item.ItemFluidDrop;
-import com.github.aeddddd.ae2enhanced.registry.content.ItemRegistry;
+import com.github.aeddddd.ae2enhanced.item.ItemRegistry;
 import com.github.aeddddd.ae2enhanced.test.util.AE2TestBootstrap;
 
 /**
@@ -368,6 +373,54 @@ public class FluidTransferHelperTest {
 
         assertThat(FluidTransferHelper.peekExtractableFluids(world, POS, null)).isEmpty();
         assertThat(face.contents(0).amount).isEqualTo(500);
+    }
+
+    private static InventoryCrafting crafting(ItemStack stack) {
+        InventoryCrafting table = new InventoryCrafting(new Container() {
+            @Override
+            public boolean canInteractWith(EntityPlayer playerIn) {
+                return false;
+            }
+        }, 3, 3);
+        table.setInventorySlotContents(0, stack);
+        return table;
+    }
+
+    /** 模拟允许整份但真实 fill 只接受一部分：table 必须保留输入，台账只记真实接受量。 */
+    @Test
+    public void testPushFluidInputsChecksRealFillAndKeepsInputOnPartial() {
+        IFluidHandler handler = partialRealFill(400);
+        InventoryCrafting table = crafting(ItemFluidDrop.createStack(new FluidStack(FluidRegistry.WATER, 1000)));
+        List<FluidStack> pushed = new ArrayList<>();
+
+        boolean result = FluidTransferHelper.pushFluidInputs(world, POS, table, pushed);
+
+        assertThat(result).isFalse();
+        assertThat(table.getStackInSlot(0).getCount()).isEqualTo(1000);
+        assertThat(pushed).hasSize(1);
+        assertThat(pushed.get(0).amount).isEqualTo(400);
+    }
+
+    /** 回注真实 fill 不足时只把未接受余量交给缓冲，而不是整份再记一次。 */
+    @Test
+    public void testPushFluidsToTargetReturnsOnlyActualRemainder() {
+        partialRealFill(400);
+
+        List<FluidStack> remaining = FluidTransferHelper.pushFluidsToTarget(world, POS,
+                Collections.singletonList(new FluidStack(FluidRegistry.WATER, 1000)));
+
+        assertThat(remaining).hasSize(1);
+        assertThat(remaining.get(0).amount).isEqualTo(600);
+    }
+
+    private IFluidHandler partialRealFill(int realAmount) {
+        IFluidHandler handler = mock(IFluidHandler.class);
+        when(handler.fill(any(FluidStack.class), eq(false))).thenAnswer(invocation ->
+                ((FluidStack) invocation.getArgument(0)).amount);
+        when(handler.fill(any(FluidStack.class), eq(true))).thenReturn(realAmount);
+        when(this.target.hasCapability(eq(CapabilityFluidHandler.FLUID_HANDLER_CAPABILITY), eq(EnumFacing.UP))).thenReturn(true);
+        when(this.target.getCapability(eq(CapabilityFluidHandler.FLUID_HANDLER_CAPABILITY), eq(EnumFacing.UP))).thenReturn(handler);
+        return handler;
     }
 
     // ------------------------------------------------------------------

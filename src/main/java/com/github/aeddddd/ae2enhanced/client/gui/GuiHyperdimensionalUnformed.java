@@ -1,7 +1,7 @@
 package com.github.aeddddd.ae2enhanced.client.gui;
 
+import com.github.aeddddd.ae2enhanced.block.HyperdimensionalStructure;
 import com.github.aeddddd.ae2enhanced.container.ContainerHyperdimensionalUnformed;
-import com.github.aeddddd.ae2enhanced.structure.HyperdimensionalStructure;
 import com.github.aeddddd.ae2enhanced.tile.TileHyperdimensionalController;
 import net.minecraft.block.Block;
 import net.minecraft.entity.player.InventoryPlayer;

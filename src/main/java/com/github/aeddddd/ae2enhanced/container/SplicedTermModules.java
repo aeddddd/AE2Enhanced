@@ -8,7 +8,7 @@ import java.util.List;
  * 可拼接终端的模块清单与 {@code panelMask} 位掩码映射。
  *
  * <p>{@code panelMask} 是阶段 3b 引入的<strong>可见性同步</strong>通道：客户端在本地改布局后把
- * 位掩码发给服务端，服务端据此调整 shift-click 白名单（被关闭的面板，其槽位绝不能接收物品）。
+ * 位掩码发给服务端，服务端据此调整点击、JEI、模块动作与 shift-click 白名单。
  * 位序固定，只能追加、不能重排——重排会让旧存档里的掩码含义错位。</p>
  *
  * <p>注意这不是布局几何：只有一个"哪些模块开着"的位图，服务端不解析任何坐标
@@ -27,6 +27,10 @@ public final class SplicedTermModules {
     public static final int STORAGE = 4;
     public static final int UPGRADE = 5;
     public static final int PATTERN = 6;
+    public static final int CRAFTING_MANAGEMENT = 7;
+    public static final int INTERFACE_TERMINAL = 8;
+    public static final String CRAFTING_MANAGEMENT_ID = "crafting_management";
+    public static final String INTERFACE_TERMINAL_ID = "interface_terminal";
 
     /** 可被位掩码管理的模块 id，下标即位号。 */
     private static final List<String> MODULE_IDS = Collections.unmodifiableList(Arrays.asList(
@@ -36,7 +40,9 @@ public final class SplicedTermModules {
             SplicedTermSlotPolicy.MODULE_CRAFTING_MATRIX,
             SplicedTermSlotPolicy.MODULE_STORAGE,
             SplicedTermSlotPolicy.MODULE_UPGRADE,
-            SplicedTermSlotPolicy.MODULE_PATTERN));
+            SplicedTermSlotPolicy.MODULE_PATTERN,
+            CRAFTING_MANAGEMENT_ID,
+            INTERFACE_TERMINAL_ID));
 
     /**
      * 永远可见、不可关闭的模块（仓库与玩家背包）。

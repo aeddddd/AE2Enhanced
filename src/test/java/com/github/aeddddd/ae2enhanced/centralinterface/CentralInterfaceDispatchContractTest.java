@@ -42,12 +42,20 @@ public class CentralInterfaceDispatchContractTest {
 
     @BeforeEach
     public void setUp() {
+        com.github.aeddddd.ae2enhanced.runtime.RuntimeScopes.startServer();
         ICentralInterfaceHost host = mock(ICentralInterfaceHost.class);
         TileEntity tile = mock(TileEntity.class);
         when(host.getTileEntity()).thenReturn(tile);
         when(tile.getWorld()).thenReturn(mock(World.class));
         when(host.getProxy()).thenReturn(mock(AENetworkProxy.class));
         this.duality = new DualityCentralInterface(host);
+    }
+
+    @org.junit.jupiter.api.AfterEach
+    public void tearDown() {
+        com.github.aeddddd.ae2enhanced.runtime.RuntimeScopes.stopServer();
+        com.github.aeddddd.ae2enhanced.runtime.RuntimeScopes.closeServer();
+        com.github.aeddddd.ae2enhanced.runtime.RuntimeScopes.releaseServer();
     }
 
     /**
@@ -98,6 +106,37 @@ public class CentralInterfaceDispatchContractTest {
     @Test
     public void noVirtualCardMeansParallelOne() {
         assertThat(this.duality.getVirtualParallel()).isEqualTo(1L);
+    }
+
+    @Test
+    public void physicalInflightBatchDoesNotBlockOtherIdleTargets() {
+        TargetBinding first = new TargetBinding(new net.minecraft.util.math.BlockPos(1, 64, 1),
+                0, "ae2enhanced:test_machine");
+        TargetBinding second = new TargetBinding(new net.minecraft.util.math.BlockPos(2, 64, 2),
+                0, "ae2enhanced:test_machine");
+        this.duality.setBindingSnapshot(java.util.Arrays.asList(first, second));
+        TargetSession firstSession = this.duality.getOrCreateSession(first);
+        TargetSession secondSession = this.duality.getOrCreateSession(second);
+        try {
+            assertThat(this.duality.isBusy()).isFalse();
+
+            firstSession.beginPush(new java.util.ArrayList<>());
+            firstSession.commitPush(new appeng.api.storage.data.IAEItemStack[0],
+                    java.util.Collections.emptyList(), java.util.Collections.emptyList(), 1L);
+            assertThat(this.duality.inflightSessions).isNotEmpty();
+            assertThat(this.duality.isBusy()).as("第二台空闲设备必须继续接收物理批次").isFalse();
+
+            secondSession.beginPush(new java.util.ArrayList<>());
+            secondSession.commitPush(new appeng.api.storage.data.IAEItemStack[0],
+                    java.util.Collections.emptyList(), java.util.Collections.emptyList(), 1L);
+            assertThat(this.duality.isBusy()).as("全部目标都在处理时才没有物理并行容量").isTrue();
+
+            firstSession.reset();
+            assertThat(this.duality.isBusy()).isFalse();
+        } finally {
+            firstSession.reset();
+            secondSession.reset();
+        }
     }
 
     // ---- helpers ----

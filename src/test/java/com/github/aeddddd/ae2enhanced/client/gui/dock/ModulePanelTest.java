@@ -24,9 +24,9 @@ import net.minecraft.inventory.Slot;
 
 import org.junit.jupiter.api.Test;
 
-import com.github.aeddddd.ae2enhanced.client.gui.dock.model.DockRect;
-import com.github.aeddddd.ae2enhanced.client.gui.dock.model.ModuleDefaults;
-import com.github.aeddddd.ae2enhanced.client.gui.dock.model.ModuleLayoutPolicy;
+import com.github.aeddddd.ae2enhanced.dock.model.DockRect;
+import com.github.aeddddd.ae2enhanced.dock.model.ModuleDefaults;
+import com.github.aeddddd.ae2enhanced.dock.model.ModuleLayoutPolicy;
 
 /**
  * 阶段 1 的可测契约：chrome 常量、面板几何、槽位原语与 9-slice 资源的不变量。

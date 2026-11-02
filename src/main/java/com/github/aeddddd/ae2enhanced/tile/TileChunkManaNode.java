@@ -13,7 +13,6 @@ import appeng.api.util.AECableType;
 import appeng.api.util.AEPartLocation;
 import appeng.me.GridAccessException;
 import appeng.me.helpers.MachineSource;
-import com.github.aeddddd.ae2enhanced.registry.content.BlockRegistry;
 import com.github.aeddddd.ae2enhanced.storage.mana.AEManaStack;
 import com.github.aeddddd.ae2enhanced.storage.mana.IAEManaStack;
 import com.github.aeddddd.ae2enhanced.storage.mana.IManaStorageChannel;
@@ -94,7 +93,7 @@ public class TileChunkManaNode extends TileAENetworkBase implements ITickable, I
 
     @Override
     protected ItemStack getProxyRepresentation() {
-        return new ItemStack(BlockRegistry.CHUNK_MANA_NODE);
+        return new ItemStack(getBlockType());
     }
 
     @Override

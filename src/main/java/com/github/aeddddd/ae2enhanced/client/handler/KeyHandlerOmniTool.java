@@ -75,17 +75,17 @@ public class KeyHandlerOmniTool {
         if (mc.player == null || mc.currentScreen != null) return;
 
         ItemStack held = mc.player.getHeldItemMainhand();
-        boolean isPlacementTool = held.getItem() instanceof com.github.aeddddd.ae2enhanced.item.ItemMEPlacementTool;
-        boolean isOmniPlacement = held.getItem() instanceof com.github.aeddddd.ae2enhanced.item.ItemAdvancedMEOmniTool
-                && com.github.aeddddd.ae2enhanced.item.ItemAdvancedMEOmniTool.getMode(held)
-                    == com.github.aeddddd.ae2enhanced.item.ItemAdvancedMEOmniTool.MODE_PLACEMENT;
+        boolean isPlacementTool = held.getItem() instanceof com.github.aeddddd.ae2enhanced.omnitool.ItemMEPlacementTool;
+        boolean isOmniPlacement = held.getItem() instanceof com.github.aeddddd.ae2enhanced.omnitool.ItemAdvancedMEOmniTool
+                && com.github.aeddddd.ae2enhanced.omnitool.ItemAdvancedMEOmniTool.getMode(held)
+                    == com.github.aeddddd.ae2enhanced.omnitool.ItemAdvancedMEOmniTool.MODE_PLACEMENT;
 
         // 中键选取（鼠标按键 2）
         if (event.getButton() == 2 && event.isButtonstate()) {
             if (!isPlacementTool && !isOmniPlacement) return;
             event.setCanceled(true);
             AE2Enhanced.network.sendToServer(new com.github.aeddddd.ae2enhanced.network.packet.PacketPlacementSelectPreset(
-                    com.github.aeddddd.ae2enhanced.util.placement.PlacementConfig.MAX_PRESETS));
+                    com.github.aeddddd.ae2enhanced.omnitool.placement.PlacementConfig.MAX_PRESETS));
             return;
         }
 
@@ -103,7 +103,7 @@ public class KeyHandlerOmniTool {
             net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getMinecraft();
             if (mc.player != null) {
                 for (net.minecraft.util.EnumHand hand : net.minecraft.util.EnumHand.values()) {
-                    if (mc.player.getHeldItem(hand).getItem() instanceof com.github.aeddddd.ae2enhanced.item.ItemAdvancedMEOmniTool) {
+                    if (mc.player.getHeldItem(hand).getItem() instanceof com.github.aeddddd.ae2enhanced.omnitool.ItemAdvancedMEOmniTool) {
                         AE2Enhanced.network.sendToServer(new com.github.aeddddd.ae2enhanced.network.packet.PacketOpenOmniToolGui(hand.ordinal()));
                         break;
                     }
@@ -119,10 +119,10 @@ public class KeyHandlerOmniTool {
             net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getMinecraft();
             if (mc.player != null) {
                 net.minecraft.item.ItemStack held = mc.player.getHeldItemMainhand();
-                boolean canOpen = held.getItem() instanceof com.github.aeddddd.ae2enhanced.item.ItemMEPlacementTool
-                        || (held.getItem() instanceof com.github.aeddddd.ae2enhanced.item.ItemAdvancedMEOmniTool
-                            && com.github.aeddddd.ae2enhanced.item.ItemAdvancedMEOmniTool.getMode(held)
-                                == com.github.aeddddd.ae2enhanced.item.ItemAdvancedMEOmniTool.MODE_PLACEMENT);
+                boolean canOpen = held.getItem() instanceof com.github.aeddddd.ae2enhanced.omnitool.ItemMEPlacementTool
+                        || (held.getItem() instanceof com.github.aeddddd.ae2enhanced.omnitool.ItemAdvancedMEOmniTool
+                            && com.github.aeddddd.ae2enhanced.omnitool.ItemAdvancedMEOmniTool.getMode(held)
+                                == com.github.aeddddd.ae2enhanced.omnitool.ItemAdvancedMEOmniTool.MODE_PLACEMENT);
                 if (canOpen) {
                     mc.displayGuiScreen(new com.github.aeddddd.ae2enhanced.client.gui.GuiPlacementRadialMenu(
                             mc.player, KEY_PLACEMENT_RADIAL.getKeyCode()));

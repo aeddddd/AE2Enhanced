@@ -6,6 +6,12 @@ AE2Enhanced is a late-game addon for **AE2 Unofficial Extended Life (AE2-UEL)** 
 
 [中文版本 (Chinese)](/README_zh.md)
 
+## Documentation
+
+- [English Wiki](https://github.com/aeddddd/AE2Enhanced/wiki/Home)
+- [中文 Wiki](https://github.com/aeddddd/AE2Enhanced/wiki/首页)
+- Development documentation index: `docs/README.md` in the local development workspace (not tracked in the main repository).
+
 ## Core Items
 
 ### Omni Wireless Terminal

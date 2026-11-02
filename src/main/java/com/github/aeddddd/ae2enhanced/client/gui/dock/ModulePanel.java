@@ -6,21 +6,16 @@
  */
 package com.github.aeddddd.ae2enhanced.client.gui.dock;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.IdentityHashMap;
-import java.util.List;
-import java.util.Set;
-
+import com.github.aeddddd.ae2enhanced.dock.model.DockRect;
+import com.github.aeddddd.ae2enhanced.dock.model.LayoutProjection;
+import com.github.aeddddd.ae2enhanced.dock.model.ModuleDefaults;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.FontRenderer;
 import net.minecraft.client.gui.Gui;
 import net.minecraft.client.resources.I18n;
 import net.minecraft.inventory.Slot;
 
-import com.github.aeddddd.ae2enhanced.client.gui.dock.model.DockRect;
-import com.github.aeddddd.ae2enhanced.client.gui.dock.model.LayoutProjection;
-import com.github.aeddddd.ae2enhanced.client.gui.dock.model.ModuleDefaults;
+import java.util.*;
 
 /**
  * Base class for a floating, draggable, resizable module panel.
@@ -56,7 +51,8 @@ public abstract class ModulePanel {
     public static final int RESIZE_HANDLE = ChromeLayout.RESIZE_HANDLE;
 
     /** {@link #hideSlot(Slot)} 写入的坐标；{@link #renderSlots} 以 {@code <= -1000} 判定隐藏。 */
-    public static final int HIDDEN_SLOT_POSITION = -9999;
+    public static final int HIDDEN_SLOT_POSITION =
+            com.github.aeddddd.ae2enhanced.container.SplicedTermSlotPolicy.HIDDEN_SLOT_POSITION;
 
     // Panel bounds in absolute screen coordinates.
     public int x;
@@ -116,6 +112,11 @@ public abstract class ModulePanel {
     protected void registerSlot(Slot slot) {
         ownedSlots.add(slot);
         ownedSlotSet.add(slot);
+    }
+
+    protected void unregisterSlot(Slot slot) {
+        ownedSlots.remove(slot);
+        ownedSlotSet.remove(slot);
     }
 
     protected static void placeSlot(Slot slot, int screenX, int screenY) {
@@ -468,7 +469,7 @@ public abstract class ModulePanel {
     }
 
     /**
-     * 面板外框：投影 + 整窗 9-slice 背景 + 标题条。
+     * 面板外框：整窗 9-slice 背景 + 标题条，不使用投影。
      *
      * <p>托管（{@code hosted}）的叶子不画外框，因为它们共用宿主窗口的背景。</p>
      */
@@ -476,7 +477,6 @@ public abstract class ModulePanel {
         if (hosted || !drawsTitleBar()) {
             return;
         }
-        renderDropShadow(zLevel);
         NinePatch.draw(x, y, width, height, zLevel);
         renderTitleStrip(x, y, width, mouseX, mouseY, zLevel);
     }

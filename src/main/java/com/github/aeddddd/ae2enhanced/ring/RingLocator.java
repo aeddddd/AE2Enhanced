@@ -1,15 +1,14 @@
 package com.github.aeddddd.ae2enhanced.ring;
 
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
-import com.github.aeddddd.ae2enhanced.item.ItemNetworkLinkCredential;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.item.ItemStack;
 import net.minecraftforge.fml.common.Loader;
 
 /**
- * 在玩家身上定位第一枚生效的网络链接指环.
+ * 在玩家身上定位第一枚生效的旧指环或含指环模块的 ME 工具.
  * 搜索顺序：主手 → 副手 → 物品栏 → Baubles(反射,避免硬引用).
- * 同时仅第一枚找到的指环生效,多枚不叠加.
+ * 同时仅第一来源生效，旧指环与工具模块不叠加.
  */
 public final class RingLocator {
 
@@ -17,16 +16,16 @@ public final class RingLocator {
 
     public static ItemStack findRing(EntityPlayer player) {
         ItemStack main = player.getHeldItemMainhand();
-        if (main.getItem() instanceof ItemNetworkLinkCredential) {
+        if (main.getItem() instanceof ItemNetworkLinkCredential || RingNBT.hasRingModule(main)) {
             return main;
         }
         ItemStack off = player.getHeldItemOffhand();
-        if (off.getItem() instanceof ItemNetworkLinkCredential) {
+        if (off.getItem() instanceof ItemNetworkLinkCredential || RingNBT.hasRingModule(off)) {
             return off;
         }
         for (int i = 0; i < player.inventory.getSizeInventory(); i++) {
             ItemStack stack = player.inventory.getStackInSlot(i);
-            if (stack.getItem() instanceof ItemNetworkLinkCredential) {
+            if ((stack.getItem() instanceof ItemNetworkLinkCredential || RingNBT.hasRingModule(stack))) {
                 return stack;
             }
         }
@@ -62,7 +61,7 @@ public final class RingLocator {
     }
 
     private static boolean isAscendedCredential(ItemStack stack) {
-        return !stack.isEmpty() && stack.getItem() instanceof ItemNetworkLinkCredential
+        return !stack.isEmpty() && (stack.getItem() instanceof ItemNetworkLinkCredential || RingNBT.hasRingModule(stack))
                 && RingNBT.isAscended(stack);
     }
 
@@ -76,7 +75,7 @@ public final class RingLocator {
             int slots = (int) GET_SLOTS.invoke(handler);
             for (int i = 0; i < slots; i++) {
                 ItemStack stack = (ItemStack) GET_STACK_IN_SLOT.invoke(handler, i);
-                if (!stack.isEmpty() && stack.getItem() instanceof ItemNetworkLinkCredential) {
+                if (!stack.isEmpty() && (stack.getItem() instanceof ItemNetworkLinkCredential || RingNBT.hasRingModule(stack))) {
                     return stack;
                 }
             }

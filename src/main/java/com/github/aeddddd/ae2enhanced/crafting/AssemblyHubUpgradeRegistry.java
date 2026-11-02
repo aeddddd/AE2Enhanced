@@ -72,6 +72,10 @@ public class AssemblyHubUpgradeRegistry {
         return removed;
     }
 
+    public static String[] recipeIds() {
+        return DEFINITIONS.keySet().stream().sorted().toArray(String[]::new);
+    }
+
     @Nullable
     public static UpgradeDefinition findFor(ItemStack stack) {
         if (stack == null || stack.isEmpty()) return null;

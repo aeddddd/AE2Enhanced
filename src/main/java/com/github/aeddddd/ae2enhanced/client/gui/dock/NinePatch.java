@@ -6,18 +6,17 @@
  */
 package com.github.aeddddd.ae2enhanced.client.gui.dock;
 
-import java.util.List;
-
+import com.github.aeddddd.ae2enhanced.dock.model.DockAxis;
+import com.github.aeddddd.ae2enhanced.dock.model.DockRect;
+import com.github.aeddddd.ae2enhanced.dock.model.LayoutProjection;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Gui;
 import net.minecraft.client.renderer.GlStateManager;
 
-import com.github.aeddddd.ae2enhanced.client.gui.dock.model.DockAxis;
-import com.github.aeddddd.ae2enhanced.client.gui.dock.model.DockRect;
-import com.github.aeddddd.ae2enhanced.client.gui.dock.model.LayoutProjection;
+import java.util.List;
 
 /**
- * 面板 chrome 的像素级原语：整窗 9-slice 背景、投影、区段分隔线。
+ * 面板 chrome 的像素级原语：整窗 9-slice 背景、区段分隔线。
  *
  * <p>MEST 侧对应 {@code ModulePanel.drawGeneratedBackground}（AE2 {@code BackgroundGenerator}：
  * 4px bevel 包住平铺中部）、{@code ModulePanel.renderDropShadow}、{@code ModulePanel.renderRootChrome}
@@ -141,16 +140,15 @@ public final class NinePatch {
     }
 
     /**
-     * 一个拼接根窗口的完整 chrome：投影 + 生成式背景。
+     * 一个拼接根窗口的完整 chrome：生成式背景，不使用投影。
      *
      * <p>MEST 只在整个 root 上画一次 9-slice（而不是每个叶子各画一次），这正是"外壳模式"不会出现接缝的
-     * 原因；叶子只画区段标题与内容。宽度/高度小于 2 时连投影都不画（MEST 的早退条件）。</p>
+     * 原因；叶子只画区段标题与内容。</p>
      */
     public static void drawRootChrome(DockRect bounds, boolean skipRightShadow, float zLevel) {
         if (bounds == null || bounds.width() < 2 || bounds.height() < 2) {
             return;
         }
-        drawDropShadow(bounds.x(), bounds.y(), bounds.width(), bounds.height(), skipRightShadow, zLevel);
         draw(bounds.x(), bounds.y(), bounds.width(), bounds.height(), zLevel);
     }
 

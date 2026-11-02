@@ -10,7 +10,6 @@ import appeng.me.cache.PathGridCache;
 import appeng.me.pathfinding.ControllerChannelUpdater;
 import appeng.me.pathfinding.PathSegment;
 import appeng.tile.networking.TileController;
-import com.github.aeddddd.ae2enhanced.config.AE2EnhancedConfig;
 import com.github.aeddddd.ae2enhanced.pathing.EnhancedPathingCalculation;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
@@ -98,7 +97,7 @@ public abstract class MixinPathGridCache {
         // 仅维护统计数值（频道功耗统计与网络工具显示保持一致），跳过两次
         // MENetworkBootingStatusChange 广播以避免数千台机器的无意义 markForUpdate。
         // Controller 状态检测由上方 recalcController 正常执行，控制器外观不受影响。
-        if (AE2EnhancedConfig.channelPathing.skipRecalcWhenChannelsDisabled
+        if (com.github.aeddddd.ae2enhanced.config.ServerConfig.current().channelPathing.skipRecalcWhenChannelsDisabled
                 && this.updateNetwork
                 && !AEConfig.instance().isFeatureEnabled(AEFeature.CHANNELS)) {
             this.updateNetwork = false;
@@ -114,7 +113,7 @@ public abstract class MixinPathGridCache {
             return;
         }
 
-        if (!AE2EnhancedConfig.channelPathing.fastPathing) {
+        if (!com.github.aeddddd.ae2enhanced.config.ServerConfig.current().channelPathing.fastPathing) {
             return;
         }
 

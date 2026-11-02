@@ -10,7 +10,7 @@ import org.spongepowered.asm.mixin.gen.Invoker;
  * 目标为 AE2 本家类, 始终存在, remap=false 使用源码名.
  */
 @Mixin(value = GridNode.class, remap = false)
-public interface IGridNodeAccessor {
+public interface IGridNodeAccessor extends com.github.aeddddd.ae2enhanced.pathing.GridNodeValidationAccess {
 
     @Invoker("removeConnection")
     void ae2e$removeConnection(IGridConnection connection);

@@ -1,15 +1,13 @@
 package com.github.aeddddd.ae2enhanced.network.packet;
 
 import appeng.api.util.AEColor;
-import com.github.aeddddd.ae2enhanced.config.AE2EnhancedConfig;
-import com.github.aeddddd.ae2enhanced.item.ItemAdvancedMEOmniTool;
+import com.github.aeddddd.ae2enhanced.omnitool.ItemAdvancedMEOmniTool;
 import com.github.aeddddd.ae2enhanced.omnitool.module.MiningModule;
 import com.github.aeddddd.ae2enhanced.omnitool.module.TravelModule;
-import com.github.aeddddd.ae2enhanced.util.placement.PlacementConfig;
+import com.github.aeddddd.ae2enhanced.omnitool.placement.PlacementConfig;
 import net.minecraft.entity.player.EntityPlayerMP;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagList;
-import net.minecraft.util.EnumHand;
 import net.minecraftforge.fml.common.network.simpleimpl.IMessage;
 import net.minecraftforge.fml.common.network.simpleimpl.IMessageHandler;
 import net.minecraftforge.fml.common.network.simpleimpl.MessageContext;
@@ -19,9 +17,12 @@ public class PacketOmniToolConfigHandler implements IMessageHandler<PacketOmniTo
     public IMessage onMessage(PacketOmniToolConfig message, MessageContext ctx) {
         ctx.getServerHandler().player.getServerWorld().addScheduledTask(() -> {
             EntityPlayerMP player = ctx.getServerHandler().player;
-            for (EnumHand hand : EnumHand.values()) {
-                ItemStack stack = player.getHeldItem(hand);
-                if (stack.getItem() instanceof ItemAdvancedMEOmniTool) {
+            if (!message.isValid() || !(player.openContainer instanceof com.github.aeddddd.ae2enhanced.container.ContainerOmniToolConfig)
+                    || !player.openContainer.canInteractWith(player)) return;
+            com.github.aeddddd.ae2enhanced.container.ContainerOmniToolConfig container =
+                    (com.github.aeddddd.ae2enhanced.container.ContainerOmniToolConfig) player.openContainer;
+            ItemStack stack = container.getToolStack(player);
+            if (!stack.isEmpty()) {
                     ItemAdvancedMEOmniTool.setMode(stack, message.getMode());
                     ItemAdvancedMEOmniTool.setDropMode(stack, message.getDropMode());
                     ItemAdvancedMEOmniTool.setSilkTouchEnabled(stack, message.isSilkTouch());
@@ -48,14 +49,14 @@ public class PacketOmniToolConfigHandler implements IMessageHandler<PacketOmniTo
                         placementConfig.setCableColor(AEColor.values()[colorIdx]);
                     }
                     placementConfig.setReachDistance(message.getReachDistance());
-                    placementConfig.setPlacementRestriction(com.github.aeddddd.ae2enhanced.util.placement.PlacementRestriction.fromOrdinal(message.getPlacementRestriction()));
+                    placementConfig.setPlacementRestriction(com.github.aeddddd.ae2enhanced.omnitool.placement.PlacementRestriction.fromOrdinal(message.getPlacementRestriction()));
 
                     // 同步附魔存储：source<=0 的条目为非法注入直接移除,
                     // 其余条目等级按 source level 与配置上限双重钳制
                     NBTTagList ench = message.getEnchantments();
                     if (ench != null) {
                         NBTTagList filtered = new NBTTagList();
-                        int maxLevel = AE2EnhancedConfig.omniTool.maxEnchantmentLevel;
+                        int maxLevel = com.github.aeddddd.ae2enhanced.config.ServerConfig.current().omniTool.maxEnchantmentLevel;
                         for (int i = 0; i < ench.tagCount(); i++) {
                             net.minecraft.nbt.NBTTagCompound tag = ench.getCompoundTagAt(i);
                             short id = tag.getShort("id");
@@ -72,9 +73,8 @@ public class PacketOmniToolConfigHandler implements IMessageHandler<PacketOmniTo
                     ItemAdvancedMEOmniTool.setStoredEnchantments(stack, ench != null ? ench : new NBTTagList());
 
                     // 强制同步NBT到客户端
-                    player.setHeldItem(hand, stack);
-                    break;
-                }
+                    player.inventory.markDirty();
+                    player.openContainer.detectAndSendChanges();
             }
         });
         return null;

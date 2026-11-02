@@ -1,8 +1,8 @@
 package com.github.aeddddd.ae2enhanced.omnitool;
 
-import com.github.aeddddd.ae2enhanced.config.AE2EnhancedConfig;
-import com.github.aeddddd.ae2enhanced.item.ItemAdvancedMEOmniTool;
+import com.github.aeddddd.ae2enhanced.config.ServerConfig;
 import com.github.aeddddd.ae2enhanced.omnitool.module.CombatModule;
+import com.github.aeddddd.ae2enhanced.util.ServerTickCounter;
 import net.minecraft.entity.EntityLivingBase;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
@@ -140,10 +140,10 @@ public final class OmniToolUpgrades {
 
     public static boolean isWallPhaseEnabled(ItemStack stack) {
         if (!stack.hasTagCompound()) {
-            return AE2EnhancedConfig.omniTool.enableWallPhase;
+            return ServerConfig.current().omniTool.enableWallPhase;
         }
         if (!stack.getTagCompound().hasKey(OmniToolNBT.WALL_PHASE)) {
-            return AE2EnhancedConfig.omniTool.enableWallPhase;
+            return ServerConfig.current().omniTool.enableWallPhase;
         }
         return stack.getTagCompound().getBoolean(OmniToolNBT.WALL_PHASE);
     }
@@ -175,7 +175,7 @@ public final class OmniToolUpgrades {
     // ==================== Break Cooldown ====================
 
     public static int getBreakCooldown(ItemStack stack) {
-        int max = AE2EnhancedConfig.omniTool.maxBreakCooldown;
+        int max = ServerConfig.current().omniTool.maxBreakCooldown;
         int cooldown = stack.hasTagCompound() ? stack.getTagCompound().getInteger(OmniToolNBT.BREAK_COOLDOWN) : max;
         return Math.min(cooldown, max);
     }
@@ -186,7 +186,8 @@ public final class OmniToolUpgrades {
     }
 
     public static long getLastBreakTick(ItemStack stack) {
-        return stack.hasTagCompound() ? stack.getTagCompound().getLong(OmniToolNBT.LAST_BREAK) : 0;
+        return stack.hasTagCompound() && stack.getTagCompound().hasKey(OmniToolNBT.LAST_BREAK)
+                ? stack.getTagCompound().getLong(OmniToolNBT.LAST_BREAK) : ServerTickCounter.NEVER;
     }
 
     public static void setLastBreakTick(ItemStack stack, long tick) {
@@ -197,14 +198,15 @@ public final class OmniToolUpgrades {
     // ==================== Blink Distance / Cooldown ====================
 
     public static double getBlinkDistance(ItemStack stack) {
-        double max = AE2EnhancedConfig.omniTool.maxBlinkDistance;
+        double max = ServerConfig.current().omniTool.maxBlinkDistance;
         if (!stack.hasTagCompound()) return max;
         NBTTagCompound tag = stack.getTagCompound();
         if (!tag.hasKey(OmniToolNBT.BLINK_DIST, Constants.NBT.TAG_DOUBLE)) {
             tag.setDouble(OmniToolNBT.BLINK_DIST, max);
         }
         double dist = tag.getDouble(OmniToolNBT.BLINK_DIST);
-        return Math.min(dist, max);
+        if (Double.isNaN(dist) || Double.isInfinite(dist)) return max;
+        return Math.max(1.0D, Math.min(dist, max));
     }
 
     public static void setBlinkDistance(ItemStack stack, double dist) {
@@ -213,7 +215,8 @@ public final class OmniToolUpgrades {
     }
 
     public static long getLastBlinkTick(ItemStack stack) {
-        return stack.hasTagCompound() ? stack.getTagCompound().getLong(OmniToolNBT.LAST_BLINK) : 0;
+        return stack.hasTagCompound() && stack.getTagCompound().hasKey(OmniToolNBT.LAST_BLINK)
+                ? stack.getTagCompound().getLong(OmniToolNBT.LAST_BLINK) : ServerTickCounter.NEVER;
     }
 
     public static void setLastBlinkTick(ItemStack stack, long tick) {

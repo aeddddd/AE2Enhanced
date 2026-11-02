@@ -34,7 +34,9 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 
-import com.github.aeddddd.ae2enhanced.client.gui.dock.model.DockWorkspace;
+import com.github.aeddddd.ae2enhanced.dock.model.DockWorkspace;
+import com.github.aeddddd.ae2enhanced.dock.workspace.DockLayoutCodec;
+import com.github.aeddddd.ae2enhanced.dock.workspace.DockLayoutFormatException;
 
 /** Three named layout slots plus import/export/backup helpers. */
 public final class LayoutPresetBank {

@@ -4,8 +4,8 @@ import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
 
 /**
- * 先进网络链接指环的 NBT 键与读写辅助.
- * 所有配置均持久化在物品 NBT 上,客户端可直接读取(背包/饰品自动同步),无需额外状态同步包.
+ * 指环及其 ME 工具全局模块的 NBT 键与读写辅助.
+ * 配置持久化在旧指环根 NBT 或工具的 OmniRingModule 嵌套 NBT 中，客户端可直接读取，无需额外状态同步包.
  */
 public final class RingNBT {
 
@@ -24,6 +24,7 @@ public final class RingNBT {
     /** 飞升进度(0~16)与飞升完成标记 */
     public static final String ASCEND_PROGRESS = "AscendProgress";
     public static final String ASCENDED = "Ascended";
+    public static final String CREDENTIAL_ID = "AE2ECredentialId";
 
     public static final String FLIGHT = "RFlight";
     public static final String FORCE_FLIGHT = "RForceFlight";
@@ -50,15 +51,45 @@ public final class RingNBT {
 
     public static final int MAX_ASCEND = 16;
 
+    public static final String MODULE_KEY = "OmniRingModule";
+
     private static NBTTagCompound tag(ItemStack stack) {
         if (!stack.hasTagCompound()) {
             stack.setTagCompound(new NBTTagCompound());
         }
-        return stack.getTagCompound();
+        NBTTagCompound root = stack.getTagCompound();
+        if (root.hasKey(MODULE_KEY, 10)) {
+            return root.getCompoundTag(MODULE_KEY);
+        }
+        return root;
     }
 
     private static NBTTagCompound read(ItemStack stack) {
-        return stack.hasTagCompound() ? stack.getTagCompound() : new NBTTagCompound();
+        if (!stack.hasTagCompound()) {
+            return new NBTTagCompound();
+        }
+        NBTTagCompound root = stack.getTagCompound();
+        return root.hasKey(MODULE_KEY, 10) ? root.getCompoundTag(MODULE_KEY) : root;
+    }
+
+    public static boolean hasRingModule(ItemStack stack) {
+        return !stack.isEmpty() && stack.hasTagCompound() && stack.getTagCompound().hasKey(MODULE_KEY, 10);
+    }
+
+    public static NBTTagCompound mutableTag(ItemStack stack) {
+        return tag(stack);
+    }
+
+    public static NBTTagCompound snapshot(ItemStack stack) {
+        return read(stack).copy();
+    }
+
+    public static String getNetworkEncryptionKey(ItemStack stack) {
+        return read(stack).getString("encryptionKey");
+    }
+
+    public static void setNetworkEncryptionKey(ItemStack stack, String key) {
+        tag(stack).setString("encryptionKey", key == null ? "" : key);
     }
 
     // ---- 能量 ----
@@ -87,6 +118,18 @@ public final class RingNBT {
 
     public static void setAscended(ItemStack stack, boolean ascended) {
         tag(stack).setBoolean(ASCENDED, ascended);
+    }
+
+    public static String getCredentialId(ItemStack stack) {
+        return read(stack).getString(CREDENTIAL_ID);
+    }
+
+    public static String getOrCreateCredentialId(ItemStack stack) {
+        String existing = getCredentialId(stack);
+        if (!existing.isEmpty()) return existing;
+        String created = java.util.UUID.randomUUID().toString();
+        tag(stack).setString(CREDENTIAL_ID, created);
+        return created;
     }
 
     // ---- 阶段 ----
@@ -167,4 +210,12 @@ public final class RingNBT {
     public static int getPotionMode(ItemStack stack) {
         return read(stack).getInteger(POTION_MODE);
     }
+
+    public static void setFlySpeed(ItemStack stack, float value) { tag(stack).setFloat(FLY_SPEED, value); }
+    public static void setWalkSpeed(ItemStack stack, float value) { tag(stack).setFloat(WALK_SPEED, value); }
+    public static void setReach(ItemStack stack, float value) { tag(stack).setFloat(REACH, value); }
+    public static void setJumpPercent(ItemStack stack, int value) { tag(stack).setInteger(JUMP_PCT, value); }
+    public static void setFeedMode(ItemStack stack, int value) { tag(stack).setInteger(FEED_MODE, value); }
+    public static void setHealThreshold(ItemStack stack, int value) { tag(stack).setInteger(HEAL_PCT, value); }
+    public static void setPotionMode(ItemStack stack, int value) { tag(stack).setInteger(POTION_MODE, value); }
 }

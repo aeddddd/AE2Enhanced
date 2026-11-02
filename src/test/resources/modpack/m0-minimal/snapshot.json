@@ -1,0 +1,42 @@
+{
+  "formatVersion": 2,
+  "timestamp": "2026-10-24T00:00:00Z",
+  "mods": {
+    "minecraft": "1.12.2",
+    "ae2enhanced": "m0-l5-fixture-1"
+  },
+  "oreDict": {},
+  "crafting": [
+    {
+      "name": "ae2enhanced:m0_replay_target",
+      "type": "shapeless",
+      "output": { "id": "ae2enhanced:replay_target", "meta": 0, "count": 1 },
+      "slots": [
+        [
+          { "id": "ae2enhanced:replay_intermediate", "meta": 0, "count": 2 }
+        ]
+      ],
+      "returnedSlots": []
+    },
+    {
+      "name": "ae2enhanced:m0_replay_intermediate",
+      "type": "shapeless",
+      "output": { "id": "ae2enhanced:replay_intermediate", "meta": 0, "count": 1 },
+      "slots": [
+        [
+          { "id": "ae2enhanced:replay_raw", "meta": 0, "count": 3 }
+        ]
+      ],
+      "returnedSlots": []
+    }
+  ],
+  "furnace": [],
+  "machines": [],
+  "stats": {
+    "craftingTotal": 2,
+    "craftingUnknown": 0,
+    "furnaceTotal": 0,
+    "machineTotal": 0,
+    "adapters": {}
+  }
+}

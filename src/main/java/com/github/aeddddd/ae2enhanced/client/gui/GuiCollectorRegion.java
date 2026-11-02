@@ -1,9 +1,8 @@
 package com.github.aeddddd.ae2enhanced.client.gui;
 
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
-import com.github.aeddddd.ae2enhanced.config.AE2EnhancedConfig;
+import com.github.aeddddd.ae2enhanced.collector.TileAdvancedMECollector;
 import com.github.aeddddd.ae2enhanced.network.packet.PacketCollectorConfig;
-import com.github.aeddddd.ae2enhanced.tile.TileAdvancedMECollector;
 import net.minecraft.client.gui.GuiButton;
 import net.minecraft.client.gui.GuiScreen;
 import net.minecraft.client.gui.GuiTextField;
@@ -92,8 +91,8 @@ public class GuiCollectorRegion extends GuiScreen {
      * 发送配置到服务端.apply=false 时仅请求重开主 GUI(取消).
      */
     private void sendConfig(boolean apply) {
-        int maxOffset = AE2EnhancedConfig.collector.maxCenterOffset;
-        int maxRange = AE2EnhancedConfig.collector.maxRange;
+        int maxOffset = com.github.aeddddd.ae2enhanced.config.ServerConfig.current().collector.maxCenterOffset;
+        int maxRange = com.github.aeddddd.ae2enhanced.config.ServerConfig.current().collector.maxRange;
         int cx = clamp(parse(centerX, tile.getCenterOffsetX()), -maxOffset, maxOffset);
         int cy = clamp(parse(centerY, tile.getCenterOffsetY()), -maxOffset, maxOffset);
         int cz = clamp(parse(centerZ, tile.getCenterOffsetZ()), -maxOffset, maxOffset);
@@ -176,8 +175,8 @@ public class GuiCollectorRegion extends GuiScreen {
         this.fontRenderer.drawString("Z", panelX + 172, panelY + 28, 0x5555FF);
 
         // 上下限提示
-        int maxOffset = AE2EnhancedConfig.collector.maxCenterOffset;
-        int maxRange = AE2EnhancedConfig.collector.maxRange;
+        int maxOffset = com.github.aeddddd.ae2enhanced.config.ServerConfig.current().collector.maxCenterOffset;
+        int maxRange = com.github.aeddddd.ae2enhanced.config.ServerConfig.current().collector.maxRange;
         String hint = I18n.format("gui.ae2enhanced.advanced_me_collector.region.hint", maxOffset, maxRange);
         this.fontRenderer.drawString(hint, panelX + 12, panelY + 44, 0x606060);
 

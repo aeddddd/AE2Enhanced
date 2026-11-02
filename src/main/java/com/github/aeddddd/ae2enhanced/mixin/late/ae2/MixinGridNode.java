@@ -7,6 +7,8 @@ import appeng.me.pathfinding.IPathItem;
 import appeng.tile.networking.TileController;
 import com.github.aeddddd.ae2enhanced.pathing.GridValidationBatcher;
 import com.github.aeddddd.ae2enhanced.pathing.IEnhancedPathItem;
+import com.llamalad7.mixinextras.injector.wrapmethod.WrapMethod;
+import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
@@ -132,13 +134,24 @@ public abstract class MixinGridNode implements IEnhancedPathItem {
      * destroy() 期间开启分裂检测批处理：配合 MixinGridConnection#ae2enhanced$deferValidation，
      * 将每条连接销毁时的双侧 validateGrid 全图 BFS 推迟到整个节点销毁完成后统一执行。
      */
-    @Inject(method = "destroy", at = @At("HEAD"), remap = false)
-    private void ae2enhanced$beginValidationBatch(CallbackInfo ci) {
+    @WrapMethod(method = "destroy", remap = false)
+    private void ae2enhanced$batchValidation(Operation<Void> original) {
         GridValidationBatcher.begin();
-    }
-
-    @Inject(method = "destroy", at = @At("RETURN"), remap = false)
-    private void ae2enhanced$endValidationBatch(CallbackInfo ci) {
-        GridValidationBatcher.end((GridNode) (Object) this);
+        Throwable failure = null;
+        try {
+            original.call();
+        } catch (RuntimeException | Error exception) {
+            failure = exception;
+            throw exception;
+        } finally {
+            try {
+                GridValidationBatcher.end((GridNode) (Object) this);
+            } catch (RuntimeException | Error endFailure) {
+                if (failure == null) {
+                    throw endFailure;
+                }
+                failure.addSuppressed(endFailure);
+            }
+        }
     }
 }

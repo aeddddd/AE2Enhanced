@@ -2,8 +2,8 @@ package com.github.aeddddd.ae2enhanced.container;
 
 import appeng.util.Platform;
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
-import com.github.aeddddd.ae2enhanced.network.packet.PacketChunkPowerNodeSync;
 import com.github.aeddddd.ae2enhanced.tile.TileChunkPowerNode;
+import com.github.aeddddd.ae2enhanced.tile.packet.PacketChunkPowerNodeSync;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.entity.player.EntityPlayerMP;
 import net.minecraft.entity.player.InventoryPlayer;

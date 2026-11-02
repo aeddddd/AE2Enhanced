@@ -1,6 +1,6 @@
 package com.github.aeddddd.ae2enhanced.dimension;
 
-import com.github.aeddddd.ae2enhanced.config.AE2EnhancedConfig;
+import com.github.aeddddd.ae2enhanced.config.ServerConfig;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.entity.EnumCreatureType;
 import net.minecraft.init.Blocks;
@@ -20,13 +20,11 @@ import java.util.List;
 public class ChunkGeneratorPersonalDim implements IChunkGenerator {
 
     private final World world;
-    private final FloorPreset preset;
     private final int floorY;
 
     public ChunkGeneratorPersonalDim(World world) {
         this.world = world;
-        this.preset = PresetLoader.getPreset();
-        this.floorY = AE2EnhancedConfig.personalDimension.floorY;
+        this.floorY = ServerConfig.current().personalDimension.floorY;
     }
 
     @Override
@@ -34,19 +32,14 @@ public class ChunkGeneratorPersonalDim implements IChunkGenerator {
         ChunkPrimer primer = new ChunkPrimer();
         int baseX = x << 4;
         int baseZ = z << 4;
-        IBlockState bedrock = Blocks.BEDROCK.getDefaultState();
+        FloorPreset preset = PersonalDimensionManager.getFloorPreset(world.provider.getDimension());
         for (int lx = 0; lx < 16; lx++) {
             for (int lz = 0; lz < 16; lz++) {
                 int worldX = baseX + lx;
                 int worldZ = baseZ + lz;
                 IBlockState state = preset.getState(worldX, worldZ);
-                if (state == null) {
-                    state = bedrock;
-                }
-                primer.setBlockState(lx, floorY, lz, state);
-                // 在地板下方生成 2 层基岩，防止玩家意外破坏地板后坠入虚空
-                for (int by = 1; by <= 2 && floorY - by >= 0; by++) {
-                    primer.setBlockState(lx, floorY - by, lz, bedrock);
+                if (state != null) {
+                    primer.setBlockState(lx, floorY, lz, state);
                 }
             }
         }

@@ -1,8 +1,8 @@
 package com.github.aeddddd.ae2enhanced.item;
 
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
-import com.github.aeddddd.ae2enhanced.config.AE2EnhancedConfig;
-import com.github.aeddddd.ae2enhanced.registry.content.ItemRegistry;
+import com.github.aeddddd.ae2enhanced.config.ServerConfig;
+import com.github.aeddddd.ae2enhanced.item.ItemRegistry;
 import net.minecraft.client.resources.I18n;
 import net.minecraft.client.util.ITooltipFlag;
 import net.minecraft.creativetab.CreativeTabs;
@@ -141,6 +141,6 @@ public class ItemVirtualParallelCard extends Item {
         }
         tooltip.add(I18n.format("item.ae2enhanced.virtual_parallel_card.tooltip.parallel", parallelText));
         tooltip.add(I18n.format("item.ae2enhanced.virtual_parallel_card.tooltip.detail",
-                AE2EnhancedConfig.centralInterface.virtualParallelEnergyCost));
+                ServerConfig.current().centralInterface.virtualParallelEnergyCost));
     }
 }

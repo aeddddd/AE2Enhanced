@@ -5,12 +5,10 @@ import com.github.aeddddd.ae2enhanced.container.ContainerSmartPatternInterface;
 import com.github.aeddddd.ae2enhanced.crafting.smartpattern.SmartPatternData;
 import com.github.aeddddd.ae2enhanced.item.ItemSmartBlankPattern;
 import com.github.aeddddd.ae2enhanced.item.ItemSmartPattern;
-import com.github.aeddddd.ae2enhanced.network.packet.PacketSmartPatternEncode;
+import com.github.aeddddd.ae2enhanced.network.packet.PacketSmartPatternEdit;
 import com.github.aeddddd.ae2enhanced.network.packet.PacketSmartPatternMiniGuiScroll;
 import com.github.aeddddd.ae2enhanced.network.packet.PacketSmartPatternModify;
-import com.github.aeddddd.ae2enhanced.network.packet.PacketSmartPatternReplace;
 import com.github.aeddddd.ae2enhanced.network.packet.PacketSmartPatternScroll;
-import com.github.aeddddd.ae2enhanced.network.packet.PacketSmartPatternToggle;
 import com.github.aeddddd.ae2enhanced.tile.TileSmartPatternInterface;
 import net.minecraft.client.gui.inventory.GuiContainer;
 import net.minecraft.client.renderer.GlStateManager;
@@ -580,7 +578,8 @@ public class GuiSmartPatternInterface extends GuiContainer {
                         && !tile.getInventory().getStackInSlot(0).isEmpty()
                         && tile.getInventory().getStackInSlot(0).getItem() instanceof ItemSmartBlankPattern;
                 if (canUpdate || canCreate) {
-                    AE2Enhanced.network.sendToServer(new PacketSmartPatternEncode(tile.getPos()));
+                    AE2Enhanced.network.sendToServer(new PacketSmartPatternEdit(
+                            tile.getPos(), tile.getPatternRevision(), "encode"));
                 }
             }
             return;
@@ -588,7 +587,7 @@ public class GuiSmartPatternInterface extends GuiContainer {
 
         // 添加新配方按钮
         if (mouseButton == 0 && isInAddButton(relX, relY) && tile.getPatternData() != null) {
-            AE2Enhanced.network.sendToServer(new PacketSmartPatternModify(tile.getPos(), "addRecipe"));
+            AE2Enhanced.network.sendToServer(new PacketSmartPatternEdit(tile.getPos(), tile.getPatternRevision(), "addRecipe"));
             return;
         }
 
@@ -600,13 +599,14 @@ public class GuiSmartPatternInterface extends GuiContainer {
             boolean locked = tile.getLockedRecipeIndex() >= 0;
             if (!locked) return;
             String action = SMALL_BTN_ACTIONS[row][col];
-            AE2Enhanced.network.sendToServer(new PacketSmartPatternModify(tile.getPos(), action));
+            AE2Enhanced.network.sendToServer(new PacketSmartPatternEdit(
+                    tile.getPos(), tile.getPatternRevision(), action));
             return;
         }
 
         // 删除已禁用配方按钮
         if (mouseButton == 0 && isInDeleteDisabledButton(relX, relY)) {
-            AE2Enhanced.network.sendToServer(new PacketSmartPatternModify(tile.getPos(), "deleteDisabled"));
+            AE2Enhanced.network.sendToServer(new PacketSmartPatternEdit(tile.getPos(), tile.getPatternRevision(), "deleteDisabled"));
             return;
         }
 
@@ -639,14 +639,18 @@ public class GuiSmartPatternInterface extends GuiContainer {
             ItemStack from = tile.getReplaceInventory().getStackInSlot(0);
             ItemStack to = tile.getReplaceInventory().getStackInSlot(1);
             if (!from.isEmpty()) {
-                AE2Enhanced.network.sendToServer(new PacketSmartPatternReplace(tile.getPos(), from, to));
+                net.minecraft.nbt.NBTTagCompound payload = new net.minecraft.nbt.NBTTagCompound();
+                payload.setTag("from", from.writeToNBT(new net.minecraft.nbt.NBTTagCompound()));
+                payload.setTag("to", to.writeToNBT(new net.minecraft.nbt.NBTTagCompound()));
+                AE2Enhanced.network.sendToServer(new PacketSmartPatternEdit(
+                        tile.getPos(), tile.getPatternRevision(), "replace", payload));
             }
             return;
         }
 
         // 底部 X 保留主产物按钮
         if (mouseButton == 0 && isInKeepButton(relX, relY) && tile.getLockedRecipeIndex() >= 0) {
-            AE2Enhanced.network.sendToServer(new PacketSmartPatternModify(tile.getPos(), "keepPrimary"));
+            AE2Enhanced.network.sendToServer(new PacketSmartPatternEdit(tile.getPos(), tile.getPatternRevision(), "keepPrimary"));
             return;
         }
 
@@ -674,7 +678,10 @@ public class GuiSmartPatternInterface extends GuiContainer {
                         AE2Enhanced.network.sendToServer(new PacketSmartPatternModify(tile.getPos(), "lock", sortedIndex));
                     }
                 } else {
-                    AE2Enhanced.network.sendToServer(new PacketSmartPatternToggle(tile.getPos(), sortedIndex));
+                    net.minecraft.nbt.NBTTagCompound payload = new net.minecraft.nbt.NBTTagCompound();
+                    payload.setInteger("recipeIndex", sortedIndex);
+                    AE2Enhanced.network.sendToServer(new PacketSmartPatternEdit(
+                            tile.getPos(), tile.getPatternRevision(), "toggle", payload));
                 }
                 flashSlot = clickedSlot;
                 flashTicks = FLASH_DURATION;

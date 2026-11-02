@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.File;
 
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import com.github.aeddddd.ae2enhanced.specialcrafting.lp.LpModel;
@@ -16,9 +17,10 @@ import com.github.aeddddd.ae2enhanced.specialcrafting.lp.RevisedSimplex;
  * 本测试逐字节回放同一份模型复现数值缺陷(无需游戏环境).
  * <p>除 OPTIMAL 状态外,按 Fuzz 同款口径校验解的约束残差 Ax≈b 与界内
  * (真实故障转储的残差校验价值高于合成模型).</p>
- * <p>用法:{code ./gradlew test --tests LpModelReplayTest -Dae2e.lpdump.dir=<目录>};
- * 未指定目录时跳过.</p>
+ * <p>用法:{code ./gradlew test -PtestIncludeTags=replay --tests LpModelReplayTest
+ * -Dae2e.lpdump.dir=<目录>};未指定目录时跳过.</p>
  */
+@Tag("replay")
 public class LpModelReplayTest {
 
     private static final double FEAS_TOL = 1e-7;

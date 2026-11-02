@@ -21,6 +21,8 @@ public class PlayerDimEntry {
     public double returnX, returnY, returnZ;
     public float returnYaw, returnPitch;
     public boolean hasReturnPoint = false;
+    public FloorDefinition floor = new FloorDefinition();
+    public NBTTagCompound floorTask = new NBTTagCompound();
 
     /**
      * 组队白名单：被邀请进入该维度（拥有完整建造/交互能力）的其他玩家 UUID。
@@ -44,6 +46,8 @@ public class PlayerDimEntry {
         tag.setFloat("returnYaw", returnYaw);
         tag.setFloat("returnPitch", returnPitch);
         tag.setBoolean("hasReturnPoint", hasReturnPoint);
+        tag.setTag("floor", floor.writeToNBT());
+        tag.setTag("floorTask", floorTask.copy());
 
         NBTTagList allowed = new NBTTagList();
         for (UUID id : allowedPlayers) {
@@ -82,6 +86,8 @@ public class PlayerDimEntry {
         returnYaw = tag.getFloat("returnYaw");
         returnPitch = tag.getFloat("returnPitch");
         hasReturnPoint = tag.getBoolean("hasReturnPoint");
+        floor.readFromNBT(tag.getCompoundTag("floor"));
+        floorTask = tag.getCompoundTag("floorTask").copy();
 
         allowedPlayers.clear();
         if (tag.hasKey("allowedPlayers", 9)) {
@@ -104,7 +110,9 @@ public class PlayerDimEntry {
         return dimensionId == Integer.MIN_VALUE
                 && allowedPlayers.isEmpty()
                 && !hasReturnPoint
-                && rules.isDefault();
+                && rules.isDefault()
+                && floor.getRevision() == 0L
+                && floorTask.getKeySet().isEmpty();
     }
 
     /**

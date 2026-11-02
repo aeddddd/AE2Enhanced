@@ -1,26 +1,10 @@
 package com.github.aeddddd.ae2enhanced.centralinterface.machine;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyBoolean;
-import static org.mockito.ArgumentMatchers.anyInt;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
-
-import java.util.Collections;
-import java.util.List;
-
-import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-
 import com.github.aeddddd.ae2enhanced.centralinterface.DualityCentralInterface;
 import com.github.aeddddd.ae2enhanced.centralinterface.TargetBinding;
-import com.github.aeddddd.ae2enhanced.centralinterface.TargetOwnershipTracker;
 import com.github.aeddddd.ae2enhanced.centralinterface.TargetSession;
 import com.github.aeddddd.ae2enhanced.test.util.AE2TestBootstrap;
 import com.github.aeddddd.ae2enhanced.test.util.FakeItemHandler;
-
 import net.minecraft.init.Items;
 import net.minecraft.inventory.Container;
 import net.minecraft.inventory.InventoryCrafting;
@@ -29,6 +13,17 @@ import net.minecraft.util.EnumFacing;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
 import net.minecraftforge.items.IItemHandler;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+
+import java.util.Collections;
+import java.util.List;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /**
  * 物理推料台账（{@link PushLedger}）与台账口径回退测试.
@@ -50,7 +45,14 @@ public class PushLedgerTest {
 
     @BeforeEach
     public void setUp() {
-        TargetOwnershipTracker.resetForTesting();
+        com.github.aeddddd.ae2enhanced.runtime.RuntimeScopes.startServer();
+    }
+
+    @org.junit.jupiter.api.AfterEach
+    public void tearDown() {
+        com.github.aeddddd.ae2enhanced.runtime.RuntimeScopes.stopServer();
+        com.github.aeddddd.ae2enhanced.runtime.RuntimeScopes.closeServer();
+        com.github.aeddddd.ae2enhanced.runtime.RuntimeScopes.releaseServer();
     }
 
     private static ISlotCatalog inputCatalog(IItemHandler handler, SlotRole role) {

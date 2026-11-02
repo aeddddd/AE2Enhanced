@@ -31,16 +31,23 @@ public class OmniTerminalData extends WorldSavedData {
         super(name);
     }
 
+    private static final int ROOT_VERSION = 1;
+
     private final Map<UUID, OmniTerminalStorage> storages = new HashMap<>();
+    private final Map<UUID, NBTTagCompound> rawEntries = new HashMap<>();
+    private NBTTagCompound preservedRoot;
 
     @Override
     public void readFromNBT(NBTTagCompound nbt) {
+        preservedRoot = nbt.copy();
         storages.clear();
+        rawEntries.clear();
         NBTTagList list = nbt.getTagList("storages", Constants.NBT.TAG_COMPOUND);
         for (int i = 0; i < list.tagCount(); i++) {
             NBTTagCompound entry = list.getCompoundTagAt(i);
             UUID id = entry.getUniqueId("id");
-            OmniTerminalStorage storage = new OmniTerminalStorage();
+            rawEntries.put(id, entry.copy());
+            OmniTerminalStorage storage = new OmniTerminalStorage(this::markDirty);
             storage.readFromNBT(entry.getCompoundTag("data"));
             storages.put(id, storage);
         }
@@ -48,15 +55,19 @@ public class OmniTerminalData extends WorldSavedData {
 
     @Override
     public NBTTagCompound writeToNBT(NBTTagCompound compound) {
+        compound.setInteger("rootVersion", ROOT_VERSION);
         NBTTagList list = new NBTTagList();
         for (Map.Entry<UUID, OmniTerminalStorage> e : storages.entrySet()) {
             NBTTagCompound entry = new NBTTagCompound();
             entry.setUniqueId("id", e.getKey());
             entry.setTag("data", e.getValue().writeToNBT(new NBTTagCompound()));
+            entry = PreservedNbt.mergeRoot(entry, rawEntries.get(e.getKey()),
+                    new java.util.HashSet<>(java.util.Arrays.asList("idMost", "idLeast", "data")));
             list.appendTag(entry);
         }
         compound.setTag("storages", list);
-        return compound;
+        return PreservedNbt.mergeRoot(compound, preservedRoot,
+                new java.util.HashSet<>(java.util.Arrays.asList("rootVersion", "storages")));
     }
 
     /**
@@ -65,7 +76,7 @@ public class OmniTerminalData extends WorldSavedData {
     public OmniTerminalStorage getOrCreate(UUID id) {
         OmniTerminalStorage storage = storages.get(id);
         if (storage == null) {
-            storage = new OmniTerminalStorage();
+            storage = new OmniTerminalStorage(this::markDirty);
             storages.put(id, storage);
             markDirty();
         }

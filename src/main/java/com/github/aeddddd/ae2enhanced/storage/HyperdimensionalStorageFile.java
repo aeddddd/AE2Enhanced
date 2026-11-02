@@ -2,7 +2,10 @@ package com.github.aeddddd.ae2enhanced.storage;
 
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
 import com.github.aeddddd.ae2enhanced.config.AE2EnhancedConfig;
-import com.github.aeddddd.ae2enhanced.storage.codec.*;
+import com.github.aeddddd.ae2enhanced.storage.codec.DescriptorCodec;
+import com.github.aeddddd.ae2enhanced.storage.codec.EnergyDescriptorCodec;
+import com.github.aeddddd.ae2enhanced.storage.codec.FluidDescriptorCodec;
+import com.github.aeddddd.ae2enhanced.storage.codec.ItemDescriptorCodec;
 import net.minecraft.nbt.CompressedStreamTools;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.nbt.NBTTagList;
@@ -15,20 +18,10 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.TimeUnit;
+import java.util.*;
+import java.util.concurrent.*;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.function.Supplier;
 import java.util.zip.CRC32;
 
 /**
@@ -112,11 +105,26 @@ public class HyperdimensionalStorageFile {
             return t;
         });
 
+    private static final long DEFAULT_CLOSE_TIMEOUT_MS = TimeUnit.MINUTES.toMillis(5);
+
     private final UUID nexusId;
     private final File baseDir;
     private final File oldFile;
+    private final ScheduledExecutorService flushExecutor;
+    private final HyperdimensionalStorageTestHooks testHooks;
+    private final long closeTimeoutMs;
     private final ScheduledFuture<?> flushTask;
     private volatile boolean closed = false;
+    private final Object closeStateLock = new Object();
+    private final Object ioScheduleLock = new Object();
+    private final List<IoCompletion> pendingCompletions = new ArrayList<>();
+    private volatile boolean closeBlocked = false;
+    private volatile CloseResult lastCloseResult;
+    private boolean ioQueued;
+    private boolean ioRunning;
+    private boolean loadRequested;
+    private boolean flushRequested;
+    private boolean forceFlushRequested;
     // 全局安全模式：仅迁移失败等无法定位到具体分区的加载失败才置位
     private volatile boolean safeMode = false;
     /** 加载失败的分区集合：对应分区拒绝注入/提取，base/WAL 都不会被覆写 */
@@ -139,6 +147,7 @@ public class HyperdimensionalStorageFile {
     private boolean loadRegistrationClosed = false;
     private volatile boolean loadScheduled = false;
     private volatile boolean loadFinished = false;
+    private volatile boolean loadFailed = false;
 
     private static final class LoadRegistration {
         final SectionIO section;
@@ -178,112 +187,17 @@ public class HyperdimensionalStorageFile {
         }
     }
 
-    /** 序列化按帧切片，避免单帧超过 WAL 帧上限（大批量同 tick 变更场景） */
-    private static final int WAL_BATCH_TARGET_BYTES = 8 * 1024 * 1024;
-
-    private static final class SectionIO {
-        final StorageSection section;
-        final File baseFile;
-        final File walFile;
-        /** 无条件分区为 DescriptorCodec 实例；条件分区为反射加载的 codec 单例 */
-        final Object codec;
-        /** 条件分区的反射方法（init 时缓存，避免每次读写 getMethod） */
-        final java.lang.reflect.Method reflectRead;
-        final java.lang.reflect.Method reflectWrite;
-        /** 变更缓冲锁：pending 与 mutationRev 的访问均在此锁下 */
-        final ReentrantLock mutationLock = new ReentrantLock();
-
-        /** 权威数据 Map（由对应 adapter 持有，setXxxStorageRef 注入） */
-        volatile Map<Object, HugeCount> dataRef;
-        /** base 文件在条目循环中途截断/损坏（头部完好）：触发挽救流程（保留完整条目 + WAL 重放 + 隔离重建） */
-        volatile boolean salvagedCorruptBase = false;
-        /** WAL 待写缓冲：绝对值 last-wins 合并 */
-        final Map<Object, WalVal> pending = new LinkedHashMap<>();
-        /** 变更修订号（mutationLock 下递增；volatile 供快照无锁读取） */
-        volatile long mutationRev;
-        /** 已固入 base 的修订号 */
-        volatile long checkpointRev;
-        /** 该分区最近一次变更时间（空闲 checkpoint 判定用；分区级，避免热点分区饿死安静分区） */
-        volatile long lastMutationNanos = Long.MIN_VALUE;
-        /** 连续瞬时 WAL 写失败次数（退避用；瞬时故障不进安全模式） */
-        int walFailures;
-        /** 瞬时失败后下一次允许重试的时间（System.nanoTime 域） */
-        long nextRetryNanos;
-        /** WAL 输出流（跨 tick 保持打开，批量后 flush+force；仅在 IO 线程访问） */
-        DataOutputStream walOut;
-        FileOutputStream walFileOut;
-
-        SectionIO(StorageSection section, File baseFile, File walFile, Object codec,
-                  java.lang.reflect.Method reflectRead, java.lang.reflect.Method reflectWrite) {
-            this.section = section;
-            this.baseFile = baseFile;
-            this.walFile = walFile;
-            this.codec = codec;
-            this.reflectRead = reflectRead;
-            this.reflectWrite = reflectWrite;
-        }
-
-        boolean available() {
-            return baseFile != null && codec != null;
-        }
-
-        boolean isDirty() {
-            return checkpointRev != mutationRev || hasPending();
-        }
-
-        boolean hasPending() {
-            mutationLock.lock();
-            try {
-                return !pending.isEmpty();
-            } finally {
-                mutationLock.unlock();
-            }
-        }
-
-        void writeDescriptor(DataOutput out, Object descriptor) throws IOException {
-            if (reflectWrite == null) {
-                @SuppressWarnings({"unchecked", "rawtypes"})
-                DescriptorCodec typed = (DescriptorCodec) codec;
-                typed.write(out, (Descriptor) descriptor);
-            } else {
-                try {
-                    reflectWrite.invoke(codec, out, descriptor);
-                } catch (ReflectiveOperationException e) {
-                    throw new IOException("反射 codec 写入失败: " + section, e);
-                }
-            }
-        }
-
-        Object readDescriptor(DataInput in) throws IOException {
-            if (reflectRead == null) {
-                @SuppressWarnings({"unchecked", "rawtypes"})
-                DescriptorCodec typed = (DescriptorCodec) codec;
-                return typed.read(in);
-            }
-            try {
-                return reflectRead.invoke(codec, in);
-            } catch (ReflectiveOperationException e) {
-                throw new IOException("反射 codec 读取失败: " + section, e);
-            }
-        }
-    }
-
-    private final SectionIO itemSection;
-    private final SectionIO fluidSection;
-    private final SectionIO energySection;
-    private SectionIO gasSection;
-    private SectionIO essentiaSection;
-    private SectionIO manaSection;
-    private SectionIO starlightSection;
-    private final List<SectionIO> allSections = new ArrayList<>();
-
-    public HyperdimensionalStorageFile(World world, UUID nexusId) {
-        this(world.getSaveHandler().getWorldDirectory(), nexusId);
-    }
-
     /** 直接以世界目录构造（便于无头测试与服务器级注册表复用）。 */
     public HyperdimensionalStorageFile(File worldDir, UUID nexusId) {
+        this(worldDir, nexusId, FLUSH_EXECUTOR, HyperdimensionalStorageTestHooks.NONE, DEFAULT_CLOSE_TIMEOUT_MS);
+    }
+
+    HyperdimensionalStorageFile(File worldDir, UUID nexusId, ScheduledExecutorService flushExecutor,
+                                HyperdimensionalStorageTestHooks testHooks, long closeTimeoutMs) {
         this.nexusId = nexusId;
+        this.flushExecutor = flushExecutor;
+        this.testHooks = testHooks;
+        this.closeTimeoutMs = closeTimeoutMs;
         File storageDir = new File(worldDir, "ae2enhanced/storage");
         if (!storageDir.exists() && !storageDir.mkdirs()) {
             AE2Enhanced.LOGGER.warn("Failed to create storage directory: {}", storageDir.getAbsolutePath());
@@ -317,8 +231,79 @@ public class HyperdimensionalStorageFile {
             migrateFromOldFormat();
         }
 
-        int flushInterval = AE2EnhancedConfig.storage.flushIntervalSeconds;
-        this.flushTask = FLUSH_EXECUTOR.scheduleWithFixedDelay(this::periodicFlush, flushInterval, flushInterval, TimeUnit.SECONDS);
+        int flushInterval = com.github.aeddddd.ae2enhanced.config.ServerConfig.current().storage.flushIntervalSeconds;
+        this.flushTask = flushExecutor.scheduleWithFixedDelay(this::periodicFlush, flushInterval, flushInterval, TimeUnit.SECONDS);
+    }
+
+    /** 序列化按帧切片，避免单帧超过 WAL 帧上限（大批量同 tick 变更场景） */
+    private static final int WAL_BATCH_TARGET_BYTES = 8 * 1024 * 1024;
+
+    /**
+     * 关闭加载注册并把首次全量读提交到 FLUSH_EXECUTOR 异步执行（幂等）.
+     * 必须在全部 adapter 构造（注册目标 Map）完成之后调用。
+     */
+    public void beginLoad() {
+        synchronized (loadRegistrations) {
+            loadRegistrationClosed = true;
+            if (loadScheduled) return;
+            loadScheduled = true;
+        }
+        synchronized (ioScheduleLock) {
+            loadRequested = true;
+            ensureIoTaskLocked();
+        }
+    }
+
+    private final SectionIO itemSection;
+    private final SectionIO fluidSection;
+    private final SectionIO energySection;
+    private SectionIO gasSection;
+    private SectionIO essentiaSection;
+    private SectionIO manaSection;
+    private SectionIO starlightSection;
+    private final List<SectionIO> allSections = new ArrayList<>();
+
+    public HyperdimensionalStorageFile(World world, UUID nexusId) {
+        this(world.getSaveHandler().getWorldDirectory(), nexusId);
+    }
+
+    /** 首加载任务（IO 线程）：逐分区读 base + 回放 WAL，再执行 postLoad 钩子。 */
+    private void performLoad() {
+        List<LoadRegistration> regs;
+        synchronized (loadRegistrations) {
+            regs = new ArrayList<>(loadRegistrations);
+        }
+        try {
+            for (LoadRegistration reg : regs) {
+                doLoadSection(reg.section, reg.target);
+            }
+            List<Runnable> hooks;
+            synchronized (loadRegistrations) {
+                hooks = new ArrayList<>(postLoadHooks);
+            }
+            for (Runnable hook : hooks) {
+                try {
+                    hook.run();
+                } catch (Throwable t) {
+                    AE2Enhanced.LOGGER.error("[AE2E] postLoad 钩子执行失败: {}", nexusId, t);
+                }
+            }
+        } catch (Throwable t) {
+            // 加载任务整体异常：已注册分区全部置安全模式（只读保护），闩锁照常放行避免永久挂起
+            AE2Enhanced.LOGGER.error("[AE2E] 首加载任务异常终止: {}", nexusId, t);
+            for (LoadRegistration reg : regs) {
+                markSectionFailed(reg.section.section);
+            }
+        } finally {
+            loadFailed = isSafeMode();
+            loadFinished = true;
+            loadLatch.countDown();
+        }
+    }
+
+    /** 挽救路径专用：尽快在 IO 线程固化一次 checkpoint（不等待空闲窗口）。 */
+    private void scheduleSalvageCheckpoint(SectionIO io) {
+        requestIoFlush(true, null);
     }
 
     private void initConditionalCodecs() {
@@ -423,55 +408,31 @@ public class HyperdimensionalStorageFile {
         }
     }
 
-    /**
-     * 关闭加载注册并把首次全量读提交到 FLUSH_EXECUTOR 异步执行（幂等）.
-     * 必须在全部 adapter 构造（注册目标 Map）完成之后调用。
-     */
-    public void beginLoad() {
-        synchronized (loadRegistrations) {
-            loadRegistrationClosed = true;
-            if (loadScheduled) return;
-            loadScheduled = true;
+    /** 读取条目的描述符（带长度上界校验，防止损坏文件触发巨额分配 OOM）。
+     *  注意 len == 0 是合法编码：Energy/Mana/Starlight 等单例描述符无字段,codec 不写任何字节。 */
+    private Object readDescriptorEntry(SectionIO section, DataInputStream in) throws IOException {
+        int len = in.readInt();
+        if (len < 0 || len > StorageConstants.MAX_ENTRY_BYTES) {
+            throw new IOException("描述符长度越界: " + len + " (" + section.section + ")");
         }
-        try {
-            FLUSH_EXECUTOR.submit(this::performLoad);
-        } catch (RuntimeException e) {
-            // executor 不可用等极端场景：当前线程同步加载，保证不丢数据
-            AE2Enhanced.LOGGER.warn("[AE2E] 异步加载提交失败，当前线程直接加载: {}", nexusId, e);
-            performLoad();
+        byte[] bytes = new byte[len];
+        in.readFully(bytes);
+        try (DataInputStream descIn = new DataInputStream(new ByteArrayInputStream(bytes))) {
+            Object descriptor = section.readDescriptor(descIn);
+            return descriptor != null ? descriptor : new PreservedDescriptor(bytes);
         }
     }
 
-    /** 首加载任务（IO 线程）：逐分区读 base + 回放 WAL，再执行 postLoad 钩子。 */
-    private void performLoad() {
-        List<LoadRegistration> regs;
-        synchronized (loadRegistrations) {
-            regs = new ArrayList<>(loadRegistrations);
-        }
+    /** 首加载等待必须在分区锁之前完成；回调内完成 Map、索引、总数与 WAL 的同一提交。 */
+    public <R> R mutateAtomically(StorageSection section, Supplier<R> mutation) {
+        awaitLoaded();
+        SectionIO io = sectionFor(section);
+        if (io == null || !io.available()) return mutation.get();
+        io.mutationLock.lock();
         try {
-            for (LoadRegistration reg : regs) {
-                doLoadSection(reg.section, reg.target);
-            }
-            List<Runnable> hooks;
-            synchronized (loadRegistrations) {
-                hooks = new ArrayList<>(postLoadHooks);
-            }
-            for (Runnable hook : hooks) {
-                try {
-                    hook.run();
-                } catch (Throwable t) {
-                    AE2Enhanced.LOGGER.error("[AE2E] postLoad 钩子执行失败: {}", nexusId, t);
-                }
-            }
-        } catch (Throwable t) {
-            // 加载任务整体异常：已注册分区全部置安全模式（只读保护），闩锁照常放行避免永久挂起
-            AE2Enhanced.LOGGER.error("[AE2E] 首加载任务异常终止: {}", nexusId, t);
-            for (LoadRegistration reg : regs) {
-                markSectionFailed(reg.section.section);
-            }
+            return mutation.get();
         } finally {
-            loadFinished = true;
-            loadLatch.countDown();
+            io.mutationLock.unlock();
         }
     }
 
@@ -522,28 +483,12 @@ public class HyperdimensionalStorageFile {
         }
     }
 
-    /** 挽救路径专用：尽快在 IO 线程固化一次 checkpoint（不等待空闲窗口）。 */
-    private void scheduleSalvageCheckpoint(SectionIO io) {
-        try {
-            FLUSH_EXECUTOR.submit(() -> {
-                try {
-                    writeWalBatches(drainAllPending());
-                    if (!failedSections.contains(io.section)) {
-                        checkpointSection(io, true);
-                        if (io.checkpointRev == io.mutationRev
-                                && io.walFile.exists() && io.walFile.length() > 0) {
-                            truncateWal(io);
-                        }
-                        AE2Enhanced.LOGGER.warn("[AE2E] {} 分区挽救完成：已基于 {} 条完整条目重建 base。",
-                            io.section, io.dataRef != null ? io.dataRef.size() : 0);
-                    }
-                } catch (Throwable t) {
-                    AE2Enhanced.LOGGER.error("[AE2E] {} 挽救性 checkpoint 失败: {}", io.section, io.baseFile, t);
-                }
-            });
-        } catch (RuntimeException e) {
-            AE2Enhanced.LOGGER.error("[AE2E] 挽救性 checkpoint 提交失败: {}", io.section, e);
-        }
+    /** 保留旧入口；新 adapter 必须走 mutateAtomically + recordChangeLocked。 */
+    public void recordChange(StorageSection section, Object descriptor, HugeCount newCount) {
+        mutateAtomically(section, () -> {
+            recordChangeLocked(section, descriptor, newCount);
+            return null;
+        });
     }
 
     /**
@@ -723,18 +668,25 @@ public class HyperdimensionalStorageFile {
         return 0L;
     }
 
-    /** 读取条目的描述符（带长度上界校验，防止损坏文件触发巨额分配 OOM）。
-     *  注意 len == 0 是合法编码：Energy/Mana/Starlight 等单例描述符无字段,codec 不写任何字节。 */
-    private Object readDescriptorEntry(SectionIO section, DataInputStream in) throws IOException {
-        int len = in.readInt();
-        if (len < 0 || len > StorageConstants.MAX_ENTRY_BYTES) {
-            throw new IOException("描述符长度越界: " + len + " (" + section.section + ")");
+    public void recordChangeLocked(StorageSection section, Object descriptor, HugeCount newCount) {
+        SectionIO io = sectionFor(section);
+        if (io == null || !io.available()) return;
+        if (!io.mutationLock.isHeldByCurrentThread()) {
+            throw new IllegalStateException("WAL 绝对值必须与 Map mutation 持有同一分区锁");
         }
-        byte[] bytes = new byte[len];
-        in.readFully(bytes);
-        try (DataInputStream descIn = new DataInputStream(new ByteArrayInputStream(bytes))) {
-            return section.readDescriptor(descIn);
+        if (closed || closeBlocked) {
+            if (!closeLogged) {
+                closeLogged = true;
+                AE2Enhanced.LOGGER.warn("[AE2E] nexus {} 关闭中或已隔离，拒绝新的变更记录", nexusId);
+            }
+            return;
         }
+        if (failedSections.contains(section)) return;
+        long rev = ++io.mutationRev;
+        if (!io.pending.containsKey(descriptor)) pendingTotal++;
+        io.pending.put(descriptor, new WalVal(newCount, rev));
+        io.lastMutationNanos = System.nanoTime();
+        lastMutationNanos = System.nanoTime();
     }
 
     private HugeCount readCount(DataInputStream in) throws IOException {
@@ -750,79 +702,121 @@ public class HyperdimensionalStorageFile {
 
     // ---- 变更记录（adapter 在 MODULATE 路径调用） ----
 
-    /**
-     * 记录一次数量变更（绝对值语义，last-wins 合并）.
-     * 必须在 adapter 修改权威 Map 之后调用；count 为 ZERO 表示该 key 已删除。
-     */
-    public void recordChange(StorageSection section, Object descriptor, HugeCount newCount) {
-        if (closed) {
-            if (!closeLogged) {
-                closeLogged = true;
-                AE2Enhanced.LOGGER.warn("[AE2E] nexus {} 已关闭后仍收到变更记录，数据将只留在内存", nexusId);
+    /** 主线程 tick 只标记待冲刷；执行中或已排队时不会重复 submit。 */
+    public void onServerTick() {
+        if (closed || closeBlocked || pendingTotal == 0) return;
+        requestIoFlush(false, null);
+    }
+
+    private void requestIoFlush(boolean force, IoCompletion completion) {
+        synchronized (ioScheduleLock) {
+            flushRequested = true;
+            forceFlushRequested |= force;
+            if (completion != null && !pendingCompletions.contains(completion)) {
+                pendingCompletions.add(completion);
             }
-            return;
+            ensureIoTaskLocked();
         }
-        awaitLoaded(); // 首加载完成前不记录变更（revision 依赖 WAL 回放结果）
-        SectionIO io = sectionFor(section);
-        if (io == null || !io.available()) return;
-        // 纵深防御：adapter 层 safe mode 已拒绝存取；此处再兜底，防止失败分区 pending 无界增长
-        if (failedSections.contains(section)) return;
-        io.mutationLock.lock();
+    }
+
+    private void ensureIoTaskLocked() {
+        if (ioQueued || ioRunning) return;
+        ioQueued = true;
         try {
-            long rev = ++io.mutationRev;
-            io.pending.put(descriptor, new WalVal(newCount, rev));
-            pendingTotal++;
-            io.lastMutationNanos = System.nanoTime();
-        } finally {
-            io.mutationLock.unlock();
+            flushExecutor.submit(this::runMergedIo);
+        } catch (RuntimeException e) {
+            ioQueued = false;
+            AE2Enhanced.LOGGER.error("[AE2E] IO 周期提交失败（下轮重试）: {}", nexusId, e);
+            for (IoCompletion completion : pendingCompletions) {
+                completion.submissionFailed();
+            }
+            pendingCompletions.clear();
+            if (loadRequested) {
+                loadRequested = false;
+                for (SectionIO io : allSections) markSectionFailed(io.section);
+                loadFailed = true;
+                loadFinished = true;
+                loadLatch.countDown();
+            }
         }
-        lastMutationNanos = System.nanoTime();
     }
 
     // ---- IO 周期（全部文件 IO 在 FLUSH_EXECUTOR 串行执行） ----
 
-    /**
-     * 主线程每 tick 调用（由控制器 update() 驱动）：有待写变更时提交一次 IO 周期。
-     * WAL 随 tick 落盘，耐久窗口约 1 tick（+OS 页面缓存）。
-     */
-    public void onServerTick() {
-        if (closed || pendingTotal == 0) return;
-        submitIoCycle();
-    }
-
-    private void submitIoCycle() {
-        try {
-            FLUSH_EXECUTOR.submit(this::ioCycle);
-        } catch (RuntimeException e) {
-            AE2Enhanced.LOGGER.error("[AE2E] IO 周期提交失败（下轮重试）: {}", nexusId, e);
-        }
-    }
-
-    /** 周期兜底任务：运行在 IO 线程上，直接内联执行（不走 submit 避免自等待死锁）。 */
+    /** 周期兜底与 tick/close 走完全相同的合并入口。 */
     private void periodicFlush() {
-        if (closed) return;
+        if (closed || closeBlocked) return;
         try {
-            ioCycle();
+            requestIoFlush(false, null);
         } catch (Throwable t) {
-            // scheduleWithFixedDelay 任务体抛异常会永久压制后续周期执行，必须兜底并记录日志
             AE2Enhanced.LOGGER.error("[AE2E] Periodic storage flush failed for nexus {}", nexusId, t);
         }
     }
 
-    /** 一个 IO 周期：先把累积变更写入 WAL，再按空闲/阈值策略做 checkpoint。 */
-    private void ioCycle() {
-        if (!loadFinished) return; // 首加载尚未完成（recordChange 已闸门，pending 必为空）
-        writeWalBatches(drainAllPending());
-        checkpointIfNeeded(false);
+    private void runMergedIo() {
+        final boolean runLoad;
+        final boolean runFlush;
+        final boolean force;
+        final List<IoCompletion> completions;
+        synchronized (ioScheduleLock) {
+            ioQueued = false;
+            ioRunning = true;
+            runLoad = loadRequested;
+            runFlush = flushRequested;
+            force = forceFlushRequested;
+            loadRequested = false;
+            flushRequested = false;
+            forceFlushRequested = false;
+            completions = new ArrayList<>(pendingCompletions);
+            pendingCompletions.clear();
+        }
+        IoCycleReport report = new IoCycleReport();
+        try {
+            if (runLoad) performLoad();
+            if (runFlush && loadFinished) {
+                writeWalBatches(drainAllPending(force), report);
+                checkpointIfNeeded(force, report);
+            }
+        } catch (Throwable t) {
+            report.walFailed = true;
+            report.checkpointFailed = true;
+            report.truncationFailed = true;
+            AE2Enhanced.LOGGER.error("[AE2E] 合并 IO 周期失败: {}", nexusId, t);
+        } finally {
+            for (IoCompletion completion : completions) {
+                if (completion.closeStreams) {
+                    closeWalStreams(report);
+                    break;
+                }
+            }
+            for (IoCompletion completion : completions) completion.complete(report);
+            synchronized (ioScheduleLock) {
+                ioRunning = false;
+                if (loadRequested || flushRequested) ensureIoTaskLocked();
+            }
+        }
     }
 
-    // ---- WAL 写入 ----
+    private void closeWalStreams(IoCycleReport report) {
+        for (SectionIO io : allSections) {
+            if (io.walOut == null) continue;
+            try {
+                io.walOut.close();
+            } catch (IOException e) {
+                report.walFailed = true;
+                AE2Enhanced.LOGGER.error("[AE2E] 关闭 {} WAL 流失败: {}", io.section, nexusId, e);
+            } finally {
+                io.walOut = null;
+                io.walFileOut = null;
+            }
+        }
+    }
 
-    private List<WalBatch> drainAllPending() {
+    private List<WalBatch> drainAllPending(boolean force) {
         List<WalBatch> batches = new ArrayList<>();
         for (SectionIO io : allSections) {
-            if (failedSections.contains(io.section)) continue; // 安全模式分区不再尝试
-            if (System.nanoTime() < io.nextRetryNanos) continue; // 瞬时失败退避中
+            if (failedSections.contains(io.section)) continue;
+            if (!force && System.nanoTime() < io.nextRetryNanos) continue;
             io.mutationLock.lock();
             List<Object> keys;
             List<WalVal> vals;
@@ -844,12 +838,19 @@ public class HyperdimensionalStorageFile {
         return batches;
     }
 
-    private void writeWalBatches(List<WalBatch> batches) {
+    private void writeWalBatches(List<WalBatch> batches, IoCycleReport report) {
         for (WalBatch batch : batches) {
             SectionIO io = batch.section;
-            if (failedSections.contains(io.section)) continue;
+            if (failedSections.contains(io.section)) {
+                if (report != null) report.walFailed = true;
+                continue;
+            }
             batch.walSizeBefore = io.walFile.exists() ? io.walFile.length() : 0L;
             try {
+                testHooks.beforeWalWrite(io.section);
+                if (testHooks.failWalPermanently(io.section)) {
+                    throw new PermanentWalException("注入的永久 WAL 故障");
+                }
                 for (byte[] payload : serializeWalBatch(io, batch.keys, batch.vals)) {
                     writeWalFrame(io, payload);
                 }
@@ -857,15 +858,14 @@ public class HyperdimensionalStorageFile {
                 io.walFailures = 0;
                 io.nextRetryNanos = 0L;
             } catch (PermanentWalException e) {
-                // 永久性错误（如单帧超限）：重试无意义，分区只读保护
+                if (report != null) report.walFailed = true;
                 rollbackWalTail(io, batch.walSizeBefore);
                 AE2Enhanced.LOGGER.error("[AE2E] WAL 永久性写入失败，分区进入安全模式: {} ({})",
                     io.section, nexusId, e);
                 markSectionFailed(io.section);
             } catch (IOException | RuntimeException e) {
-                if (failedSections.contains(io.section)) continue; // 序列化失败已置安全模式
-                // 瞬时 IO 故障（机械盘抖动/杀软锁文件等）：回滚撕裂帧并指数退避重试，
-                // 不进安全模式——数据保留在 pending（last-wins 有界），checkpoint 仍可经 base 落盘
+                if (report != null) report.walFailed = true;
+                if (failedSections.contains(io.section)) continue;
                 rollbackWalTail(io, batch.walSizeBefore);
                 io.walFailures++;
                 long backoffMs = Math.min(1000L << Math.min(io.walFailures - 1, 6), MAX_WAL_BACKOFF_MS);
@@ -874,6 +874,84 @@ public class HyperdimensionalStorageFile {
                     io.walFailures, backoffMs, io.section, nexusId, e);
                 requeueBatch(io, batch.keys, batch.vals);
             }
+        }
+    }
+
+    /** 写失败的批次并回 pending（同 key 较新 rev 优先）。 */
+    private void requeueBatch(SectionIO io, List<Object> keys, List<WalVal> vals) {
+        io.mutationLock.lock();
+        try {
+            for (int i = 0; i < keys.size(); i++) {
+                WalVal existing = io.pending.get(keys.get(i));
+                if (existing == null || existing.rev < vals.get(i).rev) {
+                    if (existing == null) pendingTotal++;
+                    io.pending.put(keys.get(i), vals.get(i));
+                }
+            }
+        } finally {
+            io.mutationLock.unlock();
+        }
+    }
+
+    // ---- WAL 写入 ----
+
+    /**
+     * 判断并执行 checkpoint（仅在 IO 线程调用）：
+     * <ul>
+     *   <li>分区空闲超过 checkpointIdleSeconds 且有脏 → 正常轮（单轮乐观快照，不收敛则下轮）</li>
+     *   <li>WAL 体积超过 walCheckpointThresholdBytes → 强制轮（多轮乐观快照，
+     *       超过 {@value MAX_OPTIMISTIC_ROUNDS} 轮仍不收敛则持有 mutationLock 做有界停顿快照）</li>
+     * </ul>
+     * 每个收敛的分区独立截断其 WAL（记录 rev 均 &lt;= checkpointRev，回放会被跳过）。
+     */
+    private void checkpointIfNeeded(boolean forceClose, IoCycleReport report) {
+        for (SectionIO io : allSections) {
+            if (!io.available()) continue;
+            if (failedSections.contains(io.section)) {
+                if (forceClose && report != null) report.checkpointFailed = true;
+                continue;
+            }
+            if (!io.isDirty()) continue;
+            boolean idleEnough =
+                (System.nanoTime() - io.lastMutationNanos) / 1_000_000L
+                    >= com.github.aeddddd.ae2enhanced.config.ServerConfig.current().storage.checkpointIdleSeconds * 1000L;
+            boolean overThreshold = io.walFile.exists()
+                && io.walFile.length() >= com.github.aeddddd.ae2enhanced.config.ServerConfig.current().storage.walCheckpointThresholdBytes;
+            if (!forceClose && !idleEnough && !overThreshold) continue;
+            checkpointSection(io, forceClose || (overThreshold && !idleEnough));
+            if (forceClose && io.checkpointRev != io.mutationRev && report != null) {
+                report.checkpointFailed = true;
+            }
+        }
+        for (SectionIO io : allSections) {
+            if (io.available() && !failedSections.contains(io.section)
+                    && io.checkpointRev == io.mutationRev
+                    && io.walFile.exists() && io.walFile.length() > 0) {
+                if (!truncateWal(io) && report != null) report.truncationFailed = true;
+            }
+        }
+    }
+
+    private void checkpointSection(SectionIO io, boolean busyForced) {
+        for (int round = 1; ; round++) {
+            long snapshotRev;
+            List<Map.Entry<Object, HugeCount>> frozen;
+            io.mutationLock.lock();
+            try {
+                snapshotRev = io.mutationRev;
+                Map<Object, HugeCount> src = io.dataRef;
+                frozen = new ArrayList<>(src == null ? 0 : src.size());
+                if (src != null) {
+                    for (Map.Entry<Object, HugeCount> entry : src.entrySet()) {
+                        frozen.add(new java.util.AbstractMap.SimpleImmutableEntry<>(entry));
+                    }
+                }
+            } finally {
+                io.mutationLock.unlock();
+            }
+            if (!writeBaseSnapshot(io, snapshotRev, frozen)) return;
+            if (io.mutationRev == snapshotRev) return;
+            if (!busyForced) return;
         }
     }
 
@@ -974,123 +1052,42 @@ public class HyperdimensionalStorageFile {
         }
     }
 
-    /** 写失败的批次并回 pending（同 key 较新 rev 优先）。 */
-    private void requeueBatch(SectionIO io, List<Object> keys, List<WalVal> vals) {
-        io.mutationLock.lock();
-        try {
-            for (int i = 0; i < keys.size(); i++) {
-                WalVal existing = io.pending.get(keys.get(i));
-                if (existing == null || existing.rev < vals.get(i).rev) {
-                    io.pending.put(keys.get(i), vals.get(i));
-                }
-            }
-            pendingTotal += keys.size();
-        } finally {
-            io.mutationLock.unlock();
-        }
-    }
-
-    // ---- Checkpoint（空闲或超阈值时把脏分区固入 base） ----
-
-    /**
-     * 判断并执行 checkpoint（仅在 IO 线程调用）：
-     * <ul>
-     *   <li>分区空闲超过 checkpointIdleSeconds 且有脏 → 正常轮（单轮乐观快照，不收敛则下轮）</li>
-     *   <li>WAL 体积超过 walCheckpointThresholdBytes → 强制轮（多轮乐观快照，
-     *       超过 {@value MAX_OPTIMISTIC_ROUNDS} 轮仍不收敛则持有 mutationLock 做有界停顿快照）</li>
-     * </ul>
-     * 每个收敛的分区独立截断其 WAL（记录 rev 均 &lt;= checkpointRev，回放会被跳过）。
-     */
-    private void checkpointIfNeeded(boolean forceClose) {
-        for (SectionIO io : allSections) {
-            if (!io.available() || failedSections.contains(io.section)) continue;
-            if (!io.isDirty()) continue;
-            // 分区级空闲判定：该分区自身安静足够久才 checkpoint（不被其他热点分区连坐）
-            boolean idleEnough =
-                (System.nanoTime() - io.lastMutationNanos) / 1_000_000L
-                    >= AE2EnhancedConfig.storage.checkpointIdleSeconds * 1000L;
-            boolean overThreshold = io.walFile.exists()
-                && io.walFile.length() >= AE2EnhancedConfig.storage.walCheckpointThresholdBytes;
-            if (!forceClose && !idleEnough && !overThreshold) continue;
-            // close 语义要求收敛保证耐久：forceClose 同样走多轮乐观+有界停顿兜底
-            checkpointSection(io, forceClose || (overThreshold && !idleEnough));
-        }
-        // 收敛的分区截断 WAL
-        for (SectionIO io : allSections) {
-            if (io.available() && !failedSections.contains(io.section)
-                    && io.checkpointRev == io.mutationRev
-                    && io.walFile.exists() && io.walFile.length() > 0) {
-                truncateWal(io);
-            }
-        }
-    }
-
-    private void checkpointSection(SectionIO io, boolean busyForced) {
-        for (int round = 1; ; round++) {
-            boolean lockRound = busyForced && round > MAX_OPTIMISTIC_ROUNDS;
-            if (lockRound) {
-                AE2Enhanced.LOGGER.warn("[AE2E] {} 分区持续写入导致乐观快照不收敛，执行有界停顿快照", io.section);
-            }
-            long snapshotRev;
-            List<Map.Entry<Object, HugeCount>> frozen = null;
-            if (lockRound) {
-                // 有界停顿：锁内只做内存级条目拷贝（毫秒级），磁盘写在锁外进行，
-                // 避免机械盘上整盘写耗时直接顶住主线程 recordChange
-                io.mutationLock.lock();
-                try {
-                    snapshotRev = io.mutationRev;
-                    Map<Object, HugeCount> src = io.dataRef;
-                    frozen = src == null
-                        ? new ArrayList<>(0)
-                        : new ArrayList<>(src.entrySet());
-                } finally {
-                    io.mutationLock.unlock();
-                }
-            } else {
-                snapshotRev = io.mutationRev;
-            }
-            boolean ok = writeBaseSnapshot(io, snapshotRev, frozen);
-            if (!ok) return; // IO 失败：保留下轮重试（dirty 未清）
-            if (io.mutationRev == snapshotRev) {
-                return; // 收敛
-            }
-            if (!busyForced) return; // 正常轮不追赶，下轮再说
-            // 强制轮：继续下一轮乐观快照
-        }
-    }
-
-    /**
-     * 序列化全量分区到 tmp 并原子替换.
-     * 乐观轮（{@code frozen == null}）走 CHM 弱一致迭代 + 修订号把关，快照期间的新变更不阻塞；
-     * 停顿轮写入锁内拷贝的 frozen 条目，磁盘写不占锁。
-     */
+    /** entryCount 与条目均来自锁内同一 frozen 集合；序列化和原子替换不持有 mutationLock。 */
     private boolean writeBaseSnapshot(SectionIO io, long snapshotRev, List<Map.Entry<Object, HugeCount>> frozen) {
         File tmpFile = new File(io.baseFile.getAbsolutePath() + ".tmp");
         try (DataOutputStream out = new DataOutputStream(new BufferedOutputStream(new FileOutputStream(tmpFile)))) {
-            Map<Object, HugeCount> source = io.dataRef;
-            int entryCount = frozen != null ? frozen.size() : (source != null ? source.size() : 0);
-            writeHeader(out, snapshotRev, entryCount);
-            Iterable<Map.Entry<Object, HugeCount>> entries = frozen != null
-                ? frozen
-                : (source != null ? source.entrySet() : java.util.Collections.<Map.Entry<Object, HugeCount>>emptyList());
-            for (Map.Entry<Object, HugeCount> entry : entries) {
+            testHooks.beforeCheckpoint(io.section);
+            writeHeader(out, snapshotRev, frozen.size());
+            for (Map.Entry<Object, HugeCount> entry : frozen) {
                 writeEntry(out, io, entry.getKey(), entry.getValue());
             }
             out.flush();
         } catch (IOException | RuntimeException e) {
-            // 保存失败不置安全模式：仅记录日志并保留 dirty，下次 checkpoint 重试
             AE2Enhanced.LOGGER.error("[AE2E] Failed to write {} temp file: {}", io.section, tmpFile.getAbsolutePath(), e);
+            deleteTempFile(tmpFile);
             return false;
         }
         if (!atomicMove(tmpFile, io.baseFile, io.section)) {
+            deleteTempFile(tmpFile);
             return false;
         }
         io.checkpointRev = snapshotRev;
         return true;
     }
 
-    private void truncateWal(SectionIO io) {
+    // ---- Checkpoint（空闲或超阈值时把脏分区固入 base） ----
+
+    private void deleteTempFile(File tmpFile) {
         try {
+            Files.deleteIfExists(tmpFile.toPath());
+        } catch (IOException e) {
+            AE2Enhanced.LOGGER.warn("[AE2E] 无法删除失败快照的临时文件: {}", tmpFile, e);
+        }
+    }
+
+    private boolean truncateWal(SectionIO io) {
+        try {
+            testHooks.beforeTruncation(io.section);
             if (io.walOut != null) {
                 io.walOut.close();
                 io.walOut = null;
@@ -1100,8 +1097,73 @@ public class HyperdimensionalStorageFile {
                     StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.WRITE)) {
                 channel.force(true);
             }
-        } catch (IOException e) {
+            return true;
+        } catch (IOException | RuntimeException e) {
             AE2Enhanced.LOGGER.error("[AE2E] 截断 {} WAL 失败: {}", io.section, io.walFile, e);
+            return false;
+        }
+    }
+
+    private void migrateFromOldFormat() {
+        AE2Enhanced.LOGGER.info("[AE2E] Migrating old NBT format storage for nexus {} to new binary format", nexusId);
+        try {
+            NBTTagCompound root = CompressedStreamTools.read(oldFile);
+            if (root == null) return;
+
+            migrateNbtListToBinary(root, "items", itemSection, (tag, out) -> {
+                ItemDescriptor d = ItemDescriptor.fromNBT(tag);
+                if (d == null) {
+                    PreservedDescriptor.writeLegacyItem(tag, out);
+                } else {
+                    ItemDescriptorCodec.INSTANCE.write(out, d);
+                }
+                return true;
+            });
+            migrateNbtListToBinary(root, "fluids", fluidSection, (tag, out) -> {
+                FluidDescriptor d = FluidDescriptor.fromNBT(tag);
+                if (d == null) {
+                    PreservedDescriptor.writeLegacyFluid(tag, out);
+                } else {
+                    FluidDescriptorCodec.INSTANCE.write(out, d);
+                }
+                return true;
+            });
+            migrateNbtListToBinary(root, "energy", energySection, (tag, out) -> {
+                EnergyDescriptor d = EnergyDescriptor.fromNBT(tag);
+                if (d == null) return false;
+                EnergyDescriptorCodec.INSTANCE.write(out, d);
+                return true;
+            });
+            if (gasSection != null) {
+                migrateReflective(root, "gases", gasSection, "com.github.aeddddd.ae2enhanced.storage.GasDescriptor");
+            }
+            if (essentiaSection != null) {
+                migrateReflective(root, "essentias", essentiaSection, "com.github.aeddddd.ae2enhanced.storage.EssentiaDescriptor");
+            }
+
+            File backup = new File(oldFile.getAbsolutePath() + ".backup");
+            Files.move(oldFile.toPath(), backup.toPath(), StandardCopyOption.REPLACE_EXISTING);
+            AE2Enhanced.LOGGER.info("[AE2E] Migration complete. Old file backed up to {}", backup.getName());
+        } catch (Exception e) {
+            AE2Enhanced.LOGGER.error("[AE2E] Failed to migrate old storage format for nexus {}", nexusId, e);
+            safeMode = true;
+        }
+    }
+
+    /** 立即冲刷并等待本轮完成；等待有界，不在调用线程执行文件 IO。 */
+    public void flushNow() {
+        if (closed && pendingTotal == 0) return;
+        IoCompletion completion = new IoCompletion(false);
+        requestIoFlush(true, completion);
+        awaitIo(completion, closeTimeoutMs);
+    }
+
+    private boolean awaitIo(IoCompletion completion, long timeoutMs) {
+        try {
+            return completion.latch.await(timeoutMs, TimeUnit.MILLISECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return false;
         }
     }
 
@@ -1157,44 +1219,13 @@ public class HyperdimensionalStorageFile {
 
     // ---- Migration ----
 
-    private void migrateFromOldFormat() {
-        AE2Enhanced.LOGGER.info("[AE2E] Migrating old NBT format storage for nexus {} to new binary format", nexusId);
-        try {
-            NBTTagCompound root = CompressedStreamTools.read(oldFile);
-            if (root == null) return;
-
-            migrateNbtListToBinary(root, "items", itemSection, (tag, out) -> {
-                ItemDescriptor d = ItemDescriptor.fromNBT(tag);
-                if (d == null) return false;
-                ItemDescriptorCodec.INSTANCE.write(out, d);
-                return true;
-            });
-            migrateNbtListToBinary(root, "fluids", fluidSection, (tag, out) -> {
-                FluidDescriptor d = FluidDescriptor.fromNBT(tag);
-                if (d == null) return false;
-                FluidDescriptorCodec.INSTANCE.write(out, d);
-                return true;
-            });
-            migrateNbtListToBinary(root, "energy", energySection, (tag, out) -> {
-                EnergyDescriptor d = EnergyDescriptor.fromNBT(tag);
-                if (d == null) return false;
-                EnergyDescriptorCodec.INSTANCE.write(out, d);
-                return true;
-            });
-            if (gasSection != null) {
-                migrateReflective(root, "gases", gasSection, "com.github.aeddddd.ae2enhanced.storage.GasDescriptor");
-            }
-            if (essentiaSection != null) {
-                migrateReflective(root, "essentias", essentiaSection, "com.github.aeddddd.ae2enhanced.storage.EssentiaDescriptor");
-            }
-
-            File backup = new File(oldFile.getAbsolutePath() + ".backup");
-            Files.move(oldFile.toPath(), backup.toPath(), StandardCopyOption.REPLACE_EXISTING);
-            AE2Enhanced.LOGGER.info("[AE2E] Migration complete. Old file backed up to {}", backup.getName());
-        } catch (Exception e) {
-            AE2Enhanced.LOGGER.error("[AE2E] Failed to migrate old storage format for nexus {}", nexusId, e);
-            safeMode = true;
-        }
+    /**
+     * 测试钩子：同步冲刷 WAL（不做 checkpoint），用于模拟"WAL 已写但未固化"的崩溃场景。
+     */
+    void debugFlushWalSync() {
+        IoCompletion completion = new IoCompletion(false);
+        requestIoFlush(false, completion);
+        awaitIo(completion, closeTimeoutMs);
     }
 
     private void migrateReflective(NBTTagCompound root, String nbtKey, SectionIO section, String descriptorClassName) {
@@ -1260,36 +1291,57 @@ public class HyperdimensionalStorageFile {
 
     // ---- Lifecycle ----
 
-    /**
-     * 立即冲刷：提交全部 pending → 写 WAL → 全分区强制 checkpoint → 截断 WAL。
-     * 从任意非 IO 线程调用（关服/注册表闲置关闭/测试），通过 latch 等待完成。
-     */
-    public void flushNow() {
-        if (closed && pendingTotal == 0) {
-            return;
-        }
-        CountDownLatch latch = new CountDownLatch(1);
+    /** 关闭成功才释放 session；失败或超时保留现场，可由 Manager 再次调用恢复。 */
+    public CloseResult close() {
+        if (closed && lastCloseResult != null) return lastCloseResult;
+        closeBlocked = true;
+        if (flushTask != null) flushTask.cancel(false);
+        beginLoad();
+        long deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(closeTimeoutMs);
+        CloseResult.Status loadStatus;
         try {
-            FLUSH_EXECUTOR.submit(() -> {
-                try {
-                    writeWalBatches(drainAllPending());
-                    checkpointIfNeeded(true);
-                } finally {
-                    latch.countDown();
-                }
-            });
-            latch.await(5, TimeUnit.MINUTES);
-            if (latch.getCount() > 0) {
-                AE2Enhanced.LOGGER.warn("[AE2E] flushNow 等待超时(5min): {}", nexusId);
+            long remaining = deadline - System.nanoTime();
+            boolean loaded = remaining > 0 && loadLatch.await(remaining, TimeUnit.NANOSECONDS);
+            if (!loaded) {
+                return finishClose(new CloseResult(CloseResult.Status.TIMEOUT, CloseResult.Status.TIMEOUT,
+                    CloseResult.Status.TIMEOUT, CloseResult.Status.TIMEOUT, CloseResult.Status.TIMEOUT));
             }
+            loadStatus = loadFailed ? CloseResult.Status.FAILED : CloseResult.Status.SUCCESS;
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-        } catch (RuntimeException e) {
-            // executor 已停止等极端场景：本线程直接执行（单实例语义下安全）
-            AE2Enhanced.LOGGER.warn("[AE2E] flushNow 无法提交到 IO 线程，本线程直接冲刷: {}", nexusId, e);
-            writeWalBatches(drainAllPending());
-            checkpointIfNeeded(true);
+            return finishClose(new CloseResult(CloseResult.Status.TIMEOUT, CloseResult.Status.TIMEOUT,
+                CloseResult.Status.TIMEOUT, CloseResult.Status.TIMEOUT, CloseResult.Status.TIMEOUT));
         }
+
+        IoCompletion completion = new IoCompletion(true);
+        requestIoFlush(true, completion);
+        long remaining = deadline - System.nanoTime();
+        if (remaining <= 0 || !awaitIo(completion, TimeUnit.NANOSECONDS.toMillis(remaining))) {
+            return finishClose(new CloseResult(loadStatus, CloseResult.Status.TIMEOUT, CloseResult.Status.TIMEOUT,
+                CloseResult.Status.TIMEOUT, CloseResult.Status.TIMEOUT));
+        }
+        if (completion.submissionFailed) {
+            return finishClose(new CloseResult(loadStatus, CloseResult.Status.FAILED, CloseResult.Status.FAILED,
+                CloseResult.Status.FAILED, CloseResult.Status.FAILED));
+        }
+        IoCycleReport report = completion.report;
+        CloseResult.Status pendingStatus = hasAnyPending() ? CloseResult.Status.FAILED : CloseResult.Status.SUCCESS;
+        return finishClose(new CloseResult(loadStatus, pendingStatus,
+            report.walFailed ? CloseResult.Status.FAILED : CloseResult.Status.SUCCESS,
+            report.checkpointFailed ? CloseResult.Status.FAILED : CloseResult.Status.SUCCESS,
+            report.truncationFailed ? CloseResult.Status.FAILED : CloseResult.Status.SUCCESS));
+    }
+
+    private CloseResult finishClose(CloseResult result) {
+        synchronized (closeStateLock) {
+            if (result.isSuccess()) {
+                closed = true;
+                lastCloseResult = result;
+            } else if (!closed) {
+                lastCloseResult = result;
+            }
+        }
+        return result;
     }
 
     /**
@@ -1312,53 +1364,50 @@ public class HyperdimensionalStorageFile {
         }
     }
 
-    /**
-     * 测试钩子：同步冲刷 WAL（不做 checkpoint），用于模拟"WAL 已写但未固化"的崩溃场景。
-     */
-    void debugFlushWalSync() {
-        CountDownLatch latch = new CountDownLatch(1);
-        try {
-            FLUSH_EXECUTOR.submit(() -> {
-                try {
-                    writeWalBatches(drainAllPending());
-                } finally {
-                    latch.countDown();
-                }
-            });
-            latch.await(1, TimeUnit.MINUTES);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
+    private boolean hasAnyPending() {
+        for (SectionIO io : allSections) {
+            if (io.hasPending()) return true;
         }
+        return false;
     }
 
-    /**
-     * 关闭：取消周期任务并全量冲刷（WAL + checkpoint + 截断）。
-     * 幂等；由 {@link HyperdimensionalStorageManager} 在闲置超时/关服时调用。
-     */
-    public void close() {
-        if (closed) return;
-        closed = true;
-        if (flushTask != null) {
-            flushTask.cancel(false);
-        }
-        // 幂等：即使从未 beginLoad（异常路径）也在此关闭注册并提交加载，
-        // 然后等首加载完成再冲刷——避免空快照覆盖盘上完整数据
-        beginLoad();
-        awaitLoaded();
-        flushNow();
-        for (SectionIO io : allSections) {
-            if (io.walOut != null) {
-                try {
-                    io.walOut.close();
-                } catch (IOException ignored) {}
-                io.walOut = null;
-                io.walFileOut = null;
-            }
-        }
+    public boolean isCloseBlocked() {
+        return closeBlocked && !closed;
+    }
+
+    HyperdimensionalStorageTestHooks testHooks() {
+        return testHooks;
+    }
+
+    private static final class IoCycleReport {
+        boolean walFailed;
+        boolean checkpointFailed;
+        boolean truncationFailed;
     }
 
     public boolean isClosed() {
         return closed;
+    }
+
+    private static final class IoCompletion {
+        final CountDownLatch latch = new CountDownLatch(1);
+        final boolean closeStreams;
+        volatile IoCycleReport report;
+        volatile boolean submissionFailed;
+
+        IoCompletion(boolean closeStreams) {
+            this.closeStreams = closeStreams;
+        }
+
+        void complete(IoCycleReport result) {
+            report = result;
+            latch.countDown();
+        }
+
+        void submissionFailed() {
+            submissionFailed = true;
+            latch.countDown();
+        }
     }
 
     public boolean isSafeMode() {
@@ -1379,6 +1428,97 @@ public class HyperdimensionalStorageFile {
 
     public UUID getNexusId() {
         return nexusId;
+    }
+
+    private static final class SectionIO {
+        final StorageSection section;
+        final File baseFile;
+        final File walFile;
+        /** 无条件分区为 DescriptorCodec 实例；条件分区为反射加载的 codec 单例 */
+        final Object codec;
+        /** 条件分区的反射方法（init 时缓存，避免每次读写 getMethod） */
+        final java.lang.reflect.Method reflectRead;
+        final java.lang.reflect.Method reflectWrite;
+        /** 变更缓冲锁：pending 与 mutationRev 的访问均在此锁下 */
+        final ReentrantLock mutationLock = new ReentrantLock();
+
+        /** 权威数据 Map（由对应 adapter 持有，setXxxStorageRef 注入） */
+        volatile Map<Object, HugeCount> dataRef;
+        /** base 文件在条目循环中途截断/损坏（头部完好）：触发挽救流程（保留完整条目 + WAL 重放 + 隔离重建） */
+        volatile boolean salvagedCorruptBase = false;
+        /** WAL 待写缓冲：绝对值 last-wins 合并 */
+        final Map<Object, WalVal> pending = new LinkedHashMap<>();
+        /** 变更修订号（mutationLock 下递增；volatile 供快照无锁读取） */
+        volatile long mutationRev;
+        /** 已固入 base 的修订号 */
+        volatile long checkpointRev;
+        /** 该分区最近一次变更时间（空闲 checkpoint 判定用；分区级，避免热点分区饿死安静分区） */
+        volatile long lastMutationNanos = Long.MIN_VALUE;
+        /** 连续瞬时 WAL 写失败次数（退避用；瞬时故障不进安全模式） */
+        int walFailures;
+        /** 瞬时失败后下一次允许重试的时间（System.nanoTime 域） */
+        long nextRetryNanos;
+        /** WAL 输出流（跨 tick 保持打开，批量后 flush+force；仅在 IO 线程访问） */
+        DataOutputStream walOut;
+        FileOutputStream walFileOut;
+
+        SectionIO(StorageSection section, File baseFile, File walFile, Object codec,
+                  java.lang.reflect.Method reflectRead, java.lang.reflect.Method reflectWrite) {
+            this.section = section;
+            this.baseFile = baseFile;
+            this.walFile = walFile;
+            this.codec = codec;
+            this.reflectRead = reflectRead;
+            this.reflectWrite = reflectWrite;
+        }
+
+        boolean available() {
+            return baseFile != null && codec != null;
+        }
+
+        boolean isDirty() {
+            return checkpointRev != mutationRev || hasPending();
+        }
+
+        boolean hasPending() {
+            mutationLock.lock();
+            try {
+                return !pending.isEmpty();
+            } finally {
+                mutationLock.unlock();
+            }
+        }
+
+        void writeDescriptor(DataOutput out, Object descriptor) throws IOException {
+            if (descriptor instanceof PreservedDescriptor) {
+                ((PreservedDescriptor) descriptor).write(out);
+                return;
+            }
+            if (reflectWrite == null) {
+                @SuppressWarnings({"unchecked", "rawtypes"})
+                DescriptorCodec typed = (DescriptorCodec) codec;
+                typed.write(out, (Descriptor) descriptor);
+            } else {
+                try {
+                    reflectWrite.invoke(codec, out, descriptor);
+                } catch (ReflectiveOperationException e) {
+                    throw new IOException("反射 codec 写入失败: " + section, e);
+                }
+            }
+        }
+
+        Object readDescriptor(DataInput in) throws IOException {
+            if (reflectRead == null) {
+                @SuppressWarnings({"unchecked", "rawtypes"})
+                DescriptorCodec typed = (DescriptorCodec) codec;
+                return typed.read(in);
+            }
+            try {
+                return reflectRead.invoke(codec, in);
+            } catch (ReflectiveOperationException e) {
+                throw new IOException("反射 codec 读取失败: " + section, e);
+            }
+        }
     }
 
     // ---- StorageRef 注入（adapter 持有的权威 Map） ----

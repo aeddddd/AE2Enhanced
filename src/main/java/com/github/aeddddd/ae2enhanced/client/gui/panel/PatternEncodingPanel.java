@@ -1,29 +1,24 @@
 package com.github.aeddddd.ae2enhanced.client.gui.panel;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.function.IntConsumer;
-
+import appeng.client.gui.AEBaseGui;
+import appeng.client.gui.widgets.GuiScrollbar;
+import com.github.aeddddd.ae2enhanced.client.gui.GuiOmniAmount;
+import com.github.aeddddd.ae2enhanced.client.gui.dock.Ae2ModernArt;
+import com.github.aeddddd.ae2enhanced.client.gui.dock.NinePatch;
+import com.github.aeddddd.ae2enhanced.container.ContainerSplicedTerm;
+import com.github.aeddddd.ae2enhanced.container.SplicedTermSlotPolicy;
+import com.github.aeddddd.ae2enhanced.container.slot.RCSlotFakeCraftingMatrix;
+import com.github.aeddddd.ae2enhanced.container.slot.RCSlotPatternOutputs;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.Gui;
 import net.minecraft.client.gui.GuiScreen;
-import net.minecraft.client.renderer.GlStateManager;
 import net.minecraft.client.resources.I18n;
 import net.minecraft.inventory.Slot;
 import net.minecraft.item.ItemStack;
 
-import appeng.client.gui.AEBaseGui;
-import appeng.client.gui.widgets.GuiScrollbar;
-
-import com.github.aeddddd.ae2enhanced.client.gui.GuiOmniAmount;
-import com.github.aeddddd.ae2enhanced.client.gui.dock.Ae2ModernArt;
-import com.github.aeddddd.ae2enhanced.client.gui.dock.NinePatch;
-import com.github.aeddddd.ae2enhanced.client.gui.slot.RCSlotFakeCraftingMatrix;
-import com.github.aeddddd.ae2enhanced.client.gui.slot.RCSlotPatternOutputs;
-import com.github.aeddddd.ae2enhanced.client.gui.util.GuiResourceCache;
-import com.github.aeddddd.ae2enhanced.container.ContainerSplicedTerm;
-import com.github.aeddddd.ae2enhanced.container.SplicedTermSlotPolicy;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.function.IntConsumer;
 
 /**
  * 样板编码模块：承接 {@code ContainerOmniTerm.setupPatternArea} 的编码区槽位——
@@ -57,47 +52,43 @@ import com.github.aeddddd.ae2enhanced.container.SplicedTermSlotPolicy;
 public final class PatternEncodingPanel extends SlotHostPanel {
     public static final String MODULE_ID = SplicedTermSlotPolicy.MODULE_PATTERN;
 
-    // ---- 编码块（pattern_modes.png 两块模式图各 124×66）----
-    public static final int BLOCK_WIDTH = 124;
-    public static final int BLOCK_HEIGHT = 66;
-    /** 滚动条（旧 GUI 摆在块左缘的 12px 凹槽里；craft 模式不显示）。 */
-    private static final int SCROLLBAR_X = 0;
-    private static final int SCROLLBAR_Y = 2;
-    private static final int SCROLLBAR_WIDTH = 12;
-    private static final int SCROLLBAR_HEIGHT = 62;
-    /** craft 模式 3×3 输入的块内偏移（旧 GUI 187-180 / 93-86）。 */
-    private static final int CRAFT_INPUT_X = 7;
-    /** process 模式 3×3 输入的块内偏移（旧 GUI 196-180）。 */
-    private static final int PROCESS_INPUT_X = 16;
-    private static final int INPUT_Y = 7;
-    /** 输出列 / 产出槽的块内偏移（旧 GUI 281-180）。 */
-    private static final int OUTPUT_X = 101;
-    private static final int OUTPUT_Y = 7;
-    private static final int CRAFT_OUTPUT_Y = 25;
-    /** 样板 in/out 槽在块右侧的偏移（旧 GUI 319-180，y 0 / 47）。 */
-    private static final int FEED_X = 139;
-    private static final int FEED_IN_Y = 0;
+    // ---- 编码块（AE2 1.21 `guis/pattern_modes.png` 两块模式图各 126×68）----
+    public static final int BLOCK_WIDTH = 126;
+    public static final int BLOCK_HEIGHT = 68;
+    public static final int CONTENT_WIDTH = 186;
+    public static final int CONTENT_HEIGHT = 68;
+    /** 处理模式滚动条（1.21 屏幕 JSON：left 17 / bottom 156 / height 52 → 块内 left 8 / top 8）。 */
+    private static final int SCROLLBAR_X = 8;
+    private static final int SCROLLBAR_Y = 8;
+    private static final int SCROLLBAR_WIDTH = 7;
+    private static final int SCROLLBAR_HEIGHT = 52;
+    /** craft 模式 3×3 输入的块内物品坐标（1.21：slot left 18 / bottom 156，块原点 left 9 / bottom 164）。 */
+    private static final int CRAFT_INPUT_X = 10;
+    /** process 模式 3×3 输入的块内物品坐标（1.21：slot left 26）。 */
+    private static final int PROCESS_INPUT_X = 18;
+    private static final int INPUT_Y = 9;
+    /** 输出列 / 产出槽的块内物品坐标（1.21：slot left 110）。 */
+    private static final int OUTPUT_X = 102;
+    private static final int OUTPUT_Y = 9;
+    private static final int CRAFT_OUTPUT_Y = 27;
     private static final int FEED_OUT_Y = 47;
-
-    // ---- 面板内控件行 ----
-    /** 倍率按钮行（16×16 按钮，间距 18，与动作行同规格）。 */
-    private static final int MULTIPLIER_ROW_Y = 68;
-    public static final int MULTIPLIER_COUNT = 6;
-    private static final int MULTIPLIER_PITCH = 18;
-    /** 模式 tab + 动作按钮行（tab 20×22，其余 16×16）。 */
-    private static final int ACTION_ROW_Y = 86;
-    private static final int ACTION_BASE_X = 24;
-    private static final int ACTION_PITCH = 18;
-    public static final int ACTION_BUTTON_COUNT = 3;
+    /** 样板 in/out 槽的块内物品坐标（1.21：slot left 147 / bottom 161、118）。 */
+    private static final int FEED_X = 139;
+    private static final int FEED_IN_Y = 4;
+    // ---- 控件：位置逐项取自 1.21 屏幕 JSON，不再自造按钮行 ----
+    private static final int MODE_TAB_X = 162;
+    private static final int MODE_TAB_Y = 0;
+    private static final int ENCODE_X = 138;
+    private static final int ENCODE_Y = 22;
+    private static final int CLEAR_CRAFT_X = 65;
+    private static final int CLEAR_PROCESS_X = 73;
 
     private static final int SLOT_SIZE = 18;
     private static final int GRID_COLUMNS = 3;
     private static final int GRID_ROWS = 3;
     private static final int GROUP_COUNT = 9;
-
-    /** 内容区尺寸：块宽 + 右侧 feed 列；高 = 块高 + 两行按钮。 */
-    public static final int CONTENT_WIDTH = FEED_X + SLOT_SIZE;
-    public static final int CONTENT_HEIGHT = ACTION_ROW_Y + 22;
+    private static final int SUBSTITUTE_X = 81;
+    private static final int ACTION_Y = 1;
 
     private final GuiScrollbar scrollBar;
     /** 只在绘制滚动条时用到（{@code GuiScrollbar.draw} 需要宿主参数）。 */
@@ -183,29 +174,27 @@ public final class PatternEncodingPanel extends SlotHostPanel {
 
     /** 模式 tab（craft/processing，两者只有其一可见）的位置。 */
     public int modeTabX() {
-        return contentLeft();
+        return contentLeft() + MODE_TAB_X;
     }
 
     public int modeTabY() {
-        return contentTop() + ACTION_ROW_Y;
+        return contentTop() + MODE_TAB_Y;
     }
 
-    /** 第 {@code index} 个倍率按钮的位置（0=×2 1=×3 2=÷2 3=÷3 4=+1 5=-1，顺序与旧 GUI 一致）。 */
-    public int multiplierX(int index) {
-        return contentLeft() + index * MULTIPLIER_PITCH;
-    }
-
-    public int multiplierY() {
-        return contentTop() + MULTIPLIER_ROW_Y;
-    }
-
-    /** 第 {@code index} 个动作按钮的位置（0=Substitute 1=ClearPattern 2=Encode）。 */
+    /** 动作按钮（0=Substitute 1=ClearPattern 2=Encode）的位置，逐项取自 1.21 屏幕 JSON。 */
     public int actionX(int index) {
-        return contentLeft() + ACTION_BASE_X + index * ACTION_PITCH;
+        switch (index) {
+            case 0:
+                return contentLeft() + SUBSTITUTE_X;
+            case 1:
+                return contentLeft() + (container.isPatternCraftMode() ? CLEAR_CRAFT_X : CLEAR_PROCESS_X);
+            default:
+                return contentLeft() + ENCODE_X;
+        }
     }
 
-    public int actionY() {
-        return contentTop() + ACTION_ROW_Y;
+    public int actionY(int index) {
+        return contentTop() + (index == 2 ? ENCODE_Y : ACTION_Y);
     }
 
     // ==================== 输入 ====================
@@ -218,10 +207,9 @@ public final class PatternEncodingPanel extends SlotHostPanel {
         return layoutVersion;
     }
 
-    /** 供宿主每帧调用：模式或页号被容器改过就重新摆位。 */
+    /** 供宿主每帧调用：模式或页号变化时重新摆位；坐标只由 Dock/Panel 写入。 */
     public void tick() {
-        if (container.isPatternCraftMode() != lastCraftMode
-                || currentGroup() != lastGroup) {
+        if (container.isPatternCraftMode() != lastCraftMode || currentGroup() != lastGroup) {
             layoutSlots();
         }
     }
@@ -250,9 +238,6 @@ public final class PatternEncodingPanel extends SlotHostPanel {
                     Collections.<Slot>emptyList());
             return;
         }
-        // 让容器状态（visible / scrollOffset 钳制）与面板一致；坐标随后由面板覆盖
-        container.setRCSlot(active);
-
         visiblePatternSlots.clear();
         for (int group = 0; group < GROUP_COUNT; group++) {
             boolean groupVisible = (group == active);
@@ -263,8 +248,8 @@ public final class PatternEncodingPanel extends SlotHostPanel {
                 slot.visible = groupVisible;
                 if (groupVisible) {
                     placeSlot(slot,
-                            contentLeft() + inputX + (i % GRID_COLUMNS) * SLOT_SIZE + 1,
-                            contentTop() + INPUT_Y + (i / GRID_COLUMNS) * SLOT_SIZE + 1);
+                            contentLeft() + inputX + (i % GRID_COLUMNS) * SLOT_SIZE,
+                            contentTop() + INPUT_Y + (i / GRID_COLUMNS) * SLOT_SIZE);
                     visiblePatternSlots.add(slot);
                 } else {
                     hideSlot(slot);
@@ -277,8 +262,8 @@ public final class PatternEncodingPanel extends SlotHostPanel {
                 slot.visible = groupVisible && !craft;
                 if (groupVisible && !craft) {
                     placeSlot(slot,
-                            contentLeft() + OUTPUT_X + 1,
-                            contentTop() + OUTPUT_Y + i * SLOT_SIZE + 1);
+                            contentLeft() + OUTPUT_X,
+                            contentTop() + OUTPUT_Y + i * SLOT_SIZE);
                     visiblePatternSlots.add(slot);
                 } else {
                     hideSlot(slot);
@@ -289,7 +274,7 @@ public final class PatternEncodingPanel extends SlotHostPanel {
         Slot craftSlot = container.getPatternCraftSlot();
         if (craftSlot != null) {
             if (craft) {
-                placeSlot(craftSlot, contentLeft() + OUTPUT_X + 1, contentTop() + CRAFT_OUTPUT_Y + 1);
+                placeSlot(craftSlot, contentLeft() + OUTPUT_X, contentTop() + CRAFT_OUTPUT_Y);
                 visiblePatternSlots.add(craftSlot);
             } else {
                 hideSlot(craftSlot);
@@ -298,8 +283,8 @@ public final class PatternEncodingPanel extends SlotHostPanel {
 
         for (int i = 0; i < feedSlots.size(); i++) {
             placeSlot(feedSlots.get(i),
-                    contentLeft() + FEED_X + 1,
-                    contentTop() + (i == 0 ? FEED_IN_Y : FEED_OUT_Y) + 1);
+                    contentLeft() + FEED_X,
+                    contentTop() + (i == 0 ? FEED_IN_Y : FEED_OUT_Y));
         }
 
         container.slotPolicy().setModuleSlots(MODULE_ID, visiblePatternSlots);
@@ -350,18 +335,18 @@ public final class PatternEncodingPanel extends SlotHostPanel {
         // 编码块：AE2 19.x pattern_modes.png 的 craft(0,0) / process(0,70) 两块之一
         NinePatch.drawPatternModeBlock(contentLeft(), contentTop(), container.isPatternCraftMode(), zLevel);
         // 样板 in/out 两格（块外右侧）
-        PlayerInvPanel.drawSlotBand(contentLeft() + FEED_X, contentTop() + FEED_IN_Y, 1, 1, zLevel);
-        PlayerInvPanel.drawSlotBand(contentLeft() + FEED_X, contentTop() + FEED_OUT_Y, 1, 1, zLevel);
+        PlayerInvPanel.drawSlotBand(contentLeft() + FEED_X - 1, contentTop() + FEED_IN_Y - 1, 1, 1, zLevel);
+        PlayerInvPanel.drawSlotBand(contentLeft() + FEED_X - 1, contentTop() + FEED_OUT_Y - 1, 1, 1, zLevel);
         // S16：空槽的画 19.x 槽位图案——in 槽收空白样板、out 槽出已编码样板
         // （对应 19.x `PlacableItemType`：BLANK_PATTERN→BACKGROUND_BLANK_PATTERN、
         //   ENCODED_PATTERN→BACKGROUND_ENCODED_PATTERN，有物品时被物品盖住）
         if (feedSlotEmpty(0)) {
             NinePatch.drawSlotPattern(Ae2ModernArt.Icon.BACKGROUND_BLANK_PATTERN,
-                    contentLeft() + FEED_X, contentTop() + FEED_IN_Y, zLevel);
+                    contentLeft() + FEED_X - 1, contentTop() + FEED_IN_Y - 1, zLevel);
         }
         if (feedSlotEmpty(1)) {
             NinePatch.drawSlotPattern(Ae2ModernArt.Icon.BACKGROUND_ENCODED_PATTERN,
-                    contentLeft() + FEED_X, contentTop() + FEED_OUT_Y, zLevel);
+                    contentLeft() + FEED_X - 1, contentTop() + FEED_OUT_Y - 1, zLevel);
         }
         // 自绘滚动条（craft 模式范围为空，AE2 的 GuiScrollbar 会画成禁用态）
         if (scrollBar != null && !container.isPatternCraftMode()) {
@@ -439,7 +424,7 @@ public final class PatternEncodingPanel extends SlotHostPanel {
         int amount = stack.isEmpty() ? 1 : stack.getCount();
         int invType = slot instanceof RCSlotFakeCraftingMatrix ? 0 : 1;
         Minecraft.getMinecraft().displayGuiScreen(
-                new GuiOmniAmount((GuiScreen) host, invType, slot.getSlotIndex(), amount));
+                new GuiOmniAmount((GuiScreen) host, invType, slot.getSlotIndex(), amount, slot.getStack()));
         return true;
     }
 

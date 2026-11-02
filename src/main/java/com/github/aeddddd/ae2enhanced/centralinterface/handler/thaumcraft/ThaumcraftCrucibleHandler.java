@@ -1,7 +1,5 @@
 package com.github.aeddddd.ae2enhanced.centralinterface.handler.thaumcraft;
 
-import com.github.aeddddd.ae2enhanced.centralinterface.TargetSession;
-
 import appeng.api.networking.security.IActionSource;
 import appeng.api.storage.data.IAEItemStack;
 import appeng.api.storage.data.IAEStack;
@@ -9,8 +7,9 @@ import appeng.util.item.AEItemStack;
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
 import com.github.aeddddd.ae2enhanced.centralinterface.IRemoteHandler;
 import com.github.aeddddd.ae2enhanced.centralinterface.IVirtualBatchCraftingHandler;
+import com.github.aeddddd.ae2enhanced.centralinterface.TargetSession;
 import com.github.aeddddd.ae2enhanced.centralinterface.machine.EntityScanThrottle;
-import com.github.aeddddd.ae2enhanced.config.AE2EnhancedConfig;
+import com.github.aeddddd.ae2enhanced.config.ServerConfig;
 import com.mojang.authlib.GameProfile;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.item.EntityItem;
@@ -18,13 +17,13 @@ import net.minecraft.inventory.InventoryCrafting;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.crafting.Ingredient;
 import net.minecraft.tileentity.TileEntity;
+import net.minecraft.util.EnumParticleTypes;
 import net.minecraft.util.math.AxisAlignedBB;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
 import net.minecraft.world.WorldServer;
 import net.minecraftforge.common.util.FakePlayer;
 import net.minecraftforge.common.util.FakePlayerFactory;
-import net.minecraft.util.EnumParticleTypes;
 
 import java.lang.reflect.Method;
 import java.util.ArrayList;
@@ -196,14 +195,7 @@ public class ThaumcraftCrucibleHandler implements IRemoteHandler, IVirtualBatchC
     @Override
     public boolean canCraftVirtually(World world, BlockPos pos, InventoryCrafting ingredients, IAEItemStack[] outputs) {
         if (outputs == null || outputs.length == 0 || outputs[0] == null) return false;
-        Object recipe = ThaumcraftReflectionHelper.getCrucibleRecipe(outputs[0].createItemStack());
-        if (recipe == null) return false;
-        Ingredient catalyst = ThaumcraftReflectionHelper.crucibleGetCatalyst(recipe);
-        if (catalyst == null) return false;
-        for (int i = 0; i < ingredients.getSizeInventory(); i++) {
-            if (catalyst.apply(ingredients.getStackInSlot(i))) return true;
-        }
-        return false;
+        return bindCrucibleRecipe(ingredients, outputs) != null;
     }
 
     @Override
@@ -218,10 +210,11 @@ public class ThaumcraftCrucibleHandler implements IRemoteHandler, IVirtualBatchC
 
     @Override
     public List<IAEStack> getVirtualCost(World world, BlockPos pos, InventoryCrafting ingredients, IAEItemStack[] outputs, long count) {
+        if (count <= 0) return null;
+        com.github.aeddddd.ae2enhanced.centralinterface.recipe.RecipeBinding binding = bindCrucibleRecipe(ingredients, outputs);
+        if (binding == null) return null;
+        Object recipe = binding.getRecipe();
         List<IAEStack> costs = new ArrayList<>();
-        if (outputs == null || outputs.length == 0 || outputs[0] == null) return costs;
-        Object recipe = ThaumcraftReflectionHelper.getCrucibleRecipe(outputs[0].createItemStack());
-        if (recipe == null) return costs;
 
         Ingredient catalyst = ThaumcraftReflectionHelper.crucibleGetCatalyst(recipe);
         if (catalyst != null) {
@@ -237,7 +230,8 @@ public class ThaumcraftCrucibleHandler implements IRemoteHandler, IVirtualBatchC
         }
 
         Object aspects = ThaumcraftReflectionHelper.crucibleGetAspects(recipe);
-        if (aspects != null && ThaumcraftReflectionHelper.aspectListSize(aspects) > 0) {
+        if (aspects == null) return null;
+        if (ThaumcraftReflectionHelper.aspectListSize(aspects) > 0) {
             List<IAEStack> essentia = ThaumcraftReflectionHelper.createEssentiaCosts(aspects, count);
             if (essentia == null) {
                 return null;
@@ -250,9 +244,28 @@ public class ThaumcraftCrucibleHandler implements IRemoteHandler, IVirtualBatchC
 
     @Override
     public List<ItemStack> virtualCraftBatch(World world, BlockPos pos, InventoryCrafting ingredients, IAEItemStack[] outputs, long count, IActionSource source) {
-        List<ItemStack> products = new ArrayList<>();
-        if (!canCraftVirtually(world, pos, ingredients, outputs)) return products;
-        return scaleOutputsByCount(outputs, count);
+        com.github.aeddddd.ae2enhanced.centralinterface.recipe.RecipeBinding binding = bindCrucibleRecipe(ingredients, outputs);
+        return binding == null ? new ArrayList<>() : scaleOutputsByCount(binding.getOutputs(), count);
+    }
+
+    private com.github.aeddddd.ae2enhanced.centralinterface.recipe.RecipeBinding bindCrucibleRecipe(
+            InventoryCrafting ingredients, IAEItemStack[] outputs) {
+        if (outputs == null || outputs.length == 0 || outputs[0] == null) return null;
+        Object recipe = ThaumcraftReflectionHelper.getCrucibleRecipeExact(outputs[0].createItemStack());
+        if (recipe == null) return null;
+        Ingredient catalyst = ThaumcraftReflectionHelper.crucibleGetCatalyst(recipe);
+        if (catalyst == null) return null;
+        int matched = 0;
+        int total = 0;
+        for (int i = 0; i < ingredients.getSizeInventory(); i++) {
+            ItemStack stack = ingredients.getStackInSlot(i);
+            if (stack.isEmpty()) continue;
+            total += stack.getCount();
+            if (catalyst.apply(stack)) matched += stack.getCount();
+        }
+        if (total != 1 || matched != 1) return null;
+        return com.github.aeddddd.ae2enhanced.centralinterface.recipe.RecipeBinding.of(
+                recipe, outputs, ThaumcraftReflectionHelper.crucibleGetRecipeOutput(recipe));
     }
 
     @Override
@@ -267,7 +280,7 @@ public class ThaumcraftCrucibleHandler implements IRemoteHandler, IVirtualBatchC
         List<ItemStack> result = collectSpecialItems(world, pos);
 
         // 只在成功收集到产物后才清空坩埚,避免失败/revert时误清空
-        if (!result.isEmpty() && AE2EnhancedConfig.thaumcraft.clearAfterCraft) {
+        if (!result.isEmpty() && ServerConfig.current().thaumcraft.clearAfterCraft) {
             try {
                 TileEntity te = world.getTileEntity(pos);
                 if (CLASS_TILE_CRUCIBLE.isInstance(te)) {

@@ -1,13 +1,7 @@
 package com.github.aeddddd.ae2enhanced.part;
 
 import appeng.api.AEApi;
-import appeng.api.config.Actionable;
-import appeng.api.config.FuzzyMode;
-import appeng.api.config.RedstoneMode;
-import appeng.api.config.SchedulingMode;
-import appeng.api.config.Settings;
-import appeng.api.config.Upgrades;
-import appeng.api.config.YesNo;
+import appeng.api.config.*;
 import appeng.api.networking.IGridNode;
 import appeng.api.networking.energy.IEnergyGrid;
 import appeng.api.networking.security.IActionSource;
@@ -24,9 +18,9 @@ import appeng.api.storage.data.IAEItemStack;
 import appeng.api.util.AECableType;
 import appeng.core.settings.TickRates;
 import appeng.fluids.util.AEFluidStack;
+import appeng.items.parts.PartModels;
 import appeng.me.GridAccessException;
 import appeng.me.helpers.MachineSource;
-import appeng.items.parts.PartModels;
 import appeng.parts.PartModel;
 import appeng.parts.automation.PartUpgradeable;
 import appeng.tile.inventory.AppEngInternalAEInventory;
@@ -34,24 +28,24 @@ import appeng.util.InventoryAdaptor;
 import appeng.util.SettingsFrom;
 import appeng.util.item.AEItemStack;
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
-import com.github.aeddddd.ae2enhanced.gui.GuiHandler;
+import com.github.aeddddd.ae2enhanced.guiapi.GuiCatalog;
 import com.github.aeddddd.ae2enhanced.item.ItemFluidDrop;
+import com.github.aeddddd.ae2enhanced.item.fakeitem.EssentiaFakeItemChecks;
+import com.github.aeddddd.ae2enhanced.item.fakeitem.FakeFluids;
+import com.github.aeddddd.ae2enhanced.item.fakeitem.FakeGases;
+import com.github.aeddddd.ae2enhanced.item.fakeitem.GasFakeItemChecks;
 import com.github.aeddddd.ae2enhanced.util.essentia.EssentiaChannelAccessor;
-import com.github.aeddddd.ae2enhanced.util.fakeitem.EssentiaFakeItemChecks;
-import com.github.aeddddd.ae2enhanced.util.fakeitem.FakeFluids;
-import com.github.aeddddd.ae2enhanced.util.fakeitem.FakeGases;
-import com.github.aeddddd.ae2enhanced.util.fakeitem.GasFakeItemChecks;
 import com.github.aeddddd.ae2enhanced.util.reflection.GasReflectionHelper;
 import com.google.common.collect.ImmutableList;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.tileentity.TileEntity;
+import net.minecraft.util.EnumFacing;
 import net.minecraft.util.EnumHand;
 import net.minecraft.util.ResourceLocation;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Vec3d;
-import net.minecraft.util.EnumFacing;
 import net.minecraft.world.IBlockAccess;
 import net.minecraftforge.fluids.Fluid;
 import net.minecraftforge.fluids.FluidStack;
@@ -492,13 +486,28 @@ public class PartStockingBus extends PartUpgradeable implements IGridTickable {
         return count;
     }
 
+    static {
+        java.lang.reflect.Method stockMethod = null;
+        try {
+            if (EssentiaChannelAccessor.isAvailable()) {
+                Class<?> helperClass = Class.forName("com.github.aeddddd.ae2enhanced.item.reflection.EssentiaBusHelper");
+                stockMethod = helperClass.getMethod("stockEssentias",
+                        appeng.api.networking.IGrid.class, TileEntity.class, EnumFacing.class,
+                        IAEItemStack.class, long.class, long.class, int.class, IActionSource.class);
+            }
+        } catch (Throwable t) {
+            stockMethod = null;
+        }
+        ESSENTIA_STOCK_METHOD = stockMethod;
+    }
+
     private long supplyFluid(IFluidHandler fh, IMEMonitor<IAEFluidStack> inv, IAEFluidStack fluidFilter, long amount) {
         if (amount <= 0) return 0;
-        
+
         FluidStack filterStack = fluidFilter.getFluidStack();
         if (filterStack == null) return 0;
-        filterStack = com.github.aeddddd.ae2enhanced.util.fakeitem.FakeFluids.canonicalizeFluidStack(filterStack);
-        
+        filterStack = com.github.aeddddd.ae2enhanced.item.fakeitem.FakeFluids.canonicalizeFluidStack(filterStack);
+
         IAEFluidStack aeWanted = AEFluidStack.fromFluidStack(filterStack);
         if (aeWanted == null) return 0;
         aeWanted.setStackSize(amount);
@@ -517,39 +526,6 @@ public class PartStockingBus extends PartUpgradeable implements IGridTickable {
         inv.extractItems(aeExtract, Actionable.MODULATE, this.source);
         fh.fill(toFill, true);
         return filled;
-    }
-
-    private long recoverFluid(IFluidHandler fh, IMEMonitor<IAEFluidStack> inv, IAEFluidStack fluidFilter, long amount) {
-        if (amount <= 0) return 0;
-        FluidStack toDrain = fluidFilter.getFluidStack();
-        if (toDrain == null) return 0;
-        toDrain = toDrain.copy();
-        toDrain.amount = (int) Math.min(amount, Integer.MAX_VALUE);
-        toDrain = com.github.aeddddd.ae2enhanced.util.fakeitem.FakeFluids.canonicalizeFluidStack(toDrain);
-
-        FluidStack drained = fh.drain(toDrain, false);
-        if (drained == null || drained.amount <= 0) {
-            return 0;
-        }
-        drained = com.github.aeddddd.ae2enhanced.util.fakeitem.FakeFluids.canonicalizeFluidStack(drained);
-
-        IAEFluidStack aeDrained = AEFluidStack.fromFluidStack(drained);
-        if (aeDrained == null) {
-            return 0;
-        }
-
-        IAEFluidStack notInserted = inv.injectItems(aeDrained, Actionable.SIMULATE, this.source);
-        long canInsert = aeDrained.getStackSize() - (notInserted != null ? notInserted.getStackSize() : 0);
-        if (canInsert <= 0) return 0;
-
-        toDrain.amount = (int) canInsert;
-        FluidStack actualDrain = fh.drain(toDrain, true);
-        if (actualDrain != null && actualDrain.amount > 0) {
-            actualDrain = com.github.aeddddd.ae2enhanced.util.fakeitem.FakeFluids.canonicalizeFluidStack(actualDrain);
-            inv.injectItems(AEFluidStack.fromFluidStack(actualDrain), Actionable.MODULATE, this.source);
-            return actualDrain.amount;
-        }
-        return 0;
     }
 
     // === Gas Stocking ===
@@ -679,19 +655,38 @@ public class PartStockingBus extends PartUpgradeable implements IGridTickable {
 
     // 源质 stocking 反射缓存：静态初始化一次，加载失败则源质 stocking 静默禁用
     private static final java.lang.reflect.Method ESSENTIA_STOCK_METHOD;
-    static {
-        java.lang.reflect.Method stockMethod = null;
-        try {
-            if (EssentiaChannelAccessor.isAvailable()) {
-                Class<?> helperClass = Class.forName("com.github.aeddddd.ae2enhanced.util.reflection.EssentiaBusHelper");
-                stockMethod = helperClass.getMethod("stockEssentias",
-                        appeng.api.networking.IGrid.class, TileEntity.class, EnumFacing.class,
-                        IAEItemStack.class, long.class, long.class, int.class, IActionSource.class);
-            }
-        } catch (Throwable t) {
-            stockMethod = null;
+
+    private long recoverFluid(IFluidHandler fh, IMEMonitor<IAEFluidStack> inv, IAEFluidStack fluidFilter, long amount) {
+        if (amount <= 0) return 0;
+        FluidStack toDrain = fluidFilter.getFluidStack();
+        if (toDrain == null) return 0;
+        toDrain = toDrain.copy();
+        toDrain.amount = (int) Math.min(amount, Integer.MAX_VALUE);
+        toDrain = com.github.aeddddd.ae2enhanced.item.fakeitem.FakeFluids.canonicalizeFluidStack(toDrain);
+
+        FluidStack drained = fh.drain(toDrain, false);
+        if (drained == null || drained.amount <= 0) {
+            return 0;
         }
-        ESSENTIA_STOCK_METHOD = stockMethod;
+        drained = com.github.aeddddd.ae2enhanced.item.fakeitem.FakeFluids.canonicalizeFluidStack(drained);
+
+        IAEFluidStack aeDrained = AEFluidStack.fromFluidStack(drained);
+        if (aeDrained == null) {
+            return 0;
+        }
+
+        IAEFluidStack notInserted = inv.injectItems(aeDrained, Actionable.SIMULATE, this.source);
+        long canInsert = aeDrained.getStackSize() - (notInserted != null ? notInserted.getStackSize() : 0);
+        if (canInsert <= 0) return 0;
+
+        toDrain.amount = (int) canInsert;
+        FluidStack actualDrain = fh.drain(toDrain, true);
+        if (actualDrain != null && actualDrain.amount > 0) {
+            actualDrain = com.github.aeddddd.ae2enhanced.item.fakeitem.FakeFluids.canonicalizeFluidStack(actualDrain);
+            inv.injectItems(AEFluidStack.fromFluidStack(actualDrain), Actionable.MODULATE, this.source);
+            return actualDrain.amount;
+        }
+        return 0;
     }
 
     private class EssentiaStockingHandler implements StockingHandler {
@@ -802,7 +797,7 @@ public class PartStockingBus extends PartUpgradeable implements IGridTickable {
     public boolean onPartActivate(EntityPlayer player, EnumHand hand, Vec3d pos) {
         if (!player.world.isRemote) {
             TileEntity te = this.getHost().getTile();
-            int guiId = GuiHandler.GUI_STOCKING_BUS | (this.getSide().ordinal() << 8);
+            int guiId = GuiCatalog.GUI_STOCKING_BUS | (this.getSide().ordinal() << 8);
             player.openGui(AE2Enhanced.instance, guiId, te.getWorld(), te.getPos().getX(), te.getPos().getY(), te.getPos().getZ());
         }
         return true;

@@ -1,26 +1,18 @@
 package com.github.aeddddd.ae2enhanced.test.lp;
 
-import java.io.File;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Random;
-
-import org.junit.jupiter.api.Test;
-
-import net.minecraft.item.Item;
-
 import appeng.api.storage.data.IAEItemStack;
-
 import com.github.aeddddd.ae2enhanced.diag.plansnapshot.PlanSnapshot;
 import com.github.aeddddd.ae2enhanced.specialcrafting.CondensationPlanner;
 import com.github.aeddddd.ae2enhanced.specialcrafting.LpPlanCache;
 import com.github.aeddddd.ae2enhanced.specialcrafting.NetworkPatternIndex;
 import com.github.aeddddd.ae2enhanced.specialcrafting.PruneSettings;
 import com.github.aeddddd.ae2enhanced.test.support.SimulationEnv;
+import net.minecraft.item.Item;
+import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.Test;
+
+import java.io.File;
+import java.util.*;
 
 /**
  * 随机基准测试:从真实网络快照(全样板+全库存)随机抽取可合成物品×任意数量
@@ -28,11 +20,12 @@ import com.github.aeddddd.ae2enhanced.test.support.SimulationEnv;
  * 完成率/缺料一致性/耗时——用统计面代替单点试错.
  * <p>抽样:固定锚点(known-hard 根请求)+ 最大 SCC 成员物品 + SCC 外随机物品;
  * 数量梯度 {1, 64, 1024, 65536, 1e6}.同一随机种子下两后端跑完全相同的请求集.</p>
- * <p>用法:{code ./gradlew test --tests PlannerBenchmarkTest -Dae2e.planreplay=<文件>
+ * <p>用法:{code ./gradlew test -PtestIncludeTags=benchmark --tests PlannerBenchmarkTest -Dae2e.planreplay=<文件>
  * -Dae2e.benchRequests=<数>};诊断性输出,不硬断言(随机请求可能真实缺料).
  * 剪枝档位用 {@code -Dae2e.prune=off|demand|full}(默认 full),单元画像用
  * {@code -Dae2e.unitProfile=true}(P0 埋点:巨单元 vs 平凡单元的耗时/迭代占比)。</p>
  */
+@Tag("benchmark")
 public class PlannerBenchmarkTest {
 
     @Test
@@ -158,7 +151,7 @@ public class PlannerBenchmarkTest {
      * C2 稀疏库存 + C1 计划结果。两档的冷算统计(单元/LP 单元/迭代/降级/缺料种类)必须
      * 逐请求相同——这是"命中不改计划内容"在真实快照上的对拍。</p>
      *
-     * <p>用法:{@code AE2E_BENCH=1 ./gradlew test --tests PlannerBenchmarkTest}
+     * <p>用法:{@code AE2E_BENCH=1 ./gradlew test -PtestIncludeTags=benchmark --tests PlannerBenchmarkTest}
      * (可用 {@code -Dae2e.planCacheMax=64} 放宽 C1 条目上限;默认 8 时 21 个请求会互相
      * 逐出,命中率受 LRU 影响——报告里两种都值得看)。</p>
      */

@@ -7,7 +7,6 @@ import appeng.api.storage.IStorageChannel;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.EnumFacing;
 import net.minecraftforge.common.capabilities.Capability;
-import net.minecraftforge.fml.common.Loader;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
@@ -26,6 +25,7 @@ public final class GasReflectionHelper {
     public static final Class<?> GAS_HANDLER_CLASS;
     public static final Class<?> GAS_STACK_CLASS;
     public static final Class<?> GAS_CLASS;
+    public static final java.lang.reflect.Constructor<?> GAS_STACK_CONSTRUCTOR;
     public static final Field GAS_STACK_AMOUNT_FIELD;
     public static final Method GAS_STACK_GET_GAS_METHOD;
     public static final Method DRAW_GAS_METHOD;
@@ -42,6 +42,7 @@ public final class GasReflectionHelper {
         Class<?> gasHandlerClass = null;
         Class<?> gasStackClass = null;
         Class<?> gasClass = null;
+        java.lang.reflect.Constructor<?> gasStackConstructor = null;
         Field amountField = null;
         Method getGasMethod = null;
         Method drawGasMethod = null;
@@ -52,20 +53,22 @@ public final class GasReflectionHelper {
         Capability<?> gasCapability = null;
 
         try {
-            if (Loader.isModLoaded("mekanism") && Loader.isModLoaded("mekeng")) {
-                gasHandlerClass = Class.forName("mekanism.api.gas.IGasHandler");
-                gasStackClass = Class.forName("mekanism.api.gas.GasStack");
-                gasClass = Class.forName("mekanism.api.gas.Gas");
+            if (com.github.aeddddd.ae2enhanced.integration.RuntimeIntegrationRegistry.isModLoaded("mekanism")
+                    && com.github.aeddddd.ae2enhanced.integration.RuntimeIntegrationRegistry.isModLoaded("mekeng")) {
+                gasHandlerClass = com.github.aeddddd.ae2enhanced.integration.RuntimeIntegrationRegistry.classForName("mekanism.api.gas.IGasHandler");
+                gasStackClass = com.github.aeddddd.ae2enhanced.integration.RuntimeIntegrationRegistry.classForName("mekanism.api.gas.GasStack");
+                gasClass = com.github.aeddddd.ae2enhanced.integration.RuntimeIntegrationRegistry.classForName("mekanism.api.gas.Gas");
+                gasStackConstructor = gasStackClass.getConstructor(gasClass, int.class);
                 amountField = gasStackClass.getField("amount");
-                getGasMethod = gasStackClass.getMethod("getGas");
-                drawGasMethod = gasHandlerClass.getMethod("drawGas", EnumFacing.class, int.class, boolean.class);
-                receiveGasMethod = gasHandlerClass.getMethod("receiveGas", EnumFacing.class, gasStackClass, boolean.class);
+                getGasMethod = com.github.aeddddd.ae2enhanced.integration.RuntimeIntegrationRegistry.method(gasStackClass, "getGas");
+                drawGasMethod = com.github.aeddddd.ae2enhanced.integration.RuntimeIntegrationRegistry.method(gasHandlerClass, "drawGas", EnumFacing.class, int.class, boolean.class);
+                receiveGasMethod = com.github.aeddddd.ae2enhanced.integration.RuntimeIntegrationRegistry.method(gasHandlerClass, "receiveGas", EnumFacing.class, gasStackClass, boolean.class);
 
-                gasStorageChannelClass = Class.forName("com.mekeng.github.common.me.storage.IGasStorageChannel");
-                getStorageChannelMethod = AEApi.instance().storage().getClass().getMethod("getStorageChannel", Class.class);
-                getInventoryMethod = appeng.api.networking.storage.IStorageGrid.class.getMethod("getInventory", IStorageChannel.class);
+                gasStorageChannelClass = com.github.aeddddd.ae2enhanced.integration.RuntimeIntegrationRegistry.classForName("com.mekeng.github.common.me.storage.IGasStorageChannel");
+                getStorageChannelMethod = com.github.aeddddd.ae2enhanced.integration.RuntimeIntegrationRegistry.method(AEApi.instance().storage().getClass(), "getStorageChannel", Class.class);
+                getInventoryMethod = com.github.aeddddd.ae2enhanced.integration.RuntimeIntegrationRegistry.method(appeng.api.networking.storage.IStorageGrid.class, "getInventory", IStorageChannel.class);
 
-                gasCapability = (Capability<?>) Class.forName("mekanism.common.capabilities.Capabilities")
+                gasCapability = (Capability<?>) com.github.aeddddd.ae2enhanced.integration.RuntimeIntegrationRegistry.classForName("mekanism.common.capabilities.Capabilities")
                         .getField("GAS_HANDLER_CAPABILITY").get(null);
 
                 available = true;
@@ -78,6 +81,7 @@ public final class GasReflectionHelper {
         GAS_HANDLER_CLASS = gasHandlerClass;
         GAS_STACK_CLASS = gasStackClass;
         GAS_CLASS = gasClass;
+        GAS_STACK_CONSTRUCTOR = gasStackConstructor;
         GAS_STACK_AMOUNT_FIELD = amountField;
         GAS_STACK_GET_GAS_METHOD = getGasMethod;
         DRAW_GAS_METHOD = drawGasMethod;
@@ -119,7 +123,7 @@ public final class GasReflectionHelper {
 
     public static Object createGasStack(Object gas, int amount) throws Exception {
         if (!AVAILABLE || GAS_STACK_CLASS == null || GAS_CLASS == null) return null;
-        return GAS_STACK_CLASS.getConstructor(GAS_CLASS, int.class).newInstance(gas, amount);
+        return GAS_STACK_CONSTRUCTOR.newInstance(gas, amount);
     }
 
     public static int getGasAmount(Object gasStack) throws Exception {

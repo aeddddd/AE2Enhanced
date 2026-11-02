@@ -1,18 +1,5 @@
 package com.github.aeddddd.ae2enhanced.centralinterface;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
-import static org.mockito.Mockito.when;
-
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
-
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-
 import appeng.api.config.Actionable;
 import appeng.api.config.PowerMultiplier;
 import appeng.api.networking.energy.IEnergySource;
@@ -20,6 +7,15 @@ import appeng.api.networking.security.IActionSource;
 import appeng.api.storage.IMEInventory;
 import appeng.api.storage.data.IAEItemStack;
 import appeng.api.storage.data.IAEStack;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.*;
 
 /**
  * {@link VirtualCostExtractor} 测试。
@@ -179,8 +175,38 @@ public class VirtualCostExtractorTest {
                 Arrays.asList(c1, c2), actionSource, itemSource);
 
         assertThat(result).isNull();
-        // 已提取的 c1 副本被回滚注入
+        // 已提取的 c1 与当前条目实际取到的 1 个都必须回滚
         verify(itemSource).injectItems(copy1, Actionable.MODULATE, actionSource);
+        verify(itemSource).injectItems(got2partial, Actionable.MODULATE, actionSource);
+    }
+
+    /** 回滚注入自身部分成功时，实际余量必须返回给调用方，不能按整份成功忽略。 */
+    @Test
+    public void testRollbackReturnsActualInjectionRemainder() {
+        IAEItemStack original = extracted(5);
+        IAEItemStack remainder = extracted(2);
+        when(itemSource.injectItems(original, Actionable.MODULATE, actionSource)).thenReturn(remainder);
+
+        List<IAEStack> remaining = VirtualCostExtractor.rollbackExtracted(null,
+                Collections.singletonList(original), actionSource, itemSource);
+
+        assertThat(remaining).containsExactly(remainder);
+    }
+
+    /** 当前条目部分提取且回滚又被拒收时，用异常把余量交给引擎保管。 */
+    @Test
+    public void testExtractAllPartialRollbackOverflowIsNotSilentlyDropped() {
+        IAEItemStack requested = cost(3);
+        IAEItemStack partial = extracted(1);
+        when(itemSource.extractItems(requested, Actionable.MODULATE, actionSource)).thenReturn(partial);
+        when(itemSource.injectItems(partial, Actionable.MODULATE, actionSource)).thenReturn(partial);
+
+        try {
+            VirtualCostExtractor.extractAll(null, Collections.singletonList(requested), actionSource, itemSource);
+            throw new AssertionError("Expected rollback overflow");
+        } catch (VirtualCostExtractor.RollbackException expected) {
+            assertThat(expected.getRemaining()).containsExactly(partial);
+        }
     }
 
     /** rollbackExtracted 对 null / 空清单无操作。 */

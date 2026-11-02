@@ -17,9 +17,21 @@ import java.util.List;
 public class PendingProductQueue {
 
     private final List<ItemStack> products = new ArrayList<>();
+    private final List<NBTTagCompound> preservedEntries = new ArrayList<>();
+    private final Runnable changeListener;
+
+    public PendingProductQueue() {
+        this(() -> { });
+    }
+
+    public PendingProductQueue(Runnable changeListener) {
+        this.changeListener = changeListener;
+    }
 
     public void addAll(List<ItemStack> items) {
+        if (items == null || items.isEmpty()) return;
         this.products.addAll(items);
+        this.changeListener.run();
     }
 
     public boolean isEmpty() {
@@ -31,7 +43,10 @@ public class PendingProductQueue {
      */
     public List<ItemStack> drainAll() {
         List<ItemStack> copy = new ArrayList<>(this.products);
-        this.products.clear();
+        if (!this.products.isEmpty()) {
+            this.products.clear();
+            this.changeListener.run();
+        }
         return copy;
     }
 
@@ -40,6 +55,7 @@ public class PendingProductQueue {
      */
     public void writeToNBT(NBTTagCompound data) {
         NBTTagList list = new NBTTagList();
+        for (NBTTagCompound raw : this.preservedEntries) list.appendTag(raw.copy());
         for (ItemStack product : this.products) {
             if (product.isEmpty()) continue;
             list.appendTag(product.serializeNBT());
@@ -56,6 +72,7 @@ public class PendingProductQueue {
      */
     public void readFromNBT(NBTTagCompound data) {
         this.products.clear();
+        this.preservedEntries.clear();
         if (!data.hasKey("pendingVirtualProducts")) {
             return;
         }
@@ -64,6 +81,8 @@ public class PendingProductQueue {
             ItemStack stack = new ItemStack(list.getCompoundTagAt(i));
             if (!stack.isEmpty()) {
                 this.products.add(stack);
+            } else {
+                this.preservedEntries.add(list.getCompoundTagAt(i).copy());
             }
         }
     }

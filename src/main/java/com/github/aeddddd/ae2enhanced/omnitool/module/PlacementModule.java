@@ -1,11 +1,7 @@
 package com.github.aeddddd.ae2enhanced.omnitool.module;
 
-import com.github.aeddddd.ae2enhanced.item.ItemAdvancedMEOmniTool;
-import com.github.aeddddd.ae2enhanced.util.placement.PlacementConfig;
-import com.github.aeddddd.ae2enhanced.util.placement.PlacementMode;
-import com.github.aeddddd.ae2enhanced.util.placement.PlacementTargetResolver;
-import com.github.aeddddd.ae2enhanced.util.placement.PlacementToolHelper;
-import com.github.aeddddd.ae2enhanced.util.placement.SecurityTerminalBindingHelper;
+import com.github.aeddddd.ae2enhanced.omnitool.ItemAdvancedMEOmniTool;
+import com.github.aeddddd.ae2enhanced.omnitool.placement.*;
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;
 import net.minecraft.client.util.ITooltipFlag;

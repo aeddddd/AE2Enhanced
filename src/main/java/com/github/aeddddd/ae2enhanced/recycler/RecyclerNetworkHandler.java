@@ -16,14 +16,15 @@ import appeng.me.GridAccessException;
 import appeng.me.helpers.MachineSource;
 import appeng.util.item.AEItemStack;
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
-import com.github.aeddddd.ae2enhanced.config.AE2EnhancedConfig;
 import com.github.aeddddd.ae2enhanced.storage.ItemStorageAdapter;
-import com.github.aeddddd.ae2enhanced.tile.TileMENetworkRecycler;
 import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
 import net.minecraft.item.ItemStack;
+import net.minecraft.nbt.NBTTagCompound;
+import net.minecraft.nbt.NBTTagList;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.world.World;
 import net.minecraftforge.common.DimensionManager;
+import net.minecraftforge.common.util.Constants;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -43,6 +44,7 @@ public class RecyclerNetworkHandler implements IMEInventoryHandler<IAEItemStack>
     private final BulkCollector collector = new BulkCollector();
     private final HyperStorageLink hyperStorageLink = new HyperStorageLink();
     private final IActionSource actionSource;
+    private final List<NBTTagCompound> orphanedOutboxEntries = new ArrayList<>();
 
     private long lastRecycledCount = 0;
     private int tickCounter = 0;
@@ -54,6 +56,39 @@ public class RecyclerNetworkHandler implements IMEInventoryHandler<IAEItemStack>
 
     public void onLoad() {
         // handler 由 tile 在接入网络时注册
+    }
+
+    public void readOutbox(NBTTagCompound outbox) {
+        collector.drain();
+        orphanedOutboxEntries.clear();
+        NBTTagList items = outbox.getTagList("Items", Constants.NBT.TAG_COMPOUND);
+        for (int i = 0; i < items.tagCount(); i++) {
+            NBTTagCompound entry = items.getCompoundTagAt(i);
+            IAEItemStack stack = null;
+            try {
+                stack = AEItemStack.fromNBT(entry);
+            } catch (RuntimeException ignored) {
+                // 缺失模组或损坏条目按原样保留，不能影响其余待注入物品。
+            }
+            if (stack != null && stack.getStackSize() > 0) {
+                collector.add(stack);
+            } else {
+                orphanedOutboxEntries.add(entry.copy());
+            }
+        }
+    }
+
+    public void writeOutbox(NBTTagCompound outbox) {
+        NBTTagList items = new NBTTagList();
+        for (NBTTagCompound orphaned : orphanedOutboxEntries) {
+            items.appendTag(orphaned.copy());
+        }
+        for (IAEItemStack stack : collector.snapshot()) {
+            NBTTagCompound entry = new NBTTagCompound();
+            stack.writeToNBT(entry);
+            items.appendTag(entry);
+        }
+        outbox.setTag("Items", items);
     }
 
     public void onInvalidate() {
@@ -74,65 +109,49 @@ public class RecyclerNetworkHandler implements IMEInventoryHandler<IAEItemStack>
         if (output.isEmpty()) {
             return ItemStack.EMPTY;
         }
+        if (tile.isInvalid() || tile.getWorld() == null || !tile.isActive()) {
+            return output;
+        }
 
         IAEItemStack toInject = AEItemStack.fromItemStack(output);
         if (toInject == null) {
             return output;
         }
 
-        ItemStorageAdapter hyperAdapter = hyperStorageLink.find(
-                tile.getProxy(), tile.getWorld().getTotalWorldTime());
-        if (hyperAdapter != null) {
-            syncHyperStorageAdapter(hyperAdapter);
-        }
-
         IAEItemStack remainder;
-        List<IAEItemStack> changes = new ArrayList<>();
-
-        if (hyperAdapter != null) {
-            // 注入超维度仓储
-            remainder = hyperAdapter.injectItems(toInject.copy(), Actionable.MODULATE, actionSource);
-
-            long injectedCount = output.getCount() - (remainder != null ? remainder.getStackSize() : 0);
-            if (injectedCount > 0) {
-                IAEItemStack change = toInject.copy();
-                change.setStackSize(injectedCount);
-                changes.add(change);
-            }
-        } else if (!AE2EnhancedConfig.recycler.requireHyperStorageForRedirect) {
-            // 无超维度中枢但配置允许时，回退到普通网络注入
-            try {
-                IStorageGrid storageGrid = tile.getProxy().getGrid().getCache(IStorageGrid.class);
-                if (storageGrid == null) {
-                    return output;
-                }
-                IMEMonitor<IAEItemStack> inv = storageGrid.getInventory(
-                        appeng.api.AEApi.instance().storage().getStorageChannel(IItemStorageChannel.class));
-                remainder = inv.injectItems(toInject.copy(), Actionable.MODULATE, actionSource);
-
-                long injectedCount = output.getCount() - (remainder != null ? remainder.getStackSize() : 0);
-                if (injectedCount > 0) {
-                    IAEItemStack change = toInject.copy();
-                    change.setStackSize(injectedCount);
-                    changes.add(change);
-                }
-            } catch (GridAccessException e) {
+        try {
+            ItemStorageAdapter hyperAdapter = hyperStorageLink.find(
+                    tile.getProxy(), tile.getWorld().getTotalWorldTime());
+            if (hyperAdapter != null) {
+                syncHyperStorageAdapter(hyperAdapter);
+                remainder = hyperAdapter.injectItems(toInject.copy(), Actionable.MODULATE, actionSource);
+            } else if (!com.github.aeddddd.ae2enhanced.config.ServerConfig.current().recycler.requireHyperStorageForRedirect) {
+                remainder = injectToNetwork(toInject);
+            } else {
                 return output;
             }
-        } else {
-            // 必须存在超维度中枢，不存在则回退
+        } catch (GridAccessException | RuntimeException e) {
             return output;
         }
 
-        // 通知网络变化
-        if (!changes.isEmpty()) {
-            postItemAlterations(changes);
+        long requested = output.getCount();
+        long remaining = remainder == null ? 0 : remainder.getStackSize();
+        if (remaining < 0 || remaining > requested) {
+            return output;
+        }
+        long injectedCount = requested - remaining;
+        if (injectedCount > 0) {
+            IAEItemStack change = toInject.copy();
+            change.setStackSize(injectedCount);
+            postItemAlterations(java.util.Collections.singletonList(change));
         }
 
-        if (remainder == null || remainder.getStackSize() <= 0) {
+        if (remaining == 0) {
             return ItemStack.EMPTY;
         }
-        return remainder.createItemStack();
+        ItemStack result = output.copy();
+        result.setCount((int) remaining);
+        return result;
     }
 
     /**
@@ -177,7 +196,7 @@ public class RecyclerNetworkHandler implements IMEInventoryHandler<IAEItemStack>
         flushCollector();
 
         // 4. 全量校验（低频）
-        int fullScanInterval = AE2EnhancedConfig.recycler.fullScanIntervalTicks;
+        int fullScanInterval = com.github.aeddddd.ae2enhanced.config.ServerConfig.current().recycler.fullScanIntervalTicks;
         if (fullScanInterval > 0 && tickCounter % fullScanInterval == 0) {
             rebuildIndex();
         }
@@ -231,7 +250,7 @@ public class RecyclerNetworkHandler implements IMEInventoryHandler<IAEItemStack>
     // ---- 回收逻辑 ----
 
     private void collectFromTargets() {
-        boolean heartbeat = tickCounter % AE2EnhancedConfig.recycler.heartbeatIntervalTicks == 0;
+        boolean heartbeat = tickCounter % com.github.aeddddd.ae2enhanced.config.ServerConfig.current().recycler.heartbeatIntervalTicks == 0;
 
         for (Map.Entry<TargetManager.TargetRef, TargetAdapter> entry : adapters.entrySet()) {
             TargetManager.TargetRef ref = entry.getKey();
@@ -250,6 +269,7 @@ public class RecyclerNetworkHandler implements IMEInventoryHandler<IAEItemStack>
                 ItemStack extracted = adapter.extract(AEItemStack.fromItemStack(stack), false);
                 if (extracted != null && !extracted.isEmpty()) {
                     collector.add(extracted);
+                    tile.markDirty();
                 }
             }
 
@@ -271,83 +291,77 @@ public class RecyclerNetworkHandler implements IMEInventoryHandler<IAEItemStack>
     private void flushCollector() {
         if (collector.isEmpty()) return;
 
-        List<IAEItemStack> changes = collector.drain();
-        lastRecycledCount = changes.stream().mapToLong(IAEItemStack::getStackSize).sum();
-
-        if (AE2EnhancedConfig.recycler.forceHyperdimensionalStorage) {
-            injectToHyperStorage(changes);
-        } else {
-            injectToNetwork(changes);
-        }
-    }
-
-    private void injectToHyperStorage(List<IAEItemStack> changes) {
-        ItemStorageAdapter adapter = hyperStorageLink.find(tile.getProxy(), tile.getWorld().getTotalWorldTime());
-        if (adapter == null) {
-            // 超维度中枢未找到：回退到标准网络注入
-            injectToNetwork(changes);
-            return;
-        }
-        syncHyperStorageAdapter(adapter);
-
-        for (IAEItemStack stack : changes) {
-            logDroppedByStorage(stack, adapter.injectItems(stack.copy(), Actionable.MODULATE, actionSource));
-        }
-
-        // 批量通知网络
-        try {
-            IGrid grid = tile.getProxy().getGrid();
-            if (grid != null) {
-                IStorageGrid storageGrid = grid.getCache(IStorageGrid.class);
-                if (storageGrid != null) {
-                    storageGrid.postAlterationOfStoredItems(
-                            appeng.api.AEApi.instance().storage().getStorageChannel(IItemStorageChannel.class),
-                            changes, actionSource);
+        List<IAEItemStack> requests = collector.drain();
+        List<IAEItemStack> acceptedChanges = new ArrayList<>();
+        lastRecycledCount = 0;
+        for (IAEItemStack stack : requests) {
+            IAEItemStack remainder;
+            try {
+                if (com.github.aeddddd.ae2enhanced.config.ServerConfig.current().recycler.forceHyperdimensionalStorage) {
+                    ItemStorageAdapter adapter = hyperStorageLink.find(
+                            tile.getProxy(), tile.getWorld().getTotalWorldTime());
+                    if (adapter != null) {
+                        syncHyperStorageAdapter(adapter);
+                        remainder = adapter.injectItems(stack.copy(), Actionable.MODULATE, actionSource);
+                    } else {
+                        remainder = injectToNetwork(stack);
+                    }
+                } else {
+                    remainder = injectToNetwork(stack);
                 }
+            } catch (GridAccessException | RuntimeException e) {
+                AE2Enhanced.LOGGER.warn("[AE2E] Recycler item injection failed; retaining buffered stack", e);
+                remainder = stack;
             }
-        } catch (GridAccessException e) {
-            AE2Enhanced.LOGGER.warn("[AE2E] Recycler failed to post alterations", e);
+
+            long requested = stack.getStackSize();
+            long remaining = remainder == null ? 0 : remainder.getStackSize();
+            if (remaining < 0 || remaining > requested) {
+                remaining = requested;
+            }
+            long accepted = requested - remaining;
+            if (accepted > 0) {
+                IAEItemStack change = stack.copy();
+                change.setStackSize(accepted);
+                acceptedChanges.add(change);
+                lastRecycledCount += accepted;
+            }
+            if (remaining > 0) {
+                IAEItemStack retry = stack.copy();
+                retry.setStackSize(remaining);
+                collector.add(retry);
+            }
+        }
+        tile.markDirty();
+        if (!acceptedChanges.isEmpty()) {
+            postItemAlterations(acceptedChanges);
         }
     }
 
-    private void injectToNetwork(List<IAEItemStack> changes) {
-        try {
-            IStorageGrid storageGrid = tile.getProxy().getGrid().getCache(IStorageGrid.class);
-            if (storageGrid == null) {
-                logDroppedBatch(changes, "storage grid unavailable");
-                return;
-            }
-            IMEMonitor<IAEItemStack> inv = storageGrid.getInventory(
-                    appeng.api.AEApi.instance().storage().getStorageChannel(IItemStorageChannel.class));
-            for (IAEItemStack stack : changes) {
-                logDroppedByStorage(stack, inv.injectItems(stack.copy(), Actionable.MODULATE, actionSource));
-            }
-        } catch (GridAccessException e) {
-            logDroppedBatch(changes, "grid access exception");
+    private IAEItemStack injectToNetwork(IAEItemStack stack) throws GridAccessException {
+        IStorageGrid storageGrid = tile.getProxy().getGrid().getCache(IStorageGrid.class);
+        if (storageGrid == null) {
+            return stack;
         }
+        IMEMonitor<IAEItemStack> inv = storageGrid.getInventory(
+                appeng.api.AEApi.instance().storage().getStorageChannel(IItemStorageChannel.class));
+        return inv.injectItems(stack.copy(), Actionable.MODULATE, actionSource);
     }
 
-    /**
-     * 记录被目标存储拒绝而丢弃的回收产物。
-     *
-     * <p>产物在 {@code collectFromTargets} 中已从机器取出且缓冲区已清空，
-     * 注入被拒绝时没有回注通道，只能丢弃；这里留下日志，避免静默丢失。</p>
-     */
-    private void logDroppedByStorage(IAEItemStack requested, IAEItemStack remainder) {
-        if (requested == null || remainder == null || remainder.getStackSize() <= 0) {
-            return;
+    public void dropBufferedContents(World world, net.minecraft.util.math.BlockPos pos) {
+        List<IAEItemStack> buffered = collector.drain();
+        if (!buffered.isEmpty()) {
+            tile.markDirty();
         }
-        AE2Enhanced.LOGGER.warn("[AE2E] Recycler dropped {} x{} rejected by storage",
-                requested.createItemStack().getDisplayName(), remainder.getStackSize());
-    }
-
-    private void logDroppedBatch(List<IAEItemStack> changes, String reason) {
-        long total = 0;
-        for (IAEItemStack stack : changes) {
-            total += stack.getStackSize();
-        }
-        if (total > 0) {
-            AE2Enhanced.LOGGER.warn("[AE2E] Recycler dropped {} item(s) because {}", total, reason);
+        for (IAEItemStack stack : buffered) {
+            long remaining = stack.getStackSize();
+            while (remaining > 0) {
+                IAEItemStack part = stack.copy();
+                part.setStackSize(Math.min(remaining, Integer.MAX_VALUE));
+                world.spawnEntity(new net.minecraft.entity.item.EntityItem(world,
+                        pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5, part.createItemStack()));
+                remaining -= part.getStackSize();
+            }
         }
     }
 
@@ -370,7 +384,9 @@ public class RecyclerNetworkHandler implements IMEInventoryHandler<IAEItemStack>
         for (TargetManager.TargetRef ref : refs) {
             TargetAdapter adapter = adapters.get(ref);
             if (adapter == null) continue;
-            ItemStack got = adapter.extract(request, type == Actionable.SIMULATE);
+            IAEItemStack remainingRequest = request.copy();
+            remainingRequest.setStackSize(requestedCount);
+            ItemStack got = adapter.extract(remainingRequest, type == Actionable.SIMULATE);
             if (got == null || got.isEmpty()) continue;
 
             if (collected.isEmpty()) {

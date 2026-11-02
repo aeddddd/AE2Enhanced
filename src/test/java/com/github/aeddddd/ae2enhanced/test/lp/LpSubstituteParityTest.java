@@ -18,9 +18,8 @@ import com.github.aeddddd.ae2enhanced.test.support.SimulationEnv;
 
 /**
  * 替代感知接管(矿词等真实替代候选)语义测试.
- * <p>口径(与原生一致):替代仅作用于<b>库存提取</b>(先编码物、后候选),
- * 缺额的合成仍走编码物;精确父样板的需求不吃候选库存(执行有效性:
- * 精确父只接受编码物,执行层 canCraft 已实证对启用替代的样板逐槽接受候选).</p>
+ * <p>库存优先按编码物、后候选提取;LP 选中候选生产分支时,物化树同步改用候选输入,
+ * 使候选子合成可经原生 setJob 到达 CPU.精确父样板的需求不吃候选库存.</p>
  */
 public class LpSubstituteParityTest {
 
@@ -171,9 +170,8 @@ public class LpSubstituteParityTest {
      * {@code getCondensedInputs()},候选键的单元不在求解序内 ⇒ 该 externalDemand 被静默
      * 丢弃:候选不被合成、重演缺料也不记账(提取缺口不记 missing),计划既不提交也无
      * 缺料线索(线上正确性缺口)。</p>
-     * <p>断言面 = 驱动器产物(P4 的作用面是"需求传播/单元发现");物化树只按样板编码输入
-     * 展开子节点,变体候选分支不进树(物化层既有口径,不在本任务范围)——故此处只对驱动器
-     * 产物断言候选生产者的执行数,计划面用既有 parity 口径(simulation/missing)加验。</p>
+     * <p>此处断言驱动器的候选生产者执行数与计划可提交性;候选输入进入原生树并经
+     * setJob 注册 addCrafting 的端到端断言见 {@link LpNativeSetJobTest}。</p>
      */
     @Test
     public void testSubstituteCandidateReachesForeignUnit() {

@@ -1,14 +1,5 @@
 package com.github.aeddddd.ae2enhanced.client.gui.terminal;
 
-import java.awt.Rectangle;
-import java.io.File;
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.function.UnaryOperator;
-
 import appeng.api.config.ActionItems;
 import appeng.api.config.ItemSubstitution;
 import appeng.api.config.SearchBoxMode;
@@ -19,14 +10,7 @@ import appeng.api.util.IConfigurableObject;
 import appeng.client.ActionKey;
 import appeng.client.gui.AEBaseGui;
 import appeng.client.gui.GuiNull;
-import appeng.client.gui.widgets.GuiImgButton;
-import com.github.aeddddd.ae2enhanced.client.gui.dock.Ae2ModernArt;
-import com.github.aeddddd.ae2enhanced.client.gui.widget.ModernImgButton;
-import com.github.aeddddd.ae2enhanced.client.gui.widget.ModernTabButton;
-import appeng.client.gui.widgets.GuiScrollbar;
-import appeng.client.gui.widgets.GuiTabButton;
-import appeng.client.gui.widgets.ISortSource;
-import appeng.client.gui.widgets.MEGuiTextField;
+import appeng.client.gui.widgets.*;
 import appeng.client.me.InternalSlotME;
 import appeng.container.interfaces.IJEIGhostIngredients;
 import appeng.core.AEConfig;
@@ -39,10 +23,35 @@ import appeng.core.sync.packets.PacketSwitchGuis;
 import appeng.core.sync.packets.PacketValueConfig;
 import appeng.util.IConfigManagerHost;
 import appeng.util.Platform;
+import com.github.aeddddd.ae2enhanced.AE2Enhanced;
+import com.github.aeddddd.ae2enhanced.client.JEISearchKeyHandler;
+import com.github.aeddddd.ae2enhanced.client.gui.dock.Ae2ModernArt;
+import com.github.aeddddd.ae2enhanced.client.gui.dock.DockHost;
+import com.github.aeddddd.ae2enhanced.client.gui.dock.DockManager;
+import com.github.aeddddd.ae2enhanced.client.gui.dock.ModulePanel;
+import com.github.aeddddd.ae2enhanced.client.gui.dock.workspace.AtomicFileDockLayoutStore;
+import com.github.aeddddd.ae2enhanced.client.gui.dock.workspace.DockLayoutPersistence;
+import com.github.aeddddd.ae2enhanced.client.gui.dock.workspace.TerminalNbtDockLayoutStore;
+import com.github.aeddddd.ae2enhanced.client.gui.jei.GhostIngredientTarget;
+import com.github.aeddddd.ae2enhanced.client.gui.panel.*;
+import com.github.aeddddd.ae2enhanced.client.gui.terminal.access.IGuiMEMonitorableAccessor;
+import com.github.aeddddd.ae2enhanced.client.gui.widget.Ae2TextField;
+import com.github.aeddddd.ae2enhanced.client.gui.widget.ModernImgButton;
+import com.github.aeddddd.ae2enhanced.client.gui.widget.ModernTabButton;
+import com.github.aeddddd.ae2enhanced.client.me.OmniItemRepo;
+import com.github.aeddddd.ae2enhanced.container.ContainerSplicedTerm;
+import com.github.aeddddd.ae2enhanced.container.SplicedTermModules;
+import com.github.aeddddd.ae2enhanced.container.slot.RCSlotFakeCraftingMatrix;
+import com.github.aeddddd.ae2enhanced.container.slot.RCSlotPatternOutputs;
+import com.github.aeddddd.ae2enhanced.dock.model.*;
+import com.github.aeddddd.ae2enhanced.dock.workspace.DockLayoutCodec;
+import com.github.aeddddd.ae2enhanced.dock.workspace.LegacyMigrationContext;
+import com.github.aeddddd.ae2enhanced.network.packet.PacketOmniLayout;
+import com.github.aeddddd.ae2enhanced.network.packet.PacketOmniPageResult;
+import com.github.aeddddd.ae2enhanced.network.packet.PacketOmniTermAction;
 import mezz.jei.api.gui.IGhostIngredientHandler;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiButton;
-import net.minecraft.client.gui.GuiScreen;
 import net.minecraft.client.renderer.GlStateManager;
 import net.minecraft.client.renderer.RenderHelper;
 import net.minecraft.client.resources.I18n;
@@ -54,40 +63,14 @@ import net.minecraftforge.fml.common.Loader;
 import org.lwjgl.input.Keyboard;
 import org.lwjgl.input.Mouse;
 
-import com.github.aeddddd.ae2enhanced.AE2Enhanced;
-import com.github.aeddddd.ae2enhanced.client.JEISearchKeyHandler;
-import com.github.aeddddd.ae2enhanced.client.gui.dock.DockHost;
-import com.github.aeddddd.ae2enhanced.client.gui.dock.DockManager;
-import com.github.aeddddd.ae2enhanced.client.gui.dock.ModulePanel;
-import com.github.aeddddd.ae2enhanced.client.gui.dock.model.DockRect;
-import com.github.aeddddd.ae2enhanced.client.gui.dock.model.DockWorkspace;
-import com.github.aeddddd.ae2enhanced.client.gui.dock.model.FloatingRoot;
-import com.github.aeddddd.ae2enhanced.client.gui.dock.model.LayoutTrees;
-import com.github.aeddddd.ae2enhanced.client.gui.dock.model.LeafNode;
-import com.github.aeddddd.ae2enhanced.client.gui.dock.model.ModuleCatalog;
-import com.github.aeddddd.ae2enhanced.client.gui.dock.workspace.AtomicFileDockLayoutStore;
-import com.github.aeddddd.ae2enhanced.client.gui.dock.workspace.DockLayoutCodec;
-import com.github.aeddddd.ae2enhanced.client.gui.dock.workspace.DockLayoutPersistence;
-import com.github.aeddddd.ae2enhanced.client.gui.dock.workspace.LegacyMigrationContext;
-import com.github.aeddddd.ae2enhanced.client.gui.dock.workspace.TerminalNbtDockLayoutStore;
-import com.github.aeddddd.ae2enhanced.client.gui.jei.GhostIngredientTarget;
-import com.github.aeddddd.ae2enhanced.client.gui.panel.CraftingPanel;
-import com.github.aeddddd.ae2enhanced.client.gui.panel.PatternEncodingPanel;
-import com.github.aeddddd.ae2enhanced.client.gui.panel.PlayerInvPanel;
-import com.github.aeddddd.ae2enhanced.client.gui.panel.RepoPanel;
-import com.github.aeddddd.ae2enhanced.client.gui.panel.StoragePanel;
-import com.github.aeddddd.ae2enhanced.client.gui.panel.UpgradePanel;
-import com.github.aeddddd.ae2enhanced.client.gui.panel.ViewCellPanel;
-import com.github.aeddddd.ae2enhanced.client.gui.slot.RCSlotFakeCraftingMatrix;
-import com.github.aeddddd.ae2enhanced.client.gui.slot.RCSlotPatternOutputs;
-import com.github.aeddddd.ae2enhanced.client.me.OmniItemRepo;
-import com.github.aeddddd.ae2enhanced.container.ContainerSplicedTerm;
-import com.github.aeddddd.ae2enhanced.container.SplicedTermModules;
-import com.github.aeddddd.ae2enhanced.mixin.bridge.TerminalTooltipBridge;
-import com.github.aeddddd.ae2enhanced.mixin.late.accessor.IGuiMEMonitorableAccessor;
-import com.github.aeddddd.ae2enhanced.network.packet.PacketOmniLayout;
-import com.github.aeddddd.ae2enhanced.network.packet.PacketOmniPageResult;
-import com.github.aeddddd.ae2enhanced.network.packet.PacketOmniTermAction;
+import java.awt.*;
+import java.io.File;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.function.UnaryOperator;
 
 /**
  * 可拼接全能无线终端 —— 全屏对话框语义的 {@link AEBaseGui}，由 {@code DockManager} 托管模块窗口。
@@ -115,9 +98,9 @@ import com.github.aeddddd.ae2enhanced.network.packet.PacketOmniTermAction;
  * 具体交付见 {@link SplicedTermDefaultLayout}（默认布局）、{@code SplicedTermSlotPolicy}（槽位归属与
  * shift-click 语义）。</p>
  *
- * <p>布局持久化：阶段 2a 先落到客户端配置 {@code config/ae2enhanced/spliced_terminal/layout.json}
- * （占位）。按评估文档 §2.3 的决策，布局最终要存进终端物品 NBT 并由服务端做上限校验，
- * 那是阶段 4 的工作（届时换成 NBT 存储实现即可，DockManager 侧零改动）。</p>
+ * <p>布局持久化以终端物品 NBT 为权威并由服务端做上限校验；本地布局兜底与预设按
+ * {@code storageId} 隔离在 {@code config/ae2enhanced/spliced_terminal/terminals/<storageId>/}，
+ * 新终端不会继承另一把终端的布局或活动预设。</p>
  *
  * <h3>为什么父类是 {@link GuiNull} 而不是 {@link AEBaseGui}（关键，勿改回去）</h3>
  * <p>本项目的编译类路径是"混合映射"：MC/Forge 是 MCP 名，而 AE2-UEL 的 jar 保留 SRG 名
@@ -169,56 +152,34 @@ public class GuiSplicedTerm extends GuiNull
 
     private boolean dockInitialized;
 
-    // --- 物品仓库：repo 在构造器创建（防首包丢失），搜索框随面板几何重建，滚动条面板自持 ---
+    // --- 物品仓库：repo 在构造器创建（防首包丢失），搜索框原地更新几何，滚动条面板自持 ---
     private final OmniItemRepo repo;
     private final GuiScrollbar repoScrollBar = new GuiScrollbar();
     private final RepoPanel repoPanel;
     /** 编码区自持滚动条（与 repo 一样不注册到 AEBaseGui.setScrollBar）。 */
     private final GuiScrollbar patternScrollBar = new GuiScrollbar();
     private final PatternEncodingPanel patternPanel;
-    private MEGuiTextField searchField;
-    private int searchFieldX = Integer.MIN_VALUE;
-    private int searchFieldY = Integer.MIN_VALUE;
-    private int searchFieldWidth = Integer.MIN_VALUE;
-    private int searchFieldHeight = Integer.MIN_VALUE;
-
-    private GuiTabButton craftingStatusBtn;
-    private GuiImgButton clearCraftBtn;
-    private GuiTabButton patternCraftTabBtn;
-    private GuiTabButton patternProcessTabBtn;
-    private GuiImgButton substituteEnabledBtn;
-    private GuiImgButton substituteDisabledBtn;
-    private GuiImgButton clearPatternBtn;
-    private GuiImgButton encodeBtn;
-    private GuiImgButton x2Btn;
-    private GuiImgButton x3Btn;
-    private GuiImgButton divTwoBtn;
-    private GuiImgButton divThreeBtn;
-    private GuiImgButton plusOneBtn;
-    private GuiImgButton minusOneBtn;
-    private GuiImgButton sortByBtn;
-    private GuiImgButton viewModeBtn;
-    private GuiImgButton sortDirBtn;
-    private GuiImgButton searchModeBtn;
+    private final InterfaceTerminalPanel interfaceTerminalPanel;
+    private final Ae2TextField searchField;
+    private final PanelMaskSync panelMaskSync = new PanelMaskSync(this::sendPanelMask,
+            this::applyRemotePanelMask);
+    private final RepoQueryController repoQuery;
+    private final SplicedTermWidgetLayer widgetLayer;
+    private ModernTabButton craftingStatusBtn;
+    private ModernImgButton clearCraftBtn;
+    private ModernTabButton patternCraftTabBtn;
+    private ModernTabButton patternProcessTabBtn;
+    private ModernImgButton substituteEnabledBtn;
+    private ModernImgButton substituteDisabledBtn;
+    private ModernImgButton clearPatternBtn;
+    private ModernImgButton encodeBtn;
+    private ModernImgButton sortByBtn;
 
     private final RepoModuleSwitchHost moduleSwitchHost = new RepoModuleSwitchHost();
-
-    private boolean repoQueryInitialized;
-    /** panelMask 同步：首次打开时由本地布局推给服务端，之后按差异对齐。 */
-    private boolean maskSyncInitialized;
-    private int lastPushedPanelMask = -1;
-    /** 已推送但还没等到服务端回同步的 mask（-1 = 无在途推送）。 */
-    private int pendingMaskPush = -1;
-    /** 在途推送已等待的 tick 数（超时会重推，避免一次丢包就永久不一致）。 */
-    private int pendingMaskTicks;
-    /** 同一个在途值的重推次数（上限保护，避免服务端不认时无限刷包）。 */
-    private int pendingMaskRetries;
-    private boolean autoFocusSearch;
-    private long lastAppliedRepoLayout = -1L;
-    private long lastRenderedViewVersion = -1L;
-    private int lastScrollPosition = -1;
-    /** dev harness 专用：收到的服务端"存储变化"通知次数（E4 增量更新链路的观测点）。 */
-    private int updateNotifyCount;
+    private ModernImgButton viewModeBtn;
+    private ModernImgButton sortDirBtn;
+    private ModernImgButton searchModeBtn;
+    private SplicedTermWidgetLayer.PatternWidgets patternWidgets;
     private int currentMouseX;
     private int currentMouseY;
 
@@ -226,8 +187,6 @@ public class GuiSplicedTerm extends GuiNull
     private Boolean harnessAltOverride;
     private Boolean harnessControlOverride;
     private Boolean harnessShiftOverride;
-
-    private final ItemStack[] viewCells = new ItemStack[5];
 
     public GuiSplicedTerm(InventoryPlayer inventoryPlayer, ITerminalHost host) {
         // 与 GuiOmniTerm:96-109 相同的构造模式：客户端自建容器并持有其引用
@@ -240,14 +199,15 @@ public class GuiSplicedTerm extends GuiNull
         // 滚动条由 RepoPanel 自持（绘制/点击/拖拽都在面板内），因此不注册到 AEBaseGui.setScrollBar，
         // 避免 AE2 的单滚动条路径把滚动条画在所有窗口之上。
         this.repo = new OmniItemRepo(this.repoScrollBar, this);
+        this.repo.bindContainer(this.omniContainer);
 
-        // 搜索框也在构造器建立（同一生命周期约定）。MEGuiTextField 在构造时固化几何，
-        // 因此真正的尺寸/位置由 layoutSearchField() 在 initGui 与面板移动后重建。
-        this.searchField = createSearchField(0, 0, 90, SEARCH_FIELD_HEIGHT);
+        this.searchField = createSearchField(0, 0, 90);
 
         // 面板在构造器里建立：R3 首个分页包可能早于 initGui 到达，面板必须已经存在
         this.repoPanel = new RepoPanel(this.omniContainer, this.repo, this.repoScrollBar, this);
-        this.repoPanel.setScrollListener(this::applyRepoScroll);
+        this.repoQuery = new RepoQueryController(this.repo, this.repoPanel, this.searchField,
+                this.repoScrollBar, this.omniContainer, this.configSrc, this::searchBoxMode);
+        this.repoPanel.setScrollListener(this.repoQuery::applyScroll);
         this.dockPanels.add(this.repoPanel);
         this.dockPanels.add(new PlayerInvPanel(omniContainer));
         this.dockPanels.add(new ViewCellPanel(omniContainer));
@@ -257,7 +217,12 @@ public class GuiSplicedTerm extends GuiNull
         this.patternPanel = new PatternEncodingPanel(this.omniContainer, this.patternScrollBar, this);
         this.patternPanel.setScrollListener(this::onPatternPageChanged);
         this.dockPanels.add(this.patternPanel);
+        this.dockPanels.add(new CraftingManagementPanel(this.omniContainer, () ->
+                NetworkHandler.instance().sendToServer(new PacketSwitchGuis(GuiBridge.GUI_CRAFTING_STATUS))));
+        this.interfaceTerminalPanel = new InterfaceTerminalPanel(this.omniContainer);
+        this.dockPanels.add(this.interfaceTerminalPanel);
         this.dock = new DockManager(new TerminalDockHost());
+        this.widgetLayer = new SplicedTermWidgetLayer(this.dock);
         this.repoPanel.setModuleSwitchHost(this.moduleSwitchHost);
     }
 
@@ -276,101 +241,12 @@ public class GuiSplicedTerm extends GuiNull
         AE2Enhanced.network.sendToServer(new PacketOmniLayout(layoutJson));
     }
 
-    private static MEGuiTextField createSearchField(int x, int y, int width, int height) {
-        MEGuiTextField field = new MEGuiTextField(Minecraft.getMinecraft().fontRenderer, x, y, width, height);
-        field.setEnableBackgroundDrawing(false);
+    private static Ae2TextField createSearchField(int x, int y, int width) {
+        Ae2TextField field = new Ae2TextField(0, Minecraft.getMinecraft().fontRenderer, x, y, width);
         field.setMaxStringLength(SEARCH_FIELD_MAX_LENGTH);
-        field.setTextColor(0xFFFFFF);
-        field.setSelectionColor(-16744448);
         field.setVisible(true);
         return field;
     }
-
-    /** 宿主的 dock 适配层：MC 单例只出现在这里。 */
-    private final class TerminalDockHost implements DockHost {
-        @Override
-        public int screenWidth() {
-            return width;
-        }
-
-        @Override
-        public int screenHeight() {
-            return height;
-        }
-
-        /**
-         * Alt：把拼接窗口里的一片"拆"成独立窗口（{@code DockManager.shouldDetachJoinedLeaf}）。
-         *
-         * <p>这个覆写此前漏了 —— {@link DockHost} 的默认实现一律返回 {@code false}，
-         * 于是 A9（Alt+拖标题栏拆分）在实机里永远进不了 PENDING_LEAF_DRAG 分支，
-         * 拼接窗口只能整块移动。</p>
-         */
-        @Override
-        public boolean altDown() {
-            return harnessAltOverride != null ? harnessAltOverride
-                    : Keyboard.isKeyDown(Keyboard.KEY_LMENU) || Keyboard.isKeyDown(Keyboard.KEY_RMENU);
-        }
-
-        /** Ctrl：拖标题条时移动整个窗口（而不是把分片拖出去）。 */
-        @Override
-        public boolean controlDown() {
-            return harnessControlOverride != null ? harnessControlOverride
-                    : Keyboard.isKeyDown(Keyboard.KEY_LCONTROL) || Keyboard.isKeyDown(Keyboard.KEY_RCONTROL);
-        }
-
-        /**
-         * Shift：面板内容的 shift 语义。
-         *
-         * <p>{@code DockHost} 目前没有 {@code shiftDown()} 钩子（面板自己读键盘），
-         * 这里先提供终端侧的统一入口，harness 用它做确定性输入；键位回落与其它修饰键一致。</p>
-         */
-        @SuppressWarnings("unused")
-        public boolean shiftDown() {
-            return harnessShiftOverride != null ? harnessShiftOverride
-                    : Keyboard.isKeyDown(Keyboard.KEY_LSHIFT) || Keyboard.isKeyDown(Keyboard.KEY_RSHIFT);
-        }
-
-        /**
-         * 本地可见性变化（标题栏关闭按钮等）后立刻把 panelMask 推给服务端。
-         *
-         * <p>漏了这一步，服务端旧 mask 会在下一次 {@code syncPanelMask()} 里把刚关掉的模块还原。</p>
-         */
-        @Override
-        public void onModuleVisibilityChanged() {
-            pushPanelMask(localPanelMask());
-        }
-
-        @Override
-        public DockLayoutPersistence createPersistence(DockLayoutCodec codec) {
-            // 阶段 4a：物品 NBT 权威（读手持副本、经 PacketOmniLayout 上传），
-            // 客户端配置文件降级为崩溃兜底 + 调试可见的一份。
-            File file = new File(Loader.instance().getConfigDir(),
-                    "ae2enhanced/spliced_terminal/layout.json");
-            AtomicFileDockLayoutStore backup = new AtomicFileDockLayoutStore(file.toPath(), codec);
-            return new TerminalNbtDockLayoutStore(codec, GuiSplicedTerm.this::terminalItemStack,
-                    GuiSplicedTerm.this::uploadLayout, backup);
-        }
-
-        @Override
-        public java.nio.file.Path configDir() {
-            // 预设银行与分享目录都落在这里（与布局兜底文件同目录）
-            return new File(Loader.instance().getConfigDir(), "ae2enhanced/spliced_terminal").toPath();
-        }
-
-        @Override
-        public DockWorkspace createDefaultWorkspace(ModuleCatalog catalog, LegacyMigrationContext geometry,
-                UnaryOperator<DockWorkspace> shellFit) {
-            return buildDefaultLayout(catalog, geometry, shellFit);
-        }
-    }
-
-    /** 默认布局：见 {@link SplicedTermDefaultLayout}（预拼成接近旧大终端的六模块窗口）。 */
-    private static DockWorkspace buildDefaultLayout(ModuleCatalog catalog, LegacyMigrationContext geometry,
-            UnaryOperator<DockWorkspace> shellFit) {
-        return SplicedTermDefaultLayout.create(catalog, geometry, shellFit);
-    }
-
-    // ==================== 生命周期 ====================
 
     @Override
     public void initGui() {
@@ -389,42 +265,21 @@ public class GuiSplicedTerm extends GuiNull
         } else {
             dock.updateViewport(width, height);
         }
-        // V2：打开/重开终端时按 MEST 语义把可见窗口居中（偏好默认关闭，只有真实终端打开它；
-        // 无头单测因此不受影响）。居中作用在 canonical 布局上，与"拖动窗口"一样是一次真实布局编辑。
-        dock.setCenterOnReturn(true);
-        dock.centerVisibleWorkspace();
+        dock.flushPanelLayouts();
 
         createButtons();
         layoutPanelButtons();
         layoutSearchField();
-        this.autoFocusSearch = isAutoFocus(searchBoxMode());
-        if (!repoQueryInitialized) {
-            // 首次打开：搜索记忆回填 + 建立 R3 查询参数
-            repoQueryInitialized = true;
-            initializeRepoQuery();
-        } else {
-            this.searchField.setFocused(this.autoFocusSearch);
-        }
-
-        applyRepoSlots();
+        this.repoQuery.init();
     }
 
-    @Override
-    public void onGuiClosed() {
-        dock.finishPendingGesture();
-        dock.save();
-        // 与旧终端共用 GuiMEMonitorable 的 static memoryText，让搜索词在两种终端间保持
-        IGuiMEMonitorableAccessor.ae2e$setMemoryText(this.searchField.getText());
-        Keyboard.enableRepeatEvents(false);
-        super.onGuiClosed();
+    /** 默认布局：见 {@link SplicedTermDefaultLayout}（预拼成接近旧大终端的六模块窗口）。 */
+    private static DockWorkspace buildDefaultLayout(ModuleCatalog catalog, LegacyMigrationContext geometry,
+            UnaryOperator<DockWorkspace> shellFit) {
+        return SplicedTermDefaultLayout.create(catalog, geometry, shellFit);
     }
 
-    @Override
-    public boolean doesGuiPauseGame() {
-        return false;
-    }
-
-    // ==================== 按钮 ====================
+    // ==================== 生命周期 ====================
 
     private void createButtons() {
         // GuiScreen.initGui 已清空 buttonList，这里重建全部原生按钮
@@ -466,113 +321,39 @@ public class GuiSplicedTerm extends GuiNull
         this.buttonList.add(this.clearPatternBtn);
         this.buttonList.add(this.encodeBtn);
 
-        // 编码区：倍率（半尺寸，顺序与旧终端一致：×2 ×3 ÷2 ÷3 +1 -1）
-        // 19.x 没有"倍率"图标（它把数量交给数量弹窗），这 6 颗用 19.x 按钮底 + 2 字符文字标签；
-        // 尺寸与动作行一致（16x16），不再走 1.12 的 halfSize，避免半尺寸里塞不进可读文字。
-        this.x2Btn = new ModernImgButton(0, 0, Settings.ACTIONS, ActionItems.MULTIPLY_BY_TWO).setLabel("x2");
-        this.x3Btn = new ModernImgButton(0, 0, Settings.ACTIONS, ActionItems.MULTIPLY_BY_THREE).setLabel("x3");
-        this.divTwoBtn = new ModernImgButton(0, 0, Settings.ACTIONS, ActionItems.DIVIDE_BY_TWO).setLabel("/2");
-        this.divThreeBtn = new ModernImgButton(0, 0, Settings.ACTIONS, ActionItems.DIVIDE_BY_THREE).setLabel("/3");
-        this.plusOneBtn = new ModernImgButton(0, 0, Settings.ACTIONS, ActionItems.INCREASE_BY_ONE).setLabel("+1");
-        this.minusOneBtn = new ModernImgButton(0, 0, Settings.ACTIONS, ActionItems.DECREASE_BY_ONE).setLabel("-1");
-        GuiImgButton[] multipliers = { this.x2Btn, this.x3Btn, this.divTwoBtn, this.divThreeBtn,
-                this.plusOneBtn, this.minusOneBtn };
-        for (GuiImgButton multiplier : multipliers) {
-            this.buttonList.add(multiplier);
-        }
+        // 1.21 的编码面板没有倍率按钮（数量交给数量弹窗），这里不再创建这些按钮。
+        this.patternWidgets = new SplicedTermWidgetLayer.PatternWidgets(this.patternCraftTabBtn,
+                this.patternProcessTabBtn, this.substituteEnabledBtn, this.substituteDisabledBtn,
+                this.clearPatternBtn, this.encodeBtn);
     }
+
+    @Override
+    public void onGuiClosed() {
+        dock.finishPendingGesture();
+        dock.save();
+        // 与旧终端共用 GuiMEMonitorable 的 static memoryText，让搜索词在两种终端间保持
+        IGuiMEMonitorableAccessor.ae2e$setMemoryText(this.searchField.getText());
+        Keyboard.enableRepeatEvents(false);
+        super.onGuiClosed();
+    }
+
+    @Override
+    public boolean doesGuiPauseGame() {
+        return false;
+    }
+
+    // ==================== 按钮 ====================
 
     private void layoutPanelButtons() {
-        int top = this.repoPanel.titleControlsTop();
-        this.sortByBtn.x = this.repoPanel.settingControlX(0);
-        this.sortByBtn.y = top;
-        this.viewModeBtn.x = this.repoPanel.settingControlX(1);
-        this.viewModeBtn.y = top;
-        this.sortDirBtn.x = this.repoPanel.settingControlX(2);
-        this.sortDirBtn.y = top;
-        this.searchModeBtn.x = this.repoPanel.settingControlX(3);
-        this.searchModeBtn.y = top;
-        // 合成状态入口：阶段 3a 起归位到 repo 面板标题栏控件条的最左侧（tab 观感，比标题栏高 3px）
-        this.craftingStatusBtn.x = this.repoPanel.craftStatusControlX();
-        this.craftingStatusBtn.y = this.repoPanel.craftStatusControlTop();
-
-        layoutCraftingButtons();
-        layoutPatternButtons();
+        this.widgetLayer.layoutRepo(this.repoPanel, this.sortByBtn, this.viewModeBtn, this.sortDirBtn,
+                this.searchModeBtn, this.craftingStatusBtn);
+        this.widgetLayer.layoutCrafting(panelById(CraftingPanel.MODULE_ID), this.clearCraftBtn);
+        this.widgetLayer.layoutPattern(this.patternPanel, this.omniContainer, this.patternWidgets);
     }
 
-    /** 合成面板的清空按钮。 */
-    private void layoutCraftingButtons() {
-        ModulePanel crafting = panelById(CraftingPanel.MODULE_ID);
-        boolean show = crafting instanceof CraftingPanel && crafting.visible
-                && isPanelAreaUnobscured(crafting);
-        this.clearCraftBtn.x = show ? ((CraftingPanel) crafting).clearButtonX() : -1000;
-        this.clearCraftBtn.y = show ? ((CraftingPanel) crafting).clearButtonY() : -1000;
-        this.clearCraftBtn.visible = show;
-    }
-
-    /**
-     * 编码区按钮：位置由面板给出；<strong>被上层窗口遮挡时直接隐藏</strong>。
-     *
-     * <p>GuiScreen 的按钮绘制在 dock 全部背景之上，天然会"穿透"到覆盖它的窗口之上；这里用
-     * dock 的遮挡判定把被盖住的按钮藏掉，因此遮挡时既看不到也点不到（点会落到上层窗口）。</p>
-     */
-    private void layoutPatternButtons() {
-        boolean visible = this.patternPanel.visible && isPanelAreaUnobscured(this.patternPanel);
-        boolean craft = this.omniContainer.isPatternCraftMode();
-
-        setButtonVisible(this.patternCraftTabBtn, visible && craft);
-        setButtonVisible(this.patternProcessTabBtn, visible && !craft);
-        this.patternCraftTabBtn.x = this.patternPanel.modeTabX();
-        this.patternCraftTabBtn.y = this.patternPanel.modeTabY();
-        this.patternProcessTabBtn.x = this.patternPanel.modeTabX();
-        this.patternProcessTabBtn.y = this.patternPanel.modeTabY();
-
-        boolean substituteShown = visible && craft;
-        setButtonVisible(this.substituteEnabledBtn, substituteShown && this.omniContainer.isSubstitute());
-        setButtonVisible(this.substituteDisabledBtn, substituteShown && !this.omniContainer.isSubstitute());
-        setButtonVisible(this.clearPatternBtn, visible);
-        setButtonVisible(this.encodeBtn, visible);
-        this.substituteEnabledBtn.x = this.patternPanel.actionX(0);
-        this.substituteEnabledBtn.y = this.patternPanel.actionY();
-        this.substituteDisabledBtn.x = this.patternPanel.actionX(0);
-        this.substituteDisabledBtn.y = this.patternPanel.actionY();
-        this.clearPatternBtn.x = this.patternPanel.actionX(1);
-        this.clearPatternBtn.y = this.patternPanel.actionY();
-        this.encodeBtn.x = this.patternPanel.actionX(2);
-        this.encodeBtn.y = this.patternPanel.actionY();
-
-        GuiImgButton[] multipliers = { this.x2Btn, this.x3Btn, this.divTwoBtn, this.divThreeBtn,
-                this.plusOneBtn, this.minusOneBtn };
-        for (int i = 0; i < multipliers.length; i++) {
-            setButtonVisible(multipliers[i], visible);
-            multipliers[i].x = this.patternPanel.multiplierX(i);
-            multipliers[i].y = this.patternPanel.multiplierY();
-        }
-    }
-
-    private void setButtonVisible(GuiButton button, boolean shown) {
-        if (button == null) {
-            return;
-        }
-        button.visible = shown;
-        if (!shown) {
-            // 移出屏幕外：把 visible=false 之外再兜一层，避免任何遗留的命中测试
-            button.x = -1000;
-            button.y = -1000;
-        }
-    }
-
-    /**
-     * 面板内容区是否没有被更高窗口盖住。
-     *
-     * <p>面板不可见（或还没投影）时返回 false。</p>
-     */
-    private boolean isPanelAreaUnobscured(ModulePanel panel) {
-        if (panel == null || !panel.visible) {
-            return false;
-        }
-        return dock.isAreaUnobscured(panel, new DockRect(
-                panel.contentLeft(), panel.contentTop(), panel.contentWidth(), panel.contentHeight()));
+    private void layoutSearchField() {
+        int[] bounds = this.repoPanel.searchFieldBounds();
+        this.searchField.setBounds(bounds[0], bounds[1], bounds[2]);
     }
 
     private ModulePanel panelById(String moduleId) {
@@ -584,24 +365,10 @@ public class GuiSplicedTerm extends GuiNull
         return null;
     }
 
-    private void layoutSearchField() {
-        int[] bounds = this.repoPanel.searchFieldBounds();
-        if (this.searchFieldX == bounds[0] && this.searchFieldY == bounds[1]
-                && this.searchFieldWidth == bounds[2] && this.searchFieldHeight == bounds[3]) {
-            return;
-        }
-        this.searchFieldX = bounds[0];
-        this.searchFieldY = bounds[1];
-        this.searchFieldWidth = bounds[2];
-        this.searchFieldHeight = bounds[3];
-        // MEGuiTextField 把几何固化在构造器里（_xPos/_yPos/_width/_height 是 final），
-        // 因此面板一移动就必须重建实例；文本与聚焦状态在这里接力。
-        String text = this.searchField != null ? this.searchField.getText() : "";
-        boolean focused = this.searchField != null && this.searchField.isFocused();
-        MEGuiTextField field = createSearchField(bounds[0], bounds[1], bounds[2], bounds[3]);
-        field.setText(text);
-        field.setFocused(focused);
-        this.searchField = field;
+    public String harnessInterfaceReport() {
+        return "providers=" + this.interfaceTerminalPanel.harnessProviderCount()
+                + " slots=" + this.interfaceTerminalPanel.harnessDynamicSlotCount()
+                + " patterns=" + this.interfaceTerminalPanel.harnessEncodedPatternCount();
     }
 
     @Override
@@ -665,18 +432,6 @@ public class GuiSplicedTerm extends GuiNull
         } else if (button == this.encodeBtn) {
             action = "Encode";
             value = (Keyboard.isKeyDown(Keyboard.KEY_LSHIFT) || Keyboard.isKeyDown(Keyboard.KEY_RSHIFT)) ? "2" : "1";
-        } else if (button == this.x2Btn) {
-            action = "MultiplyByTwo";
-        } else if (button == this.x3Btn) {
-            action = "MultiplyByThree";
-        } else if (button == this.divTwoBtn) {
-            action = "DivideByTwo";
-        } else if (button == this.divThreeBtn) {
-            action = "DivideByThree";
-        } else if (button == this.plusOneBtn) {
-            action = "IncreaseByOne";
-        } else if (button == this.minusOneBtn) {
-            action = "DecreaseByOne";
         }
         if (action == null) {
             return false;
@@ -768,9 +523,6 @@ public class GuiSplicedTerm extends GuiNull
                 boolean pushed = com.github.aeddddd.ae2enhanced.client.gui.dock.NinePatch
                         .pushZLevel(dock.paintZOf(this.repoPanel));
                 try {
-                    com.github.aeddddd.ae2enhanced.client.gui.dock.NinePatch.drawTextField(
-                            bounds[0] - 1, bounds[1] - 1, bounds[2] + 2, bounds[3] + 2,
-                            this.searchField.isFocused(), 0.0F);
                     this.searchField.drawTextBox();
                 } finally {
                     com.github.aeddddd.ae2enhanced.client.gui.dock.NinePatch.popZLevel(pushed);
@@ -908,6 +660,54 @@ public class GuiSplicedTerm extends GuiNull
         return panel == null ? -1.0F : this.dock.paintZOf(panel);
     }
 
+    public String harnessCraftingSlotReport() {
+        ModulePanel panel = panelById(CraftingPanel.MODULE_ID);
+        StringBuilder report = new StringBuilder(panel == null ? "panel=missing"
+                : "content=" + panel.contentLeft() + "," + panel.contentTop());
+        List<Slot> slots = this.omniContainer.craftingMatrixSlots();
+        for (int index = 0; index < slots.size(); index++) {
+            Slot slot = slots.get(index);
+            report.append(' ').append(index).append(':').append(slot.xPos).append(',').append(slot.yPos)
+                    .append('=').append(slot.getStack().isEmpty() ? "empty"
+                            : slot.getStack().getItem().getRegistryName() + "x" + slot.getStack().getCount());
+        }
+        Slot output = this.omniContainer.craftingOutputSlot();
+        report.append(" output=").append(output == null || output.getStack().isEmpty() ? "empty"
+                : output.getStack().getItem().getRegistryName() + "x" + output.getStack().getCount());
+        return report.toString();
+    }
+
+    public boolean harnessNativeButtonLayersValid() {
+        ModulePanel crafting = panelById(CraftingPanel.MODULE_ID);
+        return this.sortByBtn.paintZ() > dock.paintZOf(this.repoPanel)
+                && this.craftingStatusBtn.paintZ() > dock.paintZOf(this.repoPanel)
+                && this.encodeBtn.paintZ() > dock.paintZOf(this.patternPanel)
+                && this.clearCraftBtn.paintZ() > dock.paintZOf(crafting);
+    }
+
+    @Override
+    public void updateScreen() {
+        super.updateScreen();
+
+        // 断电 / 合成置顶 心跳
+        this.repo.setPower(this.omniContainer.isPowered());
+        this.repo.setActiveCrafting(this.omniContainer.getClientActiveCrafting());
+
+        this.repo.tick();
+        this.searchField.updateCursorCounter();
+        this.dock.flushPanelLayouts();
+
+        // 编码区：模式/页号可能被容器（@GuiSync 回放 / 服务端 Scroll）改过 → 面板重新摆位
+        this.patternPanel.tick();
+        this.repoPanel.tick();
+        this.interfaceTerminalPanel.tick();
+
+        this.repoQuery.tick();
+        layoutPanelButtons();
+        layoutSearchField();
+        syncPanelMask();
+    }
+
     /**
      * harness：按 JEI 看到的"GUI 本体矩形"口径重算一遍并输出（面板并集 + 各面板矩形）。
      *
@@ -951,47 +751,6 @@ public class GuiSplicedTerm extends GuiNull
 
     // ==================== 心跳 ====================
 
-    @Override
-    public void updateScreen() {
-        super.updateScreen();
-
-        // 断电 / 合成置顶 心跳
-        this.repo.setPower(this.omniContainer.isPowered());
-        this.repo.setActiveCrafting(this.omniContainer.getClientActiveCrafting());
-
-        // R3：UPDATE_NOTIFY 节流
-        if (this.repo.hasPendingRefresh()) {
-            this.repo.handleUpdateNotify();
-        }
-
-        // 编码区：模式/页号可能被容器（@GuiSync 回放 / 服务端 Scroll）改过 → 面板重新摆位
-        this.patternPanel.tick();
-
-        // 面板几何变化（拖动/缩放/隐藏）→ 重建或重定位 ME 槽位
-        if (this.repoPanel.layoutVersion() != lastAppliedRepoLayout) {
-            applyRepoSlots();
-        }
-        // 按钮与搜索框的位置只取决于 repo 面板的矩形：拖动窗口不是结构性变更，
-        // 不能靠 dock.structureVersion() 触发，逐 tick 对齐最省心（代价是几个字段写入）。
-        layoutPanelButtons();
-        layoutSearchField();
-
-        long viewVersion = this.repo.getRenderViewVersion();
-        if (viewVersion != lastRenderedViewVersion) {
-            lastRenderedViewVersion = viewVersion;
-            refreshRepoScrollRange();
-        }
-        if (this.repoScrollBar.getCurrentScroll() != lastScrollPosition) {
-            applyRepoScroll();
-        }
-
-        syncViewCells();
-        this.repo.updateView();
-        syncPanelMask();
-    }
-
-    // ==================== panelMask（可见性同步到服务端） ====================
-
     /**
      * 可见性同步。
      *
@@ -1000,54 +759,14 @@ public class GuiSplicedTerm extends GuiNull
      * 收敛后双方每个 tick 都相等，不会来回抖。</p>
      */
     private void syncPanelMask() {
-        int local = localPanelMask();
-        int remote = SplicedTermModules.sanitize(this.omniContainer.getPanelMask());
-        if (!maskSyncInitialized) {
-            maskSyncInitialized = true;
-            this.lastPushedPanelMask = remote;
-            if (local != remote) {
-                pushPanelMask(local);
-            }
-            return;
-        }
-        if (pendingMaskPush != -1 && remote == pendingMaskPush) {
-            // 服务端已回同步我们的推送 → 确认完成
-            pendingMaskPush = -1;
-        }
-        if (local == remote) {
-            return;
-        }
-        if (pendingMaskPush != -1) {
-            // 推送在途（服务端那一份还是旧值）：不能用旧值覆盖本地刚改的可见性，
-            // 否则"关掉模块"会在下一 tick 被服务端旧 mask 还原（A13 的历史 bug）。
-            // 但也不能无限等：40 tick 还没等到回同步就重推一次（丢包/服务端没处理都会走到这里），
-            // 重推若干次仍不成功则采纳服务端值收敛，避免两端永久不一致。
-            if (++pendingMaskTicks < 40) {
-                return;
-            }
-            pendingMaskTicks = 0;
-            if (++pendingMaskRetries <= 5) {
-                AE2Enhanced.LOGGER.debug("[AE2E] panelMask 待在途回同步超时，重推 0x{}（第 {} 次）",
-                        Integer.toHexString(pendingMaskPush), pendingMaskRetries);
-                pushPanelMask(localPanelMask());
-                return;
-            }
-            AE2Enhanced.LOGGER.warn("[AE2E] panelMask 推送 0x{} 多次无回同步，采纳服务端值 0x{} 收敛",
-                    Integer.toHexString(pendingMaskPush), Integer.toHexString(remote));
-            this.dock.applyVisibleModules(SplicedTermModules.visibleModuleIds(remote));
-            pendingMaskPush = -1;
-            pendingMaskRetries = 0;
-            return;
-        }
-        if (remote != lastPushedPanelMask) {
-            // 服务端那份不是我们刚推上去的值 → 以服务端为准（服务端会强制 repo/playerinv 可见）
-            this.dock.applyVisibleModules(SplicedTermModules.visibleModuleIds(remote));
-        }
-        // 走到这里 = 本地与服务端不一致、且没有在途推送：无条件把本地真相推上去。
-        // 这一步是自愈用的兜底：任何改可见性的入口（开关/关闭按钮/revealModule/布局载入/编辑器）
-        // 只要漏了 onModuleVisibilityChanged 或通知时本地投影还没更新，就会落到这里；
-        // 少了它，两端会永久停在不一致上（服务端继续按旧掩码拒绝"玩家能看见的面板"的槽位）。
-        pushPanelMask(localPanelMask());
+        this.panelMaskSync.tick(localPanelMask(),
+                SplicedTermModules.sanitize(this.omniContainer.getPanelMask()));
+    }
+
+    // ==================== panelMask（可见性同步到服务端） ====================
+
+    private void pushPanelMask(int mask) {
+        this.panelMaskSync.push(SplicedTermModules.sanitize(mask));
     }
 
     /** 本地（布局树）算出的可见模块掩码。 */
@@ -1059,14 +778,17 @@ public class GuiSplicedTerm extends GuiNull
         return SplicedTermModules.sanitize(mask);
     }
 
-    private void pushPanelMask(int mask) {
-        int sanitized = SplicedTermModules.sanitize(mask);
-        this.lastPushedPanelMask = sanitized;
-        this.pendingMaskPush = sanitized;
-        this.pendingMaskTicks = 0;
-        this.pendingMaskRetries = 0;
-        AE2Enhanced.network.sendToServer(
-                new PacketOmniTermAction("PanelVisibility", Integer.toString(sanitized)));
+    private void sendPanelMask(int mask) {
+        AE2Enhanced.network.sendToServer(new PacketOmniTermAction("PanelVisibility", Integer.toString(mask)));
+    }
+
+    private void applyRemotePanelMask(int mask) {
+        this.dock.applyVisibleModules(SplicedTermModules.visibleModuleIds(mask));
+    }
+
+    @Override
+    public void handlePageResult(PacketOmniPageResult packet) {
+        this.repoQuery.handlePageResult(packet);
     }
 
     /** repo 面板上的模块开关（最小显隐入口；布局编辑器留给阶段 4）。 */
@@ -1211,101 +933,34 @@ public class GuiSplicedTerm extends GuiNull
     // ==================== R3 分页契约 ====================
 
     @Override
-    public void handlePageResult(PacketOmniPageResult packet) {
-        this.repo.handlePageResult(packet.getTotalCount(), packet.getOffset(), packet.getEntries());
-        refreshRepoScrollRange();
+    public void handleUpdateNotify() {
+        this.repoQuery.handleUpdateNotify();
     }
 
     @Override
-    public void handleUpdateNotify() {
-        this.updateNotifyCount++;
-        this.repo.handleUpdateNotify();
+    public void postUpdate(net.minecraft.nbt.NBTTagCompound data) {
+        this.interfaceTerminalPanel.postUpdate(data);
     }
 
     /** dev harness 专用：累计收到多少次服务端"存储变化"通知（{@code PacketOmniUpdateNotify}，R3 增量更新）。 */
     public int harnessUpdateNotifyCount() {
-        return this.updateNotifyCount;
+        return this.repoQuery.updateNotifyCount();
     }
 
-    private void applyRepoSlots() {
-        this.lastAppliedRepoLayout = this.repoPanel.layoutVersion();
-        this.repoPanel.applySlots(this.inventorySlots.inventorySlots);
-        this.omniContainer.slotPolicy().setRepoSlots(this.repoPanel.hostedSlots());
-        // 列/行可能刚变过：每屏物品数变了，滚动范围要跟着重算
-        refreshRepoScrollRange();
-    }
-
-    /** 首次打开时建立 R3 查询参数并拉取第一页（同时回填共用的搜索记忆）。 */
-    private void initializeRepoQuery() {
-        // 与旧终端同款：JEI 系搜索模式打开时先取 JEI 的搜索词写进共用记忆
-        // （AE2 在 GuiMEMonitorable.initGui 里做同一件事：isJEIEnabled → Integrations.jei().getSearchText()）
-        if (isSearchModeJei(searchBoxMode())) {
-            String jeiText = com.github.aeddddd.ae2enhanced.client.me.JeiSearchHelper.getJeiFilterText();
-            if (jeiText != null && !jeiText.isEmpty()) {
-                IGuiMEMonitorableAccessor.ae2e$setMemoryText(jeiText);
-            }
-        }
-        if (isSearchModeKeep(searchBoxMode())) {
-            String remembered = IGuiMEMonitorableAccessor.ae2e$getMemoryText();
-            if (remembered != null && !remembered.isEmpty() && this.searchField.getText().isEmpty()) {
-                this.searchField.setText(remembered);
-                this.searchField.selectAll();
-            }
-        }
-        this.searchField.setFocused(this.autoFocusSearch);
-        pushRepoQuery();
-    }
-
-    /** 把搜索框文本 + 排序/视图设置下发给 R3 repo。 */
     private void pushRepoQuery() {
-        String text = this.searchField.getText() == null ? "" : this.searchField.getText();
-        boolean modSearch = text.startsWith("@");
-        String query = text;
-        if (modSearch || query.startsWith("#")) {
-            query = query.substring(1).trim();
-        }
-        this.repo.onQueryParamsChanged(query, (byte) (modSearch ? 1 : 0),
-                settingOrdinal(Settings.SORT_BY),
-                settingOrdinal(Settings.SORT_DIRECTION),
-                settingOrdinal(Settings.VIEW_MODE));
-        // 同步父类 ItemRepo 的 searchString 字段与 @/# 语义（参数一致时不会重复发请求）
-        this.repo.setSearchString(text);
-        resetRepoScroll();
+        this.repoQuery.pushQuery();
     }
 
     private void pushSearchText() {
-        this.repo.setSearchString(this.searchField.getText());
-        resetRepoScroll();
-        refreshRepoScrollRange();
+        this.repoQuery.pushSearchText();
     }
 
-    /** 查询变化后回到顶部（与 repo 内部被重置的 scrollOffset 保持一致）。 */
-    private void resetRepoScroll() {
-        this.repoScrollBar.setRange(0, 0, 1);
-        this.lastScrollPosition = this.repoScrollBar.getCurrentScroll();
-    }
-
-    private byte settingOrdinal(Settings setting) {
-        Enum value = this.configSrc.getSetting(setting);
-        return (byte) (value != null ? value.ordinal() : 0);
+    private void applyRepoScroll() {
+        this.repoQuery.applyScroll();
     }
 
     private Enum searchBoxMode() {
         return AEConfig.instance().getConfigManager().getSetting(Settings.SEARCH_MODE);
-    }
-
-    private static boolean isAutoFocus(Enum searchMode) {
-        return searchMode == SearchBoxMode.AUTOSEARCH
-                || searchMode == SearchBoxMode.JEI_AUTOSEARCH
-                || searchMode == SearchBoxMode.AUTOSEARCH_KEEP
-                || searchMode == SearchBoxMode.JEI_AUTOSEARCH_KEEP;
-    }
-
-    private static boolean isSearchModeKeep(Enum searchMode) {
-        return searchMode == SearchBoxMode.AUTOSEARCH_KEEP
-                || searchMode == SearchBoxMode.JEI_AUTOSEARCH_KEEP
-                || searchMode == SearchBoxMode.MANUAL_SEARCH_KEEP
-                || searchMode == SearchBoxMode.JEI_MANUAL_SEARCH_KEEP;
     }
 
     /** JEI 系搜索模式（与 JEI/HEI 搜索框同步的那几种）。 */
@@ -1318,42 +973,9 @@ public class GuiSplicedTerm extends GuiNull
 
     // ==================== 滚动 / 视图 ====================
 
-    /** 滚动条位置 → R3 分页偏移（同时更新去重用的 {@code lastScrollPosition}）。 */
-    private void applyRepoScroll() {
-        int currentScroll = this.repoScrollBar.getCurrentScroll();
-        this.lastScrollPosition = currentScroll;
-        this.repo.onScrollChanged(currentScroll * Math.max(1, this.repo.getRowSize()));
-    }
-
-    /** 依据服务端总数与当前列/行数刷新滚动条范围（合成置顶行会吃掉一行）。 */
     private void refreshRepoScrollRange() {
-        boolean pinned = !this.omniContainer.getClientActiveCrafting().isEmpty();
-        int maxScroll = RepoPanel.maxScrollRows(this.repo.size(), this.repoPanel.columns(),
-                this.repoPanel.rows(), pinned);
-        this.repoScrollBar.setRange(0, maxScroll, 1);
-        if (this.repoScrollBar.getCurrentScroll() != lastScrollPosition) {
-            // setRange 可能把当前滚动位置夹紧，需要同步一次
-            applyRepoScroll();
-        }
+        this.repoQuery.refreshScrollRange();
     }
-
-    /** view cell 栏变化 → 同步给 repo 的过滤条件（每 tick 检测，与旧终端一致）。 */
-    private void syncViewCells() {
-        boolean update = false;
-        for (int i = 0; i < viewCells.length; i++) {
-            ItemStack current = this.omniContainer.getCellViewSlot(i).getStack();
-            if (viewCells[i] == current) {
-                continue;
-            }
-            update = true;
-            viewCells[i] = current;
-        }
-        if (update) {
-            this.repo.setViewCell(viewCells);
-        }
-    }
-
-    // ==================== 事件转发：dock 优先，未消费则交回 AE2 ====================
 
     @Override
     protected void mouseClicked(int mouseX, int mouseY, int mouseButton) throws IOException {
@@ -1383,6 +1005,54 @@ public class GuiSplicedTerm extends GuiNull
             super.mouseClicked(mouseX, mouseY, mouseButton);
         }
         dock.commitPanelInteraction();
+        dock.flushPanelLayouts();
+        layoutPanelButtons();
+        layoutSearchField();
+    }
+
+    // ==================== 事件转发：dock 优先，未消费则交回 AE2 ====================
+
+    @Override
+    protected void keyTyped(char typedChar, int keyCode) throws IOException {
+        if (this.interfaceTerminalPanel.keyTyped(typedChar, keyCode)) {
+            return;
+        }
+        if (dock.keyPressed(keyCode)) {
+            return;
+        }
+        if (!checkHotbarKeys(keyCode)) {
+            // F 键：把 JEI/HEI 悬停物品的名称填入搜索框（旧终端同款行为）
+            if (keyCode == Keyboard.KEY_F && !this.searchField.isFocused()) {
+                JEISearchKeyHandler.performSearch(this.searchField, this.repo, this::afterExternalSearch,
+                        this.currentMouseX, this.currentMouseY);
+                return;
+            }
+            if (AppEng.proxy.isActionKey(ActionKey.TOGGLE_FOCUS, keyCode)) {
+                this.searchField.setFocused(!this.searchField.isFocused());
+                return;
+            }
+            if (this.searchField.isFocused() && keyCode == 28) {
+                this.searchField.setFocused(false);
+                return;
+            }
+            if (typedChar == ' ' && this.searchField.getText().isEmpty()) {
+                return;
+            }
+            boolean mouseInRepo = this.repoPanel.visible
+                    && this.repoPanel.contains(this.currentMouseX, this.currentMouseY);
+            boolean wasFocused = this.searchField.isFocused();
+            if (this.repoQuery.autoFocusSearch() && !wasFocused && mouseInRepo) {
+                this.searchField.setFocused(true);
+            }
+            if (this.searchField.textboxKeyTyped(typedChar, keyCode)) {
+                pushSearchText();
+                return;
+            }
+            if (!wasFocused) {
+                this.searchField.setFocused(false);
+            }
+        }
+        super.keyTyped(typedChar, keyCode);
     }
 
     private boolean isOverNativeButton(int mouseX, int mouseY) {
@@ -1424,43 +1094,39 @@ public class GuiSplicedTerm extends GuiNull
     }
 
     @Override
-    protected void keyTyped(char typedChar, int keyCode) throws IOException {
-        if (dock.keyPressed(keyCode)) {
+    protected void renderHoveredToolTip(int mouseX, int mouseY) {
+        String titleTooltip = this.dock.titleBarTooltipAt(mouseX, mouseY);
+        if (titleTooltip != null) {
+            this.drawHoveringText(java.util.Collections.singletonList(titleTooltip), mouseX, mouseY);
             return;
         }
-        if (!checkHotbarKeys(keyCode)) {
-            // F 键：把 JEI/HEI 悬停物品的名称填入搜索框（旧终端同款行为）
-            if (keyCode == Keyboard.KEY_F && !this.searchField.isFocused()) {
-                JEISearchKeyHandler.performSearch(this.searchField, this.repo, this::afterExternalSearch,
-                        this.currentMouseX, this.currentMouseY);
-                return;
+        for (GuiButton button : this.buttonList) {
+            if (!button.enabled || !button.visible || mouseX < button.x || mouseY < button.y
+                    || mouseX >= button.x + button.width || mouseY >= button.y + button.height) {
+                continue;
             }
-            if (AppEng.proxy.isActionKey(ActionKey.TOGGLE_FOCUS, keyCode)) {
-                this.searchField.setFocused(!this.searchField.isFocused());
-                return;
+            String text = button instanceof ModernImgButton
+                    ? ((ModernImgButton) button).tooltip() : button.displayString;
+            if (text != null && !text.isEmpty()) {
+                this.drawHoveringText(java.util.Collections.singletonList(text), mouseX, mouseY);
             }
-            if (this.searchField.isFocused() && keyCode == 28) {
-                this.searchField.setFocused(false);
-                return;
-            }
-            if (typedChar == ' ' && this.searchField.getText().isEmpty()) {
-                return;
-            }
-            boolean mouseInRepo = this.repoPanel.visible
-                    && this.repoPanel.contains(this.currentMouseX, this.currentMouseY);
-            boolean wasFocused = this.searchField.isFocused();
-            if (this.autoFocusSearch && !wasFocused && mouseInRepo) {
-                this.searchField.setFocused(true);
-            }
-            if (this.searchField.textboxKeyTyped(typedChar, keyCode)) {
-                pushSearchText();
-                return;
-            }
-            if (!wasFocused) {
-                this.searchField.setFocused(false);
-            }
+            return;
         }
-        super.keyTyped(typedChar, keyCode);
+        if (renderModuleSwitchTooltip(mouseX, mouseY)) {
+            return;
+        }
+        ModulePanel hovered = this.dock.topLeafAt(mouseX, mouseY);
+        if (hovered != null && !hovered.containsContent(mouseX, mouseY)) {
+            return;
+        }
+        Slot slot = this.getSlot(mouseX, mouseY);
+        if (slot == null) {
+            return;
+        }
+        if (TerminalTooltipBridge.onRenderHoveredToolTip(this, slot, mouseX, mouseY)) {
+            return;
+        }
+        super.renderHoveredToolTip(mouseX, mouseY);
     }
 
     /** JEI 搜索写入搜索框后的收尾（repo 已由 JEI handler 更新，这里刷新滚动条范围）。 */
@@ -1514,18 +1180,17 @@ public class GuiSplicedTerm extends GuiNull
         return this.dock.topPanelAt(mouseX, mouseY) == null;
     }
 
-    @Override
-    protected void renderHoveredToolTip(int mouseX, int mouseY) {
-        if (renderModuleSwitchTooltip(mouseX, mouseY)) {
-            return;
+    public int[] harnessInterfaceSlotPos(boolean encodedPattern) {
+        for (Slot slot : this.inventorySlots.inventorySlots) {
+            if (!(slot instanceof appeng.client.me.SlotDisconnected) || slot.xPos < 0 || slot.yPos < 0) {
+                continue;
+            }
+            boolean encoded = slot.getStack().getItem() instanceof appeng.items.misc.ItemEncodedPattern;
+            if (encoded == encodedPattern) {
+                return new int[] {slot.xPos + 8, slot.yPos + 8};
+            }
         }
-        // 旧 GUI 由 MixinGuiMEMonitorableTooltip 注入 GuiMEMonitorable.renderHoveredToolTip；
-        // 新 GUI 不继承该类，因此直接在这里调用同一个桥接（流体/气体/源质假物品 tooltip）
-        Slot slot = this.getSlotUnderMouse();
-        if (TerminalTooltipBridge.onRenderHoveredToolTip(this, slot, mouseX, mouseY)) {
-            return;
-        }
-        super.renderHoveredToolTip(mouseX, mouseY);
+        return null;
     }
 
     @Override
@@ -1664,6 +1329,10 @@ public class GuiSplicedTerm extends GuiNull
         return this.repo.size();
     }
 
+    public String harnessQueryState() {
+        return this.repo.harnessQueryState();
+    }
+
     /** dev harness 专用：终端物品 NBT 上的 {@code omni_layout}（服务端写入后经容器同步回客户端的副本）。 */
     public String harnessTerminalItemLayoutJson() {
         return com.github.aeddddd.ae2enhanced.container.OmniTerminalLayoutNbt.read(terminalItemStack());
@@ -1683,12 +1352,13 @@ public class GuiSplicedTerm extends GuiNull
         return null;
     }
 
-    /** dev harness 专用：仓库面板第一个非空 ME 展示槽的注册名（分页/排序换页的观测点）。 */
+    /** dev harness 专用：仓库面板第一个非空 ME 展示槽的注册名与 metadata（分页/排序换页的观测点）。 */
     public String harnessRepoFirstItem() {
         for (appeng.client.me.SlotME slot : this.repoPanel.slotObjects()) {
             ItemStack stack = slot.getStack();
             if (!stack.isEmpty() && stack.getItem().getRegistryName() != null) {
-                return stack.getItem().getRegistryName().toString() + " x" + stack.getCount();
+                return stack.getItem().getRegistryName().toString() + "@" + stack.getMetadata()
+                        + " x" + stack.getCount();
             }
         }
         return "空";
@@ -1782,6 +1452,31 @@ public class GuiSplicedTerm extends GuiNull
         return false;
     }
 
+    public long harnessInterfaceProviderId() {
+        for (Slot slot : this.inventorySlots.inventorySlots) {
+            if (slot instanceof appeng.client.me.SlotDisconnected) {
+                return ((appeng.client.me.SlotDisconnected) slot).getSlot().getId();
+            }
+        }
+        return 0L;
+    }
+
+    public boolean harnessShiftClickAt(int mouseX, int mouseY) {
+        Slot slot = getSlot(mouseX, mouseY);
+        if (slot == null) {
+            return false;
+        }
+        handleMouseClick(slot, slot.slotNumber, 0, ClickType.QUICK_MOVE);
+        return true;
+    }
+
+    /** dev harness 专用：panelMask 同步的内部状态（本地/远端/上次推送/在途/等待 tick）。 */
+    public String harnessMaskSyncState() {
+        return "local=0x" + Integer.toHexString(localPanelMask())
+                + " remote=0x" + Integer.toHexString(SplicedTermModules.sanitize(this.omniContainer.getPanelMask()))
+                + this.panelMaskSync.diagnose();
+    }
+
     /** dev harness 专用：等同点击"合成状态"按钮（走 {@code actionPerformed} → PacketSwitchGuis）。 */
     public void harnessClickCraftingStatus() {
         if (this.craftingStatusBtn == null) {
@@ -1857,15 +1552,87 @@ public class GuiSplicedTerm extends GuiNull
         return this.dock.isModuleVisible(moduleId);
     }
 
-    /** dev harness 专用：panelMask 同步的内部状态（本地/远端/上次推送/在途/等待 tick）。 */
-    public String harnessMaskSyncState() {
-        return "local=0x" + Integer.toHexString(localPanelMask())
-                + " remote=0x" + Integer.toHexString(SplicedTermModules.sanitize(this.omniContainer.getPanelMask()))
-                + " lastPushed=0x" + Integer.toHexString(this.lastPushedPanelMask)
-                + " pending=0x" + Integer.toHexString(this.pendingMaskPush)
-                + " pendingTicks=" + this.pendingMaskTicks
-                + " retries=" + this.pendingMaskRetries
-                + " init=" + this.maskSyncInitialized;
+    /** 宿主的 dock 适配层：MC 单例只出现在这里。 */
+    private final class TerminalDockHost implements DockHost {
+        @Override
+        public int screenWidth() {
+            return width;
+        }
+
+        @Override
+        public int screenHeight() {
+            return height;
+        }
+
+        /**
+         * Alt：把拼接窗口里的一片"拆"成独立窗口（{@code DockManager.shouldDetachJoinedLeaf}）。
+         *
+         * <p>这个覆写此前漏了 —— {@link DockHost} 的默认实现一律返回 {@code false}，
+         * 于是 A9（Alt+拖标题栏拆分）在实机里永远进不了 PENDING_LEAF_DRAG 分支，
+         * 拼接窗口只能整块移动。</p>
+         */
+        @Override
+        public boolean altDown() {
+            return harnessAltOverride != null ? harnessAltOverride
+                    : Keyboard.isKeyDown(Keyboard.KEY_LMENU) || Keyboard.isKeyDown(Keyboard.KEY_RMENU);
+        }
+
+        /** Ctrl：拖标题条时移动整个窗口（而不是把分片拖出去）。 */
+        @Override
+        public boolean controlDown() {
+            return harnessControlOverride != null ? harnessControlOverride
+                    : Keyboard.isKeyDown(Keyboard.KEY_LCONTROL) || Keyboard.isKeyDown(Keyboard.KEY_RCONTROL);
+        }
+
+        /** Shift：拖动右下握把时按比例缩放窗口。 */
+        @Override
+        public boolean shiftDown() {
+            return harnessShiftOverride != null ? harnessShiftOverride
+                    : Keyboard.isKeyDown(Keyboard.KEY_LSHIFT) || Keyboard.isKeyDown(Keyboard.KEY_RSHIFT);
+        }
+
+        /**
+         * 本地可见性变化（标题栏关闭按钮等）后立刻把 panelMask 推给服务端。
+         *
+         * <p>漏了这一步，服务端旧 mask 会在下一次 {@code syncPanelMask()} 里把刚关掉的模块还原。</p>
+         */
+        @Override
+        public void onModuleVisibilityChanged() {
+            pushPanelMask(localPanelMask());
+        }
+
+        @Override
+        public DockLayoutPersistence createPersistence(DockLayoutCodec codec) {
+            // 物品 NBT 是权威；本地崩溃兜底与预设也按终端身份隔离，禁止跨终端继承布局。
+            java.util.UUID storageId = com.github.aeddddd.ae2enhanced.item.ItemOmniWirelessTerminal
+                    .getStorageId(terminalItemStack());
+            AtomicFileDockLayoutStore backup = storageId.getMostSignificantBits() == 0L
+                    && storageId.getLeastSignificantBits() == 0L ? null
+                    : new AtomicFileDockLayoutStore(new File(terminalWorkspaceDir(), "layout.json").toPath(), codec);
+            return new TerminalNbtDockLayoutStore(codec, GuiSplicedTerm.this::terminalItemStack,
+                    GuiSplicedTerm.this::uploadLayout, backup);
+        }
+
+        @Override
+        public java.nio.file.Path configDir() {
+            return terminalWorkspaceDir().toPath();
+        }
+
+        private File terminalWorkspaceDir() {
+            java.util.UUID storageId = com.github.aeddddd.ae2enhanced.item.ItemOmniWirelessTerminal
+                    .getStorageId(terminalItemStack());
+            String identity = storageId.getMostSignificantBits() == 0L && storageId.getLeastSignificantBits() == 0L
+                    ? "unassigned-" + Integer.toHexString(System.identityHashCode(terminalItemStack()))
+                    : storageId.toString();
+            return new File(Loader.instance().getConfigDir(),
+                    "ae2enhanced/spliced_terminal/terminals/" + identity);
+        }
+
+        @Override
+        public DockWorkspace createDefaultWorkspace(ModuleCatalog catalog, LegacyMigrationContext geometry,
+                UnaryOperator<DockWorkspace> shellFit) {
+            return buildDefaultLayout(catalog, geometry, shellFit);
+        }
     }
 
     /** dev harness 专用：容器上的 panelMask（{@code @GuiSync(90)} 服务端权威，回同步到客户端）。 */
@@ -1903,25 +1670,25 @@ public class GuiSplicedTerm extends GuiNull
 
     /** dev harness 专用：当前 root 的 bounds（多个 root 时返回最上层那个）。 */
     public String harnessTopRootBounds() {
-        List<com.github.aeddddd.ae2enhanced.client.gui.dock.model.FloatingRoot> roots =
+        List<com.github.aeddddd.ae2enhanced.dock.model.FloatingRoot> roots =
                 this.dock.workspaceSnapshot().roots();
         if (roots.isEmpty()) {
             return "none";
         }
-        com.github.aeddddd.ae2enhanced.client.gui.dock.model.FloatingRoot root = roots.get(roots.size() - 1);
-        com.github.aeddddd.ae2enhanced.client.gui.dock.model.DockRect b = root.bounds();
+        com.github.aeddddd.ae2enhanced.dock.model.FloatingRoot root = roots.get(roots.size() - 1);
+        com.github.aeddddd.ae2enhanced.dock.model.DockRect b = root.bounds();
         return b.x() + "," + b.y() + " " + b.width() + "x" + b.height();
     }
 
     /** dev harness 专用：包含某个模块的 root 的 bounds（{@code "x,y wxh"}；找不到返回 {@code "none"}）。 */
     /** dev harness 专用：包含指定模块的 root 的右下握把点（{@code {x, y}}，找不到返回 null）。 */
     public int[] harnessRootCornerOf(String moduleId) {
-        for (com.github.aeddddd.ae2enhanced.client.gui.dock.model.FloatingRoot root
+        for (com.github.aeddddd.ae2enhanced.dock.model.FloatingRoot root
                 : this.dock.workspaceSnapshot().roots()) {
-            for (com.github.aeddddd.ae2enhanced.client.gui.dock.model.LeafNode leaf
-                    : com.github.aeddddd.ae2enhanced.client.gui.dock.model.LayoutTrees.leaves(root.content())) {
+            for (com.github.aeddddd.ae2enhanced.dock.model.LeafNode leaf
+                    : com.github.aeddddd.ae2enhanced.dock.model.LayoutTrees.leaves(root.content())) {
                 if (leaf.moduleId().equals(moduleId)) {
-                    com.github.aeddddd.ae2enhanced.client.gui.dock.model.DockRect b = root.bounds();
+                    com.github.aeddddd.ae2enhanced.dock.model.DockRect b = root.bounds();
                     return new int[] { b.right() - 4, b.bottom() - 4 };
                 }
             }
@@ -1930,12 +1697,12 @@ public class GuiSplicedTerm extends GuiNull
     }
 
     public String harnessRootBoundsOf(String moduleId) {
-        for (com.github.aeddddd.ae2enhanced.client.gui.dock.model.FloatingRoot root
+        for (com.github.aeddddd.ae2enhanced.dock.model.FloatingRoot root
                 : this.dock.workspaceSnapshot().roots()) {
-            for (com.github.aeddddd.ae2enhanced.client.gui.dock.model.LeafNode leaf
-                    : com.github.aeddddd.ae2enhanced.client.gui.dock.model.LayoutTrees.leaves(root.content())) {
+            for (com.github.aeddddd.ae2enhanced.dock.model.LeafNode leaf
+                    : com.github.aeddddd.ae2enhanced.dock.model.LayoutTrees.leaves(root.content())) {
                 if (leaf.moduleId().equals(moduleId)) {
-                    com.github.aeddddd.ae2enhanced.client.gui.dock.model.DockRect b = root.bounds();
+                    com.github.aeddddd.ae2enhanced.dock.model.DockRect b = root.bounds();
                     return b.x() + "," + b.y() + " " + b.width() + "x" + b.height();
                 }
             }

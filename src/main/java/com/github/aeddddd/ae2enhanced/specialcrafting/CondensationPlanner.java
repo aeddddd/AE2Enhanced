@@ -1,29 +1,14 @@
 package com.github.aeddddd.ae2enhanced.specialcrafting;
 
-import java.util.ArrayDeque;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.IdentityHashMap;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-
-import javax.annotation.Nullable;
-
 import appeng.api.networking.crafting.ICraftingGrid;
 import appeng.api.networking.crafting.ICraftingPatternDetails;
 import appeng.api.storage.data.IAEItemStack;
-
-import com.github.aeddddd.ae2enhanced.specialcrafting.lp.LpHotStart;
-import com.github.aeddddd.ae2enhanced.specialcrafting.lp.LpResult;
-import com.github.aeddddd.ae2enhanced.specialcrafting.lp.SccLpModelBuilder;
-import com.github.aeddddd.ae2enhanced.specialcrafting.lp.SccLpSolve;
-import com.github.aeddddd.ae2enhanced.specialcrafting.lp.SeedBootstrapCheck;
-import com.github.aeddddd.ae2enhanced.specialcrafting.lp.UnitTraceDump;
+import com.github.aeddddd.ae2enhanced.specialcrafting.lp.*;
 import com.github.aeddddd.ae2enhanced.specialcrafting.lp.SccLpSolve.Execution;
 import com.github.aeddddd.ae2enhanced.specialcrafting.lp.SccLpSolve.SccSolution;
+
+import javax.annotation.Nullable;
+import java.util.*;
 
 /**
  * 冷凝分层驱动器.
@@ -232,11 +217,15 @@ public final class CondensationPlanner {
                 LpPlanCache.Settings.fromSystemProperties());
     }
 
+    /** LP job 主入口：整单只使用请求快照，并为该请求创建独立热启动链。 */
+    public static LpPlanOutcome solve(ICraftingGrid cc, NetworkPatternIndex index,
+            IAEItemStack what, long target, StockSource stockSource, RequestConfigSnapshot config) {
+        return solveInternal(cc, index, what, target, stockSource, config.prune,
+                config.newHotStartChain(), config.cache, config);
+    }
+
     /**
-     * 求解整单(任务 4 缓存版主入口):闭包缓存(C3)+ 稀疏库存(C2)+ 计划结果缓存(C1).
-     *
-     * <p><b>开关一律由调用方在入口一次性解析后传入</b>(剪枝档/热启动链/缓存档),
-     * 本方法内只额外解析求解器后端(与 {@link SccLpSolve} 同一口径,并作为 C1 键的一部分).</p>
+     * 兼容旧调用方的显式开关入口；未显式给出的求解器、预算和诊断值仍只在入口捕获一次。
      *
      * @param stockSource 库存来源(稀疏口径:{@code amountOf} 须与全量快照逐位一致)
      * @param cacheSettings 缓存档位;{@link LpPlanCache.Mode#OFF} 时退回旧全量路径(对拍基线)
@@ -244,11 +233,17 @@ public final class CondensationPlanner {
     public static LpPlanOutcome solve(ICraftingGrid cc, NetworkPatternIndex index,
             IAEItemStack what, long target, StockSource stockSource, PruneSettings settings,
             LpHotStart.Chain chain, LpPlanCache.Settings cacheSettings) {
+        RequestConfigSnapshot config = RequestConfigSnapshot.capture()
+                .withSolverSettings(settings, cacheSettings, chain.mode());
+        return solveInternal(cc, index, what, target, stockSource, settings, chain, cacheSettings, config);
+    }
+
+    private static LpPlanOutcome solveInternal(ICraftingGrid cc, NetworkPatternIndex index,
+            IAEItemStack what, long target, StockSource stockSource, PruneSettings settings,
+            LpHotStart.Chain chain, LpPlanCache.Settings cacheSettings, RequestConfigSnapshot config) {
         long start = System.nanoTime();
         IAEItemStack rootKey = RecursiveCraftingHelper.canon(what);
-        // 求解器后端在入口一次性解析并向下传参(SccLpSolve 内不再读系统属性 ⇒ 同一次
-        // 求解不会混用多后端);它同时进 C1 键——同 JVM 切属性不得跨模式命中
-        final String solverMode = SccLpSolve.solverModeFromSystemProperties();
+        final String solverMode = config.solverMode;
 
         // 1) 求解闭包:单元划分 + 可达单元 + 单元间边 + 冷凝拓扑序
         // (纯 (index, rootKey) 函数 ⇒ 可跨求解复用;C3)
@@ -285,7 +280,7 @@ public final class CondensationPlanner {
             }
             fingerprint = LpPlanCache.fingerprint(closure, coverageValues, coverageEmits);
             planCache.noteFingerprintNanos(System.nanoTime() - fingerprintStart);
-            LpPlanOutcome cached = planCache.planLookup(closure, target, settings, solverMode, fingerprint,
+            LpPlanOutcome cached = planCache.planLookup(closure, target, config, fingerprint,
                     coverageValues, coverageEmits, cacheSettings);
             if (cached != null) {
                 // 命中 = 同一次计算的产物(不可变,见 LpPlanOutcome 的只读契约);
@@ -359,7 +354,7 @@ public final class CondensationPlanner {
             lpUnits++;
             long unitStartNanos = System.nanoTime();
             UnitResult result = solveUnitWithBootstrap(cc, index, unitKeys.get(unit), stock, unitDemand,
-                    settings, chain, solverMode);
+                    settings, chain, solverMode, config);
             long unitNanos = System.nanoTime() - unitStartNanos;
             if (result.closedForm) {
                 closedFormUnits++;
@@ -414,8 +409,8 @@ public final class CondensationPlanner {
         // /ae2e debug specialcrafting(诊断写盘不进默认路径).
         // 库存落盘要全量(稀疏表不可迭代),故诊断分支显式取全量快照
         if (degradedUnits > 0 && SpecialLog.isEnabled()) {
-            com.github.aeddddd.ae2enhanced.diag.plansnapshot.PlanSnapshot.dump(cc, index, what,
-                    planCache != null ? stockSource.fullStock() : stock);
+            com.github.aeddddd.ae2enhanced.observation.Observations.planSnapshot(PlanSnapshotFactory.capture(
+                    cc, index, what, planCache != null ? stockSource.fullStock() : stock));
         }
 
         long wallMs = (System.nanoTime() - start) / 1_000_000;
@@ -433,7 +428,7 @@ public final class CondensationPlanner {
                 order.size(), lpUnits, iterations, degradedUnits, degradedReasons, wallMs);
         // C1 登记:指纹与精确值数组同源(同一次读取),故后续同输入必然逐位一致
         if (cacheSettings.planEnabled()) {
-            planCache.planPut(closure, target, settings, solverMode, fingerprint, coverageValues,
+            planCache.planPut(closure, target, config, fingerprint, coverageValues,
                     coverageEmits, outcome, cacheSettings);
         }
         return outcome;
@@ -545,25 +540,11 @@ public final class CondensationPlanner {
      * 级联需要的轮数可超过 4,另设迭代/墙钟预算兜底终止. */
     private static final int MIN_BOOTSTRAP_RESOLVE = 4;
     private static final int MAX_BOOTSTRAP_RESOLVE = 256;
-    /**
-     * 单单元自举重解的累计 LP 迭代预算(P-D 确定性终止判据,取代旧墙钟判据):
-     * 迭代数与负载无关,因此同一逻辑输入的截断时机跨 JVM 一致.
-     */
-    private static final int BOOTSTRAP_ITER_BUDGET =
-            Integer.getInteger("ae2e.bootstrapIterBudget", 200_000);
-    /**
-     * 单单元自举重解的墙钟紧急熔断(ns,默认 60 秒):只在 CPU 极端抢占等异常情况下兜底,
-     * 触发即按截断处理并把"熔断"写进截断原因(确定性纪律的例外,可被测试检出).
-     */
-    private static final long BOOTSTRAP_FUSE_NS =
-            Long.getLong("ae2e.bootstrapFuseNs", 60_000_000_000L);
 
     /** 三振禁路由阈值:同一样板被压界 {@value} 次后仍被判定卡住时,继续按水位压界
      * 只会空转,直接禁该路由逼 LP 换路;误禁的交付损失由历代最优水位截断兜底
      * (禁前轮的交付已留存). */
     private static final int CAP_STRIKE_LIMIT = 3;
-    /** 逐轮诊断输出(-Dae2e.lpDebug=true,开发期). */
-    private static final boolean DEBUG = Boolean.getBoolean("ae2e.lpDebug");
 
     /** 单元求解产物(含降级/截断标记与原因). */
     private static final class UnitResult {
@@ -599,7 +580,8 @@ public final class CondensationPlanner {
      */
     private static UnitResult solveUnitWithBootstrap(ICraftingGrid cc, NetworkPatternIndex index,
             List<IAEItemStack> keys, Map<IAEItemStack, Long> stock, Map<IAEItemStack, Double> unitDemand,
-            PruneSettings settings, LpHotStart.Chain chain, String solverMode) {
+            PruneSettings settings, LpHotStart.Chain chain, String solverMode,
+            RequestConfigSnapshot config) {
         Map<ICraftingPatternDetails, Double> upperCaps = new HashMap<>();
         // 逐样板压界次数(身份键;三振禁路由用)
         Map<ICraftingPatternDetails, Integer> pressCounts = new IdentityHashMap<>();
@@ -620,7 +602,7 @@ public final class CondensationPlanner {
         SeedBootstrapCheck.Verdict bestVerdict = null;
         for (int round = 0;; round++) {
             SccSolution sol = SccLpSolve.solve(cc, index, keys, stock, unitDemand, upperCaps,
-                    Collections.emptyMap(), settings, chain, solverMode);
+                    Collections.emptyMap(), settings, chain, solverMode, config.legacy);
             iterations += sol.iterations;
             if (round == 0 && sol.closedForm) {
                 closedForm = true;
@@ -648,7 +630,7 @@ public final class CondensationPlanner {
                 return new UnitResult(sol.executions, sol.deficits, sol.externalDemands, seedDemands,
                         false, null, iterations, closedForm);
             }
-            if (DEBUG) {
+            if (config.lpDebug) {
                 System.out.println("[LP-DEBUG] 种子校验失败 round=" + round + "/" + maxRounds + " 键数="
                         + keys.size() + " 代表键=" + (keys.isEmpty() ? "-" : keys.get(0))
                         + " 模拟轮数=" + verdict.roundsUsed + " 原因=" + verdict.failReason
@@ -676,19 +658,19 @@ public final class CondensationPlanner {
                         upperCaps, pressCounts, deficitSum);
             }
             // P-D:终止判据 = 轮数上限 + 累计迭代预算(确定性);墙钟只剩紧急熔断
-            boolean fuse = BOOTSTRAP_FUSE_NS > 0
-                    && System.nanoTime() - unitStartNanos > BOOTSTRAP_FUSE_NS;
-            boolean budgetUp = iterations >= BOOTSTRAP_ITER_BUDGET;
+            boolean fuse = config.bootstrapFuseNs > 0
+                    && System.nanoTime() - unitStartNanos > config.bootstrapFuseNs;
+            boolean budgetUp = iterations >= config.bootstrapIterBudget;
             if (round >= maxRounds - 1 || budgetUp || fuse) {
                 // 重解预算(轮数/迭代/熔断)耗尽:按历代最优可行水位截断,交付缺口
                 // (demand − 终态可用量)如实转赤字
                 String reason;
                 if (round < maxRounds - 1) {
                     reason = fuse
-                            ? "种子自举重解触发墙钟紧急熔断(>" + BOOTSTRAP_FUSE_NS / 1_000_000 + "ms) round="
-                                    + round + " 键数=" + keys.size()
+                            ? "种子自举重解触发墙钟紧急熔断(>" + config.bootstrapFuseNs / 1_000_000
+                                    + "ms) round=" + round + " 键数=" + keys.size()
                                     + " 代表键=" + (keys.isEmpty() ? "-" : keys.get(0))
-                            : "种子自举重解超迭代预算(" + BOOTSTRAP_ITER_BUDGET + ") round=" + round
+                            : "种子自举重解超迭代预算(" + config.bootstrapIterBudget + ") round=" + round
                                     + " 键数=" + keys.size()
                                     + " 代表键=" + (keys.isEmpty() ? "-" : keys.get(0));
                 } else {

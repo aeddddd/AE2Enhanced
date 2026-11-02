@@ -146,33 +146,27 @@ public class ExtremeCraftingTableHandler implements IVirtualBatchCraftingHandler
 
     // ---- IVirtualBatchCraftingHandler（带 patternDetails） ----
 
+    private static com.github.aeddddd.ae2enhanced.centralinterface.recipe.RecipeBinding bind(
+            Object recipe, IAEItemStack[] expectedOutputs) {
+        return recipe == null ? null : com.github.aeddddd.ae2enhanced.centralinterface.recipe.RecipeBinding.of(
+                recipe, expectedOutputs, getRecipeOutput(recipe));
+    }
+
     @Override
     public boolean canCraftVirtually(World world, BlockPos pos, InventoryCrafting ingredients,
                                      IAEItemStack[] outputs, ICraftingPatternDetails details) {
-        // 要求样板声明的输入真的能构成配方：只按产物反查配方会让"任意输入 + 真产物样板"
-        // 凭空刷出真产物。
         Object recipe = findRecipe(world, pos, outputs);
-        if (recipe == null) {
-            return false;
-        }
-        return IngredientMatcher.matches(ingredients, getIngredients(recipe));
+        return bind(recipe, outputs) != null
+                && IngredientMatcher.matches(ingredients, getIngredients(recipe));
     }
 
     @Override
     public List<IAEStack> getVirtualCost(World world, BlockPos pos, InventoryCrafting ingredients,
                                          IAEItemStack[] outputs, long count, ICraftingPatternDetails details) {
         Object recipe = findRecipe(world, pos, outputs);
-        if (recipe == null) return Collections.emptyList();
+        if (bind(recipe, outputs) == null
+                || !IngredientMatcher.matches(ingredients, getIngredients(recipe))) return null;
         return RecipeCosts.fromIngredients(getIngredients(recipe), count);
-    }
-
-    @Override
-    public List<ItemStack> virtualCraftBatch(World world, BlockPos pos, InventoryCrafting ingredients,
-                                             IAEItemStack[] outputs, long count, IActionSource source,
-                                             ICraftingPatternDetails details) {
-        // 成本按 Avaritia 配方计算，但产物必须与样板输出一致，否则 AE2 CPU 的 waitingFor
-        // 无法匹配，导致任务残留一份无法完成。
-        return scaleOutputsByCount(outputs, count);
     }
 
     @Override
@@ -186,6 +180,18 @@ public class ExtremeCraftingTableHandler implements IVirtualBatchCraftingHandler
     }
 
     // ---- 配方查找与成本/产物计算 ----
+
+    @Override
+    public List<ItemStack> virtualCraftBatch(World world, BlockPos pos, InventoryCrafting ingredients,
+                                             IAEItemStack[] outputs, long count, IActionSource source,
+                                             ICraftingPatternDetails details) {
+        Object recipe = findRecipe(world, pos, outputs);
+        com.github.aeddddd.ae2enhanced.centralinterface.recipe.RecipeBinding binding = bind(recipe, outputs);
+        if (binding == null || !IngredientMatcher.matches(ingredients, getIngredients(recipe))) {
+            return Collections.emptyList();
+        }
+        return scaleOutputsByCount(binding.getOutputs(), count);
+    }
 
     private static Object findRecipe(World world, BlockPos pos, IAEItemStack[] outputs) {
         initReflection();

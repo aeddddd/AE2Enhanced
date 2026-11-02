@@ -1,8 +1,8 @@
 package com.github.aeddddd.ae2enhanced.terminal;
 
 import appeng.api.storage.data.IAEItemStack;
+import com.github.aeddddd.ae2enhanced.item.ItemRegistry;
 import com.github.aeddddd.ae2enhanced.item.ItemStarlightDrop;
-import com.github.aeddddd.ae2enhanced.registry.content.ItemRegistry;
 import net.minecraft.client.resources.I18n;
 import net.minecraft.inventory.ClickType;
 import net.minecraft.item.ItemStack;

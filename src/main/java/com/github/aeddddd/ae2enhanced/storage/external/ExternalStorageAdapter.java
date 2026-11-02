@@ -19,6 +19,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
+import java.util.function.Supplier;
 
 /**
  * 外部存储通道适配器.
@@ -46,8 +47,35 @@ public class ExternalStorageAdapter<D extends Descriptor> implements IMEMonitor,
     protected final D descriptor;
     protected final String nbtKey;
 
-    protected Runnable onChangeCallback = null;
-    protected BiConsumer<IAEStack, IActionSource> postChangeCallback = null;
+    private final Object localMutationLock = new Object();
+    private final List<ChangeSubscription> subscriptions = new CopyOnWriteArrayList<>();
+    private volatile AttachmentToken legacyOnChange;
+    private volatile AttachmentToken legacyPostChange;
+
+    @Override
+    public IAEStack injectItems(IAEStack input, Actionable type, IActionSource src) {
+        if (file != null) file.awaitLoaded();
+        if (input == null || input.getStackSize() <= 0) return null;
+        if (file != null && file.isSectionFailed(getStorageSection())) return input;
+        if (type != Actionable.MODULATE) return null;
+        D key = createDescriptor(input);
+        if (key == null) return input;
+
+        inMutation(() -> {
+            HugeCount amount = HugeCount.of(input.getStackSize());
+            HugeCount old = storage.get(key);
+            HugeCount next = old == null ? amount : old.add(amount);
+            storage.put(key, next);
+            totalCount.updateAndGet(total -> total.add(amount));
+            if (file != null) file.recordChangeLocked(getStorageSection(), key, next);
+            return null;
+        });
+        if (hasChangeConsumers()) {
+            IAEStack change = createChangeStack(HugeCount.of(input.getStackSize()), true);
+            if (change != null) notifyPostChange(change, src);
+        }
+        return null;
+    }
 
     /**
      * 构造外部存储通道适配器.
@@ -124,79 +152,33 @@ public class ExternalStorageAdapter<D extends Descriptor> implements IMEMonitor,
     }
 
     @Override
-    public IAEStack injectItems(IAEStack input, Actionable type, IActionSource src) {
-        if (file != null) file.awaitLoaded(); // 首加载闸门
-        if (input == null || input.getStackSize() <= 0) return null;
-        if (file != null && file.isSafeMode()) {
-            return input;
-        }
-        if (type != Actionable.MODULATE) {
-            return null;
-        }
-        D key = createDescriptor(input);
-        if (key == null) {
-            return input;
-        }
-        HugeCount amount = HugeCount.of(input.getStackSize());
-
-        HugeCount old = storage.get(key);
-        HugeCount next;
-        if (old == null) {
-            next = amount;
-            storage.put(key, amount);
-        } else {
-            next = old.add(amount);
-            storage.put(key, next);
-        }
-        addToTotal(amount);
-        if (file != null) file.recordChange(getStorageSection(), key, next);
-
-        if (hasChangeConsumers()) {
-            IAEStack change = createChangeStack(HugeCount.of(input.getStackSize()), true);
-            if (change != null) {
-                notifyPostChange(change, src);
-            }
-        }
-        return null;
-    }
-
-    @Override
     public IAEStack extractItems(IAEStack request, Actionable type, IActionSource src) {
-        if (file != null) file.awaitLoaded(); // 首加载闸门
+        if (file != null) file.awaitLoaded();
         if (request == null || request.getStackSize() <= 0) return null;
+        if (file != null && file.isSectionFailed(getStorageSection())) return null;
         D key = createDescriptor(request);
-        if (key == null) {
-            return null;
-        }
-        HugeCount requested = HugeCount.of(request.getStackSize());
-        HugeCount available = storage.get(key);
-        if (available == null) {
-            return null;
-        }
-        HugeCount toExtract = available.min(requested);
-        if (toExtract.isZero()) {
-            return null;
-        }
+        if (key == null) return null;
 
-        if (type == Actionable.MODULATE) {
-            HugeCount remaining = available.subtract(toExtract);
-            if (remaining.isZero()) {
-                storage.remove(key);
-            } else {
-                storage.put(key, remaining);
+        IAEStack result = inMutation(() -> {
+            HugeCount requested = HugeCount.of(request.getStackSize());
+            HugeCount available = storage.get(key);
+            if (available == null) return null;
+            HugeCount toExtract = available.min(requested);
+            if (toExtract.isZero()) return null;
+            if (type == Actionable.MODULATE) {
+                HugeCount remaining = available.subtract(toExtract);
+                if (remaining.isZero()) storage.remove(key);
+                else storage.put(key, remaining);
+                totalCount.updateAndGet(total -> total.subtract(toExtract));
+                if (file != null) file.recordChangeLocked(getStorageSection(), key, remaining);
             }
-            subtractFromTotal(toExtract);
-            if (file != null) file.recordChange(getStorageSection(), key, remaining);
-
-            if (hasChangeConsumers()) {
-                IAEStack change = createChangeStack(toExtract, false);
-                if (change != null) {
-                    notifyPostChange(change, src);
-                }
-            }
+            return createResult(request, toExtract);
+        });
+        if (result != null && type == Actionable.MODULATE && hasChangeConsumers()) {
+            IAEStack change = createChangeStack(HugeCount.of(result.getStackSize()), false);
+            if (change != null) notifyPostChange(change, src);
         }
-
-        return createResult(request, toExtract);
+        return result;
     }
 
     @Override
@@ -204,6 +186,7 @@ public class ExternalStorageAdapter<D extends Descriptor> implements IMEMonitor,
         if (file != null) file.awaitLoaded(); // 首加载闸门
         for (Map.Entry<D, HugeCount> entry : storage.entrySet()) {
             D desc = entry.getKey();
+            if (desc instanceof com.github.aeddddd.ae2enhanced.storage.PreservedDescriptor) continue;
             IAEStack aeStack = getAETemplate(desc);
             if (aeStack == null) continue;
 
@@ -214,6 +197,13 @@ public class ExternalStorageAdapter<D extends Descriptor> implements IMEMonitor,
             out.add(copy);
         }
         return out;
+    }
+
+    @Override
+    public AttachmentToken attachSubscriber(Runnable onChange, BiConsumer<?, IActionSource> postChange) {
+        ChangeSubscription subscription = new ChangeSubscription(onChange, (BiConsumer) postChange);
+        subscriptions.add(subscription);
+        return new AttachmentToken(() -> subscriptions.remove(subscription));
     }
 
     @Override
@@ -284,44 +274,45 @@ public class ExternalStorageAdapter<D extends Descriptor> implements IMEMonitor,
 
     @Override
     public void setOnChangeCallback(Runnable callback) {
-        this.onChangeCallback = callback;
+        AttachmentToken previous = legacyOnChange;
+        legacyOnChange = callback == null ? null : attachSubscriber(callback, null);
+        if (previous != null) previous.close();
     }
 
     public void setPostChangeCallback(BiConsumer<IAEStack, IActionSource> callback) {
-        this.postChangeCallback = callback;
+        AttachmentToken previous = legacyPostChange;
+        legacyPostChange = callback == null ? null : attachSubscriber(null, callback);
+        if (previous != null) previous.close();
+    }
+
+    private <R> R inMutation(Supplier<R> mutation) {
+        if (file != null) return file.mutateAtomically(getStorageSection(), mutation);
+        synchronized (localMutationLock) {
+            return mutation.get();
+        }
     }
 
     private boolean hasChangeConsumers() {
-        return !listeners.isEmpty() || onChangeCallback != null || postChangeCallback != null;
-    }
-
-    private void addToTotal(HugeCount delta) {
-        HugeCount prev, next;
-        do {
-            prev = totalCount.get();
-            next = prev.add(delta);
-        } while (!totalCount.compareAndSet(prev, next));
-    }
-
-    private void subtractFromTotal(HugeCount delta) {
-        HugeCount prev, next;
-        do {
-            prev = totalCount.get();
-            next = prev.subtract(delta);
-        } while (!totalCount.compareAndSet(prev, next));
+        return !listeners.isEmpty() || !subscriptions.isEmpty();
     }
 
     protected void notifyPostChange(IAEStack change, IActionSource src) {
-        if (!listeners.isEmpty()) {
-            for (IMEMonitorHandlerReceiver listener : listeners) {
-                listener.postChange(this, SingleItemIterable.of(change), src);
-            }
+        for (IMEMonitorHandlerReceiver listener : listeners) {
+            listener.postChange(this, SingleItemIterable.of(change), src);
         }
-        if (postChangeCallback != null) {
-            postChangeCallback.accept(change, src);
+        for (ChangeSubscription subscription : subscriptions) {
+            if (subscription.postChange != null) subscription.postChange.accept(change, src);
+            if (subscription.onChange != null) subscription.onChange.run();
         }
-        if (onChangeCallback != null) {
-            onChangeCallback.run();
+    }
+
+    private static final class ChangeSubscription {
+        final Runnable onChange;
+        final BiConsumer<IAEStack, IActionSource> postChange;
+
+        ChangeSubscription(Runnable onChange, BiConsumer<IAEStack, IActionSource> postChange) {
+            this.onChange = onChange;
+            this.postChange = postChange;
         }
     }
 

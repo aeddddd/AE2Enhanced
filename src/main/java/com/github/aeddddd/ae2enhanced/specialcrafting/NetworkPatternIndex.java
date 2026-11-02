@@ -1,26 +1,13 @@
 package com.github.aeddddd.ae2enhanced.specialcrafting;
 
-import java.util.ArrayDeque;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.IdentityHashMap;
-import java.util.Iterator;
-import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
-
-import javax.annotation.Nullable;
-
 import appeng.api.networking.crafting.ICraftingGrid;
 import appeng.api.networking.crafting.ICraftingPatternDetails;
 import appeng.api.storage.data.IAEItemStack;
+import com.github.aeddddd.ae2enhanced.craftingapi.CraftingGridAccess;
 
-import com.github.aeddddd.ae2enhanced.mixin.bridge.ICraftingGridCacheAccess;
+import javax.annotation.Nullable;
+import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * 网络样板索引（按 CraftingGridCache 实例缓存，recalculateCraftingPatterns 后失效重建）.
@@ -55,13 +42,13 @@ public final class NetworkPatternIndex {
     /** 构建时的一致性样板快照(canon 键 → 主索引样板表),求解期 patternsFor 用. */
     private final Map<IAEItemStack, List<ICraftingPatternDetails>> patternSnapshot;
     /** 发射台判定回调(快照口径,不受 recalc 重建空窗影响). */
-    private final ICraftingGridCacheAccess access;
+    private final CraftingGridAccess access;
 
     private NetworkPatternIndex(Map<IAEItemStack, List<ICraftingPatternDetails>> byproduct,
             Map<IAEItemStack, List<ICraftingPatternDetails>> consumers,
             Map<IAEItemStack, Integer> sccId,
             Map<IAEItemStack, List<ICraftingPatternDetails>> patternSnapshot,
-            ICraftingGridCacheAccess access) {
+            CraftingGridAccess access) {
         this.byproduct = byproduct;
         this.consumers = consumers;
         this.sccId = sccId;
@@ -88,8 +75,8 @@ public final class NetworkPatternIndex {
      */
     @Nullable
     public static NetworkPatternIndex of(ICraftingGrid cc) {
-        if (cc instanceof ICraftingGridCacheAccess) {
-            return ((ICraftingGridCacheAccess) cc).ae2enhanced$patternIndex();
+        if (cc instanceof CraftingGridAccess) {
+            return (NetworkPatternIndex) ((CraftingGridAccess) cc).ae2enhanced$patternIndex();
         }
         return null;
     }
@@ -99,17 +86,17 @@ public final class NetworkPatternIndex {
      * <p>并发约定：craftableItems 是就地 clear+重建的无锁 fastutil map（服务器线程持有）,
      * 重建空窗期任何活读都无法区分空窗与真空网络.故数据源只能是 recalc TAIL
      * （服务器线程、重建刚完成）固化的一致性快照,见
-     * {@link ICraftingGridCacheAccess#ae2enhanced$craftableSnapshot()}.</p>
+     * {@link CraftingGridAccess#ae2enhanced$craftableSnapshot()}.</p>
      */
     public static NetworkPatternIndex build(ICraftingGrid cc) {
-        ICraftingGridCacheAccess access = (ICraftingGridCacheAccess) cc;
+        CraftingGridAccess access = (CraftingGridAccess) cc;
         // 快照在重建完成点固化,无竞态;空窗期可能读到的部分/空视图被排除在外
         return buildFromSnapshot(access.ae2enhanced$craftableSnapshot(), access);
     }
 
     /** 由一致性快照构建索引(快照:canon 键 → 该键主索引样板表). */
     private static NetworkPatternIndex buildFromSnapshot(
-            Map<IAEItemStack, List<ICraftingPatternDetails>> snapshot, ICraftingGridCacheAccess access) {
+            Map<IAEItemStack, List<ICraftingPatternDetails>> snapshot, CraftingGridAccess access) {
         Map<IAEItemStack, Set<ICraftingPatternDetails>> byproductSets = new HashMap<>();
         Map<IAEItemStack, Set<ICraftingPatternDetails>> consumerSets = new HashMap<>();
         // 键图邻接表:插入序 = canon 键升序(样板顺序扰动不影响边集,SCC 编号确定)

@@ -13,8 +13,8 @@ import com.github.aeddddd.ae2enhanced.AE2Enhanced;
 import com.github.aeddddd.ae2enhanced.container.slot.OptionalSlotStockingConfig;
 import com.github.aeddddd.ae2enhanced.container.slot.SlotStockingConfig;
 import com.github.aeddddd.ae2enhanced.item.ItemFluidDrop;
+import com.github.aeddddd.ae2enhanced.item.fakeitem.EssentiaFakeItemChecks;
 import com.github.aeddddd.ae2enhanced.part.PartStockingBus;
-import com.github.aeddddd.ae2enhanced.util.fakeitem.EssentiaFakeItemChecks;
 import net.minecraft.entity.player.EntityPlayerMP;
 import net.minecraft.entity.player.InventoryPlayer;
 import net.minecraft.inventory.Slot;
@@ -231,7 +231,7 @@ public class ContainerStockingBus extends ContainerUpgradeable implements IOptio
         if (!"com.glodblock.github.common.item.ItemFluidDrop".equals(name)
                 && !"com.glodblock.github.common.item.ItemFluidPacket".equals(name)) return null;
         try {
-            FluidStack fluid = com.github.aeddddd.ae2enhanced.util.fakeitem.FakeFluids.unpackAe2fcFluid(held);
+            FluidStack fluid = com.github.aeddddd.ae2enhanced.item.fakeitem.FakeFluids.unpackAe2fcFluid(held);
             if (fluid != null && fluid.getFluid() != null) {
                 return ItemFluidDrop.createStack(new FluidStack(fluid.getFluid(), 1));
             }

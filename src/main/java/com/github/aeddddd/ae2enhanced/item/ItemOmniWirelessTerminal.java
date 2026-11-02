@@ -13,7 +13,9 @@ import appeng.items.tools.powered.powersink.AEBasePoweredItem;
 import appeng.util.ConfigManager;
 import appeng.util.Platform;
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
-import com.github.aeddddd.ae2enhanced.gui.GuiHandler;
+import com.github.aeddddd.ae2enhanced.guiapi.GuiCatalog;
+import net.minecraft.client.resources.I18n;
+import net.minecraft.client.util.ITooltipFlag;
 import net.minecraft.entity.EntityLivingBase;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.item.ItemStack;
@@ -27,6 +29,7 @@ import net.minecraftforge.fml.common.network.IGuiHandler;
 import net.minecraftforge.fml.relauncher.Side;
 import net.minecraftforge.fml.relauncher.SideOnly;
 
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -49,6 +52,13 @@ public class ItemOmniWirelessTerminal extends AEBasePoweredItem implements IWire
         setTranslationKey("ae2enhanced." + registryName);
         setRegistryName(registryName);
         AEApi.instance().registries().wireless().registerWirelessHandler(this);
+    }
+
+    /** 只读存储 UUID；未分配时返回全零值，不修改客户端物品 NBT。 */
+    public static UUID getStorageId(ItemStack stack) {
+        NBTTagCompound tag = stack.getTagCompound();
+        return tag != null && tag.hasUniqueId("storageId")
+                ? tag.getUniqueId("storageId") : new UUID(0L, 0L);
     }
 
     @Override
@@ -89,17 +99,17 @@ public class ItemOmniWirelessTerminal extends AEBasePoweredItem implements IWire
         return out;
     }
 
-    /**
-     * 获取或创建该终端 ItemStack 对应的存储 UUID.
-     * UUID 持久化在 ItemStack NBT 中, WorldSavedData 通过此 UUID 存取实际数据.
-     */
-    public static UUID getStorageId(ItemStack stack) {
+    public static UUID ensureStorageId(ItemStack stack) {
         NBTTagCompound tag = Platform.openNbtData(stack);
         if (!tag.hasUniqueId("storageId")) {
-            UUID id = UUID.randomUUID();
-            tag.setUniqueId("storageId", id);
+            tag.setUniqueId("storageId", UUID.randomUUID());
         }
         return tag.getUniqueId("storageId");
+    }
+
+    @Override
+    public boolean shouldCauseReequipAnimation(ItemStack oldStack, ItemStack newStack, boolean slotChanged) {
+        return slotChanged;
     }
 
     @Override
@@ -126,7 +136,7 @@ public class ItemOmniWirelessTerminal extends AEBasePoweredItem implements IWire
             if (hand == EnumHand.OFF_HAND) {
                 slot = 40;
             }
-            player.openGui(AE2Enhanced.instance, GuiHandler.GUI_OMNI_TERMINAL, world, slot, 0, 0);
+            player.openGui(AE2Enhanced.instance, GuiCatalog.GUI_OMNI_TERMINAL, world, slot, 0, 0);
         }
         return new ActionResult<>(EnumActionResult.SUCCESS, player.getHeldItem(hand));
     }
@@ -135,6 +145,16 @@ public class ItemOmniWirelessTerminal extends AEBasePoweredItem implements IWire
     @Override
     public boolean isFull3D() {
         return false;
+    }
+
+    @SideOnly(Side.CLIENT)
+    @Override
+    public void addCheckedInformation(ItemStack stack, @javax.annotation.Nullable World worldIn,
+            List<String> tooltip, ITooltipFlag flagIn) {
+        super.addCheckedInformation(stack, worldIn, tooltip, flagIn);
+        if (!(this instanceof ItemOmniWirelessTerminalV2)) {
+            tooltip.add(I18n.format("tooltip.ae2enhanced.omni_wireless_terminal.deprecated"));
+        }
     }
 
     // === Baubles 饰品支持 ===

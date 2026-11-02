@@ -34,10 +34,10 @@ public final class MachineOutputRedirector {
         if (output.isEmpty()) {
             return ItemStack.EMPTY;
         }
-        if (!AE2EnhancedConfig.recycler.machineOutputRedirect) {
+        if (!com.github.aeddddd.ae2enhanced.config.ServerConfig.current().recycler.machineOutputRedirect) {
             return output;
         }
-        if (world == null || pos == null) {
+        if (world == null || world.isRemote || pos == null) {
             return output;
         }
 
@@ -73,10 +73,10 @@ public final class MachineOutputRedirector {
         if (output == null || output.amount <= 0) {
             return null;
         }
-        if (!AE2EnhancedConfig.recycler.machineOutputRedirect) {
+        if (!com.github.aeddddd.ae2enhanced.config.ServerConfig.current().recycler.machineOutputRedirect) {
             return output;
         }
-        if (world == null || pos == null) {
+        if (world == null || world.isRemote || pos == null) {
             return output;
         }
 

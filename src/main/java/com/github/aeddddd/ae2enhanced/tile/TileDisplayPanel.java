@@ -17,8 +17,6 @@ import appeng.me.helpers.AENetworkProxy;
 import appeng.me.helpers.IGridProxyable;
 import appeng.util.item.AEItemStack;
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
-import com.github.aeddddd.ae2enhanced.block.BlockDisplayFrame;
-import com.github.aeddddd.ae2enhanced.block.BlockDisplayPanel;
 import com.github.aeddddd.ae2enhanced.config.AE2EnhancedConfig;
 import com.github.aeddddd.ae2enhanced.display.ChartType;
 import com.github.aeddddd.ae2enhanced.display.DisplayTheme;
@@ -26,9 +24,8 @@ import com.github.aeddddd.ae2enhanced.display.TimeRange;
 import com.github.aeddddd.ae2enhanced.display.TrendBuffer;
 import com.github.aeddddd.ae2enhanced.display.YAxisMode;
 import com.github.aeddddd.ae2enhanced.item.ItemFluidDrop;
-import com.github.aeddddd.ae2enhanced.network.packet.PacketDisplayAction;
-import com.github.aeddddd.ae2enhanced.network.packet.PacketDisplayTick;
-import com.github.aeddddd.ae2enhanced.registry.content.BlockRegistry;
+import com.github.aeddddd.ae2enhanced.display.packet.PacketDisplayAction;
+import com.github.aeddddd.ae2enhanced.display.packet.PacketDisplayTick;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
@@ -66,7 +63,7 @@ public class TileDisplayPanel extends TileEntity implements ITickable, IGridProx
 
     public static final int MIN_W = 2, MAX_W = 16;
     public static final int MIN_H = 2, MAX_H = 9;
-    public static final int MAX_TRACKED = 8;
+    public static final int MAX_TRACKED = PacketDisplayTick.TRACKED_SLOTS;
 
     /** 结构校验/主节点心跳间隔(tick) */
     private static final int RESCAN_INTERVAL = 40;
@@ -122,11 +119,61 @@ public class TileDisplayPanel extends TileEntity implements ITickable, IGridProx
         return renderBB;
     }
 
-    /** 最大渲染距离:默认只有 64 格,按配置放大(与 TESR 内的手动距离剔除一致). */
-    @Override
-    public double getMaxRenderDistanceSquared() {
-        double d = AE2EnhancedConfig.displayWall.renderDistance;
-        return d * d;
+    /**
+     * 从 start 出发扫描同朝向面板矩形.
+     * BFS 只经过面板方块(边框不可行走,保证相邻两块屏幕被边框正确隔离).
+     */
+    public static ScanResult scanRectangle(net.minecraft.world.World w, BlockPos start) {
+        IBlockState startState = w.getBlockState(start);
+        if (!TileBlockStates.is(startState, TileBlockStates.DISPLAY_PANEL)) return null;
+        EnumFacing facing = TileBlockStates.facing(startState);
+        // 平面内方向:水平轴 + Y 轴
+        EnumFacing h1 = facing.getAxis() == EnumFacing.Axis.X ? EnumFacing.NORTH : EnumFacing.EAST;
+        EnumFacing h2 = h1.getOpposite();
+
+        Set<BlockPos> visited = new HashSet<>();
+        Deque<BlockPos> queue = new ArrayDeque<>();
+        visited.add(start.toImmutable());
+        queue.add(start.toImmutable());
+        while (!queue.isEmpty()) {
+            BlockPos cur = queue.poll();
+            for (EnumFacing dir : new EnumFacing[]{h1, h2, EnumFacing.UP, EnumFacing.DOWN}) {
+                BlockPos next = cur.offset(dir);
+                if (visited.contains(next)) continue;
+                IBlockState ns = w.getBlockState(next);
+                if (TileBlockStates.is(ns, TileBlockStates.DISPLAY_PANEL)
+                        && TileBlockStates.facing(ns) == facing) {
+                    visited.add(next.toImmutable());
+                    queue.add(next.toImmutable());
+                }
+            }
+            if (visited.size() > MAX_W * MAX_H + 8) return null; // 防爆
+        }
+
+        int minX = Integer.MAX_VALUE, minY = Integer.MAX_VALUE, minZ = Integer.MAX_VALUE;
+        int maxX = Integer.MIN_VALUE, maxY = Integer.MIN_VALUE, maxZ = Integer.MIN_VALUE;
+        for (BlockPos p : visited) {
+            minX = Math.min(minX, p.getX()); maxX = Math.max(maxX, p.getX());
+            minY = Math.min(minY, p.getY()); maxY = Math.max(maxY, p.getY());
+            minZ = Math.min(minZ, p.getZ()); maxZ = Math.max(maxZ, p.getZ());
+        }
+        int width = facing.getAxis() == EnumFacing.Axis.Z ? maxX - minX + 1 : maxZ - minZ + 1;
+        int height = maxY - minY + 1;
+        if (width < MIN_W || width > MAX_W || height < MIN_H || height > MAX_H) return null;
+
+        // 矩形必须无空洞且全部为同朝向面板
+        for (int y = minY; y <= maxY; y++) {
+            for (int a = 0; a < width; a++) {
+                BlockPos p = facing.getAxis() == EnumFacing.Axis.Z
+                        ? new BlockPos(minX + a, y, minZ)
+                        : new BlockPos(minX, y, minZ + a);
+                if (!visited.contains(p)) return null;
+            }
+        }
+
+        // master:y→x→z 字典序最小(即 rectMin 角)
+        BlockPos master = new BlockPos(minX, minY, minZ);
+        return new ScanResult(new ArrayList<>(visited), master, width, height);
     }
 
     /** 距上一个采样点的进度(0~1),渲染器据此平滑滚动图表. */
@@ -163,69 +210,19 @@ public class TileDisplayPanel extends TileEntity implements ITickable, IGridProx
 
     // ==================== 结构扫描 ====================
 
+    /** 最大渲染距离:默认只有 64 格,按配置放大(与 TESR 内的手动距离剔除一致). */
+    @Override
+    public double getMaxRenderDistanceSquared() {
+        double d = com.github.aeddddd.ae2enhanced.config.ClientPreferences.current().displayWall.renderDistance;
+        return d * d;
+    }
+
     /** 面板同朝向判定时读取的朝向(来自 blockstate). */
     public EnumFacing getFacing() {
         if (world == null) return EnumFacing.NORTH;
         IBlockState state = world.getBlockState(pos);
-        return state.getBlock() instanceof BlockDisplayPanel
-                ? state.getValue(BlockDisplayPanel.FACING) : EnumFacing.NORTH;
-    }
-
-    /**
-     * 从 start 出发扫描同朝向面板矩形.
-     * BFS 只经过面板方块(边框不可行走,保证相邻两块屏幕被边框正确隔离).
-     */
-    public static ScanResult scanRectangle(net.minecraft.world.World w, BlockPos start) {
-        IBlockState startState = w.getBlockState(start);
-        if (!(startState.getBlock() instanceof BlockDisplayPanel)) return null;
-        EnumFacing facing = startState.getValue(BlockDisplayPanel.FACING);
-        // 平面内方向:水平轴 + Y 轴
-        EnumFacing h1 = facing.getAxis() == EnumFacing.Axis.X ? EnumFacing.NORTH : EnumFacing.EAST;
-        EnumFacing h2 = h1.getOpposite();
-
-        Set<BlockPos> visited = new HashSet<>();
-        Deque<BlockPos> queue = new ArrayDeque<>();
-        visited.add(start.toImmutable());
-        queue.add(start.toImmutable());
-        while (!queue.isEmpty()) {
-            BlockPos cur = queue.poll();
-            for (EnumFacing dir : new EnumFacing[]{h1, h2, EnumFacing.UP, EnumFacing.DOWN}) {
-                BlockPos next = cur.offset(dir);
-                if (visited.contains(next)) continue;
-                IBlockState ns = w.getBlockState(next);
-                if (ns.getBlock() instanceof BlockDisplayPanel
-                        && ns.getValue(BlockDisplayPanel.FACING) == facing) {
-                    visited.add(next.toImmutable());
-                    queue.add(next.toImmutable());
-                }
-            }
-            if (visited.size() > MAX_W * MAX_H + 8) return null; // 防爆
-        }
-
-        int minX = Integer.MAX_VALUE, minY = Integer.MAX_VALUE, minZ = Integer.MAX_VALUE;
-        int maxX = Integer.MIN_VALUE, maxY = Integer.MIN_VALUE, maxZ = Integer.MIN_VALUE;
-        for (BlockPos p : visited) {
-            minX = Math.min(minX, p.getX()); maxX = Math.max(maxX, p.getX());
-            minY = Math.min(minY, p.getY()); maxY = Math.max(maxY, p.getY());
-            minZ = Math.min(minZ, p.getZ()); maxZ = Math.max(maxZ, p.getZ());
-        }
-        int width = facing.getAxis() == EnumFacing.Axis.Z ? maxX - minX + 1 : maxZ - minZ + 1;
-        int height = maxY - minY + 1;
-        if (width < MIN_W || width > MAX_W || height < MIN_H || height > MAX_H) return null;
-
-        // 矩形必须无空洞且全部为同朝向面板
-        for (int y = minY; y <= maxY; y++) {
-            for (int a = 0; a < width; a++) {
-                BlockPos p = facing.getAxis() == EnumFacing.Axis.Z
-                        ? new BlockPos(minX + a, y, minZ)
-                        : new BlockPos(minX, y, minZ + a);
-                if (!visited.contains(p)) return null;
-            }
-        }
-
-        // master:y→x→z 字典序最小(即 rectMin 角)
-        BlockPos master = new BlockPos(minX, minY, minZ);
-        return new ScanResult(new ArrayList<>(visited), master, width, height);
+        return TileBlockStates.is(state, TileBlockStates.DISPLAY_PANEL)
+                ? TileBlockStates.facing(state) : EnumFacing.NORTH;
     }
 
     /** 扫描结果. */
@@ -255,8 +252,10 @@ public class TileDisplayPanel extends TileEntity implements ITickable, IGridProx
                 for (int z = minZ - 1; z <= maxZ + 1; z++) {
                     boolean inside = x >= minX && x <= maxX && y >= minY && y <= maxY && z >= minZ && z <= maxZ;
                     if (inside) continue;
-                    if (world.getBlockState(new BlockPos(x, y, z)).getBlock() instanceof BlockDisplayFrame) {
-                        if (BlockDisplayFrame.isLight(world.getBlockState(new BlockPos(x, y, z)))) light++;
+                    IBlockState frameState = world.getBlockState(new BlockPos(x, y, z));
+                    Boolean lightFrame = TileBlockStates.frameLight(frameState);
+                    if (lightFrame != null) {
+                        if (lightFrame) light++;
                         else dark++;
                     }
                 }
@@ -440,7 +439,7 @@ public class TileDisplayPanel extends TileEntity implements ITickable, IGridProx
 
     private void applyPowerUsage() {
         if (proxy != null) {
-            proxy.setIdlePowerUsage(rectW * rectH * AE2EnhancedConfig.displayWall.powerPerBlock);
+            proxy.setIdlePowerUsage(rectW * rectH * com.github.aeddddd.ae2enhanced.config.ServerConfig.current().displayWall.powerPerBlock);
         }
     }
 
@@ -557,7 +556,7 @@ public class TileDisplayPanel extends TileEntity implements ITickable, IGridProx
     public AENetworkProxy getProxy() {
         if (proxy == null) {
             proxy = new AENetworkProxy(this, "display_wall",
-                    new ItemStack(BlockRegistry.DISPLAY_PANEL), true);
+                    new ItemStack(getBlockType()), true);
             proxy.setValidSides(EnumSet.allOf(EnumFacing.class));
         }
         return proxy;

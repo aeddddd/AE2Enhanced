@@ -1,7 +1,6 @@
 package com.github.aeddddd.ae2enhanced.integration.crafttweaker;
 
 import com.github.aeddddd.ae2enhanced.crafting.SingularityRecipe;
-import com.github.aeddddd.ae2enhanced.crafting.SingularityRecipeRegistry;
 import crafttweaker.CraftTweakerAPI;
 import crafttweaker.IAction;
 import crafttweaker.annotations.ZenRegister;
@@ -32,6 +31,11 @@ public class SingularityRitualCraftTweaker {
         CraftTweakerAPI.apply(new RemoveRecipeAction(id));
     }
 
+    private static boolean validStack(IItemStack stack) {
+        return stack != null && stack.getInternal() instanceof ItemStack
+                && !((ItemStack) stack.getInternal()).isEmpty();
+    }
+
     public static class AddRecipeAction implements IAction {
         private final String id;
         private final IItemStack[] droppedInputs;
@@ -45,6 +49,36 @@ public class SingularityRitualCraftTweaker {
             this.heldItem = heldItem;
             this.targetBlock = targetBlock;
             this.lifetimeTicks = lifetimeTicks;
+        }
+
+        @Override
+        public boolean validate() {
+            if (id == null || id.trim().isEmpty() || lifetimeTicks <= 0 || droppedInputs == null) {
+                return false;
+            }
+            for (IItemStack input : droppedInputs) {
+                if (!validStack(input) || input.getAmount() <= 0) {
+                    return false;
+                }
+            }
+            if (heldItem != null && !validStack(heldItem)) {
+                return false;
+            }
+            if (targetBlock != null) {
+                if (!validStack(targetBlock)) {
+                    return false;
+                }
+                Block block = Block.getBlockFromItem(((ItemStack) targetBlock.getInternal()).getItem());
+                if (block == null || block == net.minecraft.init.Blocks.AIR) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        @Override
+        public String describeInvalid() {
+            return "SingularityRitual.addRecipe requires id, positive lifetime and valid item/block inputs";
         }
 
         @Override
@@ -71,7 +105,8 @@ public class SingularityRitualCraftTweaker {
                 }
             }
 
-            SingularityRecipeRegistry.register(new SingularityRecipe(id, inputs, held, block, lifetimeTicks));
+            com.github.aeddddd.ae2enhanced.chamber.RecipeCatalog.addScripted(
+                    new SingularityRecipe(id, inputs, held, block, lifetimeTicks));
         }
 
         @Override
@@ -89,7 +124,7 @@ public class SingularityRitualCraftTweaker {
 
         @Override
         public void apply() {
-            SingularityRecipeRegistry.queueRemoval(id);
+            com.github.aeddddd.ae2enhanced.chamber.RecipeCatalog.removeScriptedSingularity(id);
         }
 
         @Override

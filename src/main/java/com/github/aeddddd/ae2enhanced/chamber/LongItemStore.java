@@ -57,8 +57,10 @@ public class LongItemStore {
         String key = keyOf(stack);
         Entry entry = entries.get(key);
         if (entry != null) {
-            entry.count = safeAdd(entry.count, amount);
-            return 0;
+            long accepted = amount > Long.MAX_VALUE - entry.count
+                    ? Long.MAX_VALUE - entry.count : amount;
+            entry.count += accepted;
+            return amount - accepted;
         }
         if (entries.size() >= maxTypes) {
             return amount;
@@ -135,11 +137,6 @@ public class LongItemStore {
 
     public boolean isEmpty() {
         return entries.isEmpty();
-    }
-
-    private static long safeAdd(long a, long b) {
-        long r = a + b;
-        return r < 0 ? Long.MAX_VALUE : r;
     }
 
     // ---- NBT ----

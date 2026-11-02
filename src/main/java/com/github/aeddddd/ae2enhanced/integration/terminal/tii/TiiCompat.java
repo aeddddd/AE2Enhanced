@@ -15,6 +15,7 @@ public final class TiiCompat {
      * 判断 TII 是否已经加载.
      */
     public static boolean isLoaded() {
-        return Loader.isModLoaded("terminal_interaction_integration");
+        return com.github.aeddddd.ae2enhanced.integration.RuntimeIntegrationRegistry
+                .isModLoaded("terminal_interaction_integration");
     }
 }

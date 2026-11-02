@@ -6,10 +6,10 @@
  */
 package com.github.aeddddd.ae2enhanced.client.gui.dock;
 
-import java.util.Objects;
+import com.github.aeddddd.ae2enhanced.dock.model.DockEdge;
+import com.github.aeddddd.ae2enhanced.dock.model.DockRect;
 
-import com.github.aeddddd.ae2enhanced.client.gui.dock.model.DockEdge;
-import com.github.aeddddd.ae2enhanced.client.gui.dock.model.DockRect;
+import java.util.Objects;
 
 /**
  * The leaf (and its edge) that a dragged root would splice into if released. The {@code

@@ -1,7 +1,7 @@
 package com.github.aeddddd.ae2enhanced.block;
 
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
-import com.github.aeddddd.ae2enhanced.gui.GuiHandler;
+import com.github.aeddddd.ae2enhanced.guiapi.GuiCatalog;
 import com.github.aeddddd.ae2enhanced.tile.TileSmartPatternInterface;
 import net.minecraft.block.Block;
 import net.minecraft.block.material.Material;
@@ -51,7 +51,7 @@ public class BlockSmartPatternInterface extends Block {
         if (!world.isRemote) {
             TileEntity te = world.getTileEntity(pos);
             if (te instanceof TileSmartPatternInterface) {
-                player.openGui(AE2Enhanced.instance, GuiHandler.GUI_SMART_PATTERN_INTERFACE,
+                player.openGui(AE2Enhanced.instance, GuiCatalog.GUI_SMART_PATTERN_INTERFACE,
                         world, pos.getX(), pos.getY(), pos.getZ());
             }
         }

@@ -1,32 +1,27 @@
 package com.github.aeddddd.ae2enhanced.centralinterface;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import appeng.api.storage.data.IAEItemStack;
+import appeng.api.storage.data.IAEStack;
+import appeng.util.item.AEItemStack;
+import com.github.aeddddd.ae2enhanced.test.util.AE2TestBootstrap;
+import net.minecraft.init.Blocks;
+import net.minecraft.item.Item;
+import net.minecraft.item.ItemStack;
+import net.minecraft.nbt.NBTTagCompound;
+import net.minecraft.util.math.BlockPos;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
-import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-
-import net.minecraft.init.Blocks;
-import net.minecraft.item.Item;
-import net.minecraft.item.ItemStack;
-import net.minecraft.nbt.NBTTagCompound;
-import net.minecraft.util.math.BlockPos;
-
-import appeng.api.storage.data.IAEItemStack;
-import appeng.api.storage.data.IAEStack;
-import appeng.util.item.AEItemStack;
-
-import com.github.aeddddd.ae2enhanced.test.util.AE2TestBootstrap;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.*;
 
 /**
  * {@link VirtualBatchEngine} 纯函数部分测试：mergeProducts / mergeItemCosts / getNetCosts。
@@ -244,13 +239,13 @@ public class VirtualBatchEngineTest {
         assertThat(sizeOf(net, Item.getItemFromBlock(Blocks.STONE))).isEqualTo(6);
     }
 
-    /** handler 返回 null / 空全量成本时，净成本为空。 */
+    /** 批量成本 null 表示无法计价；只有明确的空列表才表示零成本。 */
     @Test
-    public void testGetNetCostsNullOrEmptyFullCosts() {
+    public void testGetNetCostsRejectsNullButKeepsExplicitZeroCost() {
         IVirtualBatchCraftingHandler handler = mock(IVirtualBatchCraftingHandler.class);
         stubCost(handler, 3, null);
 
-        assertThat(engine.getNetCosts(handler, null, target, null, null, 3, null)).isEmpty();
+        assertThat(engine.getNetCosts(handler, null, target, null, null, 3, null)).isNull();
 
         stubCost(handler, 3, Collections.emptyList());
         assertThat(engine.getNetCosts(handler, null, target, null, null, 3, null)).isEmpty();

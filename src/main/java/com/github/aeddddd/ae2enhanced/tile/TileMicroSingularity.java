@@ -25,9 +25,11 @@ import net.minecraft.util.text.TextComponentTranslation;
  * 周期性吸入附近可参与黑洞合成的物品实体,并并行完成所有匹配配方;
  * 玩家右键方块也可主动触发一次合成.
  */
-public class TileMicroSingularity extends TileEntity implements ITickable {
+public class TileMicroSingularity extends TileEntity implements ITickable,
+        com.github.aeddddd.ae2enhanced.craftingapi.SingularityLifetime {
 
-    public static final int DEFAULT_LIFE_TICKS = 6000;
+    public static final int DEFAULT_LIFE_TICKS =
+            com.github.aeddddd.ae2enhanced.ring.ItemConstrainedMicroSingularity.DEFAULT_LIFE_TICKS;
     private static final int HORIZON_RADIUS = 1; // 3×3×3 范围：origin ± 1
     private static final String NBT_LIFE_TICKS = "LifeTicks";
     private static final String NBT_PERMANENT = "Permanent";
@@ -87,7 +89,7 @@ public class TileMicroSingularity extends TileEntity implements ITickable {
         }
 
         // 事件视界：根据配置决定是否伤害生物
-        if (AE2EnhancedConfig.blackHole.getDamageMode() != AE2EnhancedConfig.BlackHole.DamageMode.NONE) {
+        if (com.github.aeddddd.ae2enhanced.config.ServerConfig.current().blackHole.getDamageMode() != AE2EnhancedConfig.BlackHole.DamageMode.NONE) {
             BlockPos origin = pos;
             AxisAlignedBB horizon = new AxisAlignedBB(
                     origin.getX() - HORIZON_RADIUS, origin.getY() - HORIZON_RADIUS, origin.getZ() - HORIZON_RADIUS,
@@ -97,7 +99,7 @@ public class TileMicroSingularity extends TileEntity implements ITickable {
                 if (!entity.isEntityAlive()) continue;
 
                 // 非创造模式过滤
-                if (AE2EnhancedConfig.blackHole.getDamageMode() == AE2EnhancedConfig.BlackHole.DamageMode.NON_CREATIVE) {
+                if (com.github.aeddddd.ae2enhanced.config.ServerConfig.current().blackHole.getDamageMode() == AE2EnhancedConfig.BlackHole.DamageMode.NON_CREATIVE) {
                     if (entity instanceof EntityPlayer && ((EntityPlayer) entity).isCreative()) {
                         continue;
                     }

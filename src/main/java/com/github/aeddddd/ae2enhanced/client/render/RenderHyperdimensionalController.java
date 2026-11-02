@@ -1,12 +1,11 @@
 package com.github.aeddddd.ae2enhanced.client.render;
 
 import com.github.aeddddd.ae2enhanced.block.BlockHyperdimensionalController;
-import com.github.aeddddd.ae2enhanced.config.AE2EnhancedConfig;
 import com.github.aeddddd.ae2enhanced.tile.TileHyperdimensionalController;
 import net.minecraft.client.renderer.BufferBuilder;
 import net.minecraft.client.renderer.GlStateManager;
-import net.minecraft.client.renderer.Tessellator;
 import net.minecraft.client.renderer.OpenGlHelper;
+import net.minecraft.client.renderer.Tessellator;
 import net.minecraft.client.renderer.tileentity.TileEntitySpecialRenderer;
 import net.minecraft.client.renderer.vertex.DefaultVertexFormats;
 import net.minecraft.util.EnumFacing;
@@ -46,7 +45,7 @@ public class RenderHyperdimensionalController extends TileEntitySpecialRenderer<
     public void render(TileHyperdimensionalController te, double x, double y, double z,
                        float partialTicks, int destroyStage, float alpha) {
         if (te == null || !te.isFormed()) return;
-        if (!AE2EnhancedConfig.render.enableHyperdimensionalRenderer) return;
+        if (!com.github.aeddddd.ae2enhanced.config.ClientPreferences.current().render.enableHyperdimensionalRenderer) return;
 
         float time = (te.getWorld().getTotalWorldTime() + partialTicks) * ROT_SPEED;
         float innerTime = (te.getWorld().getTotalWorldTime() + partialTicks) * INNER_ROT_SPEED;
@@ -71,7 +70,7 @@ public class RenderHyperdimensionalController extends TileEntitySpecialRenderer<
         double cy = y + 4.0; // 在结构平面上方 3.5 格
         double cz = z + 0.5 + offZ;
 
-        double renderDist = AE2EnhancedConfig.render.renderDistance;
+        double renderDist = com.github.aeddddd.ae2enhanced.config.ClientPreferences.current().render.renderDistance;
         // cx/cy/cz are already camera-relative (x = tileX - entityX)
         double distSq = cx * cx + cy * cy + cz * cz;
         if (distSq > renderDist * renderDist) {

@@ -3,7 +3,7 @@ package com.github.aeddddd.ae2enhanced.network.packet;
 import appeng.api.storage.data.IAEItemStack;
 import appeng.util.item.AEItemStack;
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
-import com.github.aeddddd.ae2enhanced.client.me.CraftingStatus;
+import com.github.aeddddd.ae2enhanced.container.CraftingStatus;
 import io.netty.buffer.ByteBuf;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.inventory.GuiContainer;

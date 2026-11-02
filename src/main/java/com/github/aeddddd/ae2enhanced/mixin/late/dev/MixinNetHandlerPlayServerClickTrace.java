@@ -19,7 +19,7 @@ public class MixinNetHandlerPlayServerClickTrace {
 
     @Inject(method = "processClickWindow", at = @At("HEAD"))
     private void ae2e$traceClickWindow(CPacketClickWindow packet, CallbackInfo ci) {
-        if (!com.github.aeddddd.ae2enhanced.util.dev.SplicedTermTestHarness.enabled()) {
+        if (!com.github.aeddddd.ae2enhanced.container.dev.SplicedTermTestHarness.enabled()) {
             return;
         }
         ClickPacketTrace.serverPacket(packet.getWindowId(), packet.getSlotId(), packet.getUsedButton(),

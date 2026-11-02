@@ -1,21 +1,17 @@
 package com.github.aeddddd.ae2enhanced.specialcrafting;
 
-import java.lang.reflect.Field;
-import java.lang.reflect.Method;
-import java.util.ArrayList;
-import java.util.List;
-
 import appeng.api.networking.crafting.ICraftingGrid;
 import appeng.api.networking.crafting.ICraftingPatternDetails;
 import appeng.api.networking.security.IActionSource;
 import appeng.api.storage.data.IAEItemStack;
 import appeng.api.storage.data.IItemList;
-import appeng.crafting.CraftBranchFailure;
-import appeng.crafting.CraftingJob;
-import appeng.crafting.CraftingTreeNode;
-import appeng.crafting.CraftingTreeProcess;
-import appeng.crafting.MECraftingInventory;
+import appeng.crafting.*;
 import it.unimi.dsi.fastutil.objects.Object2LongArrayMap;
+
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * AE2 合成计算内部成员的反射桥.
@@ -265,6 +261,22 @@ public final class Ae2CraftingReflect {
         }
     }
 
+    public static void setNodeEmitted(CraftingTreeNode node, long emitted) {
+        try {
+            NODE_EMITTED.setLong(node, emitted);
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException("写入 CraftingTreeNode.howManyEmitted 失败", e);
+        }
+    }
+
+    public static long getNodeEmitted(CraftingTreeNode node) {
+        try {
+            return NODE_EMITTED.getLong(node);
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException("读取 CraftingTreeNode.howManyEmitted 失败", e);
+        }
+    }
+
     @SuppressWarnings("unchecked")
     public static IItemList<IAEItemStack> getNodeUsed(CraftingTreeNode node) {
         try {
@@ -393,6 +405,14 @@ public final class Ae2CraftingReflect {
             NODE_BYTES.setInt(node, bytes > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) bytes);
         } catch (ReflectiveOperationException e) {
             throw new IllegalStateException("写入 CraftingTreeNode.bytes 失败", e);
+        }
+    }
+
+    public static long getNodeBytes(CraftingTreeNode node) {
+        try {
+            return NODE_BYTES.getInt(node);
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException("读取 CraftingTreeNode.bytes 失败", e);
         }
     }
 

@@ -30,6 +30,14 @@ public final class AE2TestBootstrap {
     }
 
     public static synchronized void boot() {
+        try {
+            com.github.aeddddd.ae2enhanced.runtime.RuntimeScopes.requireProcess();
+        } catch (IllegalStateException absent) {
+            com.github.aeddddd.ae2enhanced.runtime.RuntimeScopes.startProcess(
+                    new com.github.aeddddd.ae2enhanced.runtime.ModProcessScope(
+                            "ae2enhanced", "test", false,
+                            com.github.aeddddd.ae2enhanced.config.BootConfig.capture()));
+        }
         if (booted) {
             return;
         }

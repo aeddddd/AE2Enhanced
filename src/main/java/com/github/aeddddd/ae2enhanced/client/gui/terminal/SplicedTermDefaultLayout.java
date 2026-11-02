@@ -1,37 +1,27 @@
 package com.github.aeddddd.ae2enhanced.client.gui.terminal;
 
-import java.util.function.UnaryOperator;
-
+import com.github.aeddddd.ae2enhanced.client.gui.panel.*;
+import com.github.aeddddd.ae2enhanced.dock.model.*;
+import com.github.aeddddd.ae2enhanced.dock.workspace.DockWorkspaceDefaults;
+import com.github.aeddddd.ae2enhanced.dock.workspace.LegacyMigrationContext;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.github.aeddddd.ae2enhanced.client.gui.dock.model.DockEdge;
-import com.github.aeddddd.ae2enhanced.client.gui.dock.model.DockRect;
-import com.github.aeddddd.ae2enhanced.client.gui.dock.model.DockWorkspace;
-import com.github.aeddddd.ae2enhanced.client.gui.dock.model.DockWorkspaceEditor;
-import com.github.aeddddd.ae2enhanced.client.gui.dock.model.FloatingRoot;
-import com.github.aeddddd.ae2enhanced.client.gui.dock.model.ModuleCatalog;
-import com.github.aeddddd.ae2enhanced.client.gui.dock.workspace.DockWorkspaceDefaults;
-import com.github.aeddddd.ae2enhanced.client.gui.dock.workspace.LegacyMigrationContext;
-import com.github.aeddddd.ae2enhanced.client.gui.panel.CraftingPanel;
-import com.github.aeddddd.ae2enhanced.client.gui.panel.PatternEncodingPanel;
-import com.github.aeddddd.ae2enhanced.client.gui.panel.PlayerInvPanel;
-import com.github.aeddddd.ae2enhanced.client.gui.panel.RepoPanel;
-import com.github.aeddddd.ae2enhanced.client.gui.panel.StoragePanel;
-import com.github.aeddddd.ae2enhanced.client.gui.panel.UpgradePanel;
-import com.github.aeddddd.ae2enhanced.client.gui.panel.ViewCellPanel;
+import java.util.function.UnaryOperator;
 
 /**
- * 可拼接终端的默认布局：四个窗口，每个窗口的尺寸都等于自己内容的尺寸。
+ * 可拼接终端的默认布局：六个窗口，每个窗口的尺寸都等于自己内容的尺寸。
  *
  * <pre>
  * ┌───────────────────────────┬──────┐   ┌─────────────┐
- * │ repo (18 列 × 5 行)        │ view │   │  pattern    │
+ * │ repo (12 列 × 5 行)        │ view │   │  pattern    │
  * ├──────────────┬────────────┤ cell │   ├─────────────┤
  * │ crafting     │ storage     │      │   │  playerinv  │
  * │              │             │      │   ├─────────────┤
  * │              │             │      │   │  upgrade    │
- * └──────────────┴────────────┘      ┘   └─────────────┘
+ * ├──────────────┴────────────┤      ├─────────────┤
+ * │ interface terminal        │      │ crafting mgmt │
+ * └───────────────────────────┘      └───────────────┘
  * </pre>
  *
  * <p>窗口与拼法：</p>
@@ -39,10 +29,12 @@ import com.github.aeddddd.ae2enhanced.client.gui.panel.ViewCellPanel;
  *   <li>{@code w1 = H[repo | viewcell]}：AE2 终端的经典布局（view cell 列贴在物品格右侧）；</li>
  *   <li>{@code w2 = H[crafting | storage]}：两块面板内容高度相同，正好等高；</li>
  *   <li>{@code w3 = V[playerinv / upgrade]}：两块面板内容宽度相同，正好等宽；</li>
- *   <li>{@code w4 = pattern}：编码区不与任何面板同行同列。</li>
+ *   <li>{@code w4 = pattern}：编码区不与任何面板同行同列；</li>
+ *   <li>{@code w5 = crafting_management}：活动合成与原生管理入口；</li>
+ *   <li>{@code w6 = interface_terminal}：原生供应器与样板列表。</li>
  * </ol>
  *
- * <p><b>为什么默认布局不用"一个大窗口装七个模块"</b>：布局引擎（与 MEST 的
+ * <p><b>为什么默认布局不用"一个大窗口装九个模块"</b>：布局引擎（与 MEST 的
  * {@code allocateShellFirst} 一致）只在 <b>垂直</b>轴的富余分配上尊重 {@code expandVertically}；
  * 而壳模型要求每个子节点占满父矩形的<b>交叉轴</b>，所以把一个矮面板（如编码区，内容高 108+chrome）
  * 和一个高面板放进同一个横向 split，矮面板就会被拉成整列高度，右下留下大片空白
@@ -96,6 +88,10 @@ public final class SplicedTermDefaultLayout {
             int upgradeHeight = heightOf(catalog, geometry, UpgradePanel.MODULE_ID);
             int patternWidth = widthOf(catalog, geometry, PatternEncodingPanel.MODULE_ID);
             int patternHeight = heightOf(catalog, geometry, PatternEncodingPanel.MODULE_ID);
+            int managementWidth = widthOf(catalog, geometry, CraftingManagementPanel.MODULE_ID);
+            int managementHeight = heightOf(catalog, geometry, CraftingManagementPanel.MODULE_ID);
+            int interfaceWidth = widthOf(catalog, geometry, InterfaceTerminalPanel.MODULE_ID);
+            int interfaceHeight = heightOf(catalog, geometry, InterfaceTerminalPanel.MODULE_ID);
 
             // w1 = repo | viewcell
             DockWorkspace w1 = editor.insertSplit(base,
@@ -126,16 +122,20 @@ public final class SplicedTermDefaultLayout {
             int w4Width = patternWidth;
             int w4Height = patternHeight;
 
-            // 左列 = w1 / w2，右列 = w3 / w4；整体居中，装不下时等比收缩（绝不放大）
-            int columnOneWidth = Math.max(w1Width, w2Width);
-            int columnOneHeight = w1Height + WINDOW_GAP + w2Height;
-            int columnTwoWidth = Math.max(w3Width, w4Width);
-            int columnTwoHeight = w3Height + WINDOW_GAP + w4Height;
+            // 左列 = w1 / w2 / 接口终端，右列 = w3 / w4 / 合成管理；整体居中，装不下时等比收缩（绝不放大）
+            int columnOneWidth = Math.max(w1Width, Math.max(w2Width, interfaceWidth));
+            int columnOneHeight = w1Height + WINDOW_GAP + w2Height + WINDOW_GAP + interfaceHeight;
+            int columnTwoWidth = Math.max(w3Width, Math.max(w4Width, managementWidth));
+            int columnTwoHeight = w3Height + WINDOW_GAP + w4Height + WINDOW_GAP + managementHeight;
             int totalWidth = columnOneWidth + WINDOW_GAP + columnTwoWidth;
             int totalHeight = Math.max(columnOneHeight, columnTwoHeight);
             double scale = Math.min(1.0D, Math.min(
                     Math.max(MIN_ROOT_WIDTH, geometry.viewportWidth() - VIEWPORT_MARGIN) / (double) totalWidth,
                     Math.max(MIN_ROOT_HEIGHT, geometry.viewportHeight() - VIEWPORT_MARGIN) / (double) totalHeight));
+
+            if (scale < 1.0D) {
+                return createCompactLayout(editor, joined, geometry, viewWidth);
+            }
 
             int originX = Math.max(0, (geometry.viewportWidth() - scaledExtent(totalWidth, scale)) / 2);
             int originY = Math.max(0, (geometry.viewportHeight() - scaledExtent(totalHeight, scale)) / 2);
@@ -147,15 +147,59 @@ public final class SplicedTermDefaultLayout {
                     rect(originX, originY + scaledExtent(w1Height, scale) + WINDOW_GAP, w2Width, w2Height, scale));
             placed = editor.setRootBounds(placed, DockWorkspaceDefaults.rootId(PlayerInvPanel.MODULE_ID),
                     rect(secondColumnX, originY, w3Width, w3Height, scale));
-            return editor.setRootBounds(placed,
-                    DockWorkspaceDefaults.rootId(PatternEncodingPanel.MODULE_ID),
+            placed = editor.setRootBounds(placed, DockWorkspaceDefaults.rootId(PatternEncodingPanel.MODULE_ID),
                     rect(secondColumnX, originY + scaledExtent(w3Height, scale) + WINDOW_GAP,
                             w4Width, w4Height, scale));
+            placed = editor.setRootBounds(placed, DockWorkspaceDefaults.rootId(InterfaceTerminalPanel.MODULE_ID),
+                    rect(originX,
+                            originY + scaledExtent(w1Height + WINDOW_GAP, scale)
+                                    + scaledExtent(w2Height + WINDOW_GAP, scale),
+                            interfaceWidth, interfaceHeight, scale));
+            return editor.setRootBounds(placed, DockWorkspaceDefaults.rootId(CraftingManagementPanel.MODULE_ID),
+                    rect(secondColumnX,
+                            originY + scaledExtent(w3Height + WINDOW_GAP, scale)
+                                    + scaledExtent(w4Height + WINDOW_GAP, scale),
+                            managementWidth, managementHeight, scale));
         } catch (RuntimeException e) {
             // 静默退回级联摆放会让问题很难查，这里至少留一行日志
             LOGGER.warn("Failed to build the spliced terminal default layout, falling back to cascade", e);
             return base;
         }
+    }
+
+    private static DockWorkspace createCompactLayout(DockWorkspaceEditor editor, DockWorkspace workspace,
+            LegacyMigrationContext geometry, int viewCellWidth) {
+        DockWorkspace compact = workspace;
+        for (String moduleId : new String[] { CraftingPanel.MODULE_ID, StoragePanel.MODULE_ID,
+                UpgradePanel.MODULE_ID, PatternEncodingPanel.MODULE_ID,
+                CraftingManagementPanel.MODULE_ID, InterfaceTerminalPanel.MODULE_ID }) {
+            compact = editor.setLeafVisible(compact, DockWorkspaceDefaults.leafNodeId(moduleId),
+                    false, null, null, null);
+        }
+        int repoWidth = RepoPanel.MIN_COLUMNS * RepoPanel.SLOT_SIZE
+                + RepoPanel.SCROLLBAR_GAP + RepoPanel.SCROLLBAR_WIDTH
+                + 2 * RepoPanel.CONTENT_PADDING + viewCellWidth;
+        int repoHeight = RepoPanel.TITLE_BAR_HEIGHT + RepoPanel.SEARCH_ROW_HEIGHT
+                + RepoPanel.MIN_ROWS * RepoPanel.SLOT_SIZE + RepoPanel.CONTENT_PADDING;
+        int playerWidth = 9 * 18 + 2 * RepoPanel.CONTENT_PADDING;
+        int playerHeight = RepoPanel.TITLE_BAR_HEIGHT + 4 * 18 + RepoPanel.CONTENT_PADDING;
+        int totalWidth = repoWidth + WINDOW_GAP + playerWidth;
+        if (geometry.viewportWidth() >= totalWidth) {
+            int originX = Math.max(0, (geometry.viewportWidth() - totalWidth) / 2);
+            int originY = Math.max(0, (geometry.viewportHeight() - Math.max(repoHeight, playerHeight)) / 2);
+            compact = editor.setRootBounds(compact, DockWorkspaceDefaults.rootId(RepoPanel.MODULE_ID),
+                    new DockRect(originX, originY, repoWidth, repoHeight));
+            compact = editor.setRootBounds(compact, DockWorkspaceDefaults.rootId(PlayerInvPanel.MODULE_ID),
+                    new DockRect(originX + repoWidth + WINDOW_GAP, originY, playerWidth, playerHeight));
+            return compact;
+        }
+        int originY = Math.max(0, (geometry.viewportHeight() - repoHeight - WINDOW_GAP - playerHeight) / 2);
+        compact = editor.setRootBounds(compact, DockWorkspaceDefaults.rootId(RepoPanel.MODULE_ID),
+                new DockRect(0, originY, repoWidth, repoHeight));
+        compact = editor.setRootBounds(compact, DockWorkspaceDefaults.rootId(PlayerInvPanel.MODULE_ID),
+                new DockRect(Math.max(0, geometry.viewportWidth() - playerWidth),
+                        Math.max(0, geometry.viewportHeight() - playerHeight), playerWidth, playerHeight));
+        return compact;
     }
 
     private static int scaledExtent(int extent, double scale) {

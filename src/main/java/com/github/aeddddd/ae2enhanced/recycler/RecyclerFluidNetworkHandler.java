@@ -17,14 +17,15 @@ import appeng.fluids.util.AEFluidStack;
 import appeng.me.GridAccessException;
 import appeng.me.helpers.MachineSource;
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
-import com.github.aeddddd.ae2enhanced.config.AE2EnhancedConfig;
 import com.github.aeddddd.ae2enhanced.storage.FluidDescriptor;
 import com.github.aeddddd.ae2enhanced.storage.FluidStorageAdapter;
-import com.github.aeddddd.ae2enhanced.tile.TileMENetworkRecycler;
 import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
+import net.minecraft.nbt.NBTTagCompound;
+import net.minecraft.nbt.NBTTagList;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.world.World;
 import net.minecraftforge.common.DimensionManager;
+import net.minecraftforge.common.util.Constants;
 import net.minecraftforge.fluids.FluidStack;
 
 import java.util.ArrayList;
@@ -45,6 +46,7 @@ public class RecyclerFluidNetworkHandler implements IMEInventoryHandler<IAEFluid
     private final FluidBulkCollector collector = new FluidBulkCollector();
     private final HyperStorageLinkFluid hyperStorageLink = new HyperStorageLinkFluid();
     private final IActionSource actionSource;
+    private final List<NBTTagCompound> orphanedOutboxEntries = new ArrayList<>();
 
     private long lastRecycledCount = 0;
     private int tickCounter = 0;
@@ -55,6 +57,39 @@ public class RecyclerFluidNetworkHandler implements IMEInventoryHandler<IAEFluid
     }
 
     public void onLoad() {
+    }
+
+    public void readOutbox(NBTTagCompound outbox) {
+        collector.drain();
+        orphanedOutboxEntries.clear();
+        NBTTagList fluids = outbox.getTagList("Fluids", Constants.NBT.TAG_COMPOUND);
+        for (int i = 0; i < fluids.tagCount(); i++) {
+            NBTTagCompound entry = fluids.getCompoundTagAt(i);
+            IAEFluidStack stack = null;
+            try {
+                stack = AEFluidStack.fromNBT(entry);
+            } catch (RuntimeException ignored) {
+                // 缺失模组或损坏条目按原样保留，不能影响其余待注入流体。
+            }
+            if (stack != null && stack.getStackSize() > 0) {
+                collector.add(stack);
+            } else {
+                orphanedOutboxEntries.add(entry.copy());
+            }
+        }
+    }
+
+    public void writeOutbox(NBTTagCompound outbox) {
+        NBTTagList fluids = new NBTTagList();
+        for (NBTTagCompound orphaned : orphanedOutboxEntries) {
+            fluids.appendTag(orphaned.copy());
+        }
+        for (IAEFluidStack stack : collector.snapshot()) {
+            NBTTagCompound entry = new NBTTagCompound();
+            stack.writeToNBT(entry);
+            fluids.appendTag(entry);
+        }
+        outbox.setTag("Fluids", fluids);
     }
 
     public void onInvalidate() {
@@ -75,61 +110,48 @@ public class RecyclerFluidNetworkHandler implements IMEInventoryHandler<IAEFluid
         if (output == null || output.amount <= 0) {
             return null;
         }
+        if (tile.isInvalid() || tile.getWorld() == null || !tile.isActive()) {
+            return output;
+        }
 
         IAEFluidStack toInject = AEFluidStack.fromFluidStack(output);
         if (toInject == null) {
             return output;
         }
 
-        FluidStorageAdapter hyperAdapter = hyperStorageLink.find(
-                tile.getProxy(), tile.getWorld().getTotalWorldTime());
-        if (hyperAdapter != null) {
-            syncHyperStorageAdapter(hyperAdapter);
-        }
-
         IAEFluidStack remainder;
-        List<IAEFluidStack> changes = new ArrayList<>();
-
-        if (hyperAdapter != null) {
-            remainder = hyperAdapter.injectItems(toInject.copy(), Actionable.MODULATE, actionSource);
-
-            long injectedCount = output.amount - (remainder != null ? remainder.getStackSize() : 0);
-            if (injectedCount > 0) {
-                IAEFluidStack change = toInject.copy();
-                change.setStackSize(injectedCount);
-                changes.add(change);
-            }
-        } else if (!AE2EnhancedConfig.recycler.requireHyperStorageForRedirect) {
-            try {
-                IStorageGrid storageGrid = tile.getProxy().getGrid().getCache(IStorageGrid.class);
-                if (storageGrid == null) {
-                    return output;
-                }
-                IMEMonitor<IAEFluidStack> inv = storageGrid.getInventory(
-                        AEApi.instance().storage().getStorageChannel(IFluidStorageChannel.class));
-                remainder = inv.injectItems(toInject.copy(), Actionable.MODULATE, actionSource);
-
-                long injectedCount = output.amount - (remainder != null ? remainder.getStackSize() : 0);
-                if (injectedCount > 0) {
-                    IAEFluidStack change = toInject.copy();
-                    change.setStackSize(injectedCount);
-                    changes.add(change);
-                }
-            } catch (GridAccessException e) {
+        try {
+            FluidStorageAdapter hyperAdapter = hyperStorageLink.find(
+                    tile.getProxy(), tile.getWorld().getTotalWorldTime());
+            if (hyperAdapter != null) {
+                syncHyperStorageAdapter(hyperAdapter);
+                remainder = hyperAdapter.injectItems(toInject.copy(), Actionable.MODULATE, actionSource);
+            } else if (!com.github.aeddddd.ae2enhanced.config.ServerConfig.current().recycler.requireHyperStorageForRedirect) {
+                remainder = injectToNetwork(toInject);
+            } else {
                 return output;
             }
-        } else {
+        } catch (GridAccessException | RuntimeException e) {
             return output;
         }
 
-        if (!changes.isEmpty()) {
-            postFluidAlterations(changes);
+        long requested = output.amount;
+        long remaining = remainder == null ? 0 : remainder.getStackSize();
+        if (remaining < 0 || remaining > requested) {
+            return output;
         }
-
-        if (remainder == null || remainder.getStackSize() <= 0) {
+        long injectedCount = requested - remaining;
+        if (injectedCount > 0) {
+            IAEFluidStack change = toInject.copy();
+            change.setStackSize(injectedCount);
+            postFluidAlterations(java.util.Collections.singletonList(change));
+        }
+        if (remaining == 0) {
             return null;
         }
-        return remainder.getFluidStack();
+        FluidStack result = output.copy();
+        result.amount = (int) remaining;
+        return result;
     }
 
     private void syncHyperStorageAdapter(FluidStorageAdapter adapter) {
@@ -161,7 +183,7 @@ public class RecyclerFluidNetworkHandler implements IMEInventoryHandler<IAEFluid
         collectFromTargets();
         flushCollector();
 
-        int fullScanInterval = AE2EnhancedConfig.recycler.fullScanIntervalTicks;
+        int fullScanInterval = com.github.aeddddd.ae2enhanced.config.ServerConfig.current().recycler.fullScanIntervalTicks;
         if (fullScanInterval > 0 && tickCounter % fullScanInterval == 0) {
             rebuildIndex();
         }
@@ -213,7 +235,7 @@ public class RecyclerFluidNetworkHandler implements IMEInventoryHandler<IAEFluid
     // ---- 回收逻辑 ----
 
     private void collectFromTargets() {
-        boolean heartbeat = tickCounter % AE2EnhancedConfig.recycler.heartbeatIntervalTicks == 0;
+        boolean heartbeat = tickCounter % com.github.aeddddd.ae2enhanced.config.ServerConfig.current().recycler.heartbeatIntervalTicks == 0;
 
         for (Map.Entry<TargetManager.TargetRef, FluidTargetAdapter> entry : adapters.entrySet()) {
             TargetManager.TargetRef ref = entry.getKey();
@@ -233,6 +255,7 @@ public class RecyclerFluidNetworkHandler implements IMEInventoryHandler<IAEFluid
                 FluidStack extracted = adapter.extract(request, false);
                 if (extracted != null && extracted.amount > 0) {
                     collector.add(extracted);
+                    tile.markDirty();
                 }
             }
 
@@ -252,82 +275,81 @@ public class RecyclerFluidNetworkHandler implements IMEInventoryHandler<IAEFluid
     private void flushCollector() {
         if (collector.isEmpty()) return;
 
-        List<IAEFluidStack> changes = collector.drain();
-        lastRecycledCount = changes.stream().mapToLong(IAEFluidStack::getStackSize).sum();
-
-        if (AE2EnhancedConfig.recycler.forceHyperdimensionalStorage) {
-            injectToHyperStorage(changes);
-        } else {
-            injectToNetwork(changes);
-        }
-    }
-
-    private void injectToHyperStorage(List<IAEFluidStack> changes) {
-        FluidStorageAdapter adapter = hyperStorageLink.find(tile.getProxy(), tile.getWorld().getTotalWorldTime());
-        if (adapter == null) {
-            injectToNetwork(changes);
-            return;
-        }
-        syncHyperStorageAdapter(adapter);
-
-        for (IAEFluidStack stack : changes) {
-            logDroppedByStorage(stack, adapter.injectItems(stack.copy(), Actionable.MODULATE, actionSource));
-        }
-
-        try {
-            IGrid grid = tile.getProxy().getGrid();
-            if (grid != null) {
-                IStorageGrid storageGrid = grid.getCache(IStorageGrid.class);
-                if (storageGrid != null) {
-                    storageGrid.postAlterationOfStoredItems(
-                            AEApi.instance().storage().getStorageChannel(IFluidStorageChannel.class),
-                            changes, actionSource);
+        List<IAEFluidStack> requests = collector.drain();
+        List<IAEFluidStack> acceptedChanges = new ArrayList<>();
+        lastRecycledCount = 0;
+        for (IAEFluidStack stack : requests) {
+            IAEFluidStack remainder;
+            try {
+                if (com.github.aeddddd.ae2enhanced.config.ServerConfig.current().recycler.forceHyperdimensionalStorage) {
+                    FluidStorageAdapter adapter = hyperStorageLink.find(
+                            tile.getProxy(), tile.getWorld().getTotalWorldTime());
+                    if (adapter != null) {
+                        syncHyperStorageAdapter(adapter);
+                        remainder = adapter.injectItems(stack.copy(), Actionable.MODULATE, actionSource);
+                    } else {
+                        remainder = injectToNetwork(stack);
+                    }
+                } else {
+                    remainder = injectToNetwork(stack);
                 }
+            } catch (GridAccessException | RuntimeException e) {
+                AE2Enhanced.LOGGER.warn("[AE2E] Recycler fluid injection failed; retaining buffered stack", e);
+                remainder = stack;
             }
-        } catch (GridAccessException e) {
-            AE2Enhanced.LOGGER.warn("[AE2E] Recycler failed to post fluid alterations", e);
+
+            long requested = stack.getStackSize();
+            long remaining = remainder == null ? 0 : remainder.getStackSize();
+            if (remaining < 0 || remaining > requested) {
+                remaining = requested;
+            }
+            long accepted = requested - remaining;
+            if (accepted > 0) {
+                IAEFluidStack change = stack.copy();
+                change.setStackSize(accepted);
+                acceptedChanges.add(change);
+                lastRecycledCount += accepted;
+            }
+            if (remaining > 0) {
+                IAEFluidStack retry = stack.copy();
+                retry.setStackSize(remaining);
+                collector.add(retry);
+            }
+        }
+        tile.markDirty();
+        if (!acceptedChanges.isEmpty()) {
+            postFluidAlterations(acceptedChanges);
         }
     }
 
-    private void injectToNetwork(List<IAEFluidStack> changes) {
-        try {
-            IStorageGrid storageGrid = tile.getProxy().getGrid().getCache(IStorageGrid.class);
-            if (storageGrid == null) {
-                logDroppedBatch(changes, "storage grid unavailable");
-                return;
-            }
-            IMEMonitor<IAEFluidStack> inv = storageGrid.getInventory(
-                    AEApi.instance().storage().getStorageChannel(IFluidStorageChannel.class));
-            for (IAEFluidStack stack : changes) {
-                logDroppedByStorage(stack, inv.injectItems(stack.copy(), Actionable.MODULATE, actionSource));
-            }
-        } catch (GridAccessException e) {
-            logDroppedBatch(changes, "grid access exception");
+    private IAEFluidStack injectToNetwork(IAEFluidStack stack) throws GridAccessException {
+        IStorageGrid storageGrid = tile.getProxy().getGrid().getCache(IStorageGrid.class);
+        if (storageGrid == null) {
+            return stack;
         }
+        IMEMonitor<IAEFluidStack> inv = storageGrid.getInventory(
+                AEApi.instance().storage().getStorageChannel(IFluidStorageChannel.class));
+        return inv.injectItems(stack.copy(), Actionable.MODULATE, actionSource);
     }
 
-    /**
-     * 记录被目标存储拒绝而丢弃的回收流体。
-     *
-     * <p>流体在 {@code collectFromTargets} 中已从机器抽出且缓冲区已清空，
-     * 注入被拒绝时没有回注通道，只能丢弃；这里留下日志，避免静默丢失。</p>
-     */
-    private void logDroppedByStorage(IAEFluidStack requested, IAEFluidStack remainder) {
-        if (requested == null || remainder == null || remainder.getStackSize() <= 0) {
-            return;
+    public void dropBufferedContents(World world, net.minecraft.util.math.BlockPos pos) {
+        List<IAEFluidStack> buffered = collector.drain();
+        if (!buffered.isEmpty()) {
+            tile.markDirty();
         }
-        FluidStack fluid = requested.getFluidStack();
-        AE2Enhanced.LOGGER.warn("[AE2E] Recycler dropped {} mb of {} rejected by storage",
-                remainder.getStackSize(), fluid != null ? fluid.getFluid().getName() : "?");
-    }
-
-    private void logDroppedBatch(List<IAEFluidStack> changes, String reason) {
-        long total = 0;
-        for (IAEFluidStack stack : changes) {
-            total += stack.getStackSize();
-        }
-        if (total > 0) {
-            AE2Enhanced.LOGGER.warn("[AE2E] Recycler dropped {} mb of fluid because {}", total, reason);
+        for (IAEFluidStack stack : buffered) {
+            long remaining = stack.getStackSize();
+            while (remaining > 0) {
+                FluidStack fluid = stack.getFluidStack();
+                fluid.amount = (int) Math.min(remaining, Integer.MAX_VALUE);
+                net.minecraft.item.ItemStack drop =
+                        com.github.aeddddd.ae2enhanced.item.ItemFluidDrop.createStack(fluid);
+                if (!drop.isEmpty()) {
+                    world.spawnEntity(new net.minecraft.entity.item.EntityItem(world,
+                            pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5, drop));
+                }
+                remaining -= fluid.amount;
+            }
         }
     }
 
@@ -350,7 +372,9 @@ public class RecyclerFluidNetworkHandler implements IMEInventoryHandler<IAEFluid
         for (TargetManager.TargetRef ref : refs) {
             FluidTargetAdapter adapter = adapters.get(ref);
             if (adapter == null) continue;
-            FluidStack got = adapter.extract(request, type == Actionable.SIMULATE);
+            IAEFluidStack remainingRequest = request.copy();
+            remainingRequest.setStackSize(requestedCount);
+            FluidStack got = adapter.extract(remainingRequest, type == Actionable.SIMULATE);
             if (got == null || got.amount <= 0) continue;
 
             if (collected == null) {

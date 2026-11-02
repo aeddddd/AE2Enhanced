@@ -1,7 +1,6 @@
 package com.github.aeddddd.ae2enhanced.integration.crafttweaker;
 
 import com.github.aeddddd.ae2enhanced.crafting.SingularityFuelRecipe;
-import com.github.aeddddd.ae2enhanced.crafting.SingularityFuelRegistry;
 import crafttweaker.CraftTweakerAPI;
 import crafttweaker.IAction;
 import crafttweaker.annotations.ZenRegister;
@@ -53,6 +52,19 @@ public class SingularityFuelCraftTweaker {
         }
 
         @Override
+        public boolean validate() {
+            return id != null && !id.trim().isEmpty() && item != null
+                    && item.getInternal() instanceof ItemStack
+                    && !((ItemStack) item.getInternal()).isEmpty()
+                    && (permanent || ticks > 0);
+        }
+
+        @Override
+        public String describeInvalid() {
+            return "SingularityFuel requires a non-empty id/item and positive ticks unless permanent";
+        }
+
+        @Override
         public void apply() {
             if (item == null) {
                 return;
@@ -61,7 +73,7 @@ public class SingularityFuelCraftTweaker {
             if (internal.isEmpty()) {
                 return;
             }
-            SingularityFuelRegistry.register(
+            com.github.aeddddd.ae2enhanced.chamber.RecipeCatalog.addScripted(
                     new SingularityFuelRecipe(id, internal.copy(), ticks, permanent));
         }
 
@@ -80,7 +92,7 @@ public class SingularityFuelCraftTweaker {
 
         @Override
         public void apply() {
-            SingularityFuelRegistry.queueRemoval(id);
+            com.github.aeddddd.ae2enhanced.chamber.RecipeCatalog.removeScriptedFuel(id);
         }
 
         @Override

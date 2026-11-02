@@ -7,7 +7,6 @@ import appeng.api.features.IInscriberRecipe;
 import appeng.api.features.InscriberProcessType;
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
 import com.github.aeddddd.ae2enhanced.crafting.BlackHoleRecipe;
-import com.github.aeddddd.ae2enhanced.crafting.BlackHoleRecipeRegistry;
 import net.minecraft.init.Items;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
@@ -15,13 +14,7 @@ import net.minecraft.nbt.JsonToNBT;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.util.ResourceLocation;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 
 /**
  * 奇点处理仓配方索引：汇总黑洞配方、压印链（含多步合一）、水晶充能、
@@ -45,7 +38,6 @@ public final class ChamberRecipeIndex {
     public static final int TIME_GRINDER_PER_TURN = 10;
 
     private static final List<ChamberRecipe> generated = new ArrayList<>();
-    private static final List<ChamberRecipe> custom = new ArrayList<>();
     private static final Map<String, List<ChamberRecipe>> byInputKey = new HashMap<>();
     private static final Map<String, ChamberRecipe> grinderCache = new HashMap<>();
     private static boolean built = false;
@@ -58,6 +50,7 @@ public final class ChamberRecipeIndex {
     }
 
     public static synchronized void ensureBuilt() {
+        RecipeCatalog.finalizeRecipes();
         if (!built) {
             built = true;
             rebuild();
@@ -122,6 +115,7 @@ public final class ChamberRecipeIndex {
 
     public static List<ChamberRecipe> allRecipes() {
         ensureBuilt();
+        List<ChamberRecipe> custom = RecipeCatalog.customChamberRecipes();
         List<ChamberRecipe> all = new ArrayList<>(generated.size() + custom.size());
         all.addAll(generated);
         all.addAll(custom);
@@ -131,19 +125,11 @@ public final class ChamberRecipeIndex {
     // ---- CraftTweaker 自定义配方 ----
 
     public static void addCustomRecipe(ChamberRecipe recipe) {
-        ensureBuilt();
-        custom.removeIf(r -> r.getId().equals(recipe.getId()));
-        custom.add(recipe);
-        index(recipe);
+        RecipeCatalog.addScripted(recipe);
     }
 
     public static boolean removeCustomRecipe(String id) {
-        ensureBuilt();
-        boolean removed = custom.removeIf(r -> r.getId().equals(id));
-        if (removed) {
-            markDirty();
-        }
-        return removed;
+        return RecipeCatalog.removeScriptedChamber(id);
     }
 
     // ---- 构建 ----
@@ -156,6 +142,7 @@ public final class ChamberRecipeIndex {
         buildBlackHole();
         buildInscriberChains();
         buildHardcoded();
+        buildGrinder();
 
         // 稳定排序显式固定全局优先级：黑洞 > 合并链 > 单步压制 > 单步压印 > 硬编码.
         // 排序在索引前进行,不影响配方 ID 分配（存档任务懒恢复兼容）.
@@ -166,7 +153,7 @@ public final class ChamberRecipeIndex {
         for (ChamberRecipe r : generated) {
             index(r);
         }
-        for (ChamberRecipe r : custom) {
+        for (ChamberRecipe r : RecipeCatalog.customChamberRecipes()) {
             index(r);
         }
     }
@@ -182,7 +169,7 @@ public final class ChamberRecipeIndex {
     // ---- 黑洞配方 ----
 
     private static void buildBlackHole() {
-        for (BlackHoleRecipe recipe : BlackHoleRecipeRegistry.getRecipes()) {
+        for (BlackHoleRecipe recipe : RecipeCatalog.blackHoleRecipes()) {
             ChamberRecipe.Builder builder = ChamberRecipe.builder("blackhole:" + recipe.getId())
                     .output(recipe.getOutput())
                     .time(TIME_BLACK_HOLE);
@@ -417,7 +404,25 @@ public final class ChamberRecipeIndex {
         return def.maybeStack(1);
     }
 
-    // ---- 磨粉机（惰性查询 + 缓存） ----
+    // ---- 磨粉机（全量目录 + 运行期新增配方的惰性兜底） ----
+
+    private static void buildGrinder() {
+        try {
+            for (IGrinderRecipe recipe : AEApi.instance().registries().grinder().getRecipes()) {
+                ItemStack input = recipe.getInput();
+                if (input.isEmpty() || recipe.getOutput().isEmpty()) {
+                    continue;
+                }
+                generated.add(ChamberRecipe.builder("grinder:" + LongItemStore.keyOf(input))
+                        .input(input, 1)
+                        .output(recipe.getOutput())
+                        .time(recipe.getRequiredTurns() * TIME_GRINDER_PER_TURN)
+                        .build());
+            }
+        } catch (Throwable t) {
+            AE2Enhanced.LOGGER.error("[AE2E] Failed to read grinder registry", t);
+        }
+    }
 
     private static ChamberRecipe queryGrinder(String key, ItemStack template) {
         if (template.isEmpty()) {

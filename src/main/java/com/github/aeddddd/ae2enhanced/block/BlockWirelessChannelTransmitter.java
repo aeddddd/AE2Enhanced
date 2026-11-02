@@ -1,7 +1,7 @@
 package com.github.aeddddd.ae2enhanced.block;
 
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
-import com.github.aeddddd.ae2enhanced.gui.GuiHandler;
+import com.github.aeddddd.ae2enhanced.guiapi.GuiCatalog;
 import com.github.aeddddd.ae2enhanced.tile.TileWirelessChannelTransmitter;
 import net.minecraft.block.Block;
 import net.minecraft.block.material.Material;
@@ -115,7 +115,7 @@ public class BlockWirelessChannelTransmitter extends Block {
         if (!world.isRemote) {
             TileEntity te = world.getTileEntity(pos);
             if (te instanceof TileWirelessChannelTransmitter) {
-                player.openGui(AE2Enhanced.instance, GuiHandler.GUI_WIRELESS_CHANNEL_TRANSMITTER,
+                player.openGui(AE2Enhanced.instance, GuiCatalog.GUI_WIRELESS_CHANNEL_TRANSMITTER,
                     world, pos.getX(), pos.getY(), pos.getZ());
             }
         }

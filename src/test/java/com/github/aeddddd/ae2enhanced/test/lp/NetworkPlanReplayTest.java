@@ -9,6 +9,7 @@ import java.util.Map;
 
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import net.minecraft.init.Items;
@@ -35,8 +36,8 @@ import com.github.aeddddd.ae2enhanced.test.support.SimulationEnv;
  * 全部网络样板(NBT/替代/返还)+ 全网络库存 + 根请求;本测试加载后重建等价
  * SimulationEnv 并对根请求完整跑 {@link CondensationPlanner}——生产失败的订单
  * 在本地逐字节复现,供调试修复.</p>
- * <p>用法:{code ./gradlew test --tests NetworkPlanReplayTest -Dae2e.planreplay=<文件或目录>};
- * 未指定时跳过.保真边界:容器返还依赖 dummy Item 无容器行为的差异(该测试集的
+ * <p>用法:{code ./gradlew test -PtestIncludeTags=replay --tests NetworkPlanReplayTest
+ * -Dae2e.planreplay=<文件或目录>};未指定时跳过.保真边界:容器返还依赖 dummy Item 无容器行为的差异(该测试集的
  * 成环链为处理样板,返还多为空,不影响主线复现).</p>
  */
 public class NetworkPlanReplayTest {
@@ -62,6 +63,7 @@ public class NetworkPlanReplayTest {
         }
     }
 
+    @Tag("replay")
     @Test
     public void replay() throws Exception {
         Assumptions.assumeTrue(snapshotFile != null && snapshotFile.isFile(),
@@ -167,9 +169,11 @@ public class NetworkPlanReplayTest {
         com.github.aeddddd.ae2enhanced.specialcrafting.NetworkPatternIndex index =
                 com.github.aeddddd.ae2enhanced.specialcrafting.NetworkPatternIndex
                         .of(env.craftingGrid());
-        PlanSnapshot snap = PlanSnapshot.capture(env.craftingGrid(), index, out, stock);
+        com.github.aeddddd.ae2enhanced.observation.PlanSnapshotObservation snap =
+                com.github.aeddddd.ae2enhanced.specialcrafting.PlanSnapshotFactory.capture(
+                        env.craftingGrid(), index, out, stock);
         File tmp = File.createTempFile("plansnapshot-roundtrip", ".json");
-        snap.save(tmp);
+        PlanSnapshot.save(snap, tmp);
         PlanSnapshot loaded = PlanSnapshot.load(tmp);
 
         // 原环境求解(参考值)

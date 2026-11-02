@@ -10,11 +10,76 @@ import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
 /**
  * Central configuration for AE2Enhanced.
  * File location: config/ae2enhanced.cfg
- * Changes via in-game Mod Options GUI are applied immediately (F3+T not required).
+ * Changes via in-game Mod Options GUI are applied immediately unless a field is
+ * explicitly documented as restart-only (integrations and storage channel providers).
  */
 @Config(modid = AE2Enhanced.MOD_ID)
 @Config.LangKey("config.ae2enhanced.title")
 public class AE2EnhancedConfig {
+
+    @Config.Name("Integrations")
+    @Config.Comment({
+        "Optional mod integrations. Defaults preserve the current auto-detection behavior.",
+        "Changes require a full game/server restart; they never hot-register content."
+    })
+    public static Integrations integrations = new Integrations();
+    @Config.Name("StorageChannels")
+    @Config.Comment({
+        "Hyperdimensional storage channel switches and provider selection.",
+        "Disabled channels keep all on-disk data. Restart is required."
+    })
+    public static StorageChannels storageChannels = new StorageChannels();
+
+    public static class Integrations {
+        @Config.Comment("Enable Mekanism/MekanismEnergistics integration. Default: true")
+        public boolean mekanism = true;
+        @Config.Comment("Enable Thaumcraft/Thaumic Energistics integration. Default: true")
+        public boolean thaumcraft = true;
+        @Config.Comment("Enable Flux Applied external energy channel. Default: true")
+        public boolean fluxApplied = true;
+        @Config.Comment("Enable Botania integration and internal mana support. Default: true")
+        public boolean botania = true;
+        @Config.Comment("Enable Botania Applie external mana channel. Default: true")
+        public boolean botaniaApplie = true;
+        @Config.Comment("Enable Astral Sorcery integration. Default: true")
+        public boolean astralSorcery = true;
+        @Config.Comment("Enable ProjectE integration. Default: true")
+        public boolean projecte = true;
+        @Config.Comment("Enable Cell Terminal integration. Default: true")
+        public boolean cellTerminal = true;
+        @Config.Comment("Enable TII resource terminal integration. Default: true")
+        public boolean tii = true;
+        @Config.Comment("Enable FTB team/permission integration. Default: true")
+        public boolean ftb = true;
+        @Config.Comment({
+            "Enable pinyin search in AE2E terminals, mirroring JECH/HECH semantics.",
+            "When the pinyin mod (me.towdium.pinin) is installed its matcher is used;",
+            "otherwise a bundled table provides the same prefix matching (e.g. 'sh' matches 水).",
+            "Disable this to keep terminal search strictly literal. Default: true"
+        })
+        public boolean pinyinSearch = true;
+        @Config.Comment("Enable CraftTweaker integration. Default: true")
+        public boolean crafttweaker = true;
+    }
+
+    public static class StorageChannels {
+        @Config.Comment("Enable the energy channel. Default: true")
+        public boolean energy = true;
+        @Config.Comment("Enable the mana channel. Default: true")
+        public boolean mana = true;
+        @Config.Comment("Enable the starlight channel. Default: true")
+        public boolean starlight = true;
+        @Config.Comment("Enable the gas channel. Default: true")
+        public boolean gas = true;
+        @Config.Comment("Enable the essentia channel. Default: true")
+        public boolean essentia = true;
+        @Config.Comment("Enable the EMC channel. Default: true")
+        public boolean emc = true;
+        @Config.Comment("Energy provider: AUTO, EXTERNAL, or INTERNAL. Default: AUTO")
+        public String energyProvider = "AUTO";
+        @Config.Comment("Mana provider: AUTO, EXTERNAL, or INTERNAL. Default: AUTO")
+        public String manaProvider = "AUTO";
+    }
 
     @Config.Name("Storage")
     @Config.Comment({
@@ -430,6 +495,22 @@ public class AE2EnhancedConfig {
         })
         @Config.RangeInt(min = 2, max = 255)
         public int entryY = 65;
+
+        @Config.Comment({
+            "Radius in chunks around the entry point for a floor repaint task.",
+            "Unloaded chunks resume when loaded instead of being force-loaded.",
+            "Range: 0 ~ 64, Default: 16"
+        })
+        @Config.RangeInt(min = 0, max = 64)
+        public int repaintRadiusChunks = 16;
+
+        @Config.Comment({
+            "Maximum loaded chunks repainted per server tick and per dimension.",
+            "All world and lighting writes run on the server main thread.",
+            "Range: 1 ~ 16, Default: 2"
+        })
+        @Config.RangeInt(min = 1, max = 16)
+        public int repaintChunksPerTick = 2;
     }
 
     public static class Storage {
@@ -851,6 +932,63 @@ public class AE2EnhancedConfig {
         })
         @Config.RangeInt(min = 1, max = Short.MAX_VALUE)
         public int maxEnchantmentLevel = 255;
+
+        @Config.Comment({
+            "Ticks a force-killed living target stays in the termination window.",
+            "The window re-asserts the terminal state when another mod cancels the death",
+            "event or restores health. Range: 1 ~ 200, Default: 40 (2 seconds)."
+        })
+        @Config.RangeInt(min = 1, max = 200)
+        public int forceKillReassertTicks = 40;
+
+        @Config.Comment({
+            "Maximum number of concurrent termination records. The oldest record is",
+            "dropped when the limit is reached. Range: 1 ~ 1024, Default: 64."
+        })
+        @Config.RangeInt(min = 1, max = 1024)
+        public int forceKillMaxPending = 64;
+
+        @Config.Comment({
+            "Maximum termination records processed per server tick.",
+            "Range: 1 ~ 256, Default: 8."
+        })
+        @Config.RangeInt(min = 1, max = 256)
+        public int forceKillTickBudget = 8;
+
+        @Config.Comment({
+            "Block entities of the same runtime class spawning near a terminated",
+            "target for a short window (death-time substitute guard).",
+            "Default: true"
+        })
+        public boolean forceKillSubstituteGuard = true;
+
+        @Config.Comment({
+            "Radius in blocks for the death-time substitute guard.",
+            "Range: 0.0 ~ 64.0, Default: 8.0"
+        })
+        @Config.RangeDouble(min = 0.0, max = 64.0)
+        public double forceKillSubstituteRadius = 8.0;
+
+        @Config.Comment({
+            "Ticks the death-time substitute guard stays active.",
+            "Range: 0 ~ 200, Default: 20 (1 second)."
+        })
+        @Config.RangeInt(min = 0, max = 200)
+        public int forceKillSubstituteWindowTicks = 20;
+
+        @Config.Comment({
+            "Health re-assert attempts for force-killed players. Players cannot be",
+            "removed through the isDead flag, so the window retries the terminal",
+            "health write a bounded number of times. Range: 0 ~ 20, Default: 5."
+        })
+        @Config.RangeInt(min = 0, max = 20)
+        public int forceKillPlayerReasserts = 5;
+
+        @Config.Comment({
+            "Allow force-kill effects to terminate players. Disable on servers where",
+            "player termination must remain a normal vanilla death. Default: true"
+        })
+        public boolean forceKillPlayers = true;
     }
 
     public static class WirelessChannel {
@@ -1235,6 +1373,8 @@ public class AE2EnhancedConfig {
         public static void onConfigChanged(ConfigChangedEvent.OnConfigChangedEvent event) {
             if (AE2Enhanced.MOD_ID.equals(event.getModID())) {
                 ConfigManager.sync(AE2Enhanced.MOD_ID, Config.Type.INSTANCE);
+                ServerConfig.publish();
+                ClientPreferences.publish();
             }
         }
     }

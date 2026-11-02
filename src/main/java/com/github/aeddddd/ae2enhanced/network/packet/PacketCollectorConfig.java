@@ -1,11 +1,10 @@
 package com.github.aeddddd.ae2enhanced.network.packet;
 
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
-import com.github.aeddddd.ae2enhanced.gui.GuiHandler;
-import com.github.aeddddd.ae2enhanced.tile.TileAdvancedMECollector;
+import com.github.aeddddd.ae2enhanced.collector.TileAdvancedMECollector;
+import com.github.aeddddd.ae2enhanced.guiapi.GuiCatalog;
 import io.netty.buffer.ByteBuf;
 import net.minecraft.entity.player.EntityPlayerMP;
-import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
 import net.minecraftforge.fml.common.network.simpleimpl.IMessage;
@@ -91,12 +90,10 @@ public class PacketCollectorConfig implements IMessage {
         public IMessage onMessage(PacketCollectorConfig message, MessageContext ctx) {
             EntityPlayerMP player = ctx.getServerHandler().player;
             player.getServerWorld().addScheduledTask(() -> {
-                World world = player.server.getWorld(message.dim);
-                if (world == null) return;
-                if (player.getDistanceSq(message.pos) > 64.0) return;
-                TileEntity te = world.getTileEntity(message.pos);
-                if (!(te instanceof TileAdvancedMECollector)) return;
-                TileAdvancedMECollector tile = (TileAdvancedMECollector) te;
+                World world = player.world;
+                TileAdvancedMECollector tile = com.github.aeddddd.ae2enhanced.network.RequestContext
+                        .collectorTile(player, message.pos, message.dim);
+                if (tile == null) return;
                 if (message.apply) {
                     tile.setRegion(message.centerX, message.centerY, message.centerZ,
                             message.minX, message.minY, message.minZ,
@@ -104,7 +101,7 @@ public class PacketCollectorConfig implements IMessage {
                     tile.setShowBounds(message.showBounds);
                 }
                 // 重新打开主 GUI(子界面打开时原 Container 已被关闭)
-                player.openGui(AE2Enhanced.instance, GuiHandler.GUI_ADVANCED_ME_COLLECTOR,
+                player.openGui(AE2Enhanced.instance, GuiCatalog.GUI_ADVANCED_ME_COLLECTOR,
                         world, message.pos.getX(), message.pos.getY(), message.pos.getZ());
             });
             return null;

@@ -2,9 +2,9 @@ package com.github.aeddddd.ae2enhanced.client.gui;
 
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
 import com.github.aeddddd.ae2enhanced.container.ContainerChunkPowerNode;
-import com.github.aeddddd.ae2enhanced.network.packet.PacketChunkPowerNodeAction;
-import com.github.aeddddd.ae2enhanced.network.packet.PacketChunkPowerNodeSync;
 import com.github.aeddddd.ae2enhanced.tile.TileChunkPowerNode;
+import com.github.aeddddd.ae2enhanced.tile.packet.PacketChunkPowerNodeAction;
+import com.github.aeddddd.ae2enhanced.tile.packet.PacketChunkPowerNodeSync;
 import net.minecraft.client.gui.inventory.GuiContainer;
 import net.minecraft.client.resources.I18n;
 import net.minecraft.entity.player.InventoryPlayer;

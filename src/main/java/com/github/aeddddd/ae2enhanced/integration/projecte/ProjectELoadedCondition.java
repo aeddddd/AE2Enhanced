@@ -1,10 +1,8 @@
 package com.github.aeddddd.ae2enhanced.integration.projecte;
 
-import com.github.aeddddd.ae2enhanced.config.AE2EnhancedConfig;
 import com.google.gson.JsonObject;
 import net.minecraftforge.common.crafting.IConditionFactory;
 import net.minecraftforge.common.crafting.JsonContext;
-import net.minecraftforge.fml.common.Loader;
 
 import java.util.function.BooleanSupplier;
 
@@ -18,6 +16,7 @@ public class ProjectELoadedCondition implements IConditionFactory {
 
     @Override
     public BooleanSupplier parse(JsonContext context, JsonObject json) {
-        return () -> AE2EnhancedConfig.emcInterface.enabled && Loader.isModLoaded("projecte");
+        return () -> com.github.aeddddd.ae2enhanced.config.BootConfig.current().emcInterfaceEnabled
+                && com.github.aeddddd.ae2enhanced.integration.RuntimeIntegrationRegistry.isModLoaded("projecte");
     }
 }

@@ -1,6 +1,6 @@
 package com.github.aeddddd.ae2enhanced.dimension;
 
-import com.github.aeddddd.ae2enhanced.config.AE2EnhancedConfig;
+import com.github.aeddddd.ae2enhanced.config.ServerConfig;
 import net.minecraft.entity.player.EntityPlayerMP;
 import net.minecraft.init.Biomes;
 import net.minecraft.util.math.BlockPos;
@@ -50,7 +50,7 @@ public class WorldProviderPersonalDim extends WorldProvider {
 
     @Override
     public BlockPos getSpawnPoint() {
-        return new BlockPos(0, AE2EnhancedConfig.personalDimension.entryY, 0);
+        return new BlockPos(0, ServerConfig.current().personalDimension.entryY, 0);
     }
 
     @Override
@@ -75,12 +75,12 @@ public class WorldProviderPersonalDim extends WorldProvider {
 
     @Override
     public double getHorizon() {
-        return AE2EnhancedConfig.personalDimension.floorY;
+        return ServerConfig.current().personalDimension.floorY;
     }
 
     @Override
     public int getAverageGroundLevel() {
-        return AE2EnhancedConfig.personalDimension.floorY;
+        return ServerConfig.current().personalDimension.floorY;
     }
 
     @Nullable
@@ -92,8 +92,7 @@ public class WorldProviderPersonalDim extends WorldProvider {
     @Nullable
     private PersonalDimensionRules getRules() {
         if (this.world == null) return null;
-        PlayerDimEntry entry = PersonalDimensionManager.getEntryByDimension(getDimension());
-        return entry != null ? entry.rules : null;
+        return PersonalDimensionManager.getDimensionRules(getDimension());
     }
 
     @Override

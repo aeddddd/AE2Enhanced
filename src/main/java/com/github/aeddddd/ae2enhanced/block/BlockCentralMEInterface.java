@@ -1,7 +1,7 @@
 package com.github.aeddddd.ae2enhanced.block;
 
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
-import com.github.aeddddd.ae2enhanced.gui.GuiHandler;
+import com.github.aeddddd.ae2enhanced.guiapi.GuiCatalog;
 import com.github.aeddddd.ae2enhanced.tile.TileCentralMEInterface;
 import net.minecraft.block.Block;
 import net.minecraft.block.material.Material;
@@ -53,7 +53,7 @@ public class BlockCentralMEInterface extends Block {
         if (!world.isRemote) {
             TileEntity te = world.getTileEntity(pos);
             if (te instanceof TileCentralMEInterface) {
-                player.openGui(AE2Enhanced.instance, GuiHandler.GUI_CENTRAL_ME_INTERFACE,
+                player.openGui(AE2Enhanced.instance, GuiCatalog.GUI_CENTRAL_ME_INTERFACE,
                         world, pos.getX(), pos.getY(), pos.getZ());
             }
         }

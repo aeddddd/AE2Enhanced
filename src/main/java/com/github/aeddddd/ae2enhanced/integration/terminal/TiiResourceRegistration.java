@@ -19,17 +19,21 @@ public class TiiResourceRegistration {
 
     @SubscribeEvent
     public void onResourceRegistration(ResourceRegistrationEvent event) {
-        // RF 能量提供者始终注册
-        event.register(new EnergyResourceProvider());
+        registerProviders(event::register);
+    }
 
-        // Mana 提供者仅在 Botania 或 Botania_Applie 加载时注册
+    /** TII 的一次性事件可能早于 AE2E 通道注册；通道就绪后直接注册，事件重复注册由 TII 优先级去重。 */
+    public void registerDirect() {
+        registerProviders(nyonio.terminal_interaction_integration.api.TerminalInteractionRegistry::registerResourceProvider);
+    }
+
+    private void registerProviders(java.util.function.Consumer<nyonio.terminal_interaction_integration.api.IResourceProvider> registry) {
+        registry.accept(new EnergyResourceProvider());
         if (Loader.isModLoaded("botania") || BotaniaApplieCompat.isLoaded()) {
-            event.register(new ManaResourceProvider());
+            registry.accept(new ManaResourceProvider());
         }
-
-        // Starlight 提供者仅在 Astral Sorcery 加载时注册
         if (Loader.isModLoaded("astralsorcery")) {
-            event.register(new StarlightResourceProvider());
+            registry.accept(new StarlightResourceProvider());
         }
     }
 }

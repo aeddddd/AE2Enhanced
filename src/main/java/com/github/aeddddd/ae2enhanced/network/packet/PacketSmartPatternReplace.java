@@ -3,7 +3,6 @@ package com.github.aeddddd.ae2enhanced.network.packet;
 import io.netty.buffer.ByteBuf;
 import net.minecraft.item.ItemStack;
 import net.minecraft.util.math.BlockPos;
-import net.minecraft.world.World;
 import net.minecraftforge.fml.common.network.ByteBufUtils;
 import net.minecraftforge.fml.common.network.simpleimpl.IMessage;
 import net.minecraftforge.fml.common.network.simpleimpl.IMessageHandler;
@@ -60,12 +59,15 @@ public class PacketSmartPatternReplace implements IMessage {
         @Override
         public IMessage onMessage(PacketSmartPatternReplace message, MessageContext ctx) {
             ctx.getServerHandler().player.getServerWorld().addScheduledTask(() -> {
-                World world = ctx.getServerHandler().player.world;
-                net.minecraft.tileentity.TileEntity te = world.getTileEntity(message.getPos());
-                if (te instanceof com.github.aeddddd.ae2enhanced.tile.TileSmartPatternInterface) {
-                    com.github.aeddddd.ae2enhanced.tile.TileSmartPatternInterface tile =
-                            (com.github.aeddddd.ae2enhanced.tile.TileSmartPatternInterface) te;
-                    tile.replaceInAllRecipes(message.getFrom(), message.getTo());
+                com.github.aeddddd.ae2enhanced.tile.TileSmartPatternInterface tile =
+                        com.github.aeddddd.ae2enhanced.network.RequestContext.smartPatternTile(
+                                ctx.getServerHandler().player, message.getPos());
+                if (tile != null) {
+                    com.github.aeddddd.ae2enhanced.container.ContainerSmartPatternInterface container =
+                            (com.github.aeddddd.ae2enhanced.container.ContainerSmartPatternInterface)
+                                    ctx.getServerHandler().player.openContainer;
+                    tile.replaceInAllRecipes(message.getFrom(), message.getTo(), container.getExpectedRevision());
+                    container.setExpectedRevision(tile.getPatternRevision());
                 }
             });
             return null;

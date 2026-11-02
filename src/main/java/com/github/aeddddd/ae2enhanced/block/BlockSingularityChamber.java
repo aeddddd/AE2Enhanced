@@ -1,7 +1,7 @@
 package com.github.aeddddd.ae2enhanced.block;
 
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
-import com.github.aeddddd.ae2enhanced.gui.GuiHandler;
+import com.github.aeddddd.ae2enhanced.guiapi.GuiCatalog;
 import com.github.aeddddd.ae2enhanced.tile.TileSingularityChamber;
 import net.minecraft.block.Block;
 import net.minecraft.block.material.Material;
@@ -67,7 +67,7 @@ public class BlockSingularityChamber extends Block {
                                     EntityPlayer player, EnumHand hand, EnumFacing facing,
                                     float hitX, float hitY, float hitZ) {
         if (!world.isRemote) {
-            player.openGui(AE2Enhanced.instance, GuiHandler.GUI_SINGULARITY_CHAMBER,
+            player.openGui(AE2Enhanced.instance, GuiCatalog.GUI_SINGULARITY_CHAMBER,
                     world, pos.getX(), pos.getY(), pos.getZ());
         }
         return true;

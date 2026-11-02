@@ -15,8 +15,7 @@ import appeng.me.helpers.PlayerSource;
 import appeng.util.Platform;
 import appeng.util.item.AEItemStack;
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
-import com.github.aeddddd.ae2enhanced.integration.botaniaapplie.BotaniaApplieCompat;
-import com.github.aeddddd.ae2enhanced.integration.fluxapplied.FluxAppliedCompat;
+import com.github.aeddddd.ae2enhanced.storage.ExternalStorageChannels;
 import com.github.aeddddd.ae2enhanced.item.ItemEnergyDrop;
 import com.github.aeddddd.ae2enhanced.item.ItemManaDrop;
 import com.github.aeddddd.ae2enhanced.item.ItemStarlightDrop;
@@ -94,7 +93,7 @@ public final class UnifiedResourceTerminalServer {
         IStorageChannel<?> channel = EnergyChannelResolver.getChannel();
         if (channel == null) return;
         IMEMonitor monitor = grid.getInventory(channel);
-        String nbtKey = FluxAppliedCompat.isFluxStorageChannelAvailable() ? "fe" : "Count";
+        String nbtKey = ExternalStorageChannels.isAvailable(ExternalStorageChannels.Kind.ENERGY) ? "fe" : "Count";
 
         if (UnifiedResourceTerminalBridge.ACTION_EXTRACT.equals(action)) {
             long extracted = extractFromNetwork(monitor, channel, nbtKey, amount, source);
@@ -137,7 +136,7 @@ public final class UnifiedResourceTerminalServer {
         IStorageChannel<?> channel = ManaChannelResolver.getChannel();
         if (channel == null) return;
         IMEMonitor monitor = grid.getInventory(channel);
-        String nbtKey = BotaniaApplieCompat.isManaStorageChannelAvailable() ? "mana" : "Count";
+        String nbtKey = ExternalStorageChannels.isAvailable(ExternalStorageChannels.Kind.MANA) ? "mana" : "Count";
 
         if (UnifiedResourceTerminalBridge.ACTION_EXTRACT.equals(action)) {
             long extracted = extractFromNetwork(monitor, channel, nbtKey, amount, source);

@@ -92,7 +92,8 @@ public final class GuideBook {
             }
         }
         Comparator<NavNode> order = Comparator.comparingInt((NavNode n) -> n.position)
-                .thenComparing(n -> n.title);
+                .thenComparing(n -> n.title)
+                .thenComparing(n -> n.pageId);
         roots.sort(order);
         for (NavNode node : nodes.values()) {
             node.children.sort(order);

@@ -119,14 +119,20 @@ public class OptionalStorageManager {
     }
 
     public void init(HyperdimensionalStorageFile file) {
-        initOptionalAdapter("mekeng",
-                "com.github.aeddddd.ae2enhanced.storage.GasStorageAdapter",
-                "com.mekeng.github.common.me.storage.IGasStorageChannel",
-                file);
-        initOptionalAdapter("thaumicenergistics",
-                "com.github.aeddddd.ae2enhanced.storage.EssentiaStorageAdapter",
-                "thaumicenergistics.api.storage.IEssentiaStorageChannel",
-                file);
+        com.github.aeddddd.ae2enhanced.config.BootConfig boot =
+                com.github.aeddddd.ae2enhanced.config.BootConfig.current();
+        if (boot.channelEnabled("gas") && boot.integrationEnabled("mekanism")) {
+            initOptionalAdapter("mekeng",
+                    "com.github.aeddddd.ae2enhanced.storage.GasStorageAdapter",
+                    "com.mekeng.github.common.me.storage.IGasStorageChannel",
+                    file);
+        }
+        if (boot.channelEnabled("essentia") && boot.integrationEnabled("thaumcraft")) {
+            initOptionalAdapter("thaumicenergistics",
+                    "com.github.aeddddd.ae2enhanced.storage.EssentiaStorageAdapter",
+                    "thaumicenergistics.api.storage.IEssentiaStorageChannel",
+                    file);
+        }
     }
 
     private void initOptionalAdapter(String modId, String adapterClassName,

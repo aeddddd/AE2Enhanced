@@ -6,21 +6,16 @@
  */
 package com.github.aeddddd.ae2enhanced.client.gui.dock;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import com.github.aeddddd.ae2enhanced.dock.model.DockRect;
+import com.github.aeddddd.ae2enhanced.dock.model.DockWorkspace;
+import com.github.aeddddd.ae2enhanced.dock.model.FloatingRoot;
+import com.github.aeddddd.ae2enhanced.dock.model.LeafNode;
+import org.junit.jupiter.api.Test;
 
 import java.util.Arrays;
 import java.util.List;
 
-import org.junit.jupiter.api.Test;
-
-import com.github.aeddddd.ae2enhanced.client.gui.dock.model.DockRect;
-import com.github.aeddddd.ae2enhanced.client.gui.dock.model.DockWorkspace;
-import com.github.aeddddd.ae2enhanced.client.gui.dock.model.FloatingRoot;
-import com.github.aeddddd.ae2enhanced.client.gui.dock.model.LeafNode;
+import static org.junit.jupiter.api.Assertions.*;
 
 class WorkspaceUndoHistoryTest {
 

@@ -1,16 +1,14 @@
 package com.github.aeddddd.ae2enhanced.ring;
 
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
-import com.github.aeddddd.ae2enhanced.config.AE2EnhancedConfig;
 import com.github.aeddddd.ae2enhanced.dimension.rules.PlayerAbilityApplier;
-import com.github.aeddddd.ae2enhanced.item.ItemAdvancedMEOmniTool;
-import com.github.aeddddd.ae2enhanced.item.ItemNetworkLinkCredential;
-import com.github.aeddddd.ae2enhanced.util.placement.PlacementConfig;
+import com.github.aeddddd.ae2enhanced.omnitool.ItemAdvancedMEOmniTool;
+import com.github.aeddddd.ae2enhanced.omnitool.placement.PlacementConfig;
+import com.github.aeddddd.ae2enhanced.util.ServerTickCounter;
 import net.minecraft.entity.ai.attributes.AttributeModifier;
 import net.minecraft.entity.ai.attributes.IAttributeInstance;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.entity.player.EntityPlayerMP;
-import net.minecraft.entity.player.PlayerCapabilities;
 import net.minecraft.item.ItemStack;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
@@ -20,13 +18,7 @@ import net.minecraftforge.fml.common.Loader;
 
 import java.util.*;
 
-/**
- * 指环玩家 tick 管理器.
- *
- * <p>服务端职责：飞行/速度能力快照与恢复、穿墙、触及距离、全身供能、
- * 药水移除、永久饱食、自动回血、内部缓存回充、异常位移回滚.
- * 客户端职责：穿墙 noClip 镜像(夜视由 Mixin 直接读 NBT,无需客户端状态).</p>
- */
+/** 指环玩家 tick 管理器；能力部分只向统一协调器提交指环来源。 */
 public final class RingManager {
 
     private RingManager() {}
@@ -34,66 +26,42 @@ public final class RingManager {
     private static final UUID REACH_MODIFIER_UUID = UUID.fromString("a3e9c1d2-7b4f-4e6a-9c8d-1f2a3b4c5d6e");
     private static final String REACH_MODIFIER_NAME = "ae2enhanced:network_link_ring_reach";
 
-    /** 能力快照(参照 PlayerAbilityApplier 的快照/恢复范式,速度读写走反射安全路径) */
-    private static final class CapSnapshot {
-        final boolean allowFlying;
-        final boolean isFlying;
-        final float flySpeed;
-        final float walkSpeed;
-
-        CapSnapshot(PlayerCapabilities cap) {
-            this.allowFlying = cap.allowFlying;
-            this.isFlying = cap.isFlying;
-            this.flySpeed = PlayerAbilityApplier.getFlySpeedSafe(cap);
-            this.walkSpeed = PlayerAbilityApplier.getWalkSpeedSafe(cap);
-        }
-    }
-
-    private static final Map<UUID, CapSnapshot> SNAPSHOTS = new HashMap<>();
-    /** 由指环施加的 noClip 标记(避免误清观察者模式自身的 noClip) */
     private static final Map<UUID, Boolean> NOCLIP_APPLIED = new HashMap<>();
-    /** 上一 tick 位置(飞升异常位移回滚用) */
     private static final Map<UUID, double[]> LAST_POS = new HashMap<>();
-    /** 上次位移检查的真实时间(卡顿期间按真实耗时放宽回滚阈值用) */
     private static final Map<UUID, Long> LAST_POS_CHECK_NANOS = new HashMap<>();
-    /** 飞升指环的饱食功能能量状态(供 exhaustion mixin 快速判定) */
     private static final Map<UUID, Boolean> SATURATION_ACTIVE = new HashMap<>();
-    /** III 阶段免死冷却到期时间(世界时间) */
     private static final Map<UUID, Long> DEATH_BLOCK_CD = new HashMap<>();
-    /** 飞升强制飞行: tick 末观察到的飞行状态(检测外部清除并恢复) */
-    private static final Map<UUID, Boolean> PREV_FLYING = new HashMap<>();
-    /** 飞升凭证最后持有时间(反 disarm 找回依据) */
-    private static final Map<UUID, Long> ASCENDED_LAST_SEEN = new HashMap<>();
-    /** 玩家上一 tick 所在维度(Vethea 切换检测) */
+    private static final Map<UUID, Boolean> FORCE_FLIGHT_PAID = new HashMap<>();
+    private static final Map<UUID, Boolean> SERVER_PREV_FLYING = new HashMap<>();
+    private static final Map<UUID, Boolean> CLIENT_PREV_FLYING = new HashMap<>();
     private static final Map<UUID, Integer> LAST_DIMENSION = new HashMap<>();
 
     public static void discard(UUID playerId) {
-        SNAPSHOTS.remove(playerId);
         NOCLIP_APPLIED.remove(playerId);
         LAST_POS.remove(playerId);
         LAST_POS_CHECK_NANOS.remove(playerId);
         SATURATION_ACTIVE.remove(playerId);
         DEATH_BLOCK_CD.remove(playerId);
-        PREV_FLYING.remove(playerId);
-        ASCENDED_LAST_SEEN.remove(playerId);
+        FORCE_FLIGHT_PAID.remove(playerId);
+        SERVER_PREV_FLYING.remove(playerId);
+        CLIENT_PREV_FLYING.remove(playerId);
         LAST_DIMENSION.remove(playerId);
+        CredentialRecoveryTracker.discard(playerId);
         RingEnergyHandler.discard(playerId);
         RingProtection.discard(playerId);
     }
 
-    /** 重生后清空快照,下一 tick 重新快照并应用. */
     public static void onRespawn(EntityPlayer player) {
-        SNAPSHOTS.remove(player.getUniqueID());
         NOCLIP_APPLIED.remove(player.getUniqueID());
         LAST_POS.remove(player.getUniqueID());
         LAST_POS_CHECK_NANOS.remove(player.getUniqueID());
+        FORCE_FLIGHT_PAID.remove(player.getUniqueID());
+        SERVER_PREV_FLYING.remove(player.getUniqueID());
     }
 
     public static boolean isSaturationActive(EntityPlayer player) {
         return Boolean.TRUE.equals(SATURATION_ACTIVE.get(player.getUniqueID()));
     }
-
-    // ==================== III 阶段免死冷却 ====================
 
     public static boolean isDeathBlockOnCooldown(EntityPlayer player) {
         Long expiry = DEATH_BLOCK_CD.get(player.getUniqueID());
@@ -101,81 +69,49 @@ public final class RingManager {
     }
 
     public static void markDeathBlock(EntityPlayer player) {
-        int cd = AE2EnhancedConfig.ring.deathBlockCooldownTicks;
+        int cd = com.github.aeddddd.ae2enhanced.config.ServerConfig.current().ring.deathBlockCooldownTicks;
         if (cd > 0) {
             DEATH_BLOCK_CD.put(player.getUniqueID(), player.world.getTotalWorldTime() + cd);
         }
     }
 
-    // ==================== 服务端 tick ====================
-
     public static void tickServer(EntityPlayerMP player) {
         tickVetheaConsolidation(player);
         ItemStack ring = RingLocator.findRing(player);
         if (ring.isEmpty()) {
+            FORCE_FLIGHT_PAID.put(player.getUniqueID(), false);
             tryRecoverDisarmedCredential(player);
             restoreAll(player);
             return;
         }
         if (RingNBT.isAscended(ring)) {
-            ASCENDED_LAST_SEEN.put(player.getUniqueID(), player.world.getTotalWorldTime());
+            CredentialRecoveryTracker.observe(player.getUniqueID(),
+                    RingNBT.getOrCreateCredentialId(ring), ServerTickCounter.now(player));
         }
         if (player.isCreative() || player.isSpectator()) {
-            // 创造/观察者拥有自身能力体系,指环仅保留防护/回血/供能等非能力功能
+            FORCE_FLIGHT_PAID.put(player.getUniqueID(), false);
+            PlayerAbilityApplier.applyRingCapabilities(player, false, null, null);
             tickUtilities(player, ring);
             return;
         }
 
-        SNAPSHOTS.computeIfAbsent(player.getUniqueID(), id -> new CapSnapshot(player.capabilities));
-        PlayerCapabilities cap = player.capabilities;
-        boolean changed = false;
-
-        // ---- 飞行(阶段 II 起) ----
         boolean canFly = RingNBT.tierAtLeast(ring, 1);
         boolean forceFlight = canFly && RingNBT.isForceFlightEnabled(ring)
                 && RingEnergyHandler.consumeFully(player, ring,
-                RingEnergyHandler.price(ring, AE2EnhancedConfig.ring.forceFlightCostPerTick));
+                RingEnergyHandler.price(ring, com.github.aeddddd.ae2enhanced.config.ServerConfig.current().ring.forceFlightCostPerTick));
+        FORCE_FLIGHT_PAID.put(player.getUniqueID(), forceFlight);
         boolean normalFlight = canFly && !forceFlight && RingNBT.isFlightEnabled(ring)
                 && RingEnergyHandler.consumeFully(player, ring,
-                RingEnergyHandler.price(ring, AE2EnhancedConfig.ring.flightCostPerTick));
+                RingEnergyHandler.price(ring, com.github.aeddddd.ae2enhanced.config.ServerConfig.current().ring.flightCostPerTick));
         boolean wantFly = forceFlight || normalFlight;
-        CapSnapshot snapshot = SNAPSHOTS.get(player.getUniqueID());
-        if (cap.allowFlying != wantFly && !( !wantFly && snapshot.allowFlying)) {
-            // 关闭飞行时恢复快照值(可能由其他模组授予)
-            boolean target = wantFly || snapshot.allowFlying;
-            if (cap.allowFlying != target) {
-                cap.allowFlying = target;
-                if (!target) {
-                    cap.isFlying = false;
-                    player.fallDistance = 0.0f;
-                }
-                changed = true;
-            }
-        }
 
-        // ---- 飞行/行走速度 ----
-        int maxPct = AE2EnhancedConfig.ring.maxSpeedPercent;
-        float flyBase = 0.05f;
-        float walkBase = 0.1f;
-        float maxFly = flyBase * maxPct / 100f;
-        float maxWalk = walkBase * maxPct / 100f;
-        float targetFly = wantFly ? clamp(RingNBT.getFlySpeed(ring), flyBase, maxFly) : snapshot.flySpeed;
-        // 行走速度仅在玩家显式开启调整开关后接管,否则恢复快照(保留其他模组的速度来源)
-        float targetWalk = RingNBT.isWalkTweakEnabled(ring)
-                ? clamp(RingNBT.getWalkSpeed(ring), 0.05f, maxWalk)
-                : snapshot.walkSpeed;
-        if (Math.abs(PlayerAbilityApplier.getFlySpeedSafe(cap) - targetFly) > 1e-4f) {
-            PlayerAbilityApplier.setFlySpeedSafe(cap, targetFly);
-            changed = true;
-        }
-        if (Math.abs(PlayerAbilityApplier.getWalkSpeedSafe(cap) - targetWalk) > 1e-4f) {
-            PlayerAbilityApplier.setWalkSpeedSafe(cap, targetWalk);
-            changed = true;
-        }
-
-        if (changed) {
-            player.sendPlayerAbilities();
-        }
+        int maxPct = com.github.aeddddd.ae2enhanced.config.ServerConfig.current().ring.maxSpeedPercent;
+        float maxFly = 0.05f * maxPct / 100f;
+        float maxWalk = 0.1f * maxPct / 100f;
+        Float targetFly = wantFly ? clamp(RingNBT.getFlySpeed(ring), 0.05f, maxFly) : null;
+        Float targetWalk = RingNBT.isWalkTweakEnabled(ring)
+                ? clamp(RingNBT.getWalkSpeed(ring), 0.05f, maxWalk) : null;
+        PlayerAbilityApplier.applyRingCapabilities(player, wantFly, targetFly, targetWalk);
 
         // ---- 穿墙 ----
         tickWallPhaseServer(player, ring);
@@ -187,7 +123,7 @@ public final class RingManager {
         if (RingNBT.isAscended(ring)) {
             // 永久饱食
             boolean saturation = RingEnergyHandler.consumeFully(player, ring,
-                    RingEnergyHandler.price(ring, AE2EnhancedConfig.ring.saturationCostPerTick));
+                    RingEnergyHandler.price(ring, com.github.aeddddd.ae2enhanced.config.ServerConfig.current().ring.saturationCostPerTick));
             SATURATION_ACTIVE.put(player.getUniqueID(), saturation);
             if (saturation) {
                 setFoodLevelSafe(player.getFoodStats(), 20);
@@ -215,7 +151,7 @@ public final class RingManager {
             float threshold = player.getMaxHealth() * RingNBT.getHealThreshold(ring) / 100.0f;
             float missing = player.getHealth() < threshold ? threshold - player.getHealth() : 0.0f;
             if (missing > 0.0f) {
-                float healAmount = Math.min(missing, AE2EnhancedConfig.ring.healMaxPerTick);
+                float healAmount = Math.min(missing, com.github.aeddddd.ae2enhanced.config.ServerConfig.current().ring.healMaxPerTick);
                 healWithEnergy(player, ring, healAmount);
             }
         }
@@ -227,7 +163,7 @@ public final class RingManager {
     /** 按可支付量回血(HEAL 类别节流,按阶段倍率计价). */
     public static void healWithEnergy(EntityPlayer player, ItemStack ring, float amount) {
         if (!RingNBT.tierAtLeast(ring, 1)) return;
-        long costPerPoint = RingEnergyHandler.price(ring, AE2EnhancedConfig.ring.healCostPerPoint);
+        long costPerPoint = RingEnergyHandler.price(ring, com.github.aeddddd.ae2enhanced.config.ServerConfig.current().ring.healCostPerPoint);
         long affordable = RingEnergyHandler.available(player, ring, Long.MAX_VALUE) / costPerPoint;
         float actual = (float) Math.min(amount, Math.min(affordable, player.getMaxHealth() - player.getHealth()));
         if (actual <= 0.0f) return;
@@ -253,7 +189,7 @@ public final class RingManager {
         UUID id = player.getUniqueID();
         boolean active = RingNBT.isWallPhaseEnabled(ring) && RingNBT.tierAtLeast(ring, 2)
                 && RingEnergyHandler.consumeFully(player, ring,
-                RingEnergyHandler.price(ring, AE2EnhancedConfig.ring.wallPhaseCostPerTick));
+                RingEnergyHandler.price(ring, com.github.aeddddd.ae2enhanced.config.ServerConfig.current().ring.wallPhaseCostPerTick));
         if (active) {
             player.noClip = true;
             NOCLIP_APPLIED.put(id, true);
@@ -273,8 +209,9 @@ public final class RingManager {
             BlockPos test = new BlockPos(pos.getX(), y, pos.getZ());
             if (!world.getBlockState(test).getMaterial().isSolid()
                     && !world.getBlockState(test.up()).getMaterial().isSolid()) {
-                RingProtection.allowTeleport(player.getUniqueID(), world.getTotalWorldTime() + 5);
-                player.setPositionAndUpdate(pos.getX() + 0.5, y, pos.getZ() + 0.5);
+                try (TeleportWhitelist.Scope ignored = RingProtection.allowTeleport(player)) {
+                    player.setPositionAndUpdate(pos.getX() + 0.5, y, pos.getZ() + 0.5);
+                }
                 player.fallDistance = 0.0f;
                 return;
             }
@@ -287,7 +224,7 @@ public final class RingManager {
         IAttributeInstance attr = player.getEntityAttribute(EntityPlayer.REACH_DISTANCE);
         if (attr == null) return;
         AttributeModifier existing = attr.getModifier(REACH_MODIFIER_UUID);
-        float maxReach = (float) AE2EnhancedConfig.ring.maxReachDistance;
+        float maxReach = (float) com.github.aeddddd.ae2enhanced.config.ServerConfig.current().ring.maxReachDistance;
         float target = clamp(RingNBT.getReach(ring), 5.0f, maxReach);
 
         // 与先进 ME 工具(手持时)的触及距离取最大,不叠加
@@ -399,8 +336,9 @@ public final class RingManager {
         double dy = now[1] - last[1];
         double dz = now[2] - last[2];
         if (dx * dx + dy * dy + dz * dz > limit * limit) { // 单位时间位移超 3 格/tick(非自愿)
-            RingProtection.allowTeleport(id, player.world.getTotalWorldTime() + 2);
-            player.setPositionAndUpdate(last[0], last[1], last[2]);
+            try (TeleportWhitelist.Scope ignored = RingProtection.allowTeleport(player)) {
+                player.setPositionAndUpdate(last[0], last[1], last[2]);
+            }
             player.motionX = 0.0;
             player.motionY = 0.0;
             player.motionZ = 0.0;
@@ -410,47 +348,30 @@ public final class RingManager {
 
     // ==================== 恢复 ====================
 
-    /** 指环离身：恢复能力快照、移除触及修正、清理 noClip. */
+    /** 指环离身只撤销指环来源，维度来源仍由统一协调器保留。 */
     private static void restoreAll(EntityPlayerMP player) {
         UUID id = player.getUniqueID();
         SATURATION_ACTIVE.remove(id);
         LAST_POS.remove(id);
+        SERVER_PREV_FLYING.remove(id);
 
         if (Boolean.TRUE.equals(NOCLIP_APPLIED.remove(id))) {
             player.noClip = false;
             rescueIfInsideBlock(player);
         }
         removeReachModifier(player);
-
-        CapSnapshot snapshot = SNAPSHOTS.remove(id);
-        if (snapshot == null || player.isCreative() || player.isSpectator()) return;
-        PlayerCapabilities cap = player.capabilities;
-        boolean changed = false;
-        if (cap.allowFlying != snapshot.allowFlying) {
-            cap.allowFlying = snapshot.allowFlying;
-            if (!snapshot.allowFlying) {
-                cap.isFlying = false;
-                player.fallDistance = 0.0f;
-            }
-            changed = true;
-        }
-        if (Math.abs(PlayerAbilityApplier.getFlySpeedSafe(cap) - snapshot.flySpeed) > 1e-4f) {
-            PlayerAbilityApplier.setFlySpeedSafe(cap, snapshot.flySpeed);
-            changed = true;
-        }
-        if (Math.abs(PlayerAbilityApplier.getWalkSpeedSafe(cap) - snapshot.walkSpeed) > 1e-4f) {
-            PlayerAbilityApplier.setWalkSpeedSafe(cap, snapshot.walkSpeed);
-            changed = true;
-        }
-        if (changed) {
-            player.sendPlayerAbilities();
-        }
+        PlayerAbilityApplier.clearRingCapabilities(player);
     }
 
     // ==================== 客户端 tick ====================
 
     /** 客户端 noClip 镜像标记(独立 JVM 侧状态,避免与服务器侧同 UUID 冲突) */
     private static final Map<UUID, Boolean> CLIENT_NOCLIP = new HashMap<>();
+
+    public static void clearClientState() {
+        CLIENT_NOCLIP.clear();
+        CLIENT_PREV_FLYING.clear();
+    }
 
     public static void tickClient(EntityPlayer player) {
         ItemStack ring = RingLocator.findRing(player);
@@ -487,30 +408,24 @@ public final class RingManager {
      */
     private static void tryRecoverDisarmedCredential(EntityPlayerMP player) {
         UUID id = player.getUniqueID();
-        Long lastSeen = ASCENDED_LAST_SEEN.get(id);
-        if (lastSeen == null) return;
-        long now = player.world.getTotalWorldTime();
-        if (now - lastSeen > 600) {
-            // 脱离持有状态太久(正常丢弃/存入容器),不再追踪
-            ASCENDED_LAST_SEEN.remove(id);
-            return;
-        }
+        long now = ServerTickCounter.now(player);
         for (net.minecraft.entity.item.EntityItem item : player.world.getEntitiesWithinAABB(
                 net.minecraft.entity.item.EntityItem.class,
                 player.getEntityBoundingBox().grow(16.0))) {
             ItemStack stack = item.getItem();
-            if (!stack.isEmpty() && stack.getItem() instanceof ItemNetworkLinkCredential
-                    && RingNBT.isAscended(stack)) {
-                ItemStack taken = item.getItem().copy();
-                item.setDead();
-                if (!player.inventory.addItemStackToInventory(taken)) {
-                    player.dropItem(taken, false);
-                }
-                ASCENDED_LAST_SEEN.put(id, now);
-                AE2Enhanced.LOGGER.info("[AE2E] Recovered ascended NetworkLinkCredential for player {}",
-                        player.getName());
-                return;
+            if (stack.isEmpty() || !(stack.getItem() instanceof ItemNetworkLinkCredential)
+                    || !RingNBT.isAscended(stack)) continue;
+            String credentialId = RingNBT.getCredentialId(stack);
+            if (!CredentialRecoveryTracker.canRecover(id, item.getUniqueID(), credentialId, now)) continue;
+            ItemStack taken = item.getItem().copy();
+            item.setDead();
+            if (!player.inventory.addItemStackToInventory(taken)) {
+                player.dropItem(taken, false);
             }
+            CredentialRecoveryTracker.recovered(id, credentialId, now);
+            AE2Enhanced.LOGGER.info("[AE2E] Recovered ascended NetworkLinkCredential for player {}",
+                    player.getName());
+            return;
         }
     }
 
@@ -625,48 +540,42 @@ public final class RingManager {
     // 清除 isFlying/allowFlying;ServerTickEvent.END/ClientTickEvent.END 在所有这些之后执行,
     // 最后写入者获胜,实现稳定的强制飞行.
 
-    /** ServerTickEvent.END 调用：恢复被外部清除的服务端飞行状态. */
+    /** ServerTickEvent.END 只复用本 tick 已完成的能耗结果，不再次扣费或试探可用量。 */
     public static void tickServerEndFlightRestore(EntityPlayerMP player) {
-        ItemStack ring = RingLocator.findRing(player);
-        if (ring.isEmpty() || !RingNBT.isForceFlightEnabled(ring) || player.isCreative() || player.isSpectator()) {
-            PREV_FLYING.remove(player.getUniqueID());
+        UUID id = player.getUniqueID();
+        boolean paid = RingFlightRestorePolicy.mayRestore(Boolean.TRUE.equals(FORCE_FLIGHT_PAID.get(id)));
+        if (!paid) {
+            SERVER_PREV_FLYING.remove(id);
             return;
         }
-        PlayerCapabilities cap = player.capabilities;
-        boolean wasFlying = Boolean.TRUE.equals(PREV_FLYING.get(player.getUniqueID()));
-        boolean changed = false;
-        if (!cap.allowFlying) {
-            cap.allowFlying = true;
-            changed = true;
-        }
-        // 玩家上一 tick 末处于飞行、本 tick 被外部清除且仍在空中 → 恢复
-        if (!cap.isFlying && wasFlying && !player.onGround) {
-            cap.isFlying = true;
+        PlayerAbilityApplier.refreshCapabilities(player);
+        boolean wasFlying = Boolean.TRUE.equals(SERVER_PREV_FLYING.get(id));
+        if (!player.capabilities.isFlying
+                && RingFlightRestorePolicy.shouldRestoreFlying(paid, wasFlying, player.onGround)) {
+            player.capabilities.isFlying = true;
             player.fallDistance = 0.0f;
-            changed = true;
-        }
-        PREV_FLYING.put(player.getUniqueID(), cap.isFlying);
-        if (changed) {
             player.sendPlayerAbilities();
         }
+        SERVER_PREV_FLYING.put(id, player.capabilities.isFlying);
     }
 
     /** ClientTickEvent.END 调用：客户端镜像恢复(移动由客户端权威计算). */
     public static void tickClientEndFlightRestore(EntityPlayer player) {
         ItemStack ring = RingLocator.findRing(player);
+        UUID id = player.getUniqueID();
         if (ring.isEmpty() || !RingNBT.isForceFlightEnabled(ring) || player.isCreative() || player.isSpectator()) {
+            CLIENT_PREV_FLYING.remove(id);
             return;
         }
-        PlayerCapabilities cap = player.capabilities;
-        boolean wasFlying = Boolean.TRUE.equals(PREV_FLYING.get(player.getUniqueID()));
-        if (!cap.allowFlying) {
-            cap.allowFlying = true;
+        boolean wasFlying = Boolean.TRUE.equals(CLIENT_PREV_FLYING.get(id));
+        if (!player.capabilities.allowFlying) {
+            player.capabilities.allowFlying = true;
         }
-        if (!cap.isFlying && wasFlying && !player.onGround) {
-            cap.isFlying = true;
+        if (!player.capabilities.isFlying && wasFlying && !player.onGround) {
+            player.capabilities.isFlying = true;
             player.fallDistance = 0.0f;
         }
-        PREV_FLYING.put(player.getUniqueID(), cap.isFlying);
+        CLIENT_PREV_FLYING.put(id, player.capabilities.isFlying);
     }
 
     // ==================== FoodStats 反射安全写入 ====================
@@ -746,6 +655,7 @@ public final class RingManager {
     }
 
     private static float clamp(float v, float min, float max) {
+        if (Float.isNaN(v)) return min;
         return v < min ? min : (v > max ? max : v);
     }
 }

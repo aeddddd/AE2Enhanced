@@ -46,4 +46,14 @@ All integration is optional: the corresponding content only loads when the mod i
 - **Flux Applied**: its energy channel is reused when present.
 - **Storage Drawers**: drawer networks can be wrapped as network monitors.
 - **JEI**: black hole recipe category, Omni Terminal recipe transfer, terminal search sync (press **F**), ghost ingredients for the Smart Pattern Interface.
-- **CraftTweaker**: black hole recipes, singularity rituals/fuels and assembly hub upgrade APIs (see [Black Hole Crafting](systems/black-hole.md)).
+- **CraftTweaker**: black hole recipes, singularity rituals/fuels, chamber alternatives and assembly hub upgrade APIs (see [Black Hole Crafting](systems/black-hole.md)).
+
+## CraftTweaker Guide Pages
+
+`mods.ae2enhanced.Guide` can add pages for any mod. `Guide.load("mymod/page.md")` and `Guide.loadDirectory("mymod")` read UTF-8 Markdown only below `config/ae2enhanced/guides/`; no separate page manifest is needed. `Guide.addPage(...)` creates a page with navigation metadata, `Guide.addTranslation(...)` adds a localized body, and `Guide.removePage(...)` removes a script page.
+
+Script pages are sent to clients when they log in and override built-in pages with the same ID. Use `_zh_cn/` directories for external translations. Paths escaping the configured root, invalid UTF-8, oversized content and excessive item indexes are rejected. Restart after changing scripts or files; there is no hot reload.
+
+## Read-only Java API
+
+Third-party mods can use `MicroSingularityApi` to read remaining ticks, permanence, crafting/suction ranges, nearby inputs, executable black-hole recipes, rituals, fuels and constrained-item lifetime. `ChamberApi` exposes machine energy, channels, inventories, active jobs and recipe queries. World/position queries are server-main-thread only; ticks are game time and freeze while unloaded. Missing targets return empty optionals, unfinished catalogs return empty lists, and queries never finalize recipes early. Snapshots and lists are defensive copies; execution remains outside this read-only API.

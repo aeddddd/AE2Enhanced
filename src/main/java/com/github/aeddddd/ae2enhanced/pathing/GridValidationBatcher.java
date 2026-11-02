@@ -1,13 +1,13 @@
 package com.github.aeddddd.ae2enhanced.pathing;
 
-import java.util.HashSet;
-import java.util.Set;
-
 import appeng.api.networking.IGrid;
 import appeng.api.networking.IGridNode;
 import appeng.api.networking.IGridVisitor;
 import appeng.me.GridNode;
-import com.github.aeddddd.ae2enhanced.mixin.late.accessor.IGridNodeAccessor;
+import com.github.aeddddd.ae2enhanced.runtime.RuntimeScopes;
+
+import java.util.HashSet;
+import java.util.Set;
 
 /**
  * 网格分裂检测批处理器。
@@ -23,23 +23,67 @@ import com.github.aeddddd.ae2enhanced.mixin.late.accessor.IGridNodeAccessor;
  *
  * <p>仅在服务器主线程使用，无需同步。</p>
  */
-public final class GridValidationBatcher {
+public final class GridValidationBatcher implements AutoCloseable {
 
-    private static int depth = 0;
-    private static Set<GridNode> pending = null;
+    private int depth;
+    private Set<GridNode> pending;
 
-    private GridValidationBatcher() {
+    public GridValidationBatcher() {
+    }
+
+    private static GridValidationBatcher instance() {
+        com.github.aeddddd.ae2enhanced.runtime.ServerScope scope = RuntimeScopes.currentServer().orElse(null);
+        if (scope == null || !scope.acceptingWork()) {
+            return null;
+        }
+        return scope.service(GridValidationBatcher.class, GridValidationBatcher::new);
     }
 
     public static void begin() {
-        depth++;
+        GridValidationBatcher batcher = instance();
+        if (batcher != null) {
+            batcher.beginBatch();
+        }
     }
 
     public static boolean isBatching() {
-        return depth > 0;
+        GridValidationBatcher batcher = instance();
+        return batcher != null && batcher.batching();
     }
 
     public static void defer(GridNode node) {
+        GridValidationBatcher batcher = instance();
+        if (batcher == null) {
+            throw new IllegalStateException("Cannot defer grid validation without a server scope");
+        }
+        batcher.deferNode(node);
+    }
+
+    public static void end(GridNode destroyedNode) {
+        GridValidationBatcher batcher = instance();
+        if (batcher != null) {
+            batcher.endBatch(destroyedNode);
+        }
+    }
+
+    private static void validateAll(Set<GridNode> nodes) {
+        for (GridNode n : nodes) {
+            ((GridNodeValidationAccess) n).ae2e$validateGrid();
+        }
+    }
+
+    public void beginBatch() {
+        depth++;
+    }
+
+    public boolean batching() {
+        return depth > 0;
+    }
+
+    public void deferNode(GridNode node) {
+        if (!batching()) {
+            throw new IllegalStateException("Cannot defer grid validation outside a batch");
+        }
         if (pending == null) {
             pending = new HashSet<>();
         }
@@ -52,7 +96,12 @@ public final class GridValidationBatcher {
      * @param destroyedNode 正在被销毁的节点本身（无需验证，原版会为它临时创建
      *                      单节点网格再移除，属于无意义开销）
      */
-    public static void end(GridNode destroyedNode) {
+    public void endBatch(GridNode destroyedNode) {
+        if (depth <= 0) {
+            depth = 0;
+            pending = null;
+            throw new IllegalStateException("Grid validation batch is not active");
+        }
         if (--depth > 0) {
             return;
         }
@@ -63,7 +112,21 @@ public final class GridValidationBatcher {
         }
     }
 
-    private static void flush(GridNode destroyedNode) {
+    @Override
+    public void close() {
+        depth = 0;
+        pending = null;
+    }
+
+    public int batchDepth() {
+        return depth;
+    }
+
+    public int pendingNodeCount() {
+        return pending == null ? 0 : pending.size();
+    }
+
+    private void flush(GridNode destroyedNode) {
         Set<GridNode> nodes = pending;
         if (nodes == null) {
             return;
@@ -105,14 +168,8 @@ public final class GridValidationBatcher {
         // 不在主分量中的前邻居：各自所在分量需要分裂为新网格。
         for (GridNode n : nodes) {
             if (!visited.contains(n)) {
-                ((IGridNodeAccessor) n).ae2e$validateGrid();
+                ((GridNodeValidationAccess) n).ae2e$validateGrid();
             }
-        }
-    }
-
-    private static void validateAll(Set<GridNode> nodes) {
-        for (GridNode n : nodes) {
-            ((IGridNodeAccessor) n).ae2e$validateGrid();
         }
     }
 }

@@ -46,4 +46,14 @@ item_ids: [emc_interface]
 - **Flux Applied**: 存在时复用其能量通道.
 - **存储抽屉**: 抽屉网络可包装为网络监视器.
 - **JEI**: 黑洞合成配方分类, 全能终端配方转移, 终端搜索同步 (按 **F**), 智能样板接口的 ghost 物品拖拽.
-- **CraftTweaker**: 黑洞配方, 奇点仪式/燃料与装配枢纽升级 API (见[黑洞合成](systems/black-hole.md)).
+- **CraftTweaker**: 黑洞配方, 奇点仪式/燃料, 处理仓替代输入与装配枢纽升级 API (见[黑洞合成](systems/black-hole.md)).
+
+## CraftTweaker 指南页面
+
+`mods.ae2enhanced.Guide` 可为任意模组添加页面。`Guide.load("mymod/page.md")` 与 `Guide.loadDirectory("mymod")` 只读取 `config/ae2enhanced/guides/` 下的 UTF-8 Markdown，无需另写页面清单。`Guide.addPage(...)` 创建带导航元数据的页面，`Guide.addTranslation(...)` 添加译文，`Guide.removePage(...)` 删除脚本页面。
+
+脚本页面在玩家登录时同步到客户端，同 ID 时覆盖内置页面。外部译文使用 `_zh_cn/` 目录。拒绝逃逸配置目录的路径、非法 UTF-8、超限正文与过多物品索引。修改脚本或文件后需重启，不支持热重载。
+
+## 只读 Java API
+
+第三方模组可通过 `MicroSingularityApi` 读取微型奇点剩余 tick、永久状态、合成/吸取范围、附近输入、可执行黑洞配方、仪式、燃料与被约束物品寿命；通过 `ChamberApi` 读取处理仓能量、通道、库存、活动任务和配方目录。世界与坐标查询只能在服务端主线程执行，tick 在游戏未加载时冻结；目标不存在返回空 Optional，目录未定稿返回空列表，查询不会提前 finalize 配方。快照和列表均为防御性复制，执行操作不属于此只读 API。

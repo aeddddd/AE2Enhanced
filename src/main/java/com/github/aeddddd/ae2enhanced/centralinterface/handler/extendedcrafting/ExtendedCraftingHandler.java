@@ -366,21 +366,15 @@ public class ExtendedCraftingHandler implements IRemoteHandler, IVirtualBatchCra
 
     // ---- IVirtualCraftingHandler / IVirtualBatchCraftingHandler ----
 
-    @Override
-    public boolean canCraftVirtually(World world, BlockPos pos, InventoryCrafting ingredients, IAEItemStack[] outputs) {
-        initReflection();
-        initVirtualReflection();
-        TileEntity te = world.getTileEntity(pos);
-        if (!CLASS_CORE.isInstance(te)) return false;
-        if (outputs == null || outputs.length == 0 || outputs[0] == null) return false;
-
-        ItemStack expected = outputs[0].createItemStack();
-        if (expected.isEmpty()) return false;
-
-        Object recipe = findCombinationRecipeByOutput(expected);
-        if (recipe == null) return false;
-
-        return ingredientsMatchCombination(recipe, ingredients);
+    private static com.github.aeddddd.ae2enhanced.centralinterface.recipe.RecipeBinding bind(
+            Object recipe, IAEItemStack[] expectedOutputs) {
+        if (recipe == null) return null;
+        try {
+            return com.github.aeddddd.ae2enhanced.centralinterface.recipe.RecipeBinding.of(
+                    recipe, expectedOutputs, (ItemStack) METHOD_RECIPE_GET_OUTPUT.invoke(recipe));
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     @Override
@@ -393,42 +387,6 @@ public class ExtendedCraftingHandler implements IRemoteHandler, IVirtualBatchCra
         );
     }
 
-    @Override
-    public List<IAEStack> getVirtualCost(World world, BlockPos pos, InventoryCrafting ingredients, IAEItemStack[] outputs, long count) {
-        List<IAEStack> costs = new ArrayList<>();
-        initVirtualReflection();
-
-        // 物品消耗：核心材料 +  pedestal 材料，按 count 倍增
-        for (int i = 0; i < ingredients.getSizeInventory(); i++) {
-            ItemStack stack = ingredients.getStackInSlot(i);
-            if (!stack.isEmpty()) {
-                IAEItemStack cost = AEItemStack.fromItemStack(stack.copy());
-                cost.setStackSize((long) stack.getCount() * count);
-                costs.add(cost);
-            }
-        }
-
-        // RF 消耗：按配方 cost * count
-        Object recipe = findCombinationRecipeByOutput(outputs[0].createItemStack());
-        if (recipe != null) {
-            long rf = getRecipeCost(recipe);
-            if (rf > 0) {
-                costs.add(AEEnergyStack.create(rf * count));
-            }
-        }
-
-        return costs;
-    }
-
-    @Override
-    public List<ItemStack> virtualCraftBatch(World world, BlockPos pos, InventoryCrafting ingredients, IAEItemStack[] outputs, long count, IActionSource source) {
-        List<ItemStack> products = new ArrayList<>();
-        if (!canCraftVirtually(world, pos, ingredients, outputs)) return products;
-        return scaleOutputsByCount(outputs, count);
-    }
-
-    // ---- 配方查找与匹配 ----
-
     @SuppressWarnings("unchecked")
     private static Object findCombinationRecipeByOutput(ItemStack output) {
         initVirtualReflection();
@@ -438,13 +396,7 @@ public class ExtendedCraftingHandler implements IRemoteHandler, IVirtualBatchCra
             if (recipes == null) return null;
             for (Object recipe : recipes) {
                 ItemStack recipeOutput = (ItemStack) METHOD_RECIPE_GET_OUTPUT.invoke(recipe);
-                if (!recipeOutput.isEmpty()
-                        && recipeOutput.getItem() == output.getItem()
-                        && recipeOutput.getMetadata() == output.getMetadata()) {
-                    // expected 有 NBT 时必须一致
-                    if (output.hasTagCompound() && !ItemStack.areItemStackTagsEqual(recipeOutput, output)) {
-                        continue;
-                    }
+                if (com.github.aeddddd.ae2enhanced.centralinterface.recipe.RecipeBinding.exactMatch(recipeOutput, output)) {
                     return recipe;
                 }
             }
@@ -452,6 +404,61 @@ public class ExtendedCraftingHandler implements IRemoteHandler, IVirtualBatchCra
             // ignore
         }
         return null;
+    }
+
+    @Override
+    public boolean canCraftVirtually(World world, BlockPos pos, InventoryCrafting ingredients, IAEItemStack[] outputs) {
+        initReflection();
+        initVirtualReflection();
+        TileEntity te = world.getTileEntity(pos);
+        if (!CLASS_CORE.isInstance(te)) return false;
+        if (outputs == null || outputs.length == 0 || outputs[0] == null) return false;
+
+        ItemStack expected = outputs[0].createItemStack();
+        if (expected.isEmpty()) return false;
+
+        Object recipe = findCombinationRecipeByOutput(expected);
+        return bind(recipe, outputs) != null && ingredientsMatchCombination(recipe, ingredients);
+    }
+
+    // ---- 配方查找与匹配 ----
+
+    @Override
+    public List<IAEStack> getVirtualCost(World world, BlockPos pos, InventoryCrafting ingredients, IAEItemStack[] outputs, long count) {
+        List<IAEStack> costs = new ArrayList<>();
+        initVirtualReflection();
+        if (count <= 0 || outputs == null || outputs.length == 0 || outputs[0] == null) return null;
+        Object recipe = findCombinationRecipeByOutput(outputs[0].createItemStack());
+        if (bind(recipe, outputs) == null || !ingredientsMatchCombination(recipe, ingredients)) return null;
+
+        try {
+            for (int i = 0; i < ingredients.getSizeInventory(); i++) {
+                ItemStack stack = ingredients.getStackInSlot(i);
+                if (!stack.isEmpty()) {
+                    IAEItemStack cost = AEItemStack.fromItemStack(stack.copy());
+                    cost.setStackSize(Math.multiplyExact((long) stack.getCount(), count));
+                    costs.add(cost);
+                }
+            }
+
+            long rf = getRecipeCost(recipe);
+            if (rf < 0) return null;
+            if (rf > 0) {
+                costs.add(AEEnergyStack.create(Math.multiplyExact(rf, count)));
+            }
+        } catch (ArithmeticException overflow) {
+            return null;
+        }
+        return costs;
+    }
+
+    @Override
+    public List<ItemStack> virtualCraftBatch(World world, BlockPos pos, InventoryCrafting ingredients, IAEItemStack[] outputs, long count, IActionSource source) {
+        Object recipe = outputs == null || outputs.length == 0 || outputs[0] == null
+                ? null : findCombinationRecipeByOutput(outputs[0].createItemStack());
+        com.github.aeddddd.ae2enhanced.centralinterface.recipe.RecipeBinding binding = bind(recipe, outputs);
+        if (binding == null || !ingredientsMatchCombination(recipe, ingredients)) return new ArrayList<>();
+        return scaleOutputsByCount(binding.getOutputs(), count);
     }
 
     @SuppressWarnings("unchecked")

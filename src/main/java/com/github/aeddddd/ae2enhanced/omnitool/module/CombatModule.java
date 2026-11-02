@@ -1,12 +1,11 @@
 package com.github.aeddddd.ae2enhanced.omnitool.module;
 
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
-import com.github.aeddddd.ae2enhanced.config.AE2EnhancedConfig;
-import com.github.aeddddd.ae2enhanced.item.ItemAdvancedMEOmniTool;
-import com.github.aeddddd.ae2enhanced.util.reflection.VanillaReflectionHelper;
+import com.github.aeddddd.ae2enhanced.omnitool.ItemAdvancedMEOmniTool;
 import com.github.aeddddd.ae2enhanced.omnitool.OmniToolNBT;
 import com.github.aeddddd.ae2enhanced.util.BossDropHelper;
 import com.github.aeddddd.ae2enhanced.util.ForceKillHelper;
+import com.github.aeddddd.ae2enhanced.util.reflection.VanillaReflectionHelper;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityLivingBase;
 import net.minecraft.entity.MultiPartEntityPart;
@@ -69,7 +68,7 @@ public class CombatModule implements IOmniToolModule {
     }
 
     private float getBaseDamage() {
-        return (float) AE2EnhancedConfig.omniTool.baseAttackDamage;
+        return (float) com.github.aeddddd.ae2enhanced.config.ServerConfig.current().omniTool.baseAttackDamage;
     }
 
     private void performAreaAttack(ItemStack stack, EntityPlayer player, EntityLivingBase primaryTarget, int fortune) {
@@ -144,19 +143,7 @@ public class CombatModule implements IOmniToolModule {
             BossDropHelper.trySpawnBossDrops(target, player, ItemAdvancedMEOmniTool.CHAOS_DAMAGE, fortune);
         }
 
-        // 最后保险：如果实体仍然没有被移除，在下一 tick 开头强制从 world 剔除
-        if (!target.world.isRemote && target.world.getMinecraftServer() != null) {
-            final EntityLivingBase toRemove = target;
-            target.world.getMinecraftServer().addScheduledTask(() -> {
-                if (!toRemove.isDead && toRemove.world != null) {
-                    try {
-                        toRemove.world.removeEntityDangerously(toRemove);
-                    } catch (Exception e) {
-                        AE2Enhanced.LOGGER.error("[AE2E] removeEntityDangerously failed", e);
-                    }
-                }
-            });
-        }
+        // 终止登记会在有界窗口内复核 isDead 并交给世界 tick 移除，这里不再安排一次性兜底任务。
     }
 
     /**
@@ -206,21 +193,8 @@ public class CombatModule implements IOmniToolModule {
             } catch (Throwable t) {
                 AE2Enhanced.LOGGER.warn("[AE2E] markAsPlayerKill failed for {}", target.getClass().getName(), t);
             }
-            target.setHealth(0.0f);
-            target.onDeath(source);
-            // setHealth/onDeath 可能被目标实体或外部 mod 拦截（覆盖 setHealth、取消 LivingDeathEvent 等），
-            // 若实体仍存活则走强制击杀兜底，与 ForceKillHelper.applyForceKill 流程对齐
-            if (target.isEntityAlive()) {
-                ForceKillHelper.forceBypassProtection(target);
-                ForceKillHelper.forceSetHealthViaDataManager(target, 0.0f);
-                target.onDeath(source);
-                if (!target.isDead) {
-                    target.setDead();
-                    ForceKillHelper.forceSetIsDead(target, true);
-                }
-                ForceKillHelper.removeMultipartChildren(target);
-                ForceKillHelper.tryNotifyBossManager(target);
-            }
+            // L4：一次死亡入口 + isDead + 有界复核；真实伤害路径不重复经过指环防护。
+            ForceKillHelper.applyTermination(target, player, source);
             // 尝试生成特殊 Boss 掉落物
             if (!target.world.isRemote && !target.isEntityAlive()) {
                 BossDropHelper.trySpawnBossDrops(target, player, source, fortune);

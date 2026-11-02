@@ -1,6 +1,5 @@
 package com.github.aeddddd.ae2enhanced.network.packet;
 
-import com.github.aeddddd.ae2enhanced.config.AE2EnhancedConfig;
 import com.github.aeddddd.ae2enhanced.ring.RingLocator;
 import com.github.aeddddd.ae2enhanced.ring.RingNBT;
 import io.netty.buffer.ByteBuf;
@@ -13,8 +12,8 @@ import net.minecraftforge.fml.common.network.simpleimpl.IMessageHandler;
 import net.minecraftforge.fml.common.network.simpleimpl.MessageContext;
 
 /**
- * 客户端发送指环配置更新到服务端.
- * 服务端对所有字段做白名单校验与钳制,防止客户端注入非法值.
+ * 客户端发送旧指环或工具指环模块的配置更新到服务端.
+ * 服务端对所有字段做白名单校验与钳制，并写入对应的根/嵌套 NBT，防止客户端注入非法值.
  */
 public class PacketRingConfig implements IMessage {
 
@@ -51,14 +50,19 @@ public class PacketRingConfig implements IMessage {
         }
 
         private static void apply(EntityPlayerMP player, NBTTagCompound cfg) {
-            ItemStack ring = RingLocator.findRing(player);
+            ItemStack ring;
+            if (player.openContainer instanceof com.github.aeddddd.ae2enhanced.container.ContainerOmniToolConfig) {
+                ring = ((com.github.aeddddd.ae2enhanced.container.ContainerOmniToolConfig) player.openContainer)
+                        .getToolStack(player);
+            } else {
+                ring = RingLocator.findRing(player);
+            }
             if (ring.isEmpty()) return;
-            NBTTagCompound tag = ring.hasTagCompound() ? ring.getTagCompound() : new NBTTagCompound();
-            ring.setTagCompound(tag);
+            NBTTagCompound tag = RingNBT.mutableTag(ring);
 
-            int maxPct = AE2EnhancedConfig.ring.maxSpeedPercent;
-            int maxJump = AE2EnhancedConfig.ring.maxJumpPercent;
-            float maxReach = (float) AE2EnhancedConfig.ring.maxReachDistance;
+            int maxPct = com.github.aeddddd.ae2enhanced.config.ServerConfig.current().ring.maxSpeedPercent;
+            int maxJump = com.github.aeddddd.ae2enhanced.config.ServerConfig.current().ring.maxJumpPercent;
+            float maxReach = (float) com.github.aeddddd.ae2enhanced.config.ServerConfig.current().ring.maxReachDistance;
             boolean tier1 = RingNBT.tierAtLeast(ring, 1);
             boolean tier2 = RingNBT.tierAtLeast(ring, 2);
 
@@ -133,6 +137,7 @@ public class PacketRingConfig implements IMessage {
         }
 
         private static float clamp(float v, float min, float max) {
+            if (Float.isNaN(v) || Float.isInfinite(v)) return min;
             return v < min ? min : (v > max ? max : v);
         }
 

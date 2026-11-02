@@ -1,9 +1,6 @@
 package com.github.aeddddd.ae2enhanced.part;
 
-import appeng.api.config.RedstoneMode;
-import appeng.api.config.Settings;
-import appeng.api.config.Upgrades;
-import appeng.api.config.YesNo;
+import appeng.api.config.*;
 import appeng.api.networking.IGridNode;
 import appeng.api.networking.security.IActionSource;
 import appeng.api.networking.ticking.IGridTickable;
@@ -13,25 +10,24 @@ import appeng.api.parts.IPartCollisionHelper;
 import appeng.api.parts.IPartModel;
 import appeng.api.storage.data.IAEItemStack;
 import appeng.api.util.AECableType;
-import appeng.api.config.FuzzyMode;
 import appeng.core.settings.TickRates;
 import appeng.me.GridAccessException;
 import appeng.me.helpers.MachineSource;
 import appeng.parts.automation.PartUpgradeable;
-import appeng.util.SettingsFrom;
 import appeng.tile.inventory.AppEngInternalAEInventory;
+import appeng.util.SettingsFrom;
 import com.github.aeddddd.ae2enhanced.item.ItemFluidDrop;
+import com.github.aeddddd.ae2enhanced.item.fakeitem.FakeEssentiaSafe;
+import com.github.aeddddd.ae2enhanced.item.fakeitem.GasFakeItemChecks;
 import com.github.aeddddd.ae2enhanced.util.CapabilityProbe;
-import com.github.aeddddd.ae2enhanced.util.fakeitem.FakeEssentiaSafe;
-import com.github.aeddddd.ae2enhanced.util.fakeitem.GasFakeItemChecks;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.tileentity.TileEntity;
+import net.minecraft.util.EnumFacing;
 import net.minecraft.util.EnumHand;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Vec3d;
-import net.minecraft.util.EnumFacing;
 import net.minecraft.world.IBlockAccess;
 import net.minecraftforge.items.IItemHandler;
 
@@ -304,7 +300,7 @@ public abstract class PartUniversalBusBase extends PartUpgradeable implements IG
         if (isAe2fcFluidDrop(stack)) return true;
         if (GasFakeItemChecks.isGasFakeItem(stack)) return true;
         if (isAe2fcGasDrop(stack)) return true;
-        if (com.github.aeddddd.ae2enhanced.util.fakeitem.EssentiaFakeItemChecks.isEssentiaFakeItem(stack)) return true;
+        if (com.github.aeddddd.ae2enhanced.item.fakeitem.EssentiaFakeItemChecks.isEssentiaFakeItem(stack)) return true;
         if (isTheDummyAspect(stack)) return true;
         return false;
     }

@@ -40,6 +40,16 @@ public class ModernImgButton extends GuiImgButton {
     private final Enum<?> value;
     private String label;
     private String tooltip;
+    private float paintZ = 1.0F;
+
+    public ModernImgButton setPaintZ(float paintZ) {
+        this.paintZ = paintZ;
+        return this;
+    }
+
+    public float paintZ() {
+        return paintZ;
+    }
 
     public ModernImgButton(int x, int y, Settings setting, Enum<?> value) {
         super(x, y, setting, value);
@@ -78,11 +88,13 @@ public class ModernImgButton extends GuiImgButton {
         this.hovered = hovered;
         int hoverOffset = hovered ? 1 : 0;
 
-        boolean pushed = com.github.aeddddd.ae2enhanced.client.gui.dock.NinePatch.pushZLevel(1.0F);
+        boolean pushed = com.github.aeddddd.ae2enhanced.client.gui.dock.NinePatch.pushZLevel(this.paintZ);
         // 底图（18x20，与 19.x IconButton 相同的位置）
         Ae2ModernArt.drawToolbarButton(this.x - 1, this.y + hoverOffset, hovered, this.enabled);
         if (this.label != null) {
             drawLabel(mc, hoverOffset);
+        } else if (this.setting == Settings.SEARCH_MODE) {
+            drawSearchGlyph(this.x, this.y + 1 + hoverOffset, this.enabled);
         } else {
             Ae2ModernArt.Icon icon = iconFor(this.setting, this.value);
             if (icon != null) {
@@ -96,6 +108,16 @@ public class ModernImgButton extends GuiImgButton {
         }
         com.github.aeddddd.ae2enhanced.client.gui.dock.NinePatch.popZLevel(pushed);
         GlStateManager.color(1.0F, 1.0F, 1.0F, 1.0F);
+    }
+
+    private void drawSearchGlyph(int x, int y, boolean enabled) {
+        int color = enabled ? ChromeLayout.CHROME_GLYPH_COLOR : ChromeLayout.COLOR_MUTED;
+        net.minecraft.client.gui.Gui.drawRect(x + 4, y + 3, x + 11, y + 4, color);
+        net.minecraft.client.gui.Gui.drawRect(x + 3, y + 4, x + 4, y + 10, color);
+        net.minecraft.client.gui.Gui.drawRect(x + 11, y + 4, x + 12, y + 10, color);
+        net.minecraft.client.gui.Gui.drawRect(x + 4, y + 10, x + 11, y + 11, color);
+        net.minecraft.client.gui.Gui.drawRect(x + 11, y + 10, x + 13, y + 12, color);
+        net.minecraft.client.gui.Gui.drawRect(x + 12, y + 11, x + 14, y + 13, color);
     }
 
     private void drawLabel(Minecraft mc, int hoverOffset) {

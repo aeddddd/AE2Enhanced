@@ -1,14 +1,11 @@
 package com.github.aeddddd.ae2enhanced.util;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-
+import com.github.aeddddd.ae2enhanced.gui.GuiHandler;
+import com.github.aeddddd.ae2enhanced.omni.OmniTerminalResolver;
 import net.minecraft.item.ItemStack;
-
 import org.junit.jupiter.api.Test;
 
-import com.github.aeddddd.ae2enhanced.gui.GuiHandler;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * 分发收口的映射规则：旧物品→11（零回归）、可拼接终端→15。

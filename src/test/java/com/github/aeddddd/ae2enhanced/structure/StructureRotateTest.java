@@ -1,17 +1,20 @@
 package com.github.aeddddd.ae2enhanced.structure;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import com.github.aeddddd.ae2enhanced.block.HyperdimensionalStructure;
+import com.github.aeddddd.ae2enhanced.structureapi.StructureValidationResult;
+import com.github.aeddddd.ae2enhanced.tile.AssemblyStructure;
+import com.github.aeddddd.ae2enhanced.tile.SupercausalStructure;
+import net.minecraft.block.Block;
+import net.minecraft.util.EnumFacing;
+import net.minecraft.util.math.BlockPos;
+import org.junit.jupiter.api.Test;
 
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
-import org.junit.jupiter.api.Test;
-
-import net.minecraft.block.Block;
-import net.minecraft.util.EnumFacing;
-import net.minecraft.util.math.BlockPos;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * {@link AssemblyStructure}、{@link SupercausalStructure}、{@link HyperdimensionalStructure}
@@ -137,7 +140,7 @@ public class StructureRotateTest {
     public void testValidationResultDataHolder() {
         Map<Block, Integer> missing = new HashMap<>();
         SupercausalStructure.ValidationResult result =
-                new SupercausalStructure.ValidationResult(true, missing, 4, 16);
+                new SupercausalStructure.ValidationResult(StructureValidationResult.VALID, missing, 4, 16);
 
         assertThat(result.passed).isTrue();
         assertThat(result.missing).isEmpty();
@@ -150,14 +153,14 @@ public class StructureRotateTest {
     public void testValidationResultMissingMapIsUnmodifiable() {
         Map<Block, Integer> missing = new HashMap<>();
         SupercausalStructure.ValidationResult result =
-                new SupercausalStructure.ValidationResult(false, missing, 0, 0);
+                new SupercausalStructure.ValidationResult(StructureValidationResult.INVALID, missing, 0, 0);
 
         assertThatThrownBy(() -> result.missing.put(null, 1))
                 .isInstanceOf(UnsupportedOperationException.class);
 
         // 空构造时 missing 不为 null
         SupercausalStructure.ValidationResult empty =
-                new SupercausalStructure.ValidationResult(true, Collections.emptyMap(), 8, 64);
+                new SupercausalStructure.ValidationResult(StructureValidationResult.VALID, Collections.emptyMap(), 8, 64);
         assertThat(empty.missing).isNotNull().isEmpty();
     }
 

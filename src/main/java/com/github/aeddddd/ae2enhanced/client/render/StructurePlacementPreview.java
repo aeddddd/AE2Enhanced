@@ -1,24 +1,12 @@
 package com.github.aeddddd.ae2enhanced.client.render;
 
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
-import com.github.aeddddd.ae2enhanced.registry.content.BlockRegistry;
-import com.github.aeddddd.ae2enhanced.block.BlockAssemblyController;
-import com.github.aeddddd.ae2enhanced.block.BlockComputationCore;
-import com.github.aeddddd.ae2enhanced.block.BlockHyperdimensionalController;
-import com.github.aeddddd.ae2enhanced.structure.AssemblyStructure;
-import com.github.aeddddd.ae2enhanced.structure.HyperdimensionalStructure;
-import com.github.aeddddd.ae2enhanced.structure.SupercausalStructure;
-import com.github.aeddddd.ae2enhanced.tile.TileAssemblyController;
-import com.github.aeddddd.ae2enhanced.tile.TileComputationCore;
-import com.github.aeddddd.ae2enhanced.tile.TileHyperdimensionalController;
+import com.github.aeddddd.ae2enhanced.block.*;
+import com.github.aeddddd.ae2enhanced.tile.*;
 import net.minecraft.block.Block;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.renderer.BufferBuilder;
-import net.minecraft.client.renderer.BlockModelRenderer;
-import net.minecraft.client.renderer.BlockRendererDispatcher;
-import net.minecraft.client.renderer.GlStateManager;
-import net.minecraft.client.renderer.Tessellator;
+import net.minecraft.client.renderer.*;
 import net.minecraft.client.renderer.block.model.BakedQuad;
 import net.minecraft.client.renderer.block.model.IBakedModel;
 import net.minecraft.client.renderer.block.model.ItemCameraTransforms;
@@ -41,12 +29,7 @@ import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
 import net.minecraftforge.fml.relauncher.Side;
 import org.lwjgl.opengl.GL11;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 /**
  * 多方块结构缺失方块幽灵投影渲染器.

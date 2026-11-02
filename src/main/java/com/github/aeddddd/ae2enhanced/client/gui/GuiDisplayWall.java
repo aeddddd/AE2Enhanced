@@ -9,7 +9,7 @@ import com.github.aeddddd.ae2enhanced.container.ContainerDisplayWall;
 import com.github.aeddddd.ae2enhanced.display.ChartType;
 import com.github.aeddddd.ae2enhanced.display.DisplayPalette;
 import com.github.aeddddd.ae2enhanced.display.TimeRange;
-import com.github.aeddddd.ae2enhanced.network.packet.PacketDisplayAction;
+import com.github.aeddddd.ae2enhanced.display.packet.PacketDisplayAction;
 import com.github.aeddddd.ae2enhanced.tile.TileDisplayPanel;
 import net.minecraft.client.audio.PositionedSoundRecord;
 import net.minecraft.client.gui.inventory.GuiContainer;

@@ -34,6 +34,10 @@ public class ContainerDisplayWall extends AEBaseContainer {
         this.bindPlayerInventory(ip, 0, 174);
     }
 
+    public TileDisplayPanel getTile() {
+        return tile;
+    }
+
     @Override
     public boolean canInteractWith(EntityPlayer player) {
         return tile.isFormed() && tile.isMasterRole()

@@ -80,7 +80,7 @@ public class JEIRecipeHelper {
             return Collections.emptyList();
         }
 
-        int max = AE2EnhancedConfig.smartPattern.maxRecipes;
+        int max = com.github.aeddddd.ae2enhanced.config.ServerConfig.current().smartPattern.maxRecipes;
         List<SmartRecipe> result = new ArrayList<>();
         outer:
         for (IRecipeCategory category : categories) {
@@ -111,7 +111,7 @@ public class JEIRecipeHelper {
      * 检查目标方块是否在黑名单中.
      */
     public static boolean isBlacklisted(@Nonnull String blockRegistryName) {
-        for (String entry : AE2EnhancedConfig.smartPattern.blacklist) {
+        for (String entry : com.github.aeddddd.ae2enhanced.config.ServerConfig.current().smartPattern.blacklist()) {
             if (entry.equalsIgnoreCase(blockRegistryName)) {
                 return true;
             }

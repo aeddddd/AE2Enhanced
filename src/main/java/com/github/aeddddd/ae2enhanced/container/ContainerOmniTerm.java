@@ -5,7 +5,6 @@ import appeng.api.config.Actionable;
 import appeng.api.config.PowerMultiplier;
 import appeng.api.implementations.ICraftingPatternItem;
 import appeng.api.networking.crafting.ICraftingPatternDetails;
-import appeng.api.networking.storage.IStorageGrid;
 import appeng.api.storage.ITerminalHost;
 import appeng.api.storage.channels.IItemStorageChannel;
 import appeng.api.storage.data.IAEItemStack;
@@ -25,14 +24,12 @@ import appeng.util.Platform;
 import appeng.util.inv.IAEAppEngInventory;
 import appeng.util.inv.InvOperation;
 import appeng.util.prioritylist.IPartitionList;
-import com.github.aeddddd.ae2enhanced.client.gui.slot.RCSlotFakeCraftingMatrix;
-import com.github.aeddddd.ae2enhanced.client.gui.slot.RCSlotPatternOutputs;
-import com.github.aeddddd.ae2enhanced.client.gui.slot.SlotHighCapacity;
-import com.github.aeddddd.ae2enhanced.client.gui.slot.SlotOmniUpgrade;
-import com.github.aeddddd.ae2enhanced.client.me.CraftingStatus;
+import com.github.aeddddd.ae2enhanced.container.slot.RCSlotFakeCraftingMatrix;
+import com.github.aeddddd.ae2enhanced.container.slot.RCSlotPatternOutputs;
+import com.github.aeddddd.ae2enhanced.container.slot.SlotHighCapacity;
+import com.github.aeddddd.ae2enhanced.container.slot.SlotOmniUpgrade;
 import com.github.aeddddd.ae2enhanced.item.ItemOmniWirelessTerminal;
 import com.github.aeddddd.ae2enhanced.storage.*;
-import com.github.aeddddd.ae2enhanced.tile.TileHyperdimensionalController;
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap;
 import net.minecraft.entity.player.EntityPlayer;
@@ -45,7 +42,6 @@ import net.minecraft.item.crafting.IRecipe;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.nbt.NBTTagList;
 import net.minecraftforge.items.IItemHandler;
-import net.minecraftforge.items.wrapper.PlayerInvWrapper;
 
 import java.lang.reflect.Method;
 import java.util.*;
@@ -70,8 +66,8 @@ public class ContainerOmniTerm extends ContainerMEMonitorable
     private OmniTerminalInventory patternInv;
     private final AppEngInternalInventory cOut = new AppEngInternalInventory(null, 1);
 
-    private final RCSlotFakeCraftingMatrix[][] patternInputSlots = new RCSlotFakeCraftingMatrix[9][9];
-    private final RCSlotPatternOutputs[][] outputSlotGroup = new RCSlotPatternOutputs[9][3];
+    protected final RCSlotFakeCraftingMatrix[][] patternInputSlots = new RCSlotFakeCraftingMatrix[9][9];
+    protected final RCSlotPatternOutputs[][] outputSlotGroup = new RCSlotPatternOutputs[9][3];
     private SlotPatternTerm craftSlot;
     private SlotRestrictedInput patternSlotIN;
     private SlotRestrictedInput patternSlotOUT;
@@ -86,6 +82,7 @@ public class ContainerOmniTerm extends ContainerMEMonitorable
     // === 右侧存储 ===
     private final OmniTerminalInventory rightPatternStorage;
     private final OmniTerminalInventory rightUpgradeStorage;
+    private final com.github.aeddddd.ae2enhanced.container.omni.ProcessingStorageTransfer processingStorageTransfer;
 
     // === WorldSavedData 存储 ===
     private final OmniTerminalStorage omniStorage;
@@ -119,11 +116,22 @@ public class ContainerOmniTerm extends ContainerMEMonitorable
     private int craftingUpdateCooldown = 0;
     private List<CraftingStatus> clientActiveCrafting = Collections.emptyList();
 
-    // === 本地 monitor 引用（父类 monitor 为 private，无法直接访问）===
+    private static final java.util.concurrent.atomic.AtomicLong NEXT_CONTAINER_SESSION =
+            new java.util.concurrent.atomic.AtomicLong();
+    // === 本地 monitor 与容器隔离的查询服务 ===
     private final appeng.api.storage.IMEMonitor<IAEItemStack> omniMonitor;
+    private final TerminalQueryService queryService;
+    @GuiSync(100)
+    public long containerSessionId;
+    @GuiSync(101)
+    public long queryGeneration;
+    private long requestId;
 
-    // === 缓存 adapter 引用，避免 postChange 高频触发时反复遍历网格节点 ===
-    private ItemStorageAdapter cachedAdapter = null;
+    private Runnable craftingInventoryListener;
+    private Runnable patternCraftingInventoryListener;
+    private Runnable patternInventoryListener;
+    private final com.github.aeddddd.ae2enhanced.container.omni.TerminalSessionScope terminalSessionScope =
+            new com.github.aeddddd.ae2enhanced.container.omni.TerminalSessionScope();
 
     // === Omni Terminal 自定义物品同步状态 ===
     private final appeng.api.storage.data.IItemList<IAEItemStack> omniItems =
@@ -158,14 +166,25 @@ public class ContainerOmniTerm extends ContainerMEMonitorable
         // （单机不崩溃是因为客户端与集成服务端共享同一 JVM 的静态 locatable 表）
         if (Platform.isServer()) {
             this.omniMonitor = host.getInventory(AEApi.instance().storage().getStorageChannel(IItemStorageChannel.class));
+            this.containerSessionId = NEXT_CONTAINER_SESSION.incrementAndGet();
+            this.queryService = new TerminalQueryService(this.omniMonitor, () -> {
+                if (ip.player instanceof net.minecraft.entity.player.EntityPlayerMP) {
+                    com.github.aeddddd.ae2enhanced.AE2Enhanced.network.sendTo(
+                            new com.github.aeddddd.ae2enhanced.network.packet.PacketOmniUpdateNotify(),
+                            (net.minecraft.entity.player.EntityPlayerMP) ip.player);
+                }
+            });
         } else {
             this.omniMonitor = null;
+            this.queryService = null;
         }
 
         // === 从 WorldSavedData 获取持久化存储 ===
         if (host instanceof WirelessTerminalGuiObject) {
             WirelessTerminalGuiObject wt = (WirelessTerminalGuiObject) host;
-            java.util.UUID storageId = ItemOmniWirelessTerminal.getStorageId(wt.getItemStack());
+            java.util.UUID storageId = Platform.isServer()
+                    ? ItemOmniWirelessTerminal.ensureStorageId(wt.getItemStack())
+                    : ItemOmniWirelessTerminal.getStorageId(wt.getItemStack());
             this.omniData = OmniTerminalData.get(ip.player.world);
             this.omniStorage = this.omniData.getOrCreate(storageId);
         } else {
@@ -175,15 +194,9 @@ public class ContainerOmniTerm extends ContainerMEMonitorable
         }
 
         this.rightPatternStorage = this.omniStorage.getRightStorageInventory();
-
-        // R3: 注册打开的玩家到 ItemStorageAdapter（用于 UPDATE_NOTIFY）
-        if (ip.player instanceof net.minecraft.entity.player.EntityPlayerMP) {
-            ItemStorageAdapter adapter = findItemStorageAdapter();
-            if (adapter != null) {
-                adapter.addOpenPlayer((net.minecraft.entity.player.EntityPlayerMP) ip.player);
-            }
-        }
         this.rightUpgradeStorage = this.omniStorage.getUpgradeInventory();
+        this.processingStorageTransfer = new com.github.aeddddd.ae2enhanced.container.omni.ProcessingStorageTransfer(
+                this.rightPatternStorage, this::extractFromNetwork, this::returnToNetworkOrPlayer);
 
         this.setupCraftingArea(ip, host);
         this.setupPatternArea(ip, host);
@@ -216,7 +229,11 @@ public class ContainerOmniTerm extends ContainerMEMonitorable
                 }
             }
         }
-        this.addCustomPlayerInventory(ip, 8, 167, 225);
+        if (this.wirelessObject != null && !this.wirelessObject.isBaubleSlot()
+                && this.wirelessObject.getInventorySlot() >= 0) {
+            this.lockPlayerInventorySlot(this.wirelessObject.getInventorySlot());
+        }
+        this.bindPlayerInventory(ip, 0, 167);
 
         // 重新定位 view cell 槽位到 GUI 右侧外部(模仿标准终端侧栏)
         // yPos 保持 ContainerMEMonitorable 原始值(8 + jeiOffset + i * 18),
@@ -231,6 +248,16 @@ public class ContainerOmniTerm extends ContainerMEMonitorable
             this.inventorySlots.get(i).slotNumber = i;
         }
 
+        this.terminalSessionScope.track(() -> this.craftingInv.removeOnContentsChangedListener(
+                this.craftingInventoryListener));
+        this.terminalSessionScope.track(() -> this.patternCraftingInv.removeOnContentsChangedListener(
+                this.patternCraftingInventoryListener));
+        this.terminalSessionScope.track(() -> this.patternInv.removeOnContentsChangedListener(
+                this.patternInventoryListener));
+        if (this.queryService != null) {
+            this.terminalSessionScope.track(this.queryService::close);
+        }
+
         // 从 WorldSavedData 加载模式状态
         this.loadStateFromItemNBT();
     }
@@ -239,7 +266,8 @@ public class ContainerOmniTerm extends ContainerMEMonitorable
 
     private void setupCraftingArea(InventoryPlayer ip, ITerminalHost host) {
         this.craftingInv = this.omniStorage.getCraftingInventory();
-        this.craftingInv.setOnContentsChangedCallback(this::updateRealCraftingRecipe);
+        this.craftingInventoryListener = this::updateRealCraftingRecipe;
+        this.craftingInv.addOnContentsChangedListener(this.craftingInventoryListener);
         for (int y = 0; y < 3; y++) {
             for (int x = 0; x < 3; x++) {
                 int idx = x + y * 3;
@@ -259,12 +287,13 @@ public class ContainerOmniTerm extends ContainerMEMonitorable
         this.patternOutputInv = this.omniStorage.getPatternOutputInventory();
 
         // 设置变更回调,使 patternCraftMode 时自动更新配方预览
-        this.patternCraftingInv.setOnContentsChangedCallback(() -> {
+        this.patternCraftingInventoryListener = () -> {
             if (this.patternCraftMode) {
                 this.fixPatternCraftingRecipes();
                 this.updatePatternCraftingRecipe();
             }
-        });
+        };
+        this.patternCraftingInv.addOnContentsChangedListener(this.patternCraftingInventoryListener);
 
         for (int g = 0; g < 9; g++) {
             for (int r = 0; r < 3; r++) {
@@ -290,10 +319,11 @@ public class ContainerOmniTerm extends ContainerMEMonitorable
         }
 
         this.patternInv = this.omniStorage.getPatternInventory();
-        this.patternInv.setOnContentsChangedCallback(() -> {
+        this.patternInventoryListener = () -> {
             if (!Platform.isServer()) return;
             this.onPatternOutputChanged();
-        });
+        };
+        this.patternInv.addOnContentsChangedListener(this.patternInventoryListener);
         this.craftSlot = new SlotPatternTerm(ip.player, this.getActionSource(), this.getPowerSource(), host,
                 this.patternCraftingInv, this.patternInv, this.cOut, 281, 111, this, 2, this);
         this.func_75146_a(this.craftSlot);
@@ -314,7 +344,7 @@ public class ContainerOmniTerm extends ContainerMEMonitorable
     // ================== 右侧存储 ==================
 
     private void setupRightStorage() {
-        for (int r = 0; r < 3; r++) {
+        for (int r = 0; r < OmniTerminalStorage.SIZE_RIGHT_STORAGE / 9; r++) {
             for (int c = 0; c < 9; c++) {
                 int idx = r * 9 + c;
                 this.func_75146_a(new SlotHighCapacity(this.rightPatternStorage, idx, 180 + c * 18, 167 + r * 18));
@@ -322,20 +352,6 @@ public class ContainerOmniTerm extends ContainerMEMonitorable
         }
         for (int c = 0; c < 9; c++) {
             this.func_75146_a(new SlotOmniUpgrade(this.rightUpgradeStorage, c, 180 + c * 18, 221));
-        }
-    }
-
-    // ================== 背包绑定 ==================
-
-    private void addCustomPlayerInventory(InventoryPlayer ip, int invX, int invY, int hotbarY) {
-        PlayerInvWrapper wrapper = new PlayerInvWrapper(ip);
-        for (int i = 0; i < 3; i++) {
-            for (int j = 0; j < 9; j++) {
-                this.func_75146_a(new SlotPlayerInv(wrapper, j + i * 9 + 9, invX + j * 18, invY + i * 18));
-            }
-        }
-        for (int i = 0; i < 9; i++) {
-            this.func_75146_a(new SlotPlayerHotBar(wrapper, i, invX + i * 18, hotbarY));
         }
     }
 
@@ -360,6 +376,20 @@ public class ContainerOmniTerm extends ContainerMEMonitorable
         return this.patternInputSlots.length;
     }
 
+    public List<Slot> visiblePatternSlots() {
+        List<Slot> visible = new ArrayList<Slot>();
+        int group = this.patternCraftMode ? 0 : this.scrollOffset;
+        for (RCSlotFakeCraftingMatrix slot : this.patternInputSlots[group]) {
+            visible.add(slot);
+        }
+        if (this.patternCraftMode) {
+            visible.add(this.craftSlot);
+        } else {
+            Collections.addAll(visible, this.outputSlotGroup[group]);
+        }
+        return visible;
+    }
+
     /** craft 模式的 3×3 产出槽（{@code SlotPatternTerm}，process 模式下不可见）。 */
     public Slot getPatternCraftSlot() {
         return this.craftSlot;
@@ -375,31 +405,34 @@ public class ContainerOmniTerm extends ContainerMEMonitorable
         return this.patternSlotOUT;
     }
 
+    /** 旧固定 GUI 才由容器写槽位坐标；拼接终端由 Dock/Panel 独占布局。 */
+    protected boolean usesLegacySlotCoordinates() {
+        return true;
+    }
+
     public void setRCSlot(int offset) {
         if (this.patternCraftMode) {
             offset = 0;
         }
         this.scrollOffset = Math.max(0, Math.min(offset, getMaxScrollOffset()));
+        boolean legacyCoordinates = usesLegacySlotCoordinates();
+        if (!legacyCoordinates) {
+            return;
+        }
         for (int g = 0; g < 9; g++) {
-            boolean visible = (g == offset);
+            boolean visible = (g == this.scrollOffset);
             for (int i = 0; i < 9; i++) {
                 RCSlotFakeCraftingMatrix slot = this.patternInputSlots[g][i];
-                if (visible) {
-                    slot.xPos = slot.getDefX();
-                    slot.visible = true;
-                } else {
-                    slot.xPos = -9000;
-                    slot.visible = false;
+                slot.visible = visible;
+                if (legacyCoordinates) {
+                    slot.xPos = visible ? slot.getDefX() : -9000;
                 }
             }
             for (int i = 0; i < 3; i++) {
                 RCSlotPatternOutputs slot = this.outputSlotGroup[g][i];
-                if (visible) {
-                    slot.xPos = this.patternCraftMode ? -9000 : slot.getDefX();
-                    slot.visible = true;
-                } else {
-                    slot.xPos = -9000;
-                    slot.visible = false;
+                slot.visible = visible;
+                if (legacyCoordinates) {
+                    slot.xPos = visible && !this.patternCraftMode ? slot.getDefX() : -9000;
                 }
             }
         }
@@ -414,6 +447,9 @@ public class ContainerOmniTerm extends ContainerMEMonitorable
     }
 
     public void updateOrderOfOutputSlots() {
+        if (!usesLegacySlotCoordinates()) {
+            return;
+        }
         if (!this.patternCraftMode) {
             if (this.craftSlot != null) {
                 this.craftSlot.xPos = -9000;
@@ -428,10 +464,12 @@ public class ContainerOmniTerm extends ContainerMEMonitorable
     // ================== 模式切换 ==================
 
     private void applyPatternCraftMode() {
-        int newBaseX = this.patternCraftMode ? CRAFTING_GRID_BASE_X : PROCESSING_GRID_BASE_X;
-        for (int g = 0; g < 9; g++) {
-            for (int i = 0; i < 9; i++) {
-                this.patternInputSlots[g][i].setDefX(newBaseX);
+        if (usesLegacySlotCoordinates()) {
+            int newBaseX = this.patternCraftMode ? CRAFTING_GRID_BASE_X : PROCESSING_GRID_BASE_X;
+            for (int g = 0; g < 9; g++) {
+                for (int i = 0; i < 9; i++) {
+                    this.patternInputSlots[g][i].setDefX(newBaseX);
+                }
             }
         }
         this.updateOrderOfOutputSlots();
@@ -745,7 +783,7 @@ public class ContainerOmniTerm extends ContainerMEMonitorable
                 && !this.getPlayerInv().player.isSneaking()) {
             appeng.api.networking.IGridNode node = this.getNetworkNode();
             appeng.api.networking.IGrid grid = (node != null) ? node.getGrid() : null;
-            if (com.github.aeddddd.ae2enhanced.util.compat.AssemblyAutoUploadHelper.tryUploadPattern(
+            if (com.github.aeddddd.ae2enhanced.structure.compat.AssemblyAutoUploadHelper.tryUploadPattern(
                     this.getPlayerInv().player.world, this.getPlayerInv().player, patternInSlot, grid)) {
                 this.patternSlotOUT.putStack(ItemStack.EMPTY);
             }
@@ -858,22 +896,31 @@ public class ContainerOmniTerm extends ContainerMEMonitorable
     // ================== 数量调整 ==================
 
     public void multiply(int multiple) {
+        if (multiple <= 0) return;
         IItemHandler inv = this.patternCraftingInv;
         int size = this.patternCraftMode ? 9 : 81;
         IItemHandler outInv = this.patternCraftMode ? this.cOut : this.patternOutputInv;
         int outSize = this.patternCraftMode ? 1 : 27;
 
+        try {
+            for (int i = 0; i < size; i++) {
+                ItemStack s = inv.getStackInSlot(i);
+                if (!s.isEmpty()) Math.multiplyExact(s.getCount(), multiple);
+            }
+            for (int i = 0; i < outSize; i++) {
+                ItemStack s = outInv.getStackInSlot(i);
+                if (!s.isEmpty()) Math.multiplyExact(s.getCount(), multiple);
+            }
+        } catch (ArithmeticException overflow) {
+            return;
+        }
         for (int i = 0; i < size; i++) {
             ItemStack s = inv.getStackInSlot(i);
-            if (!s.isEmpty()) {
-                s.setCount(s.getCount() * multiple);
-            }
+            if (!s.isEmpty()) s.setCount(s.getCount() * multiple);
         }
         for (int i = 0; i < outSize; i++) {
             ItemStack s = outInv.getStackInSlot(i);
-            if (!s.isEmpty()) {
-                s.setCount(s.getCount() * multiple);
-            }
+            if (!s.isEmpty()) s.setCount(s.getCount() * multiple);
         }
         this.detectAndSendChanges();
     }
@@ -917,22 +964,31 @@ public class ContainerOmniTerm extends ContainerMEMonitorable
     }
 
     public void increase(int amount) {
+        if (amount <= 0) return;
         IItemHandler inv = this.patternCraftingInv;
         int size = this.patternCraftMode ? 9 : 81;
         IItemHandler outInv = this.patternCraftMode ? this.cOut : this.patternOutputInv;
         int outSize = this.patternCraftMode ? 1 : 27;
 
+        try {
+            for (int i = 0; i < size; i++) {
+                ItemStack s = inv.getStackInSlot(i);
+                if (!s.isEmpty()) Math.addExact(s.getCount(), amount);
+            }
+            for (int i = 0; i < outSize; i++) {
+                ItemStack s = outInv.getStackInSlot(i);
+                if (!s.isEmpty()) Math.addExact(s.getCount(), amount);
+            }
+        } catch (ArithmeticException overflow) {
+            return;
+        }
         for (int i = 0; i < size; i++) {
             ItemStack s = inv.getStackInSlot(i);
-            if (!s.isEmpty()) {
-                s.setCount(Math.max(1, s.getCount() + amount));
-            }
+            if (!s.isEmpty()) s.setCount(Math.max(1, s.getCount() + amount));
         }
         for (int i = 0; i < outSize; i++) {
             ItemStack s = outInv.getStackInSlot(i);
-            if (!s.isEmpty()) {
-                s.setCount(Math.max(1, s.getCount() + amount));
-            }
+            if (!s.isEmpty()) s.setCount(Math.max(1, s.getCount() + amount));
         }
         this.detectAndSendChanges();
     }
@@ -1049,68 +1105,14 @@ public class ContainerOmniTerm extends ContainerMEMonitorable
         } else {
             // Processing recipe
             if (mode == 2) {
-                // Alt: processing → 从网络提取 inputs 放入右侧 27 槽样板存储区(自动堆叠)
-                for (int i = 0; i < this.rightPatternStorage.getSlots(); i++) {
-                    this.rightPatternStorage.setStackInSlot(i, ItemStack.EMPTY);
-                }
-                IItemStorageChannel channel = AEApi.instance().storage().getStorageChannel(IItemStorageChannel.class);
-                for (ItemStack in : inputs.values()) {
-                    if (in == null || in.isEmpty()) continue;
-                    IAEItemStack toExtract = channel.createStack(in);
-                    if (toExtract != null) {
-                        toExtract.setStackSize(in.getCount());
-                        IAEItemStack extracted = Platform.poweredExtraction(
-                                this.getPowerSource(), this.getCellInventory(), toExtract, this.getActionSource());
-                        if (extracted != null && extracted.getStackSize() > 0) {
-                            ItemStack result = extracted.createItemStack();
-                            ItemStack remainder = net.minecraftforge.items.ItemHandlerHelper.insertItemStacked(
-                                    this.rightPatternStorage, result, false);
-                            // 槽位满了仍有剩余,返还网络
-                            if (!remainder.isEmpty()) {
-                                IAEItemStack toReturn = channel.createStack(remainder);
-                                if (toReturn != null) {
-                                    toReturn.setStackSize(remainder.getCount());
-                                    this.getCellInventory().injectItems(toReturn, Actionable.MODULATE, this.getActionSource());
-                                }
-                            }
-                        }
-                    }
-                }
+                this.processingStorageTransfer.replace(inputs.values());
             } else if (mode == 0 || mode == 1) {
                 if (this.patternCraftMode) {
                     this.setPatternCraftMode(false);
                 }
-                // 计算需要显示的 group 范围,清空相关 slots
-                int maxSlot = 0;
-                for (int slot : inputs.keySet()) {
-                    if (slot > maxSlot) maxSlot = slot;
-                }
-                int neededGroups = (maxSlot / 9) + 1;
-                for (int g = 0; g < neededGroups && g < 9; g++) {
-                    int startIdx = g * 9;
-                    for (int i = 0; i < 9 && startIdx + i < 81; i++) {
-                        this.patternCraftingInv.setStackInSlot(startIdx + i, ItemStack.EMPTY);
-                    }
-                }
-                int startOutIdx = this.scrollOffset * 3;
-                for (int i = 0; i < 3 && startOutIdx + i < 27; i++) {
-                    this.patternOutputInv.setStackInSlot(startOutIdx + i, ItemStack.EMPTY);
-                }
-                // 填充输入：按 JEI slot index 直接映射到 patternCraftingInv
-                for (java.util.Map.Entry<Integer, ItemStack> entry : inputs.entrySet()) {
-                    int slot = entry.getKey();
-                    if (slot >= 0 && slot < 81) {
-                        this.patternCraftingInv.setStackInSlot(slot, entry.getValue().copy());
-                    }
-                }
-                // 填充输出
-                int outIdx = 0;
-                for (ItemStack out : outputs.values()) {
-                    if (outIdx < 3 && startOutIdx + outIdx < 27) {
-                        this.patternOutputInv.setStackInSlot(startOutIdx + outIdx, out.copy());
-                        outIdx++;
-                    }
-                }
+                this.setRCSlot(0);
+                com.github.aeddddd.ae2enhanced.container.omni.ProcessingPatternTransfer.replace(
+                        this.patternCraftingInv, this.patternOutputInv, inputs, outputs.values());
             }
         }
 
@@ -1217,6 +1219,20 @@ public class ContainerOmniTerm extends ContainerMEMonitorable
         this.detectAndSendChanges();
     }
 
+    private ItemStack extractFromNetwork(ItemStack stack) {
+        if (this.getPowerSource() == null || this.getCellInventory() == null) {
+            return ItemStack.EMPTY;
+        }
+        IItemStorageChannel channel = AEApi.instance().storage().getStorageChannel(IItemStorageChannel.class);
+        IAEItemStack request = channel.createStack(stack);
+        if (request == null) {
+            return ItemStack.EMPTY;
+        }
+        IAEItemStack extracted = Platform.poweredExtraction(
+                this.getPowerSource(), this.getCellInventory(), request, this.getActionSource());
+        return extracted == null ? ItemStack.EMPTY : extracted.createItemStack();
+    }
+
     private void returnToNetworkOrPlayer(ItemStack stack) {
         if (stack.isEmpty()) {
             return;
@@ -1292,19 +1308,9 @@ public class ContainerOmniTerm extends ContainerMEMonitorable
 
     @Override
     public void onContainerClosed(EntityPlayer playerIn) {
-        // R3: 从 ItemStorageAdapter 的打开玩家列表中移除
-        if (playerIn instanceof net.minecraft.entity.player.EntityPlayerMP) {
-            ItemStorageAdapter adapter = this.cachedAdapter != null ? this.cachedAdapter : findItemStorageAdapter();
-            if (adapter != null) {
-                adapter.removeOpenPlayer((net.minecraft.entity.player.EntityPlayerMP) playerIn);
-            }
-        }
-        this.cachedAdapter = null; // 清空缓存，避免持有过期引用
+        this.terminalSessionScope.close();
         super.onContainerClosed(playerIn);
         this.saveStateToItemNBT();
-        if (this.omniData != null) {
-            this.omniData.markDirty();
-        }
     }
 
     // ================== IContainerCraftingPacket ==================
@@ -1413,13 +1419,6 @@ public class ContainerOmniTerm extends ContainerMEMonitorable
         // 不调用 super.postChange() —— 阻止原版增量进入 this.items
         for (IAEItemStack is : change) {
             this.omniItems.add(is);
-        }
-        // 外部 ME 网络存储变化时，通知 adapter 刷新 sortedList
-        if (this.cachedAdapter == null) {
-            this.cachedAdapter = findItemStorageAdapter();
-        }
-        if (this.cachedAdapter != null) {
-            this.cachedAdapter.markSortedListDirty();
         }
     }
 
@@ -1590,14 +1589,7 @@ public class ContainerOmniTerm extends ContainerMEMonitorable
         super.detectAndSendChanges();
         if (!Platform.isServer()) return;
 
-        // === R3: Omni Terminal 增量更新通知 ===
-        // 客户端主动发送 PAGE_REQUEST，服务端只需在变化时通知客户端刷新
-        boolean hasChanges = this.omniNeedsFullSync || !this.omniItems.isEmpty();
-        if (hasChanges) {
-            ItemStorageAdapter adapter = findItemStorageAdapter();
-            if (adapter != null) {
-                adapter.onStorageChanged(this.getPlayerInv().player.world.getTotalWorldTime());
-            }
+        if (this.omniNeedsFullSync || !this.omniItems.isEmpty()) {
             this.omniNeedsFullSync = false;
             this.omniItems.resetStatus();
         }
@@ -1723,173 +1715,68 @@ public class ContainerOmniTerm extends ContainerMEMonitorable
     // R3: sendOmniFullSyncBatch() / sendOmniDeltaSync() 已删除
     // 客户端主动发送 PAGE_REQUEST，服务端通过 UPDATE_NOTIFY 通知变化
 
-    // ================== 服务端搜索（基于超维度仓储索引）====================
+    // ================== 容器隔离的服务端分页查询 ==================
 
-    /**
-     * R3: 处理客户端发来的分页请求。
-     */
     public void handlePageRequest(com.github.aeddddd.ae2enhanced.network.packet.PacketOmniPageRequest request) {
-        ItemStorageAdapter adapter = findItemStorageAdapter();
-        ItemStorageAdapter.PageResult result;
-
-        IPartitionList<IAEItemStack> viewCellFilter = appeng.items.storage.ItemViewCell.createFilter(this.getViewCells());
-        Set<ItemDescriptor> clientFilter = null;
-        List<ItemDescriptor> requestFilter = request.getClientFilter();
-        if (requestFilter != null) {
-            clientFilter = new HashSet<>(requestFilter);
-        }
-
-        if (adapter != null) {
-            result = adapter.query(
-                request.getSearchString(),
-                request.getSearchMode(),
-                request.getSortBy(),
-                request.getSortDir(),
-                request.getViewMode(),
-                request.getOffset(),
-                request.getLimit(),
-                viewCellFilter,
-                clientFilter
-            );
-        } else {
-            // Fallback: 遍历 omniMonitor.getStorageList()
-            result = fallbackPageQuery(request, viewCellFilter, clientFilter);
-        }
-
-        // 构建响应
+        TerminalQueryService.PageResult result = query(
+                request.getSearchString(), request.getSearchMode(), request.getSortBy(),
+                request.getSortDir(), request.getViewMode(), request.getOffset(),
+                request.getLimit(), request.getClientFilter());
         List<com.github.aeddddd.ae2enhanced.network.packet.PacketOmniPageResult.Entry> entries =
                 new ArrayList<>(result.items.size());
         for (IAEItemStack stack : result.items) {
-            int id = this.getOrAllocateId(stack);
             entries.add(new com.github.aeddddd.ae2enhanced.network.packet.PacketOmniPageResult.Entry(
-                    id, stack, stack.getStackSize()));
+                    getOrAllocateId(stack), stack, stack.getStackSize()));
         }
-
-        com.github.aeddddd.ae2enhanced.network.packet.PacketOmniPageResult response =
-                new com.github.aeddddd.ae2enhanced.network.packet.PacketOmniPageResult(
-                        result.totalCount, result.offset, entries);
-
         com.github.aeddddd.ae2enhanced.AE2Enhanced.network.sendTo(
-                response,
+                new com.github.aeddddd.ae2enhanced.network.packet.PacketOmniPageResult(
+                        result.totalCount, result.offset, entries),
                 (net.minecraft.entity.player.EntityPlayerMP) this.getPlayerInv().player);
     }
 
-    private ItemStorageAdapter.PageResult fallbackPageQuery(
-            com.github.aeddddd.ae2enhanced.network.packet.PacketOmniPageRequest request,
-            IPartitionList<IAEItemStack> viewCellFilter,
-            Set<ItemDescriptor> clientFilter) {
-        appeng.api.storage.data.IItemList<IAEItemStack> list = this.omniMonitor.getStorageList();
-        List<IAEItemStack> all = new ArrayList<>();
-        for (IAEItemStack stack : list) {
-            if (!stack.isMeaningful()) continue;
-            all.add(stack.copy());
+    public void handlePageRequest(com.github.aeddddd.ae2enhanced.network.packet.PacketOmniPageRequestV2 request) {
+        if (request.getContainerSessionId() != this.containerSessionId
+                || request.getRequestId() <= this.requestId) return;
+        if (request.getQueryGeneration() != this.queryGeneration
+                && request.getQueryGeneration() != this.queryGeneration + 1) return;
+        this.queryGeneration = request.getQueryGeneration();
+        this.requestId = request.getRequestId();
+        TerminalQueryService.PageResult result = query(
+                request.getSearchString(), request.getSearchMode(), request.getSortBy(),
+                request.getSortDir(), request.getViewMode(), request.getOffset(),
+                request.getLimit(), request.getClientFilter());
+        List<com.github.aeddddd.ae2enhanced.network.packet.PacketOmniPageResultV2.Entry> entries =
+                new ArrayList<>(result.items.size());
+        for (IAEItemStack stack : result.items) {
+            entries.add(new com.github.aeddddd.ae2enhanced.network.packet.PacketOmniPageResultV2.Entry(
+                    getOrAllocateId(stack), stack, stack.getStackSize()));
         }
-
-        // ViewMode / ViewCell / ClientFilter 过滤
-        List<IAEItemStack> filtered = new ArrayList<>();
-        for (IAEItemStack stack : all) {
-            if (request.getViewMode() == 2 && !stack.isCraftable()) continue;
-            if (request.getViewMode() == 0 && stack.getStackSize() == 0L) continue;
-            if (viewCellFilter != null && !viewCellFilter.isListed(stack)) continue;
-            if (clientFilter != null && !clientFilter.contains(new ItemDescriptor(stack.getDefinition().copy()))) continue;
-            filtered.add(stack);
-        }
-
-        // 排序：统一走安全入口（AE2 比较器不可用时退化为本地比较器，绝不让"排序器炸了"变成"仓库空白"）
-        appeng.api.config.SortOrder sortBy = appeng.api.config.SortOrder.values()[request.getSortBy()];
-        appeng.api.config.SortDir sortDir = appeng.api.config.SortDir.values()[request.getSortDir()];
-        com.github.aeddddd.ae2enhanced.util.TerminalItemSort.sort(filtered, sortBy, sortDir);
-
-        // 搜索过滤
-        String search = request.getSearchString();
-        if (search != null && !search.isEmpty()) {
-            String query = search.toLowerCase();
-            List<IAEItemStack> searched = new ArrayList<>();
-            boolean isModSearch = request.getSearchMode() == 1;
-            boolean fuzzyModSearch = isModSearch
-                    && (com.github.aeddddd.ae2enhanced.config.AE2EnhancedConfig.terminal.modSearchFuzzyThreshold <= 0
-                    || all.size() <= com.github.aeddddd.ae2enhanced.config.AE2EnhancedConfig.terminal.modSearchFuzzyThreshold);
-            for (IAEItemStack stack : filtered) {
-                if (isModSearch) {
-                    String modId = stack.asItemStackRepresentation().getItem().getRegistryName().getNamespace().toLowerCase();
-                    if (fuzzyModSearch ? modId.contains(query) : modId.equals(query)) {
-                        searched.add(stack);
-                    }
-                } else {
-                    if (stack.asItemStackRepresentation().getDisplayName().toLowerCase().contains(query)) {
-                        searched.add(stack);
-                    }
-                }
-            }
-            filtered = searched;
-        }
-
-        int total = filtered.size();
-        int start = Math.min(request.getOffset(), total);
-        int end = Math.min(request.getOffset() + request.getLimit(), total);
-        List<IAEItemStack> page = new ArrayList<>(Math.max(0, end - start));
-        for (int i = start; i < end; i++) {
-            page.add(filtered.get(i));
-        }
-
-        return new ItemStorageAdapter.PageResult(total, request.getOffset(), page);
+        com.github.aeddddd.ae2enhanced.AE2Enhanced.network.sendTo(
+                new com.github.aeddddd.ae2enhanced.network.packet.PacketOmniPageResultV2(
+                        this.containerSessionId, this.queryGeneration, this.requestId,
+                        result.totalCount, result.offset, entries),
+                (net.minecraft.entity.player.EntityPlayerMP) this.getPlayerInv().player);
     }
 
-    private ItemStorageAdapter findItemStorageAdapter() {
-        ItemStorageAdapter adapter = null;
+    private TerminalQueryService.PageResult query(String search, byte searchMode, byte sortBy,
+            byte sortDir, byte viewMode, int offset, int limit, List<ItemDescriptor> requestFilter) {
+        IPartitionList<IAEItemStack> viewCellFilter =
+                appeng.items.storage.ItemViewCell.createFilter(this.getViewCells());
+        Set<ItemDescriptor> clientFilter = requestFilter == null ? null : new HashSet<>(requestFilter);
+        return this.queryService.query(new TerminalQueryService.Query(search, searchMode, sortBy,
+                sortDir, viewMode, offset, limit, viewCellFilter, clientFilter));
+    }
 
-        // 方案 1：如果 omniMonitor 直接是 SimpleMEMonitor
-        if (this.omniMonitor instanceof SimpleMEMonitor) {
-            adapter = ((SimpleMEMonitor) this.omniMonitor).getAdapter();
-        }
+    public long getContainerSessionId() {
+        return this.containerSessionId;
+    }
 
-        // 方案 2：遍历网络节点找到 TileHyperdimensionalController
-        if (adapter == null) {
-            try {
-                appeng.api.networking.IGridNode node = getNetworkNode();
-                if (node == null || node.getGrid() == null) return null;
-                appeng.api.networking.IGrid grid = node.getGrid();
+    public long getQueryGeneration() {
+        return this.queryGeneration;
+    }
 
-                for (appeng.api.networking.IGridNode gridNode : grid.getNodes()) {
-                    Object machine = gridNode.getMachine();
-                    if (machine instanceof TileHyperdimensionalController) {
-                        TileHyperdimensionalController controller = (TileHyperdimensionalController) machine;
-                        if (controller.isFormed()) {
-                            adapter = controller.getItemAdapter();
-                            break;
-                        }
-                    }
-                }
-            } catch (Exception e) {
-                com.github.aeddddd.ae2enhanced.AE2Enhanced.LOGGER.error("[AE2E] Failed to find ItemStorageAdapter", e);
-            }
-        }
-
-        // 将网络 monitor 设为 adapter 的外部存储源，确保终端能看到全部物品。
-        // 如果 omniMonitor 只是 SimpleMEMonitor（即 adapter 自身包装），则尝试从网格获取真正的网络物品 monitor，
-        // 以便拿到 crafting grid 注入的 craftable 标记。
-        if (adapter != null) {
-            appeng.api.storage.IMEMonitor<IAEItemStack> desiredExternal = this.omniMonitor;
-            if (desiredExternal instanceof SimpleMEMonitor) {
-                appeng.api.networking.IGridNode node = getNetworkNode();
-                if (node != null && node.getGrid() != null) {
-                    appeng.api.networking.IGrid grid = node.getGrid();
-                    IStorageGrid storageGrid = grid.getCache(IStorageGrid.class);
-                    if (storageGrid != null) {
-                        appeng.api.storage.IMEMonitor<IAEItemStack> netMonitor = storageGrid.getInventory(
-                                AEApi.instance().storage().getStorageChannel(IItemStorageChannel.class));
-                        if (netMonitor != null) {
-                            desiredExternal = netMonitor;
-                        }
-                    }
-                }
-            }
-            if (adapter.getExternalMonitor() != desiredExternal) {
-                adapter.setExternalMonitor(desiredExternal);
-            }
-        }
-
-        return adapter;
+    public long getRequestId() {
+        return this.requestId;
     }
 
 }

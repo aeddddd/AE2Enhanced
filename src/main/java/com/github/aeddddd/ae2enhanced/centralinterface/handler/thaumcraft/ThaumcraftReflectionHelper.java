@@ -83,6 +83,8 @@ public class ThaumcraftReflectionHelper {
             ReflectionCache.method(CLASS_CRUCIBLE_RECIPE, "getCatalyst");
     public static final Method METHOD_CRUCIBLE_GET_ASPECTS =
             ReflectionCache.method(CLASS_CRUCIBLE_RECIPE, "getAspects");
+    public static final Method METHOD_CRUCIBLE_GET_RECIPE_OUTPUT =
+            ReflectionCache.method(CLASS_CRUCIBLE_RECIPE, "getRecipeOutput");
 
     // ---- AspectList ----
     public static final Method METHOD_ASPECT_LIST_SIZE = ReflectionCache.method(CLASS_ASPECT_LIST, "size");
@@ -145,6 +147,29 @@ public class ThaumcraftReflectionHelper {
         return (Map<?, ?>) invoke(METHOD_GET_CRAFTING_RECIPES, null);
     }
 
+    public static Object getInfusionRecipeExact(ItemStack stack) {
+        Map<?, ?> recipes = getCraftingRecipes();
+        if (recipes == null) return null;
+        for (Object recipe : recipes.values()) {
+            if (!CLASS_INFUSION_RECIPE.isInstance(recipe)) continue;
+            Object output = infusionGetRecipeOutput(recipe);
+            if (output instanceof ItemStack && com.github.aeddddd.ae2enhanced.centralinterface.recipe
+                    .RecipeBinding.exactMatch((ItemStack) output, stack)) return recipe;
+        }
+        return null;
+    }
+
+    public static Object getCrucibleRecipeExact(ItemStack stack) {
+        Map<?, ?> recipes = getCraftingRecipes();
+        if (recipes == null) return null;
+        for (Object recipe : recipes.values()) {
+            if (CLASS_CRUCIBLE_RECIPE.isInstance(recipe)
+                    && com.github.aeddddd.ae2enhanced.centralinterface.recipe.RecipeBinding.exactMatch(
+                            crucibleGetRecipeOutput(recipe), stack)) return recipe;
+        }
+        return null;
+    }
+
     // ---- IPlayerKnowledge ----
 
     public static Object getKnowledge(EntityPlayer player) {
@@ -204,6 +229,10 @@ public class ThaumcraftReflectionHelper {
         return invoke(METHOD_CRUCIBLE_GET_ASPECTS, recipe);
     }
 
+    public static ItemStack crucibleGetRecipeOutput(Object recipe) {
+        return (ItemStack) invoke(METHOD_CRUCIBLE_GET_RECIPE_OUTPUT, recipe);
+    }
+
     // ---- AspectList ----
 
     public static int aspectListSize(Object aspects) {
@@ -226,7 +255,9 @@ public class ThaumcraftReflectionHelper {
                 if (aspect == null) continue;
                 int amount = (Integer) METHOD_ASPECT_LIST_GET_AMOUNT.invoke(aspects, aspect);
                 if (amount <= 0) continue;
-                Object essStack = CTOR_ESSENTIA_STACK.newInstance(aspect, (int) ((long) amount * count));
+                long total = Math.multiplyExact((long) amount, count);
+                if (total > Integer.MAX_VALUE) return null;
+                Object essStack = CTOR_ESSENTIA_STACK.newInstance(aspect, (int) total);
                 Object aeStack = METHOD_FROM_ESSENTIA_STACK.invoke(null, essStack);
                 if (aeStack == null) {
                     return null;

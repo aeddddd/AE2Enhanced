@@ -13,7 +13,7 @@ import javax.annotation.Nullable;
 import appeng.api.networking.crafting.ICraftingPatternDetails;
 import appeng.api.storage.data.IAEItemStack;
 
-import com.github.aeddddd.ae2enhanced.diag.metrics.MetricsRegistry;
+import com.github.aeddddd.ae2enhanced.observation.Observations;
 
 /**
  * 计划结果缓存(任务 4):C3 求解闭包缓存 + C1 计划结果缓存.
@@ -26,7 +26,7 @@ import com.github.aeddddd.ae2enhanced.diag.metrics.MetricsRegistry;
  * 只依赖索引(单元成员键、样板输入键),与库存/需求无关(见方案地基事实 1),故可按根键
  * 整体复用.同一闭包同时给出<b>覆盖键表</b>(闭包键 ∪ 可达样板全部输入键 ∪ 根键)——
  * 稀疏库存(C2)与指纹都按此表;</li>
- * <li><b>C1 计划</b>({@code rootKey, target, pruneMode, solverMode, 指纹} → {@link CondensationPlanner.LpPlanOutcome}):
+ * <li><b>C1 计划</b>({@code rootKey, target, pruneMode, solverMode, 自举/legacy预算, 指纹} → {@link CondensationPlanner.LpPlanOutcome}):
  * 指纹 = 覆盖键逐位 (键哈希, 库存 long, 发射位) 的 64 位混淆值,只作快速否决;命中时
  * 仍<b>逐元素精确比较</b>库存/发射位数组,零误返.命中返回同一次计算的产物
  * (产物不可变;读取方不得修改——见 {@code FlowReconciler} R1),故冷/热逐位一致.</li>
@@ -34,13 +34,13 @@ import com.github.aeddddd.ae2enhanced.diag.metrics.MetricsRegistry;
  *
  * <p><b>确定性纪律</b>:覆盖键表按 canon 键升序({@link StableOrder#sortedKeys}),
  * 逐键哈希取 {@link StableOrder#keyOf} 的规范串(FNV-1a,与 JVM 启动无关);
- * pruneMode/solverMode 进 C1 键——同 JVM 切换属性不得跨模式命中.</p>
+ * pruneMode/solverMode/自举与legacy数值预算进 C1 键——同 JVM 不同请求快照不得跨语义命中.</p>
  *
  * <p><b>线程安全</b>:两个 LRU 为 accessOrder {@code LinkedHashMap},全部读写在同一把
  * 实例锁内(容量小,临界区为 O(条目数) 的 O(1) 操作);闭包未命中时的构建也在锁内完成,
  * 保证同一根键的闭包只构建一次.缓存产物不可变,可跨线程共享读取.</p>
  *
- * <p><b>指标</b>(仅 {@code ae2e.planCacheStats=true} 时上报 MetricsRegistry):
+ * <p><b>指标</b>(仅 {@code ae2e.planCacheStats=true} 时上报 Observations):
  * {@code plan.cache.closure.hit|miss}、{@code plan.cache.plan.hit|miss}、
  * {@code plan.cache.plan.hit.shortfall}(命中产物含赤字/降级);稀疏库存覆盖集外读穿
  * ({@code plan.cache.sparse.fallback})恒定维护——它是覆盖集完备性的自检信号,正常为 0,
@@ -194,41 +194,9 @@ public final class LpPlanCache {
         }
     }
 
-    /** C1 键:闭包身份 + 请求量 + 两个模式档 + 指纹(等价性由指纹 + 逐元素复核共同保证). */
-    private static final class PlanKey {
-        final Closure closure;
-        final long target;
-        final PruneSettings.Mode prune;
-        final String solverMode;
-        final long fingerprint;
-
-        PlanKey(Closure closure, long target, PruneSettings.Mode prune, String solverMode,
-                long fingerprint) {
-            this.closure = closure;
-            this.target = target;
-            this.prune = prune;
-            this.solverMode = solverMode;
-            this.fingerprint = fingerprint;
-        }
-
-        @Override
-        public int hashCode() {
-            int h = System.identityHashCode(this.closure);
-            h = h * 31 + (int) (this.target ^ (this.target >>> 32));
-            h = h * 31 + this.prune.ordinal();
-            h = h * 31 + this.solverMode.hashCode();
-            h = h * 31 + (int) (this.fingerprint ^ (this.fingerprint >>> 32));
-            return h;
-        }
-
-        @Override
-        public boolean equals(Object other) {
-            if (!(other instanceof PlanKey)) {
-                return false;
-            }
-            PlanKey o = (PlanKey) other;
-            return this.closure == o.closure && this.target == o.target && this.prune == o.prune
-                    && this.fingerprint == o.fingerprint && this.solverMode.equals(o.solverMode);
+    private static void metrics(String name, Settings settings) {
+        if (settings.stats) {
+            Observations.counter(name).increment();
         }
     }
 
@@ -290,9 +258,9 @@ public final class LpPlanCache {
      */
     @Nullable
     public CondensationPlanner.LpPlanOutcome planLookup(Closure closure, long target,
-            PruneSettings prune, String solverMode, long fingerprint, long[] values, long[] emits,
+            RequestConfigSnapshot config, long fingerprint, long[] values, long[] emits,
             Settings settings) {
-        PlanKey key = new PlanKey(closure, target, prune.mode, solverMode, fingerprint);
+        PlanKey key = new PlanKey(closure, target, config, fingerprint);
         synchronized (this) {
             PlanEntry entry = this.plans.get(key);
             if (entry == null || !exactMatch(entry, closure, values, emits)) {
@@ -311,12 +279,12 @@ public final class LpPlanCache {
     }
 
     /** 计划缓存登记(值必须与指纹/精确值数组同源). */
-    public void planPut(Closure closure, long target, PruneSettings prune, String solverMode,
+    public void planPut(Closure closure, long target, RequestConfigSnapshot config,
             long fingerprint, long[] values, long[] emits, CondensationPlanner.LpPlanOutcome outcome,
             Settings settings) {
-        PlanKey key = new PlanKey(closure, target, prune.mode, solverMode, fingerprint);
-        PlanEntry entry = new PlanEntry(closure, target, prune.mode, solverMode, fingerprint, values,
-                emits, outcome);
+        PlanKey key = new PlanKey(closure, target, config, fingerprint);
+        PlanEntry entry = new PlanEntry(closure, target, config.prune.mode, config.solverMode, fingerprint,
+                values, emits, outcome);
         long bytes = estimateBytes(entry);
         synchronized (this) {
             PlanEntry previous = this.plans.put(key, entry);
@@ -470,12 +438,63 @@ public final class LpPlanCache {
      */
     void noteCoverageFallback() {
         this.coverageFallbacks.incrementAndGet();
-        MetricsRegistry.counter("plan.cache.sparse.fallback").increment();
+        Observations.counter("plan.cache.sparse.fallback").increment();
     }
 
-    private static void metrics(String name, Settings settings) {
-        if (settings.stats) {
-            MetricsRegistry.counter(name).increment();
+    /** C1 键保留 prune/solver，并隔离会改变截断或数值轨迹的请求级预算。 */
+    private static final class PlanKey {
+        final Closure closure;
+        final long target;
+        final PruneSettings.Mode prune;
+        final String solverMode;
+        final int bootstrapIterBudget;
+        final long bootstrapFuseNs;
+        final int legacyPerturbRestarts;
+        final int legacyRepairBudget;
+        final Integer legacyRestoreBudget;
+        final long fingerprint;
+
+        PlanKey(Closure closure, long target, RequestConfigSnapshot config, long fingerprint) {
+            this.closure = closure;
+            this.target = target;
+            this.prune = config.prune.mode;
+            this.solverMode = config.solverMode;
+            this.bootstrapIterBudget = config.bootstrapIterBudget;
+            this.bootstrapFuseNs = config.bootstrapFuseNs;
+            this.legacyPerturbRestarts = config.legacy.perturbRestarts;
+            this.legacyRepairBudget = config.legacy.repairBudget;
+            this.legacyRestoreBudget = config.legacy.restoreBudget;
+            this.fingerprint = fingerprint;
+        }
+
+        @Override
+        public int hashCode() {
+            int h = System.identityHashCode(this.closure);
+            h = h * 31 + (int) (this.target ^ (this.target >>> 32));
+            h = h * 31 + this.prune.ordinal();
+            h = h * 31 + this.solverMode.hashCode();
+            h = h * 31 + this.bootstrapIterBudget;
+            h = h * 31 + (int) (this.bootstrapFuseNs ^ (this.bootstrapFuseNs >>> 32));
+            h = h * 31 + this.legacyPerturbRestarts;
+            h = h * 31 + this.legacyRepairBudget;
+            h = h * 31 + (this.legacyRestoreBudget == null ? 0 : this.legacyRestoreBudget);
+            h = h * 31 + (int) (this.fingerprint ^ (this.fingerprint >>> 32));
+            return h;
+        }
+
+        @Override
+        public boolean equals(Object other) {
+            if (!(other instanceof PlanKey)) {
+                return false;
+            }
+            PlanKey o = (PlanKey) other;
+            return this.closure == o.closure && this.target == o.target && this.prune == o.prune
+                    && this.bootstrapIterBudget == o.bootstrapIterBudget
+                    && this.bootstrapFuseNs == o.bootstrapFuseNs
+                    && this.legacyPerturbRestarts == o.legacyPerturbRestarts
+                    && this.legacyRepairBudget == o.legacyRepairBudget
+                    && java.util.Objects.equals(this.legacyRestoreBudget, o.legacyRestoreBudget)
+                    && this.fingerprint == o.fingerprint && this.solverMode.equals(o.solverMode);
         }
     }
 

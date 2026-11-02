@@ -16,4 +16,8 @@ public interface IOmniTerminalGui {
 
     /** R3 变化通知（节流刷新）。 */
     void handleUpdateNotify();
+
+    /** 原生接口终端的供应器/样板 NBT 更新；旧终端没有该面板时忽略。 */
+    default void postUpdate(net.minecraft.nbt.NBTTagCompound data) {
+    }
 }

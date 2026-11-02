@@ -2,7 +2,7 @@ package com.github.aeddddd.ae2enhanced.terminal;
 
 import appeng.api.storage.data.IAEItemStack;
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
-import com.github.aeddddd.ae2enhanced.network.packet.PacketMEMonitorableAction;
+import com.github.aeddddd.ae2enhanced.terminal.packet.PacketMEMonitorableAction;
 import net.minecraft.client.gui.inventory.GuiContainer;
 import net.minecraft.inventory.Slot;
 import net.minecraft.item.ItemStack;

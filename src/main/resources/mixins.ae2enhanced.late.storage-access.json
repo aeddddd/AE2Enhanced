@@ -1,0 +1,13 @@
+{
+  "package": "com.github.aeddddd.ae2enhanced.storage.access.mixin",
+  "plugin": "com.github.aeddddd.ae2enhanced.mixin.LateMixinPlugin",
+  "refmap": "mixin.refmap.json",
+  "target": "@env(DEFAULT)",
+  "minVersion": "0.8",
+  "compatibilityLevel": "JAVA_8",
+  "mixins": [
+    "INetworkMonitorAccessor"
+  ],
+  "client": [],
+  "server": []
+}

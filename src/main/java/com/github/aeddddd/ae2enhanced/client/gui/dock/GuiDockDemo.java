@@ -1,24 +1,22 @@
 package com.github.aeddddd.ae2enhanced.client.gui.dock;
 
-import java.io.File;
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-
+import com.github.aeddddd.ae2enhanced.client.gui.dock.workspace.AtomicFileDockLayoutStore;
+import com.github.aeddddd.ae2enhanced.client.gui.dock.workspace.DockLayoutPersistence;
+import com.github.aeddddd.ae2enhanced.dock.workspace.DockLayoutCodec;
 import net.minecraft.client.gui.GuiButton;
 import net.minecraft.client.gui.GuiScreen;
 import net.minecraft.client.resources.I18n;
 import net.minecraftforge.fml.common.Loader;
 import net.minecraftforge.fml.relauncher.Side;
 import net.minecraftforge.fml.relauncher.SideOnly;
-
 import org.lwjgl.input.Keyboard;
 import org.lwjgl.input.Mouse;
 
-import com.github.aeddddd.ae2enhanced.client.gui.dock.workspace.AtomicFileDockLayoutStore;
-import com.github.aeddddd.ae2enhanced.client.gui.dock.workspace.DockLayoutCodec;
-import com.github.aeddddd.ae2enhanced.client.gui.dock.workspace.DockLayoutPersistence;
+import java.io.File;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 
 /**
  * 停靠引擎的开发演示屏（{@code /ae2edockdemo}）：5 个占位面板 + 模块显隐按钮 + 撤销/保存按钮，

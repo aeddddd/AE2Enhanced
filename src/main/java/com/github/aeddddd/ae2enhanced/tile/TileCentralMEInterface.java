@@ -16,14 +16,13 @@ import appeng.api.networking.crafting.ICraftingProvider;
 import appeng.parts.automation.StackUpgradeInventory;
 import appeng.util.IConfigManagerHost;
 import appeng.util.inv.IAEAppEngInventory;
-import com.github.aeddddd.ae2enhanced.registry.content.BlockRegistry;
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
 import com.github.aeddddd.ae2enhanced.centralinterface.DualityCentralInterface;
 import com.github.aeddddd.ae2enhanced.centralinterface.ICentralInterfaceHost;
 import com.github.aeddddd.ae2enhanced.centralinterface.TargetBinding;
 import com.github.aeddddd.ae2enhanced.item.ItemChannelReceiverCard;
-import com.github.aeddddd.ae2enhanced.network.packet.PacketCentralBindingOutline;
-import com.github.aeddddd.ae2enhanced.util.network.WirelessChannelConnectionHelper;
+import com.github.aeddddd.ae2enhanced.tile.packet.PacketCentralBindingOutline;
+import com.github.aeddddd.ae2enhanced.tile.network.WirelessChannelConnectionHelper;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.inventory.InventoryCrafting;
 import net.minecraft.item.ItemStack;
@@ -48,7 +47,8 @@ import java.util.WeakHashMap;
 public class TileCentralMEInterface extends TileAENetworkBase
     implements ICentralInterfaceHost, IGridTickable, ICraftingProvider,
                IAEAppEngInventory, IInventoryDestination, IConfigManagerHost,
-               appeng.api.implementations.IUpgradeableHost, ITickable {
+               appeng.api.implementations.IUpgradeableHost, ITickable,
+               com.github.aeddddd.ae2enhanced.item.memorycard.api.CentralBindingTarget {
 
     private DualityCentralInterface duality;
     private StackUpgradeInventory upgrades;
@@ -103,7 +103,7 @@ public class TileCentralMEInterface extends TileAENetworkBase
 
     @Override
     protected ItemStack getProxyRepresentation() {
-        return new ItemStack(BlockRegistry.CENTRAL_ME_INTERFACE);
+        return new ItemStack(getBlockType());
     }
 
     /**
@@ -385,6 +385,27 @@ public class TileCentralMEInterface extends TileAENetworkBase
         getInterfaceDuality().clearBindings();
         this.markDirty();
         syncToClient();
+    }
+
+    @Override
+    public int bindSelections(net.minecraft.world.World world,
+            java.util.List<com.github.aeddddd.ae2enhanced.item.ItemUniversalMemoryCard.SelectionEntry> selections) {
+        int bound = 0;
+        for (com.github.aeddddd.ae2enhanced.item.ItemUniversalMemoryCard.SelectionEntry entry : selections) {
+            if (entry.dim != world.provider.getDimension() || !world.isBlockLoaded(entry.pos)) continue;
+            if (world.getTileEntity(entry.pos) == null) continue;
+            String blockId = world.getBlockState(entry.pos).getBlock().getRegistryName().toString();
+            addBinding(new TargetBinding(entry.pos, entry.dim, blockId));
+            bound++;
+        }
+        return bound;
+    }
+
+    @Override
+    public int clearBindingSelections() {
+        int count = getInterfaceDuality().getBindings().size();
+        clearBindings();
+        return count;
     }
 
     private void syncToClient() {

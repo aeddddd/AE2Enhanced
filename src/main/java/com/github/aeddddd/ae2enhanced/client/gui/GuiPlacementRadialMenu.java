@@ -2,7 +2,7 @@ package com.github.aeddddd.ae2enhanced.client.gui;
 
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
 import com.github.aeddddd.ae2enhanced.network.packet.PacketPlacementSelectPreset;
-import com.github.aeddddd.ae2enhanced.util.placement.PlacementConfig;
+import com.github.aeddddd.ae2enhanced.omnitool.placement.PlacementConfig;
 import net.minecraft.client.gui.GuiScreen;
 import net.minecraft.client.renderer.RenderHelper;
 import net.minecraft.client.resources.I18n;
@@ -93,7 +93,7 @@ public class GuiPlacementRadialMenu extends GuiScreen {
 
     private static boolean isSameItemType(ItemStack a, ItemStack b) {
         // 线缆按类型合并，忽略颜色
-        if (com.github.aeddddd.ae2enhanced.util.placement.PlacementTargetResolver.isSameCableType(a, b)) {
+        if (com.github.aeddddd.ae2enhanced.omnitool.placement.PlacementTargetResolver.isSameCableType(a, b)) {
             return true;
         }
         return a.getItem() == b.getItem()

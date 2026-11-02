@@ -42,6 +42,14 @@ public class BulkCollector {
         return result;
     }
 
+    List<IAEItemStack> snapshot() {
+        List<IAEItemStack> result = new ArrayList<>(buffer.size());
+        for (IAEItemStack stack : buffer) {
+            result.add(stack.copy());
+        }
+        return result;
+    }
+
     public boolean isEmpty() {
         return buffer.isEmpty();
     }

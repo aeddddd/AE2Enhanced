@@ -139,9 +139,10 @@ public final class JeiSearchHelper {
      */
     @SuppressWarnings("unchecked")
     public static List<ItemDescriptor> getMatchingDescriptors(String query) {
-        if (!isAvailable() || query == null || query.isEmpty()) {
+        if (!isAvailable() || query == null || query.trim().isEmpty()) {
             return null;
         }
+        query = query.trim();
 
         Object filter = JEISearchKeyHandler.getJeiRuntime().getIngredientFilter();
         if (filter == null || getFilteredIngredientsMethod == null) {
@@ -150,14 +151,21 @@ public final class JeiSearchHelper {
 
         List<Object> ingredients;
         try {
-            ingredients = (List<Object>) getFilteredIngredientsMethod.invoke(filter, query);
+            java.util.Set<Object> expanded = new java.util.LinkedHashSet<>();
+            expanded.addAll((List<Object>) getFilteredIngredientsMethod.invoke(filter, query));
+            if (query.length() >= 2 && query.length() <= 3 && query.matches("[a-zA-Z]+")) {
+                for (String suffix : new String[]{"a", "e", "i", "o", "u", "v"}) {
+                    expanded.addAll((List<Object>) getFilteredIngredientsMethod.invoke(filter, query + suffix));
+                }
+            }
+            ingredients = new ArrayList<>(expanded);
         } catch (Exception e) {
             AE2Enhanced.LOGGER.debug("[AE2E] Failed to query HEI/JEI filter", e);
             return null;
         }
 
         if (ingredients == null || ingredients.isEmpty()) {
-            return null;
+            return java.util.Collections.emptyList();
         }
 
         // 结果过多时放弃 HEI 过滤，避免巨型数据包和客户端卡顿
@@ -168,6 +176,14 @@ public final class JeiSearchHelper {
 
         List<ItemDescriptor> result = new ArrayList<>(Math.min(ingredients.size(), 1024));
         for (Object ingredient : ingredients) {
+            if (ingredient instanceof net.minecraftforge.fluids.FluidStack) {
+                ItemStack fluidDrop = com.github.aeddddd.ae2enhanced.util.compat.Ae2fcFluidHelper
+                        .packFluid2Drops((net.minecraftforge.fluids.FluidStack) ingredient);
+                if (fluidDrop != null && !fluidDrop.isEmpty()) {
+                    result.add(new ItemDescriptor(fluidDrop));
+                }
+                continue;
+            }
             if (!(ingredient instanceof ItemStack)) {
                 continue;
             }

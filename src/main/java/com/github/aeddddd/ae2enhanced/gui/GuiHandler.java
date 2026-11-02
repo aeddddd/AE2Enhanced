@@ -1,458 +1,61 @@
 package com.github.aeddddd.ae2enhanced.gui;
 
-import appeng.api.parts.IPart;
-import appeng.api.parts.IPartHost;
-import appeng.api.util.AEPartLocation;
-import com.github.aeddddd.ae2enhanced.AE2Enhanced;
-import com.github.aeddddd.ae2enhanced.client.gui.*;
-import com.github.aeddddd.ae2enhanced.container.*;
-import com.github.aeddddd.ae2enhanced.item.ItemOmniWirelessTerminal;
-import com.github.aeddddd.ae2enhanced.part.PartStockingBus;
-import com.github.aeddddd.ae2enhanced.part.PartUniversalExportBus;
-import com.github.aeddddd.ae2enhanced.part.PartUniversalImportBus;
-import com.github.aeddddd.ae2enhanced.tile.*;
+import com.github.aeddddd.ae2enhanced.guiapi.GuiCatalog;
+
 import net.minecraft.entity.player.EntityPlayer;
-import net.minecraft.item.ItemStack;
-import net.minecraft.tileentity.TileEntity;
-import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
 import net.minecraftforge.fml.common.network.IGuiHandler;
+import net.minecraftforge.fml.relauncher.Side;
 
-public class GuiHandler implements IGuiHandler {
+/** 旧 FML 入口与常量别名；实际路由由两侧 endpoint 承担。 */
+public final class GuiHandler implements IGuiHandler {
+    public static final int GUI_ASSEMBLY_CONTROLLER = GuiCatalog.GUI_ASSEMBLY_CONTROLLER;
+    public static final int GUI_ASSEMBLY_PATTERN = GuiCatalog.GUI_ASSEMBLY_PATTERN;
+    public static final int GUI_HYPERDIMENSIONAL_NEXUS = GuiCatalog.GUI_HYPERDIMENSIONAL_NEXUS;
+    public static final int GUI_HYPERDIMENSIONAL_UNFORMED = GuiCatalog.GUI_HYPERDIMENSIONAL_UNFORMED;
+    public static final int GUI_COMPUTATION_FORMED = GuiCatalog.GUI_COMPUTATION_FORMED;
+    public static final int GUI_COMPUTATION_UNFORMED = GuiCatalog.GUI_COMPUTATION_UNFORMED;
+    public static final int GUI_UNIVERSAL_IMPORT_BUS = GuiCatalog.GUI_UNIVERSAL_IMPORT_BUS;
+    public static final int GUI_UNIVERSAL_EXPORT_BUS = GuiCatalog.GUI_UNIVERSAL_EXPORT_BUS;
+    public static final int GUI_STOCKING_BUS = GuiCatalog.GUI_STOCKING_BUS;
+    public static final int GUI_WIRELESS_CHANNEL_TRANSMITTER = GuiCatalog.GUI_WIRELESS_CHANNEL_TRANSMITTER;
+    public static final int GUI_UNIVERSAL_MEMORY_CARD = GuiCatalog.GUI_UNIVERSAL_MEMORY_CARD;
+    public static final int GUI_OMNI_TERMINAL = GuiCatalog.GUI_OMNI_TERMINAL;
+    public static final int GUI_CENTRAL_ME_INTERFACE = GuiCatalog.GUI_CENTRAL_ME_INTERFACE;
+    public static final int GUI_SMART_PATTERN_INTERFACE = GuiCatalog.GUI_SMART_PATTERN_INTERFACE;
+    public static final int GUI_ENERGY_STORAGE_BUS = GuiCatalog.GUI_ENERGY_STORAGE_BUS;
+    public static final int GUI_SPLICED_TERMINAL = GuiCatalog.GUI_SPLICED_TERMINAL;
+    public static final int GUI_OMNI_TOOL_CONFIG = GuiCatalog.GUI_OMNI_TOOL_CONFIG;
+    public static final int GUI_ADVANCED_ME_COLLECTOR = GuiCatalog.GUI_ADVANCED_ME_COLLECTOR;
+    public static final int GUI_ME_NETWORK_RECYCLER = GuiCatalog.GUI_ME_NETWORK_RECYCLER;
+    public static final int GUI_EMC_INTERFACE = GuiCatalog.GUI_EMC_INTERFACE;
+    public static final int GUI_PERSONAL_DIMENSION_CONFIG = GuiCatalog.GUI_PERSONAL_DIMENSION_CONFIG;
+    public static final int GUI_DISPLAY_WALL = GuiCatalog.GUI_DISPLAY_WALL;
+    public static final int GUI_SINGULARITY_CHAMBER = GuiCatalog.GUI_SINGULARITY_CHAMBER;
+    public static final int GUI_RING_CONFIG = GuiCatalog.GUI_RING_CONFIG;
+    public static final int GUI_CHUNK_POWER_NODE = GuiCatalog.GUI_CHUNK_POWER_NODE;
 
-    public static final int GUI_ASSEMBLY_CONTROLLER = 0;
-    public static final int GUI_ASSEMBLY_PATTERN = 1;
-    public static final int GUI_HYPERDIMENSIONAL_NEXUS = 2;
-    public static final int GUI_HYPERDIMENSIONAL_UNFORMED = 3;
-    public static final int GUI_COMPUTATION_FORMED = 4;
-    public static final int GUI_COMPUTATION_UNFORMED = 5;
-    public static final int GUI_UNIVERSAL_IMPORT_BUS = 6;
-    public static final int GUI_UNIVERSAL_EXPORT_BUS = 7;
-    public static final int GUI_STOCKING_BUS = 8;
-    public static final int GUI_WIRELESS_CHANNEL_TRANSMITTER = 9;
-    public static final int GUI_UNIVERSAL_MEMORY_CARD = 10;
-    public static final int GUI_OMNI_TERMINAL = 11;
-    public static final int GUI_CENTRAL_ME_INTERFACE = 12;
-    public static final int GUI_SMART_PATTERN_INTERFACE = 13;
-    public static final int GUI_ENERGY_STORAGE_BUS = 14;
-    /** 可拼接全能无线终端（第二代物品）的 GUI id；≤15 以兼容 {@link #encodePatternId} 的页码位。 */
-    public static final int GUI_SPLICED_TERMINAL = 15;
-    public static final int GUI_OMNI_TOOL_CONFIG = 26;
-
-    public static final int GUI_ADVANCED_ME_COLLECTOR = 27;
-    public static final int GUI_ME_NETWORK_RECYCLER = 28;
-    public static final int GUI_EMC_INTERFACE = 29;
-    public static final int GUI_PERSONAL_DIMENSION_CONFIG = 30;
-    public static final int GUI_DISPLAY_WALL = 31;
-    public static final int GUI_SINGULARITY_CHAMBER = 32;
-    public static final int GUI_RING_CONFIG = 33;
-    public static final int GUI_CHUNK_POWER_NODE = 34;
-
-
-    /** 编码页码到 GUI ID：低4位为 base ID,bit8-15为页码,bit16-20为 patternPages */
     public static int encodePatternId(int page, int patternPages) {
-        return GUI_ASSEMBLY_PATTERN | (page << 8) | (patternPages << 16);
+        return GuiCatalog.encodePatternId(page, patternPages);
     }
 
-    /** 从 GUI ID 解码页码 */
-    public static int decodePatternPage(int ID) {
-        return (ID >> 8) & 0xFF;
+    public static int decodePatternPage(int id) {
+        return GuiCatalog.decodePatternPage(id);
     }
 
-    /** 从 GUI ID 解码 patternPages */
-    public static int decodePatternPages(int ID) {
-        return (ID >> 16) & 0x1F;
-    }
-
-    @Override
-    public Object getServerGuiElement(int ID, EntityPlayer player, World world, int x, int y, int z) {
-        // Omni 终端是无线物品 GUI,不依赖 TileEntity,优先处理避免与 (0,0,0) 处 TileEntity 冲突
-        // 两代终端共用这条链路:11 = 旧 GUI(ContainerOmniTerm),15 = 可拼接终端(ContainerSplicedTerm)
-        if (ID == GUI_OMNI_TERMINAL || ID == GUI_SPLICED_TERMINAL) {
-            ItemStack held = findOmniTerminalStack(player, x, y);
-            if (held.getItem() instanceof ItemOmniWirelessTerminal) {
-                appeng.api.features.IWirelessTermHandler handler = appeng.api.AEApi.instance().registries().wireless().getWirelessTerminalHandler(held);
-                if (handler == null) {
-                    AE2Enhanced.LOGGER.warn("[AE2E] No wireless handler found for OmniTerminal");
-                    return null;
-                }
-                appeng.helpers.WirelessTerminalGuiObject host = new appeng.helpers.WirelessTerminalGuiObject(handler, held, player, world, x, y, 0);
-                if (host.getActionableNode() == null) {
-                    player.sendMessage(appeng.core.localization.PlayerMessages.OutOfRange.get());
-                    return null;
-                }
-                if (ID == GUI_SPLICED_TERMINAL) {
-                    return new com.github.aeddddd.ae2enhanced.container.ContainerSplicedTerm(player.inventory, host);
-                }
-                return new ContainerOmniTerm(player.inventory, host);
-            }
-            AE2Enhanced.LOGGER.warn("[AE2E] OmniTerminal not found for {}", player.getName());
-            return null;
-        }
-
-        TileEntity te = world.getTileEntity(new BlockPos(x, y, z));
-        if (te instanceof TileAssemblyController) {
-            TileAssemblyController tile = (TileAssemblyController) te;
-            int baseId = ID & 0xF;
-            if (baseId == GUI_ASSEMBLY_CONTROLLER) {
-                if (tile.isFormed()) {
-                    return new ContainerAssemblyFormed(player.inventory, tile);
-                } else {
-                    return new ContainerAssemblyUnformed(player.inventory, tile);
-                }
-            } else if (baseId == GUI_ASSEMBLY_PATTERN) {
-                int page = decodePatternPage(ID);
-                int patternPages = decodePatternPages(ID);
-                return new ContainerAssemblyPattern(player.inventory, tile, page, patternPages);
-            }
-        } else if (te instanceof TileHyperdimensionalController) {
-            TileHyperdimensionalController tile = (TileHyperdimensionalController) te;
-            if (ID == GUI_HYPERDIMENSIONAL_UNFORMED && !tile.isFormed()) {
-                return new ContainerHyperdimensionalUnformed(player.inventory, tile);
-            } else if (ID == GUI_HYPERDIMENSIONAL_NEXUS && tile.isFormed()) {
-                return new ContainerHyperdimensionalNexus(player.inventory);
-            }
-            return null;
-        } else if (te instanceof TileComputationCore) {
-            TileComputationCore tile = (TileComputationCore) te;
-            if (ID == GUI_COMPUTATION_UNFORMED && !tile.isFormed()) {
-                return new ContainerComputationUnformed(player.inventory, tile);
-            } else if (ID == GUI_COMPUTATION_FORMED && tile.isFormed()) {
-                return new ContainerComputationFormed(tile);
-            }
-            return null;
-        }
-
-        // Part GUI：解码 side ordinal
-        int baseId = ID & 0xFF;
-        if (baseId == GUI_UNIVERSAL_IMPORT_BUS) {
-            int sideOrdinal = (ID >> 8) & 0xFF;
-            AEPartLocation side = AEPartLocation.fromOrdinal(sideOrdinal);
-            if (te instanceof IPartHost) {
-                IPart part = ((IPartHost) te).getPart(side);
-                if (part instanceof PartUniversalImportBus) {
-                    return new ContainerUniversalImportBus(player.inventory, (PartUniversalImportBus) part);
-                }
-            }
-        }
-        if (baseId == GUI_UNIVERSAL_EXPORT_BUS) {
-            int sideOrdinal = (ID >> 8) & 0xFF;
-            AEPartLocation side = AEPartLocation.fromOrdinal(sideOrdinal);
-            if (te instanceof IPartHost) {
-                IPart part = ((IPartHost) te).getPart(side);
-                if (part instanceof PartUniversalExportBus) {
-                    return new ContainerUniversalExportBus(player.inventory, (PartUniversalExportBus) part);
-                }
-            }
-        }
-        if (baseId == GUI_STOCKING_BUS) {
-            int sideOrdinal = (ID >> 8) & 0xFF;
-            AEPartLocation side = AEPartLocation.fromOrdinal(sideOrdinal);
-            if (te instanceof IPartHost) {
-                IPart part = ((IPartHost) te).getPart(side);
-                if (part instanceof PartStockingBus) {
-                    return new ContainerStockingBus(player.inventory, (PartStockingBus) part);
-                }
-            }
-        }
-        if (baseId == GUI_ENERGY_STORAGE_BUS) {
-            int sideOrdinal = (ID >> 8) & 0xFF;
-            AEPartLocation side = AEPartLocation.fromOrdinal(sideOrdinal);
-            if (te instanceof IPartHost) {
-                IPart part = ((IPartHost) te).getPart(side);
-                if (part instanceof com.github.aeddddd.ae2enhanced.part.PartEnergyStorageBus) {
-                    com.github.aeddddd.ae2enhanced.container.ContainerEnergyStorageBus container =
-                            new com.github.aeddddd.ae2enhanced.container.ContainerEnergyStorageBus(
-                                    player.inventory, (com.github.aeddddd.ae2enhanced.part.PartEnergyStorageBus) part);
-                    // 设置 OpenContext,使 AE2 原生优先级 GUI(PacketSwitchGuis)能回链到本 Part
-                    appeng.container.ContainerOpenContext context = new appeng.container.ContainerOpenContext(part);
-                    context.setWorld(world);
-                    context.setX(x);
-                    context.setY(y);
-                    context.setZ(z);
-                    context.setSide(side);
-                    container.setOpenContext(context);
-                    return container;
-                }
-            }
-        }
-        if (baseId == GUI_WIRELESS_CHANNEL_TRANSMITTER) {
-            if (te instanceof TileWirelessChannelTransmitter) {
-                return new ContainerWirelessChannelTransmitter(player.inventory, (TileWirelessChannelTransmitter) te);
-            }
-        }
-        if (ID == GUI_ADVANCED_ME_COLLECTOR) {
-            if (te instanceof TileAdvancedMECollector) {
-                return new ContainerAdvancedMECollector(player.inventory, (TileAdvancedMECollector) te);
-            }
-        }
-        if (ID == GUI_ME_NETWORK_RECYCLER) {
-            if (te instanceof TileMENetworkRecycler) {
-                return new ContainerMENetworkRecycler(player.inventory, (TileMENetworkRecycler) te);
-            }
-        }
-        if (ID == GUI_EMC_INTERFACE) {
-            if (te instanceof TileEMCInterface) {
-                return new ContainerEMCInterface(player.inventory, (TileEMCInterface) te);
-            }
-        }
-        if (ID == GUI_UNIVERSAL_MEMORY_CARD) {
-            return new com.github.aeddddd.ae2enhanced.container.ContainerUniversalMemoryCard(player);
-        }
-        if (ID == GUI_CENTRAL_ME_INTERFACE) {
-            if (te instanceof TileCentralMEInterface) {
-                return new com.github.aeddddd.ae2enhanced.container.ContainerCentralInterface(player.inventory, (TileCentralMEInterface) te);
-            }
-        }
-        if (ID == GUI_SMART_PATTERN_INTERFACE) {
-            if (te instanceof com.github.aeddddd.ae2enhanced.tile.TileSmartPatternInterface) {
-                return new com.github.aeddddd.ae2enhanced.container.ContainerSmartPatternInterface(player.inventory, (com.github.aeddddd.ae2enhanced.tile.TileSmartPatternInterface) te);
-            }
-        }
-        if (ID == GUI_OMNI_TOOL_CONFIG) {
-            return new ContainerOmniToolConfig();
-        }
-        if (ID == GUI_RING_CONFIG) {
-            return new com.github.aeddddd.ae2enhanced.container.ContainerRingConfig();
-        }
-        if (ID == GUI_PERSONAL_DIMENSION_CONFIG) {
-            // 规则始终编辑玩家自己的维度
-            java.util.UUID target = player.getUniqueID();
-            if (player instanceof net.minecraft.entity.player.EntityPlayerMP) {
-                com.github.aeddddd.ae2enhanced.dimension.PersonalDimensionManager.sendRulesToPlayer(
-                        target, (net.minecraft.entity.player.EntityPlayerMP) player);
-            }
-            return new ContainerPersonalDimensionConfig(target);
-        }
-        if (ID == GUI_DISPLAY_WALL) {
-            if (te instanceof com.github.aeddddd.ae2enhanced.tile.TileDisplayPanel) {
-                com.github.aeddddd.ae2enhanced.tile.TileDisplayPanel tile =
-                        (com.github.aeddddd.ae2enhanced.tile.TileDisplayPanel) te;
-                if (tile.isMasterRole()) {
-                    return new com.github.aeddddd.ae2enhanced.container.ContainerDisplayWall(player.inventory, tile);
-                }
-            }
-            return null;
-        }
-        if (ID == GUI_SINGULARITY_CHAMBER) {
-            if (te instanceof com.github.aeddddd.ae2enhanced.tile.TileSingularityChamber) {
-                return new com.github.aeddddd.ae2enhanced.container.ContainerSingularityChamber(
-                        player.inventory, (com.github.aeddddd.ae2enhanced.tile.TileSingularityChamber) te);
-            }
-            return null;
-        }
-        if (ID == GUI_CHUNK_POWER_NODE) {
-            // TileCompressedChunkPowerNode 继承自 TileChunkPowerNode，二者共用同一 GUI
-            if (te instanceof com.github.aeddddd.ae2enhanced.tile.TileChunkPowerNode) {
-                return new com.github.aeddddd.ae2enhanced.container.ContainerChunkPowerNode(
-                        player.inventory, (com.github.aeddddd.ae2enhanced.tile.TileChunkPowerNode) te);
-            }
-            return null;
-        }
-        return null;
+    public static int decodePatternPages(int id) {
+        return GuiCatalog.decodePatternPages(id);
     }
 
     @Override
-    public Object getClientGuiElement(int ID, EntityPlayer player, World world, int x, int y, int z) {
-        // Omni 终端是无线物品 GUI,不依赖 TileEntity,优先处理避免与 (0,0,0) 处 TileEntity 冲突
-        if (ID == GUI_OMNI_TERMINAL || ID == GUI_SPLICED_TERMINAL) {
-            ItemStack held = findOmniTerminalStack(player, x, y);
-            if (held.getItem() instanceof ItemOmniWirelessTerminal) {
-                appeng.api.features.IWirelessTermHandler handler = appeng.api.AEApi.instance().registries().wireless().getWirelessTerminalHandler(held);
-                if (handler == null) {
-                    AE2Enhanced.LOGGER.warn("[AE2E] No wireless handler found for OmniTerminal (client)");
-                    return null;
-                }
-                appeng.helpers.WirelessTerminalGuiObject host = new appeng.helpers.WirelessTerminalGuiObject(handler, held, player, world, x, y, 0);
-                if (ID == GUI_SPLICED_TERMINAL) {
-                    return new com.github.aeddddd.ae2enhanced.client.gui.terminal.GuiSplicedTerm(player.inventory, host);
-                }
-                return new com.github.aeddddd.ae2enhanced.client.gui.GuiOmniTerm(player.inventory, host);
-            }
-            return null;
-        }
-
-        TileEntity te = world.getTileEntity(new BlockPos(x, y, z));
-        if (te instanceof TileAssemblyController) {
-            TileAssemblyController tile = (TileAssemblyController) te;
-            int baseId = ID & 0xF;
-            if (baseId == GUI_ASSEMBLY_CONTROLLER) {
-                if (tile.isFormed()) {
-                    return new GuiAssemblyFormed(player.inventory, tile);
-                } else {
-                    return new GuiAssemblyUnformed(player.inventory, tile);
-                }
-            } else if (baseId == GUI_ASSEMBLY_PATTERN) {
-                int page = decodePatternPage(ID);
-                int patternPages = decodePatternPages(ID);
-                return new GuiAssemblyPattern(player.inventory, tile, page, patternPages);
-            }
-        } else if (te instanceof TileHyperdimensionalController) {
-            TileHyperdimensionalController tile = (TileHyperdimensionalController) te;
-            if (ID == GUI_HYPERDIMENSIONAL_NEXUS) {
-                return new GuiHyperdimensionalNexus(player.inventory, tile);
-            } else if (ID == GUI_HYPERDIMENSIONAL_UNFORMED) {
-                return new GuiHyperdimensionalUnformed(player.inventory, tile);
-            }
-        } else if (te instanceof TileComputationCore) {
-            TileComputationCore tile = (TileComputationCore) te;
-            if (ID == GUI_COMPUTATION_FORMED) {
-                return new GuiComputationFormed(tile);
-            } else if (ID == GUI_COMPUTATION_UNFORMED) {
-                return new GuiComputationUnformed(player.inventory, tile);
-            }
-        }
-
-        // Part GUI：解码 side ordinal
-        int baseId = ID & 0xFF;
-        if (baseId == GUI_UNIVERSAL_IMPORT_BUS) {
-            int sideOrdinal = (ID >> 8) & 0xFF;
-            AEPartLocation side = AEPartLocation.fromOrdinal(sideOrdinal);
-            if (te instanceof IPartHost) {
-                IPart part = ((IPartHost) te).getPart(side);
-                if (part instanceof PartUniversalImportBus) {
-                    return new GuiUniversalImportBus(player.inventory, (PartUniversalImportBus) part);
-                }
-            }
-        }
-        if (baseId == GUI_UNIVERSAL_EXPORT_BUS) {
-            int sideOrdinal = (ID >> 8) & 0xFF;
-            AEPartLocation side = AEPartLocation.fromOrdinal(sideOrdinal);
-            if (te instanceof IPartHost) {
-                IPart part = ((IPartHost) te).getPart(side);
-                if (part instanceof PartUniversalExportBus) {
-                    return new GuiUniversalExportBus(player.inventory, (PartUniversalExportBus) part);
-                }
-            }
-        }
-        if (baseId == GUI_STOCKING_BUS) {
-            int sideOrdinal = (ID >> 8) & 0xFF;
-            AEPartLocation side = AEPartLocation.fromOrdinal(sideOrdinal);
-            if (te instanceof IPartHost) {
-                IPart part = ((IPartHost) te).getPart(side);
-                if (part instanceof PartStockingBus) {
-                    return new GuiStockingBus(player.inventory, (PartStockingBus) part);
-                }
-            }
-        }
-        if (baseId == GUI_ENERGY_STORAGE_BUS) {
-            int sideOrdinal = (ID >> 8) & 0xFF;
-            AEPartLocation side = AEPartLocation.fromOrdinal(sideOrdinal);
-            if (te instanceof IPartHost) {
-                IPart part = ((IPartHost) te).getPart(side);
-                if (part instanceof com.github.aeddddd.ae2enhanced.part.PartEnergyStorageBus) {
-                    return new com.github.aeddddd.ae2enhanced.client.gui.GuiEnergyStorageBus(
-                            player.inventory, (com.github.aeddddd.ae2enhanced.part.PartEnergyStorageBus) part);
-                }
-            }
-        }
-        if (baseId == GUI_WIRELESS_CHANNEL_TRANSMITTER) {
-            if (te instanceof TileWirelessChannelTransmitter) {
-                return new GuiWirelessChannelTransmitter(player.inventory, (TileWirelessChannelTransmitter) te);
-            }
-        }
-        if (ID == GUI_ADVANCED_ME_COLLECTOR) {
-            if (te instanceof TileAdvancedMECollector) {
-                return new GuiAdvancedMECollector(player.inventory, new ContainerAdvancedMECollector(player.inventory, (TileAdvancedMECollector) te));
-            }
-        }
-        if (ID == GUI_ME_NETWORK_RECYCLER) {
-            if (te instanceof TileMENetworkRecycler) {
-                return new GuiMENetworkRecycler(player.inventory, new ContainerMENetworkRecycler(player.inventory, (TileMENetworkRecycler) te));
-            }
-        }
-        if (ID == GUI_EMC_INTERFACE) {
-            if (te instanceof TileEMCInterface) {
-                return new GuiEMCInterface(player.inventory, new ContainerEMCInterface(player.inventory, (TileEMCInterface) te));
-            }
-        }
-        if (ID == GUI_UNIVERSAL_MEMORY_CARD) {
-            return new GuiUniversalMemoryCard(player);
-        }
-        if (ID == GUI_CENTRAL_ME_INTERFACE) {
-            if (te instanceof TileCentralMEInterface) {
-                return new com.github.aeddddd.ae2enhanced.client.gui.GuiCentralInterface(player.inventory, (TileCentralMEInterface) te);
-            }
-        }
-        if (ID == GUI_SMART_PATTERN_INTERFACE) {
-            if (te instanceof com.github.aeddddd.ae2enhanced.tile.TileSmartPatternInterface) {
-                return new com.github.aeddddd.ae2enhanced.client.gui.GuiSmartPatternInterface(player.inventory, (com.github.aeddddd.ae2enhanced.tile.TileSmartPatternInterface) te);
-            }
-        }
-        if (ID == GUI_OMNI_TOOL_CONFIG) {
-            return new GuiOmniToolConfig(player, new ContainerOmniToolConfig());
-        }
-        if (ID == GUI_RING_CONFIG) {
-            return new com.github.aeddddd.ae2enhanced.client.gui.GuiRingConfig(player,
-                    new com.github.aeddddd.ae2enhanced.container.ContainerRingConfig());
-        }
-        if (ID == GUI_PERSONAL_DIMENSION_CONFIG) {
-            // 注：客户端 playerId 仅用于 canInteractWith，规则始终编辑玩家自己的维度，
-            // 服务端 getServerGuiElement 与 PacketPersonalDimensionRulesHandler 均按玩家自身 UUID 处理。
-            return new GuiPersonalDimensionConfig(player, new ContainerPersonalDimensionConfig(player.getUniqueID()));
-        }
-        if (ID == GUI_DISPLAY_WALL) {
-            if (te instanceof com.github.aeddddd.ae2enhanced.tile.TileDisplayPanel) {
-                return new com.github.aeddddd.ae2enhanced.client.gui.GuiDisplayWall(player.inventory,
-                        (com.github.aeddddd.ae2enhanced.tile.TileDisplayPanel) te);
-            }
-            return null;
-        }
-        if (ID == GUI_SINGULARITY_CHAMBER) {
-            if (te instanceof com.github.aeddddd.ae2enhanced.tile.TileSingularityChamber) {
-                return new com.github.aeddddd.ae2enhanced.client.gui.GuiSingularityChamber(
-                        player.inventory, (com.github.aeddddd.ae2enhanced.tile.TileSingularityChamber) te);
-            }
-            return null;
-        }
-        if (ID == GUI_CHUNK_POWER_NODE) {
-            if (te instanceof com.github.aeddddd.ae2enhanced.tile.TileChunkPowerNode) {
-                return new com.github.aeddddd.ae2enhanced.client.gui.GuiChunkPowerNode(
-                        player.inventory, (com.github.aeddddd.ae2enhanced.tile.TileChunkPowerNode) te);
-            }
-            return null;
-        }
-        return null;
+    public Object getServerGuiElement(int id, EntityPlayer player, World world, int x, int y, int z) {
+        IGuiHandler endpoint = GuiEndpointRegistry.endpoint(Side.SERVER);
+        return endpoint == null ? null : endpoint.getServerGuiElement(id, player, world, x, y, z);
     }
 
-    /**
-     * 根据 GUI 参数查找 Omni Terminal ItemStack.
-     * y == 1 表示从 Baubles 饰品槽位读取(x 为 Baubles 槽位索引).
-     */
-    private static ItemStack findOmniTerminalStack(EntityPlayer player, int x, int y) {
-        if (y == 1 && net.minecraftforge.fml.common.Loader.isModLoaded("baubles")) {
-            // 从 Baubles 饰品槽获取
-            try {
-                Object handler = Class.forName("baubles.api.BaublesApi")
-                        .getMethod("getBaublesHandler", EntityPlayer.class)
-                        .invoke(null, player);
-                ItemStack stack = (ItemStack) handler.getClass()
-                        .getMethod("getStackInSlot", int.class)
-                        .invoke(handler, x);
-                if (!stack.isEmpty() && stack.getItem() instanceof ItemOmniWirelessTerminal) {
-                    return stack;
-                }
-            } catch (Exception e) {
-                AE2Enhanced.LOGGER.error("[AE2E] Failed to get Bauble stack", e);
-            }
-        }
-        // 主手
-        ItemStack held = player.getHeldItemMainhand();
-        if (held.getItem() instanceof ItemOmniWirelessTerminal) {
-            return held;
-        }
-        // 副手
-        held = player.getHeldItemOffhand();
-        if (held.getItem() instanceof ItemOmniWirelessTerminal) {
-            return held;
-        }
-        // 物品栏
-        for (int i = 0; i < player.inventory.getSizeInventory(); i++) {
-            ItemStack stack = player.inventory.getStackInSlot(i);
-            if (stack.getItem() instanceof ItemOmniWirelessTerminal) {
-                return stack;
-            }
-        }
-        return ItemStack.EMPTY;
+    @Override
+    public Object getClientGuiElement(int id, EntityPlayer player, World world, int x, int y, int z) {
+        IGuiHandler endpoint = GuiEndpointRegistry.endpoint(Side.CLIENT);
+        return endpoint == null ? null : endpoint.getClientGuiElement(id, player, world, x, y, z);
     }
 }

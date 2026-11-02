@@ -46,6 +46,8 @@ public class PacketOmniTermAction implements IMessage {
             player.getServerWorld().addScheduledTask(() -> {
                 if (!(player.openContainer instanceof ContainerOmniTerm)) return;
                 ContainerOmniTerm c = (ContainerOmniTerm) player.openContainer;
+                if (c instanceof ContainerSplicedTerm
+                        && !((ContainerSplicedTerm) c).isActionAllowed(message.action)) return;
                 switch (message.action) {
                     case "CraftMode":
                         c.setPatternCraftMode("1".equals(message.value));

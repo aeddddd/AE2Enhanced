@@ -1,8 +1,8 @@
 package com.github.aeddddd.ae2enhanced.network.packet;
 
-import com.github.aeddddd.ae2enhanced.item.ItemAdvancedMEOmniTool;
-import com.github.aeddddd.ae2enhanced.item.ItemMEPlacementTool;
-import com.github.aeddddd.ae2enhanced.util.placement.PlacementConfig;
+import com.github.aeddddd.ae2enhanced.omnitool.ItemAdvancedMEOmniTool;
+import com.github.aeddddd.ae2enhanced.omnitool.ItemMEPlacementTool;
+import com.github.aeddddd.ae2enhanced.omnitool.placement.PlacementConfig;
 import net.minecraft.entity.player.EntityPlayerMP;
 import net.minecraft.item.ItemStack;
 import net.minecraft.util.math.RayTraceResult;
@@ -41,7 +41,7 @@ public class PacketPlacementSelectPresetHandler implements IMessageHandler<Packe
                 RayTraceResult ray = player.rayTrace(reach, 1.0f);
                 if (ray == null || ray.typeOfHit != RayTraceResult.Type.BLOCK) return;
 
-                ItemStack pick = com.github.aeddddd.ae2enhanced.util.placement.PlacementTargetResolver.pickRepresentativeStack(player.world, ray.getBlockPos());
+                ItemStack pick = com.github.aeddddd.ae2enhanced.omnitool.placement.PlacementTargetResolver.pickRepresentativeStack(player.world, ray.getBlockPos());
                 if (pick.isEmpty()) return;
 
                 // 合并同种选取：普通物品精确比较；线缆按类型比较（忽略颜色）
@@ -49,8 +49,8 @@ public class PacketPlacementSelectPresetHandler implements IMessageHandler<Packe
                 for (int i = 0; i < PlacementConfig.MAX_PRESETS; i++) {
                     ItemStack p = config.getStackInSlot(i);
                     if (p.isEmpty()) continue;
-                    if (com.github.aeddddd.ae2enhanced.util.placement.PlacementTargetResolver.isSameCableType(p, pick)
-                            || (!com.github.aeddddd.ae2enhanced.util.placement.PlacementTargetResolver.isCable(p)
+                    if (com.github.aeddddd.ae2enhanced.omnitool.placement.PlacementTargetResolver.isSameCableType(p, pick)
+                            || (!com.github.aeddddd.ae2enhanced.omnitool.placement.PlacementTargetResolver.isCable(p)
                             && ItemStack.areItemStacksEqual(p, pick))) {
                         existing = i;
                         break;

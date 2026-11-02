@@ -9,7 +9,7 @@ import appeng.api.storage.data.IAEStack;
 import appeng.api.storage.data.IItemList;
 import appeng.me.cache.GridStorageCache;
 import appeng.me.cache.NetworkMonitor;
-import com.github.aeddddd.ae2enhanced.util.fakeitem.FakeGases;
+import com.github.aeddddd.ae2enhanced.item.fakeitem.FakeGases;
 import com.mekeng.github.common.me.data.IAEGasStack;
 import com.mekeng.github.common.me.storage.IGasStorageChannel;
 import org.spongepowered.asm.mixin.Mixin;
@@ -17,7 +17,7 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-import com.github.aeddddd.ae2enhanced.mixin.late.accessor.INetworkMonitorAccessor;
+import com.github.aeddddd.ae2enhanced.storage.access.mixin.INetworkMonitorAccessor;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;

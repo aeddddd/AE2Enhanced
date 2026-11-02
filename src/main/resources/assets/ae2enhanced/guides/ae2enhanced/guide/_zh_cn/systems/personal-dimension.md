@@ -29,8 +29,10 @@ item_ids: [personal_dimension, yellow_stripes_block_b]
 
 ## 地板预设
 
-地板生成于 y=64 (配置 `personalDimension.floorY`), 下方固定 2 层基岩. 图案来自 JSON 预设 (`personalDimension.presetPath`, 默认 `ae2enhanced/personal_dimension_floor.json`, 首次启动会复制到 config 目录). 内置预设平铺 96x96 的 <ItemLink id="yellow_stripes_block_b" /> 警示方块与混凝土图案. 未知方块回退为基岩.
+地板生成于 y=64（配置 `personalDimension.floorY`），沿用兼容的 JSON `default` 预设；新区块不再有基岩底层。打开管理界面的“预设”标签页，可预览样式、修改马路/标线/平台配色，点击“应用并重铺”后查看剩余区块进度；`/ae2e pd floor style`、`color`、`apply` 命令仍保留。旧基岩只在目标地板下两层清除。后台只扫描 region 表，世界修改、光照与区块包均由主线程分批执行；未加载区块在加载后续作，任务进度可跨重启恢复。
 
-## 共享与权限
+## 团队与个人模式
 
-用 `/ae2e pd invite <player>` 邀请他人. 共有四项权限: ENTER, BUILD, INTERACT, MANAGE_RULES; 邀请默认授予前三项. 用 `/ae2e pd setperm <player> <perm> <true|false>` 单项设置, `kick` 移出, `info` 查看. 维度所有者与权限等级 2 的管理员恒绕过检查. 见[命令与配置](systems/commands-config.md).
+`/ae2e pd mode <auto|team|personal>` 设置默认目标，`/ae2e pd enter [模式]` 进入。AUTO 有 FTB PLAYER 团队时进入团队维度，否则进入个人维度；TEAM 在无团队时明确提示。切换后两个世界均保留。
+
+团队成员关系与 MOD/OWNER 管理由 FTB 团队负责，旧 invite/kick/setperm 入口已移除，遗留白名单仅保留读取。Forge/FTB ranks 控制 enter、build、interact、manage 与 bypass 节点；交互和返回点均由服务端校验。个人所有者或团队 MOD/OWNER 可修改规则与地板。见[命令与配置](systems/commands-config.md)。

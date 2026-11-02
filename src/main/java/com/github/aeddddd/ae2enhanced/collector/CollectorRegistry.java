@@ -1,6 +1,6 @@
 package com.github.aeddddd.ae2enhanced.collector;
 
-import com.github.aeddddd.ae2enhanced.tile.TileAdvancedMECollector;
+import com.github.aeddddd.ae2enhanced.runtime.RuntimeScopes;
 import net.minecraft.entity.item.EntityItem;
 import net.minecraft.util.math.AxisAlignedBB;
 import net.minecraft.util.math.BlockPos;
@@ -8,13 +8,7 @@ import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.World;
 
 import javax.annotation.Nullable;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 /**
  * 先进 ME 收集器全局索引.
@@ -22,25 +16,81 @@ import java.util.Set;
  * 按维度维护所有已加载的收集器,使事件/Mixin 能快速定位到可能覆盖某位置的收集器,
  * 避免每次扫描全世界 TileEntity.
  */
-public final class CollectorRegistry {
+public final class CollectorRegistry implements AutoCloseable {
 
-    private CollectorRegistry() {}
+    private final Map<Integer, Set<TileAdvancedMECollector>> dimensionalCollectors = new HashMap<>();
 
-    private static final Map<Integer, Set<TileAdvancedMECollector>> DIMENSIONAL_COLLECTORS = new HashMap<>();
+    public CollectorRegistry() {
+    }
+
+    @Nullable
+    private static CollectorRegistry instance() {
+        com.github.aeddddd.ae2enhanced.runtime.ServerScope scope = RuntimeScopes.currentServer().orElse(null);
+        if (scope == null || !scope.acceptingWork()) {
+            return null;
+        }
+        return scope.service(CollectorRegistry.class, CollectorRegistry::new);
+    }
+
+    private static Map<Integer, Set<TileAdvancedMECollector>> collectors() {
+        CollectorRegistry registry = instance();
+        return registry == null ? Collections.emptyMap() : registry.dimensionalCollectors;
+    }
 
     public static void register(TileAdvancedMECollector collector) {
-        if (collector.getWorld() == null) return;
+        if (instance() == null || collector.getWorld() == null) return;
         int dim = collector.getWorld().provider.getDimension();
-        DIMENSIONAL_COLLECTORS.computeIfAbsent(dim, k -> Collections.newSetFromMap(new java.util.WeakHashMap<>())).add(collector);
+        collectors().computeIfAbsent(dim, k -> Collections.newSetFromMap(new java.util.WeakHashMap<>())).add(collector);
     }
 
     public static void unregister(TileAdvancedMECollector collector) {
         if (collector.getWorld() == null) return;
         int dim = collector.getWorld().provider.getDimension();
-        Set<TileAdvancedMECollector> set = DIMENSIONAL_COLLECTORS.get(dim);
+        Set<TileAdvancedMECollector> set = collectors().get(dim);
         if (set != null) {
             set.remove(collector);
         }
+    }
+
+    /**
+     * 返回覆盖指定坐标的所有可用收集器,按距离从近到远排序.
+     */
+    public static List<TileAdvancedMECollector> findCollectorsFor(World world, double x, double y, double z) {
+        int dim = world.provider.getDimension();
+        Set<TileAdvancedMECollector> all = collectors().get(dim);
+        if (all == null || all.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        List<TileAdvancedMECollector> result = new ArrayList<>();
+        for (TileAdvancedMECollector collector : all) {
+            if (collector.isInvalid() || collector.getWorld() != world) continue;
+            if (!collector.isActive()) continue;
+            AxisAlignedBB area = collector.getCollectionArea();
+            if (area.contains(new Vec3d(x, y, z))) {
+                result.add(collector);
+            }
+        }
+
+        result.sort(Comparator.comparingDouble(c -> {
+            BlockPos pos = c.getPos();
+            double dx = pos.getX() + 0.5 - x;
+            double dy = pos.getY() + 0.5 - y;
+            double dz = pos.getZ() + 0.5 - z;
+            return dx * dx + dy * dy + dz * dz;
+        }));
+
+        return result;
+    }
+
+    /**
+     * 快速检查指定世界是否注册了任何收集器.
+     */
+    public static boolean hasCollectors(World world) {
+        if (world == null) return false;
+        int dim = world.provider.getDimension();
+        Set<TileAdvancedMECollector> set = collectors().get(dim);
+        return set != null && !set.isEmpty();
     }
 
     /**
@@ -87,44 +137,16 @@ public final class CollectorRegistry {
         return findCollectorsFor(world, pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5);
     }
 
-    /**
-     * 返回覆盖指定坐标的所有可用收集器,按距离从近到远排序.
-     */
-    public static List<TileAdvancedMECollector> findCollectorsFor(World world, double x, double y, double z) {
-        int dim = world.provider.getDimension();
-        Set<TileAdvancedMECollector> all = DIMENSIONAL_COLLECTORS.get(dim);
-        if (all == null || all.isEmpty()) {
-            return Collections.emptyList();
-        }
-
-        List<TileAdvancedMECollector> result = new ArrayList<>();
-        for (TileAdvancedMECollector collector : all) {
-            if (collector.isInvalid() || collector.getWorld() != world) continue;
-            if (!collector.isActive()) continue;
-            AxisAlignedBB area = collector.getCollectionArea();
-            if (area.contains(new Vec3d(x, y, z))) {
-                result.add(collector);
-            }
-        }
-
-        result.sort(Comparator.comparingDouble(c -> {
-            BlockPos pos = c.getPos();
-            double dx = pos.getX() + 0.5 - x;
-            double dy = pos.getY() + 0.5 - y;
-            double dz = pos.getZ() + 0.5 - z;
-            return dx * dx + dy * dy + dz * dz;
-        }));
-
-        return result;
+    @Override
+    public void close() {
+        dimensionalCollectors.clear();
     }
 
-    /**
-     * 快速检查指定世界是否注册了任何收集器.
-     */
-    public static boolean hasCollectors(World world) {
-        if (world == null) return false;
-        int dim = world.provider.getDimension();
-        Set<TileAdvancedMECollector> set = DIMENSIONAL_COLLECTORS.get(dim);
-        return set != null && !set.isEmpty();
+    public int registeredCollectorCount() {
+        int count = 0;
+        for (Set<TileAdvancedMECollector> collectors : dimensionalCollectors.values()) {
+            count += collectors.size();
+        }
+        return count;
     }
 }

@@ -42,7 +42,7 @@ public final class GuideHotkeyHandler {
      */
     @SubscribeEvent
     public void onTooltip(net.minecraftforge.event.entity.player.ItemTooltipEvent event) {
-        if (!com.github.aeddddd.ae2enhanced.config.AE2EnhancedConfig.guide.enabled) {
+        if (!com.github.aeddddd.ae2enhanced.config.ClientPreferences.current().guide.enabled) {
             return;
         }
         if (event.getEntityPlayer() != Minecraft.getMinecraft().player) {
@@ -89,7 +89,7 @@ public final class GuideHotkeyHandler {
         if (event.phase != TickEvent.Phase.END) {
             return;
         }
-        if (!com.github.aeddddd.ae2enhanced.config.AE2EnhancedConfig.guide.enabled) {
+        if (!com.github.aeddddd.ae2enhanced.config.ClientPreferences.current().guide.enabled) {
             reset();
             return;
         }

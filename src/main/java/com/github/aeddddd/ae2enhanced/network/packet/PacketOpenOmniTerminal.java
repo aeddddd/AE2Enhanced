@@ -1,8 +1,8 @@
 package com.github.aeddddd.ae2enhanced.network.packet;
 
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
-import com.github.aeddddd.ae2enhanced.gui.GuiHandler;
-import com.github.aeddddd.ae2enhanced.util.OmniTerminalFinder;
+import com.github.aeddddd.ae2enhanced.item.ItemOmniWirelessTerminal;
+import com.github.aeddddd.ae2enhanced.omni.OmniTerminalFinder;
 import io.netty.buffer.ByteBuf;
 import net.minecraft.item.ItemStack;
 import net.minecraftforge.fml.common.network.simpleimpl.IMessage;
@@ -36,11 +36,21 @@ public class PacketOpenOmniTerminal implements IMessage {
                 if (target.isEmpty()) {
                     return;
                 }
+                ItemOmniWirelessTerminal terminal = (ItemOmniWirelessTerminal) target.getItem();
+                if (terminal.getEncryptionKey(target).isEmpty()) {
+                    player.sendMessage(appeng.core.localization.PlayerMessages.DeviceNotLinked.get());
+                    return;
+                }
+                if (!terminal.hasPower(player, 0.5D, target)) {
+                    player.sendMessage(appeng.core.localization.PlayerMessages.DeviceNotPowered.get());
+                    return;
+                }
                 int slot = OmniTerminalFinder.findSlotIndex(player, target);
                 boolean isBauble = OmniTerminalFinder.isInBaublesSlot(player, target);
+                if (slot < 0) return;
                 // 分发收口:旧物品回旧 GUI(11),可拼接终端回新 GUI(15)
                 player.openGui(AE2Enhanced.instance,
-                        com.github.aeddddd.ae2enhanced.util.OmniTerminalResolver.resolveOmniGuiId(target),
+                        com.github.aeddddd.ae2enhanced.omni.OmniTerminalResolver.resolveOmniGuiId(target),
                         player.world, slot, isBauble ? 1 : 0, 0);
             });
             return null;

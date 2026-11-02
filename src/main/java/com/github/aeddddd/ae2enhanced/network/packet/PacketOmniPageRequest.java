@@ -24,7 +24,12 @@ import java.util.List;
  * 从而支持 JECH/HECH 拼音搜索、tooltip 搜索等 HEI 原生语义。
  */
 public class PacketOmniPageRequest implements IMessage {
+    public static final int MAX_SEARCH_LENGTH = 256;
+    public static final int MAX_OFFSET = 1_000_000;
+    public static final int MAX_LIMIT = 135;
+    public static final int MAX_FILTER_COUNT = 4096;
 
+    private boolean valid = true;
     private String searchString = "";
     private byte searchMode;      // 0=NAME, 1=MOD, 2=TOOLTIP(已禁用)
     private byte sortBy;          // 0=NAME, 1=AMOUNT, 2=MOD, 3=INVTWEAKS
@@ -57,23 +62,42 @@ public class PacketOmniPageRequest implements IMessage {
 
     @Override
     public void fromBytes(ByteBuf buf) {
-        this.searchString = ByteBufUtils.readUTF8String(buf);
-        this.searchMode = buf.readByte();
-        this.sortBy = buf.readByte();
-        this.sortDir = buf.readByte();
-        this.viewMode = buf.readByte();
-        this.offset = buf.readInt();
-        this.limit = buf.readInt();
-        if (buf.readBoolean()) {
-            int count = buf.readInt();
-            this.clientFilter = new ArrayList<>(count);
-            for (int i = 0; i < count; i++) {
-                NBTTagCompound tag = ByteBufUtils.readTag(buf);
-                ItemDescriptor desc = tag != null ? ItemDescriptor.fromNBT(tag) : null;
-                if (desc != null) {
-                    this.clientFilter.add(desc);
+        try {
+            buf.markReaderIndex();
+            int lengthStart = buf.readerIndex();
+            int searchBytes = ByteBufUtils.readVarInt(buf, 3);
+            int lengthBytes = buf.readerIndex() - lengthStart;
+            buf.resetReaderIndex();
+            if (searchBytes < 0 || searchBytes > MAX_SEARCH_LENGTH
+                    || searchBytes > buf.readableBytes() - lengthBytes) {
+                valid = false;
+                return;
+            }
+            this.searchString = ByteBufUtils.readUTF8String(buf);
+            this.searchMode = buf.readByte();
+            this.sortBy = buf.readByte();
+            this.sortDir = buf.readByte();
+            this.viewMode = buf.readByte();
+            this.offset = buf.readInt();
+            this.limit = buf.readInt();
+            if (buf.readBoolean()) {
+                int count = buf.readInt();
+                if (count < 0 || count > MAX_FILTER_COUNT) {
+                    valid = false;
+                    return;
+                }
+                this.clientFilter = new ArrayList<>(count);
+                for (int i = 0; i < count; i++) {
+                    NBTTagCompound tag = ByteBufUtils.readTag(buf);
+                    ItemDescriptor desc = tag != null ? ItemDescriptor.fromNBT(tag) : null;
+                    if (desc != null) {
+                        this.clientFilter.add(desc);
+                    }
                 }
             }
+        } catch (RuntimeException ex) {
+            valid = false;
+            clientFilter = null;
         }
     }
 
@@ -105,13 +129,23 @@ public class PacketOmniPageRequest implements IMessage {
     public int getLimit() { return limit; }
     public List<ItemDescriptor> getClientFilter() { return clientFilter; }
 
+    public boolean isValid() {
+        return valid && searchString != null && searchString.length() <= MAX_SEARCH_LENGTH
+                && searchMode >= 0 && searchMode <= 1
+                && sortBy >= 0 && sortBy <= 3 && sortDir >= 0 && sortDir <= 1
+                && viewMode >= 0 && viewMode <= 2
+                && offset >= 0 && offset <= MAX_OFFSET
+                && limit > 0 && limit <= MAX_LIMIT
+                && (clientFilter == null || clientFilter.size() <= MAX_FILTER_COUNT);
+    }
+
     public static class Handler implements IMessageHandler<PacketOmniPageRequest, IMessage> {
         @Override
         public IMessage onMessage(PacketOmniPageRequest message, MessageContext ctx) {
             EntityPlayerMP player = ctx.getServerHandler().player;
             player.getServerWorld().addScheduledTask(() -> {
                 Container container = player.openContainer;
-                if (container instanceof ContainerOmniTerm) {
+                if (message.isValid() && container instanceof ContainerOmniTerm) {
                     ((ContainerOmniTerm) container).handlePageRequest(message);
                 }
             });

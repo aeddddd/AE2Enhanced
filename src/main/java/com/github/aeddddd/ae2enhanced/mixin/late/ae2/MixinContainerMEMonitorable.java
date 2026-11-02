@@ -61,7 +61,7 @@ public class MixinContainerMEMonitorable {
     )
     private boolean ae2enhanced$throttleFloodFlush(IItemList<?> list,
             com.llamalad7.mixinextras.injector.wrapoperation.Operation<Boolean> original) {
-        int threshold = com.github.aeddddd.ae2enhanced.config.AE2EnhancedConfig.terminal.guiSyncFloodThreshold;
+        int threshold = com.github.aeddddd.ae2enhanced.config.ServerConfig.current().terminal.guiSyncFloodThreshold;
         if (!Platform.isServer() || threshold <= 0 || list.size() <= threshold) {
             this.ae2enhanced$floodSkip = 0;
             return original.call(list);
@@ -69,7 +69,7 @@ public class MixinContainerMEMonitorable {
         // 洪流态:每 interval tick 放行 1 次真实冲刷,其余视同空表跳过
         this.ae2enhanced$floodSkip++;
         if (this.ae2enhanced$floodSkip
-                >= com.github.aeddddd.ae2enhanced.config.AE2EnhancedConfig.terminal.guiSyncFloodIntervalTicks) {
+                >= com.github.aeddddd.ae2enhanced.config.ServerConfig.current().terminal.guiSyncFloodIntervalTicks) {
             this.ae2enhanced$floodSkip = 0;
             return original.call(list);
         }

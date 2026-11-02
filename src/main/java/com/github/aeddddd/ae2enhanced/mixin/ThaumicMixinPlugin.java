@@ -17,12 +17,9 @@ public class ThaumicMixinPlugin implements IMixinConfigPlugin {
 
     @Override
     public void onLoad(String mixinPackage) {
-        // CleanroomMC 兼容: 用 getResource 检查类文件是否存在, 避免 Class.forName 触发 transformer
-        // 把类标记为 invalid 而导致 Thaumic Energistics 自身初始化失败
         try {
-            ClassLoader cl = Thread.currentThread().getContextClassLoader();
-            java.net.URL url = cl.getResource("thaumicenergistics/api/storage/IEssentiaStorageChannel.class");
-            thaumicEnergisticsLoaded = url != null;
+            thaumicEnergisticsLoaded = com.github.aeddddd.ae2enhanced.integration.BootstrapCapabilities
+                    .hasResource(com.github.aeddddd.ae2enhanced.integration.BootstrapCapabilities.THAUMIC_CHANNEL);
         } catch (Exception e) {
             thaumicEnergisticsLoaded = false;
         }

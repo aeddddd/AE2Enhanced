@@ -6,9 +6,7 @@ import com.github.aeddddd.ae2enhanced.tile.TileSmartPatternInterface;
 import io.netty.buffer.ByteBuf;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.nbt.NBTTagList;
-import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.math.BlockPos;
-import net.minecraft.world.World;
 import net.minecraftforge.fml.common.network.ByteBufUtils;
 import net.minecraftforge.fml.common.network.simpleimpl.IMessage;
 import net.minecraftforge.fml.common.network.simpleimpl.IMessageHandler;
@@ -85,11 +83,16 @@ public class PacketSmartPatternFill implements IMessage {
         @Override
         public IMessage onMessage(PacketSmartPatternFill message, MessageContext ctx) {
             ctx.getServerHandler().player.getServerWorld().addScheduledTask(() -> {
-                World world = ctx.getServerHandler().player.world;
-                TileEntity te = world.getTileEntity(BlockPos.fromLong(message.pos));
-                if (te instanceof TileSmartPatternInterface) {
-                    ((TileSmartPatternInterface) te).fillLockedRecipe(
-                            readList(message.inputs), readList(message.outputs));
+                TileSmartPatternInterface tile = com.github.aeddddd.ae2enhanced.network.RequestContext
+                        .smartPatternTile(ctx.getServerHandler().player, BlockPos.fromLong(message.pos));
+                if (tile != null && message.inputs != null && message.outputs != null
+                        && message.inputs.tagCount() <= MAX_INPUTS && message.outputs.tagCount() <= MAX_OUTPUTS) {
+                    com.github.aeddddd.ae2enhanced.container.ContainerSmartPatternInterface container =
+                            (com.github.aeddddd.ae2enhanced.container.ContainerSmartPatternInterface)
+                                    ctx.getServerHandler().player.openContainer;
+                    tile.fillLockedRecipe(readList(message.inputs), readList(message.outputs),
+                            container.getExpectedRevision());
+                    container.setExpectedRevision(tile.getPatternRevision());
                 }
             });
             return null;

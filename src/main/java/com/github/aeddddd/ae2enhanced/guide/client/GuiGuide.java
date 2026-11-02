@@ -2,7 +2,7 @@ package com.github.aeddddd.ae2enhanced.guide.client;
 
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
 import com.github.aeddddd.ae2enhanced.client.gui.GuiButtonTech;
-import com.github.aeddddd.ae2enhanced.config.AE2EnhancedConfig;
+import com.github.aeddddd.ae2enhanced.config.ClientPreferences;
 import com.github.aeddddd.ae2enhanced.guide.GuideBook;
 import com.github.aeddddd.ae2enhanced.guide.GuideManager;
 import com.github.aeddddd.ae2enhanced.guide.GuidePage;
@@ -58,7 +58,7 @@ public class GuiGuide extends GuiScreen {
     }
 
     public GuiGuide() {
-        this.theme = GuideTheme.byId(AE2EnhancedConfig.guide.theme);
+        this.theme = GuideTheme.byId(ClientPreferences.current().guide.theme);
     }
 
     public GuideTheme getTheme() {
@@ -161,7 +161,7 @@ public class GuiGuide extends GuiScreen {
         if (button.id == BTN_THEME) {
             // 循环切换主题并持久化到配置
             this.theme = this.theme.next();
-            AE2EnhancedConfig.guide.theme = this.theme.id;
+            ClientPreferences.setGuideTheme(this.theme.id);
             ConfigManager.sync(AE2Enhanced.MOD_ID, Config.Type.INSTANCE);
             String label = I18n.format("gui.ae2enhanced.guide.theme", theme.displayName);
             this.themeButton.displayString = label;

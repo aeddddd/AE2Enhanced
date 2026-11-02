@@ -4,10 +4,11 @@ import appeng.client.gui.implementations.GuiMEMonitorable;
 import appeng.client.gui.widgets.MEGuiTextField;
 import appeng.client.me.ItemRepo;
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
-import com.github.aeddddd.ae2enhanced.mixin.late.accessor.IGuiMEMonitorableAccessor;
+import com.github.aeddddd.ae2enhanced.client.gui.terminal.access.IGuiMEMonitorableAccessor;
 import mezz.jei.api.IJeiRuntime;
 import mezz.jei.api.IIngredientListOverlay;
 import mezz.jei.api.IBookmarkOverlay;
+import net.minecraft.client.gui.GuiTextField;
 import net.minecraft.item.ItemStack;
 import net.minecraft.util.text.TextFormatting;
 
@@ -63,7 +64,7 @@ public class JEISearchKeyHandler {
      * @param scrollBarRefresh 搜索词写入后的滚动条刷新回调（可为 null）
      * @return true 表示成功设置了搜索文本并应拦截原按键事件
      */
-    public static boolean performSearch(MEGuiTextField searchField, ItemRepo repo,
+    public static boolean performSearch(GuiTextField searchField, ItemRepo repo,
             Runnable scrollBarRefresh, int mouseX, int mouseY) {
         if (searchField == null || searchField.isFocused()) return false;
         if (jeiRuntime == null) {

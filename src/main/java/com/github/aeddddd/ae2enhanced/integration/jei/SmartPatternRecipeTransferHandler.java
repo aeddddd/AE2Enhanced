@@ -4,7 +4,7 @@ import appeng.api.storage.data.IAEItemStack;
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
 import com.github.aeddddd.ae2enhanced.client.gui.jei.GhostIngredientTarget;
 import com.github.aeddddd.ae2enhanced.container.ContainerSmartPatternInterface;
-import com.github.aeddddd.ae2enhanced.network.packet.PacketSmartPatternFill;
+import com.github.aeddddd.ae2enhanced.network.packet.PacketSmartPatternEdit;
 import com.github.aeddddd.ae2enhanced.tile.TileSmartPatternInterface;
 import mezz.jei.api.gui.IGuiIngredient;
 import mezz.jei.api.gui.IRecipeLayout;
@@ -24,7 +24,7 @@ import java.util.Map;
  *
  * <p>点击 JEI 配方界面的 [+] 时,将配方的物品/流体输入输出按槽位顺序
  * 转换为 AE 物品(含流体/气体/源质假物品,与 ghost 拖拽一致),
- * 通过 {@link PacketSmartPatternFill} 整体覆盖当前锁定的配方.</p>
+ * 通过带 expectedRevision 的 {@link PacketSmartPatternEdit} 整体覆盖当前锁定的配方.</p>
  *
  * <p>仅在有配方被锁定(Shift+左键)时可用.</p>
  */
@@ -39,6 +39,16 @@ public class SmartPatternRecipeTransferHandler implements IRecipeTransferHandler
     @Override
     public Class<ContainerSmartPatternInterface> getContainerClass() {
         return ContainerSmartPatternInterface.class;
+    }
+
+    private static net.minecraft.nbt.NBTTagList writeList(List<IAEItemStack> stacks) {
+        net.minecraft.nbt.NBTTagList list = new net.minecraft.nbt.NBTTagList();
+        for (IAEItemStack stack : stacks) {
+            net.minecraft.nbt.NBTTagCompound tag = new net.minecraft.nbt.NBTTagCompound();
+            if (stack != null) ((appeng.util.item.AEItemStack) stack).writeToNBT(tag);
+            list.appendTag(tag);
+        }
+        return list;
     }
 
     @Override
@@ -62,7 +72,11 @@ public class SmartPatternRecipeTransferHandler implements IRecipeTransferHandler
             return null;
         }
 
-        AE2Enhanced.network.sendToServer(new PacketSmartPatternFill(tile.getPos(), inputs, outputs));
+        net.minecraft.nbt.NBTTagCompound payload = new net.minecraft.nbt.NBTTagCompound();
+        payload.setTag("inputs", writeList(inputs));
+        payload.setTag("outputs", writeList(outputs));
+        AE2Enhanced.network.sendToServer(new PacketSmartPatternEdit(
+                tile.getPos(), tile.getPatternRevision(), "fill", payload));
         return null;
     }
 

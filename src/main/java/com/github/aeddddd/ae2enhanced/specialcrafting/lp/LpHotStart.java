@@ -61,6 +61,11 @@ public final class LpHotStart {
         this.iterations = iterations;
     }
 
+    /** 请求快照只保存不可变档位，不共享可变 Chain。 */
+    public static Mode modeFromSystemProperties() {
+        return Chain.parseMode(System.getProperty("ae2e.hotStart", "verify"));
+    }
+
     /**
      * 链槽位集合: 按 (rows, cols) 分槽, 每条链内互不干扰(阶段①②③的维度天然不同;
      * 去内化重建、ExactSimplex 跨阈值都会落到不同槽或空槽 ⇒ 自然冷启动)。
@@ -81,7 +86,7 @@ public final class LpHotStart {
 
         /** 入口一次性解析系统属性 {@code ae2e.hotStart = off|verify|on}(默认 verify)。 */
         public static Chain fromSystemProperties() {
-            return new Chain(parseMode(System.getProperty("ae2e.hotStart", "verify")));
+            return new Chain(modeFromSystemProperties());
         }
 
         /** 关闭热启动的链(冷启动基线的显式入口)。 */

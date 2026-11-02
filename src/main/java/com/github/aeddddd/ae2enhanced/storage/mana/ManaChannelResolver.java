@@ -2,7 +2,7 @@ package com.github.aeddddd.ae2enhanced.storage.mana;
 
 import appeng.api.AEApi;
 import appeng.api.storage.IStorageChannel;
-import com.github.aeddddd.ae2enhanced.integration.botaniaapplie.BotaniaApplieCompat;
+import com.github.aeddddd.ae2enhanced.storage.ExternalStorageChannels;
 
 /**
  * Botania Mana 通道解析器.
@@ -22,8 +22,8 @@ public final class ManaChannelResolver {
      * @return 外部 Mana 通道或 AE2E 自有 Mana 通道
      */
     public static IStorageChannel<?> getChannel() {
-        if (BotaniaApplieCompat.isManaStorageChannelAvailable()) {
-            return BotaniaApplieCompat.getManaStorageChannelInstance();
+        if (ExternalStorageChannels.isAvailable(ExternalStorageChannels.Kind.MANA)) {
+            return ExternalStorageChannels.channel(ExternalStorageChannels.Kind.MANA);
         }
         return AEApi.instance().storage().getStorageChannel(IManaStorageChannel.class);
     }

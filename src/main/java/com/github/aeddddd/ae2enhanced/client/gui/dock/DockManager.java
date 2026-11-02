@@ -6,52 +6,19 @@
  */
 package com.github.aeddddd.ae2enhanced.client.gui.dock;
 
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Map;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.LinkedHashSet;
-import java.util.Optional;
-import java.util.Set;
-
+import com.github.aeddddd.ae2enhanced.client.gui.dock.workspace.DockLayoutPersistence;
+import com.github.aeddddd.ae2enhanced.client.gui.dock.workspace.LayoutPresetBank;
+import com.github.aeddddd.ae2enhanced.dock.model.*;
+import com.github.aeddddd.ae2enhanced.dock.workspace.DockLayoutCodec;
+import com.github.aeddddd.ae2enhanced.dock.workspace.DockLayoutDto;
+import com.github.aeddddd.ae2enhanced.dock.workspace.LegacyMigrationContext;
 import net.minecraft.client.gui.Gui;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.github.aeddddd.ae2enhanced.client.gui.dock.model.DockAxis;
-import com.github.aeddddd.ae2enhanced.client.gui.dock.model.DockEdge;
-import com.github.aeddddd.ae2enhanced.client.gui.dock.model.DockInsets;
-import com.github.aeddddd.ae2enhanced.client.gui.dock.model.DockRect;
-import com.github.aeddddd.ae2enhanced.client.gui.dock.model.DockSize;
-import com.github.aeddddd.ae2enhanced.client.gui.dock.model.DockWorkspace;
-import com.github.aeddddd.ae2enhanced.client.gui.dock.model.DockWorkspaceEditor;
-import com.github.aeddddd.ae2enhanced.client.gui.dock.model.FloatingRoot;
-import com.github.aeddddd.ae2enhanced.client.gui.dock.model.LayoutEngine;
-import com.github.aeddddd.ae2enhanced.client.gui.dock.model.LayoutNode;
-import com.github.aeddddd.ae2enhanced.client.gui.dock.model.LayoutProjection;
-import com.github.aeddddd.ae2enhanced.client.gui.dock.model.LayoutStyle;
-import com.github.aeddddd.ae2enhanced.client.gui.dock.model.LayoutTrees;
-import com.github.aeddddd.ae2enhanced.client.gui.dock.model.LeafNode;
-import com.github.aeddddd.ae2enhanced.client.gui.dock.model.ModuleCatalog;
-import com.github.aeddddd.ae2enhanced.client.gui.dock.model.ModuleLayoutPolicy;
-import com.github.aeddddd.ae2enhanced.client.gui.dock.model.ModuleMetrics;
-import com.github.aeddddd.ae2enhanced.client.gui.dock.model.NodeIds;
-import com.github.aeddddd.ae2enhanced.client.gui.dock.model.SplitNode;
-import com.github.aeddddd.ae2enhanced.client.gui.dock.model.WorkspaceValidator;
-import com.github.aeddddd.ae2enhanced.client.gui.dock.workspace.DockLayoutCodec;
-import com.github.aeddddd.ae2enhanced.client.gui.dock.workspace.DockLayoutDto;
-import com.github.aeddddd.ae2enhanced.client.gui.dock.workspace.DockLayoutPersistence;
-import com.github.aeddddd.ae2enhanced.client.gui.dock.workspace.LayoutPresetBank;
-import com.github.aeddddd.ae2enhanced.client.gui.dock.workspace.LegacyMigrationContext;
+import java.io.IOException;
+import java.nio.file.Path;
+import java.util.*;
 
 /**
  * 停靠引擎运行时：投影缓存、手势状态机、Z 序、吸附拼接、分隔条/握把缩放、undo 与持久化编排。
@@ -111,10 +78,10 @@ public final class DockManager {
     private static final int MAX_Z_BAND = 2;
     /** 槽位内容相对所在根的 z 偏移（叠在物品自带的 ~250 上）。 */
     public static final float SLOT_CONTENT_Z = 12.0F;
-    /** 前景内容相对所在根的 z 偏移；高于槽位内容。 */
-    private static final float FOREGROUND_Z = 36.0F;
+    /** 前景内容相对所在根的 z 偏移；高于槽位内容且低于下一根。 */
+    private static final float FOREGROUND_Z = 288.0F;
     /** 槽位高亮等覆盖层相对所在根的 z 偏移；介于槽位与前景之间。 */
-    private static final float OVERLAY_Z = 24.0F;
+    private static final float OVERLAY_Z = 276.0F;
 
     private static final int UNDO_LIMIT = 32;
     private static final LayoutStyle LAYOUT_STYLE = new LayoutStyle(DockInsets.NONE, DIVIDER_THICKNESS);
@@ -130,9 +97,6 @@ public final class DockManager {
 
     /** {@code LayoutTrees.leaves(root.content())} 的热路径缓存，投影重建时清空。 */
     private final Map<String, List<LeafNode>> leavesCache = new HashMap<String, List<LeafNode>>();
-    private List<FloatingRoot> paintOrderCache;
-    /** 每个根的"重叠带"号（与 {@link #paintOrderCache} 同生命周期）。 */
-    private Map<String, Integer> paintBandCache;
 
     // --- 布局核心 ----------------------------------------------------------------
 
@@ -140,30 +104,18 @@ public final class DockManager {
     private ModuleCatalog persistenceCatalog;
     private DockWorkspaceEditor editor;
     private LayoutEngine layoutEngine;
-    private DockLayoutPersistence persistence;
     private LegacyMigrationContext migrationContext;
+    private final DockSession dockSession = new DockSession();
+    // --- 布局编辑器（阶段 4b） ---
+    private final LayoutEditingSession layoutEditing = new LayoutEditingSession();
 
-    private DockWorkspace workspace;
     private DockWorkspace viewportWorkspace;
     private LayoutProjection projection;
     private boolean projectionDirty;
-    private long workspaceRevision;
-    private long persistedRevision = -1;
-    private boolean persistenceBlockedAfterLoadFailure;
     private int structureVersion;
     private int screenWidth;
-
-    // --- 布局编辑器（阶段 4b） ---
-    /** 处于布局编辑态：视口钳制改用编辑画布内边距（见 {@link #clampRectToViewport}）。 */
-    private boolean editingLayout;
-    /** 进入编辑态时的 workspace 快照（取消时整体恢复）。 */
-    private DockWorkspace editingOriginal;
-    /** 进入编辑态时的撤销栈快照（编辑期间的撤销点随取消一起丢弃）。 */
-    private List<DockWorkspace> editingUndoMark;
-    /** 三槽命名预设银行；配置目录不可用时为 null（预设/分享功能整体降级）。 */
-    private LayoutPresetBank.Data presets;
-    private LayoutPresetBank.Data editingPresets;
-    private LayoutPresetBank.Data editingPresetsOriginal;
+    private final DockPresetStore presetStore = new DockPresetStore();
+    private final PanelLayoutReconciler panelLayoutReconciler = new PanelLayoutReconciler();
     private DockLayoutCodec layoutCodec;
     private Path configDir;
     /** 编辑态下画布四周的 chrome 内边距（左侧栏/顶栏/属性栏），只在编辑态生效。 */
@@ -189,14 +141,7 @@ public final class DockManager {
     private DockWorkspace pendingFocusWorkspace;
 
     // --- 手势状态 ----------------------------------------------------------------
-
-    private enum Mode {
-        NONE,
-        PENDING_LEAF_DRAG,
-        DRAG_ROOT,
-        RESIZE_ROOT,
-        RESIZE_DIVIDER
-    }
+    private DockRect resizeStartBounds;
 
     private Mode mode = Mode.NONE;
     private String activeRootId;
@@ -205,6 +150,7 @@ public final class DockManager {
     private DockRect activeDividerBounds;
     private double resizeLastX;
     private double resizeLastY;
+    private RootStack rootStack;
     private double grabOffsetX;
     private double grabOffsetY;
     private double pressX;
@@ -230,11 +176,21 @@ public final class DockManager {
         return panels.isEmpty();
     }
 
+    static boolean isAreaUnobscured(DockWorkspace workspace, String ownerRootId, DockRect area) {
+        return new RootStack(workspace, null, MAX_Z_BAND).isAreaUnobscured(ownerRootId, area);
+    }
+
+    // ==================== 布局编辑器（阶段 4b） ====================
+
+    private DockWorkspace workspace() {
+        return dockSession.workspace();
+    }
+
     /**
      * 注册模块面板、按宿主尺寸构建布局并载入持久化布局。
      *
      * <p>加载语义与 MEST 一致：损坏文档被隔离/标记时（{@code lastLoadWasCorrupt}）或加载抛异常时，
-     * 进入"禁止回写"状态（{@code persistenceBlockedAfterLoadFailure}），直到用户做出一次真实布局
+     * 进入"禁止回写"状态（{@code DockSession} 的写保护状态），直到用户做出一次真实布局
      * 编辑才解除——这样恢复出来的默认布局不会覆写用户那份待人工检查的原文件。</p>
      */
     public void init(List<ModulePanel> initialPanels) {
@@ -270,55 +226,55 @@ public final class DockManager {
         DockLayoutCodec codec = new DockLayoutCodec(catalog, migrationContext, this::fitCompositeRootsToShell);
         layoutCodec = codec;
         configDir = host.configDir();
-        persistence = host.createPersistence(codec);
+        DockLayoutPersistence persistence = host.createPersistence(codec);
+        dockSession.attach(persistence);
 
         boolean loadedCurrentLayout = false;
         boolean rewriteMigratedLayout = false;
-        persistenceBlockedAfterLoadFailure = false;
+        dockSession.setPersistenceBlocked(false);
         if (persistence != null) {
             try {
                 Optional<DockLayoutCodec.DecodedLayout> loaded = persistence.load();
                 if (persistence.lastLoadWasCorrupt()) {
-                    persistenceBlockedAfterLoadFailure = true;
-                    LOGGER.warn("Recovered dock layout from defaults; corrupt source: {}",
+                    dockSession.setPersistenceBlocked(!loaded.isPresent());
+                    LOGGER.warn("Dock layout source is corrupt; recovered={}: {}", loaded.isPresent(),
                             persistence.lastQuarantinedPath().<Object>map(Object::toString)
                                     .orElse("terminal item NBT (omni_layout)"));
                 }
                 if (loaded.isPresent()) {
                     DockLayoutCodec.DecodedLayout decoded = loaded.get();
-                    workspace = decoded.workspace();
-                    rewriteMigratedLayout = decoded.needsRewrite();
+                    dockSession.replace(decoded.workspace());
+                    rewriteMigratedLayout = decoded.needsRewrite() || persistence.lastLoadNeedsRepair();
                     loadedCurrentLayout = !decoded.needsRewrite();
                 } else {
-                    workspace = host.createDefaultWorkspace(persistenceCatalog, migrationContext,
-                            this::fitCompositeRootsToShell);
+                    dockSession.replace(host.createDefaultWorkspace(persistenceCatalog, migrationContext,
+                            this::fitCompositeRootsToShell));
                 }
             } catch (IOException | RuntimeException e) {
                 LOGGER.warn("Failed to load dock layout v{}, using defaults", DockLayoutDto.CURRENT_VERSION, e);
                 // This also covers a failed quarantine move. In that case the original file may still
                 // exist, so it is especially important that a later close hook cannot overwrite it.
-                persistenceBlockedAfterLoadFailure = true;
-                workspace = host.createDefaultWorkspace(persistenceCatalog, migrationContext,
-                        this::fitCompositeRootsToShell);
+                dockSession.setPersistenceBlocked(true);
+                dockSession.replace(host.createDefaultWorkspace(persistenceCatalog, migrationContext,
+                        this::fitCompositeRootsToShell));
             }
         } else {
-            workspace = host.createDefaultWorkspace(persistenceCatalog, migrationContext,
-                    this::fitCompositeRootsToShell);
+            dockSession.replace(host.createDefaultWorkspace(persistenceCatalog, migrationContext,
+                    this::fitCompositeRootsToShell));
         }
 
-        loadPresetBank(workspace);
-        if (presets != null) {
-            if (loadedCurrentLayout && !persistenceBlockedAfterLoadFailure) {
+        loadPresetBank(workspace());
+        if (presetStore.data() != null) {
+            if (loadedCurrentLayout && !dockSession.isPersistenceBlocked()) {
                 // 布局文件/物品 NBT 每次都先写，永远不会比活动预设槽更旧：让槽位跟上它
-                presets = presets.withWorkspace(presets.active(), workspace);
+                presetStore.replace(presetStore.data().withWorkspace(presetStore.data().active(), workspace()));
             } else {
-                workspace = presets.workspaces()[presets.active()];
+                dockSession.replace(presetStore.data().workspaces()[presetStore.data().active()]);
             }
         }
 
-        viewportWorkspace = fitRootsToViewport(clampWorkspaceToViewport(workspace));
-        workspaceRevision = 1;
-        persistedRevision = loadedCurrentLayout ? workspaceRevision : -1;
+        viewportWorkspace = fitRootsToViewport(clampWorkspaceToViewport(workspace()));
+        dockSession.initializeRevision(1L, loadedCurrentLayout);
         undoHistory.clear();
         gestureStartWorkspace = null;
         pendingFocusWorkspace = null;
@@ -332,12 +288,10 @@ public final class DockManager {
         ensureProjection();
         if (ensureAnchoredVisible()) {
             save();
-        } else if (rewriteMigratedLayout && !persistenceBlockedAfterLoadFailure) {
+        } else if (rewriteMigratedLayout && !dockSession.isPersistenceBlocked()) {
             save();
         }
     }
-
-    // ==================== 布局编辑器（阶段 4b） ====================
 
     /**
      * 进入布局编辑态。
@@ -347,16 +301,9 @@ public final class DockManager {
      * {@link #setEditorCanvasInsets} 提供。</p>
      */
     public DockWorkspace beginLayoutEditing() {
-        if (editingLayout) {
-            return workspace;
-        }
-        editingLayout = true;
-        editingOriginal = workspace;
-        editingUndoMark = undoHistory.snapshot();
         captureActivePreset();
-        editingPresets = presets == null ? null : presets.copy();
-        editingPresetsOriginal = editingPresets;
-        return workspace;
+        layoutEditing.begin(workspace(), undoHistory.snapshot(), presetStore.data());
+        return workspace();
     }
 
     /**
@@ -367,44 +314,37 @@ public final class DockManager {
      * 否则物品 NBT 会停在编辑中途的状态。</p>
      */
     public void cancelLayoutEditing() {
-        if (!editingLayout) {
+        if (!layoutEditing.active()) {
             return;
         }
         // 编辑器可能在手势中途被 Esc 关掉：先把手势/滚动条拖拽收干净，再回滚布局
         finishPendingGesture();
         resetGestureState();
-        if (editingPresetsOriginal != null) {
-            presets = editingPresetsOriginal.copy();
-            replaceWorkspace(presets.workspaces()[presets.active()], true);
-        } else if (editingOriginal != null && !editingOriginal.equals(workspace)) {
-            replaceWorkspace(editingOriginal, true);
+        LayoutPresetBank.Data originalPresets = layoutEditing.originalPresets();
+        if (originalPresets != null) {
+            presetStore.replace(originalPresets);
+            replaceWorkspace(presetStore.data().workspaces()[presetStore.data().active()], true);
+        } else if (layoutEditing.originalWorkspace() != null
+                && !layoutEditing.originalWorkspace().equals(workspace())) {
+            replaceWorkspace(layoutEditing.originalWorkspace(), true);
         }
-        if (editingUndoMark != null) {
-            // 编辑期间产生的撤销点描述的是刚刚被丢弃的改动
-            undoHistory.restore(editingUndoMark);
+        if (layoutEditing.undoMark() != null) {
+            undoHistory.restore(layoutEditing.undoMark());
         }
-        editingUndoMark = null;
-        editingPresets = null;
-        editingPresetsOriginal = null;
-        editingOriginal = null;
+        layoutEditing.finish();
         clearEditorCanvasInsets();
-        editingLayout = false;
         resetGestureState();
         save();
     }
 
     /** 提交编辑：结束编辑态、按偏好居中可见窗口、把活动槽写回预设银行并落盘。 */
     public void commitLayoutEditing() {
-        if (!editingLayout) {
+        if (!layoutEditing.active()) {
             return;
         }
         finishPendingGesture();
         clearEditorCanvasInsets();
-        editingLayout = false;
-        editingOriginal = null;
-        editingPresets = null;
-        editingPresetsOriginal = null;
-        editingUndoMark = null;
+        layoutEditing.finish();
         resetGestureState();
         if (centerOnReturn) {
             // MEST 把居中延后到"回到终端后的第一帧"；本编辑器与终端同一屏幕尺寸，直接居中等价
@@ -416,7 +356,12 @@ public final class DockManager {
     }
 
     public boolean isEditingLayout() {
-        return editingLayout;
+        return layoutEditing.active();
+    }
+
+    /** 当前编辑画布内边距 {@code {left, top, right, bottom}}（测试/调试用）。 */
+    public int[] editorCanvasInsets() {
+        return new int[] { editorInsetLeft, editorInsetTop, editorInsetRight, editorInsetBottom };
     }
 
     /**
@@ -424,7 +369,7 @@ public final class DockManager {
      * 标题条不会滑到编辑器 chrome 底下。只在编辑态生效，且不重写工作区（属于投影层钳制）。
      */
     public void setEditorCanvasInsets(int left, int top, int right, int bottom) {
-        if (!editingLayout) {
+        if (!layoutEditing.active()) {
             return;
         }
         int newLeft = Math.max(0, left);
@@ -439,8 +384,14 @@ public final class DockManager {
         editorInsetTop = newTop;
         editorInsetRight = newRight;
         editorInsetBottom = newBottom;
-        viewportWorkspace = fitRootsToViewport(clampWorkspaceToViewport(workspace));
+        viewportWorkspace = fitRootsToViewport(clampWorkspaceToViewport(workspace()));
         projectionDirty = true;
+    }
+
+    // --- 预设银行 ---------------------------------------------------------------
+
+    public int presetCount() {
+        return LayoutPresetBank.SLOT_COUNT;
     }
 
     public void clearEditorCanvasInsets() {
@@ -451,13 +402,8 @@ public final class DockManager {
         editorInsetTop = 0;
         editorInsetRight = 0;
         editorInsetBottom = 0;
-        viewportWorkspace = fitRootsToViewport(clampWorkspaceToViewport(workspace));
+        viewportWorkspace = fitRootsToViewport(clampWorkspaceToViewport(workspace()));
         projectionDirty = true;
-    }
-
-    /** 当前编辑画布内边距 {@code {left, top, right, bottom}}（测试/调试用）。 */
-    public int[] editorCanvasInsets() {
-        return new int[] { editorInsetLeft, editorInsetTop, editorInsetRight, editorInsetBottom };
     }
 
     /**
@@ -472,11 +418,11 @@ public final class DockManager {
             return false;
         }
         LeafNode leaf = leafForPanel(panel);
-        DockWorkspace before = workspace;
+        DockWorkspace before = workspace();
 
-        ModuleLayoutPolicy policy = workspace.policyFor(leaf.moduleId());
+        ModuleLayoutPolicy policy = workspace().policyFor(leaf.moduleId());
         if (!policy.visible()) {
-            replaceWorkspace(editor.setLeafVisible(workspace, leaf.nodeId(), true, null, null, null), false);
+            replaceWorkspace(editor.setLeafVisible(workspace(), leaf.nodeId(), true, null, null, null), false);
         }
 
         FloatingRoot root = rootContainingNode(viewportWorkspace, leaf.nodeId());
@@ -492,9 +438,9 @@ public final class DockManager {
                 return false;
             }
             String newRootId = "root:" + NodeIds.random();
-            DockWorkspace detached = detachAndRestore(workspace, leaf.nodeId(), newRootId);
+            DockWorkspace detached = detachAndRestore(workspace(), leaf.nodeId(), newRootId);
             detached = editor.raiseRoot(detached, newRootId);
-            if (detached.equals(workspace)) {
+            if (detached.equals(workspace())) {
                 return false;
             }
             replaceWorkspace(detached, true);
@@ -502,7 +448,7 @@ public final class DockManager {
         } else {
             List<FloatingRoot> roots = viewportWorkspace.roots();
             if (!roots.isEmpty() && !roots.get(roots.size() - 1).rootId().equals(root.rootId())) {
-                replaceWorkspace(editor.raiseRoot(workspace, root.rootId()), false);
+                replaceWorkspace(editor.raiseRoot(workspace(), root.rootId()), false);
                 root = rootById(root.rootId());
             }
         }
@@ -522,20 +468,14 @@ public final class DockManager {
         return true;
     }
 
-    // --- 预设银行 ---------------------------------------------------------------
-
-    public int presetCount() {
-        return LayoutPresetBank.SLOT_COUNT;
-    }
-
     public int activePreset() {
-        return presets == null ? 0 : presets.active();
+        return presetStore.data() == null ? 0 : presetStore.data().active();
     }
 
     /** 槽位显示名：自定义名优先，否则回落到槽位序号（"1"/"2"/"3"）。 */
     public String presetName(int index) {
         int slot = Math.floorMod(index, LayoutPresetBank.SLOT_COUNT);
-        String custom = presets == null ? "" : presets.names()[slot];
+        String custom = presetStore.data() == null ? "" : presetStore.data().names()[slot];
         if (custom != null && !custom.trim().isEmpty()) {
             return custom;
         }
@@ -543,43 +483,17 @@ public final class DockManager {
     }
 
     public void setPresetName(int index, String name) {
-        if (presets == null) {
+        if (presetStore.data() == null) {
             return;
         }
         int slot = Math.floorMod(index, LayoutPresetBank.SLOT_COUNT);
         String sanitized = LayoutPresetBank.sanitizeName(name, String.valueOf(slot + 1));
-        if (sanitized.equals(presets.names()[slot])) {
+        if (sanitized.equals(presetStore.data().names()[slot])) {
             return;
         }
-        presets = presets.withName(slot, sanitized);
-        if (!editingLayout) {
+        presetStore.replace(presetStore.data().withName(slot, sanitized));
+        if (!layoutEditing.active()) {
             savePresetBankQuietly();
-        }
-    }
-
-    /** 预设银行是否可用（配置目录不可用时为 false：编辑器隐藏预设页签）。 */
-    public boolean hasPresets() {
-        return presets != null;
-    }
-
-    /** 切到某个预设槽：先把当前活动槽存回，再整体替换工作区。 */
-    public void selectPreset(int index) {
-        if (presets == null) {
-            return;
-        }
-        int slot = Math.floorMod(index, LayoutPresetBank.SLOT_COUNT);
-        captureActivePreset();
-        if (slot == presets.active() && presets.workspaces()[slot].equals(workspace)) {
-            return;
-        }
-        presets = presets.withActive(slot);
-        undoHistory.clear();
-        replaceWorkspace(presets.workspaces()[slot], true);
-        ensureAnchoredVisible();
-        if (!editingLayout) {
-            persistenceBlockedAfterLoadFailure = false;
-            savePresetBankQuietly();
-            save();
         }
     }
 
@@ -607,32 +521,9 @@ public final class DockManager {
         this.centerOnReturn = value;
     }
 
-    /** 把所有可见窗口整体居中到当前视口（编辑提交时用）。 */
-    public void centerVisibleWorkspace() {
-        if (workspace == null) {
-            return;
-        }
-        ensureProjection();
-        Set<String> movedRootIds = new LinkedHashSet<String>();
-        DockRect union = null;
-        for (FloatingRoot root : workspace.roots()) {
-            if (!hasVisibleLeaf(workspace, root.content())) {
-                continue;
-            }
-            DockRect part = contentChromeBounds(root);
-            if (part == null || part.width() <= 0 || part.height() <= 0) {
-                continue;
-            }
-            movedRootIds.add(root.rootId());
-            union = union == null ? part : union.union(part);
-        }
-        if (movedRootIds.isEmpty() || union == null) {
-            return;
-        }
-        DockWorkspace next = editor.centerRoots(workspace, movedRootIds, union, screenWidth, screenHeight);
-        if (!next.equals(workspace)) {
-            replaceWorkspace(next, true);
-        }
+    /** 预设银行是否可用（配置目录不可用时为 false：编辑器隐藏预设页签）。 */
+    public boolean hasPresets() {
+        return presetStore.data() != null;
     }
 
     // --- 导入 / 导出 -------------------------------------------------------------
@@ -675,14 +566,63 @@ public final class DockManager {
         }
     }
 
+    /** 切到某个预设槽：先把当前活动槽存回，再整体替换工作区。 */
+    public void selectPreset(int index) {
+        if (presetStore.data() == null) {
+            return;
+        }
+        int slot = Math.floorMod(index, LayoutPresetBank.SLOT_COUNT);
+        captureActivePreset();
+        if (slot == presetStore.data().active() && presetStore.data().workspaces()[slot].equals(workspace())) {
+            return;
+        }
+        presetStore.replace(presetStore.data().withActive(slot));
+        undoHistory.clear();
+        replaceWorkspace(presetStore.data().workspaces()[slot], true);
+        ensureAnchoredVisible();
+        if (!layoutEditing.active()) {
+            dockSession.allowPersistence();
+            savePresetBankQuietly();
+            save();
+        }
+    }
+
+    /** 把所有可见窗口整体居中到当前视口（编辑提交时用）。 */
+    public void centerVisibleWorkspace() {
+        if (workspace() == null) {
+            return;
+        }
+        ensureProjection();
+        Set<String> movedRootIds = new LinkedHashSet<String>();
+        DockRect union = null;
+        for (FloatingRoot root : workspace().roots()) {
+            if (!hasVisibleLeaf(workspace(), root.content())) {
+                continue;
+            }
+            DockRect part = contentChromeBounds(root);
+            if (part == null || part.width() <= 0 || part.height() <= 0) {
+                continue;
+            }
+            movedRootIds.add(root.rootId());
+            union = union == null ? part : union.union(part);
+        }
+        if (movedRootIds.isEmpty() || union == null) {
+            return;
+        }
+        DockWorkspace next = editor.centerRoots(workspace(), movedRootIds, union, screenWidth, screenHeight);
+        if (!next.equals(workspace())) {
+            replaceWorkspace(next, true);
+        }
+    }
+
     /** 剪贴板导出：活动槽的完整文档（含名字与当前工作区）。 */
     public String exportLayoutJson() {
         if (layoutCodec == null) {
             return null;
         }
         captureActivePreset();
-        DockWorkspace current = presets == null ? workspace : presets.workspaces()[presets.active()];
-        String name = presets == null ? "" : presets.names()[presets.active()];
+        DockWorkspace current = presetStore.data() == null ? workspace() : presetStore.data().workspaces()[presetStore.data().active()];
+        String name = presetStore.data() == null ? "" : presetStore.data().names()[presetStore.data().active()];
         return LayoutPresetBank.encodeSlot(current, name, layoutCodec);
     }
 
@@ -693,19 +633,19 @@ public final class DockManager {
      * 解码预算校验），解析失败一律拒绝并保留原状态。</p>
      */
     public LayoutShareResult importLayoutJson(String json) {
-        if (presets == null || layoutCodec == null) {
+        if (presetStore.data() == null || layoutCodec == null) {
             return LayoutShareResult.fail("gui.ae2enhanced.spliced_editor.import.fail");
         }
         if (json == null || json.trim().isEmpty()) {
             return LayoutShareResult.fail("gui.ae2enhanced.spliced_editor.import.empty");
         }
         try {
-            presets = LayoutPresetBank.read(json, layoutCodec, presets);
+            presetStore.replace(LayoutPresetBank.read(json, layoutCodec, presetStore.data()));
             undoHistory.clear();
-            replaceWorkspace(presets.workspaces()[presets.active()], true);
+            replaceWorkspace(presetStore.data().workspaces()[presetStore.data().active()], true);
             ensureAnchoredVisible();
-            if (!editingLayout) {
-                persistenceBlockedAfterLoadFailure = false;
+            if (!layoutEditing.active()) {
+                dockSession.allowPersistence();
                 savePresetBankQuietly();
                 save();
             }
@@ -716,52 +656,39 @@ public final class DockManager {
         }
     }
 
-    /** 分享目录（配置目录不可用时为 null）。 */
+    // --- 内部 -------------------------------------------------------------------
+
     public Path shareFolder() {
-        return configDir == null ? null : configDir.resolve("share");
+        return presetStore.shareFolder();
     }
 
-    /** 把三个预设槽写到分享目录（外加一份 zip，便于整包发给别人）。 */
     public LayoutShareResult exportToShareFolder() {
-        if (presets == null || layoutCodec == null || configDir == null) {
+        if (presetStore.data() == null || layoutCodec == null || configDir == null) {
             return LayoutShareResult.fail("gui.ae2enhanced.spliced_editor.export.fail");
         }
         captureActivePreset();
         try {
-            Path share = shareFolder();
-            Files.createDirectories(share);
-            for (int index = 0; index < LayoutPresetBank.SLOT_COUNT; index++) {
-                Path slotDir = share.resolve(LayoutPresetBank.shareSlotFolder(index));
-                Files.createDirectories(slotDir);
-                LayoutPresetBank.writeAtomic(
-                        slotDir.resolve(LayoutPresetBank.SHARE_LAYOUT_FILE),
-                        LayoutPresetBank.encodeSlot(
-                                presets.workspaces()[index], presets.names()[index], layoutCodec));
-            }
-            LayoutPresetBank.zipShareSlots(share, share.resolve(LayoutPresetBank.SHARE_ZIP_FILE));
-            return LayoutShareResult.ok("gui.ae2enhanced.spliced_editor.export.ok", share);
+            return LayoutShareResult.ok("gui.ae2enhanced.spliced_editor.export.ok", presetStore.exportShare());
         } catch (IOException | RuntimeException e) {
             LOGGER.warn("Failed to export spliced terminal layouts", e);
             return LayoutShareResult.fail("gui.ae2enhanced.spliced_editor.export.fail");
         }
     }
 
-    // --- 内部 -------------------------------------------------------------------
-
     private void applyPresetWorkspace(DockWorkspace target) {
         if (target == null) {
             return;
         }
-        if (!target.equals(workspace)) {
-            // W4b 修复：必须在替换之后再记录快照。原来先 remember(workspace) 再替换，
-            // 而 rememberUndoPoint 的守卫是 snapshot.equals(workspace) —— 此刻两者是同一个对象，
+        if (!target.equals(workspace())) {
+            // W4b 修复：必须在替换之后再记录快照。原来先 remember(workspace()) 再替换，
+            // 而 rememberUndoPoint 的守卫是 snapshot.equals(workspace()) —— 此刻两者是同一个对象，
             // 于是快照被静默丢弃，编辑器里点"恢复默认"后没有任何撤销点（实机表现为"撤销无反应"）。
-            DockWorkspace before = workspace;
+            DockWorkspace before = workspace();
             replaceWorkspace(target, true);
             rememberUndoPoint(before);
         }
         // 恢复默认是显式修复动作：允许覆盖此前被隔离/损坏的布局
-        persistenceBlockedAfterLoadFailure = false;
+        dockSession.allowPersistence();
         captureActivePreset();
         savePresetBankQuietly();
         save();
@@ -773,35 +700,22 @@ public final class DockManager {
         }
         DockWorkspace filler = host.createDefaultWorkspace(persistenceCatalog, migrationContext,
                 this::fitCompositeRootsToShell);
-        LayoutPresetBank.Data fallback = LayoutPresetBank.create(current, filler, null);
-        Path file = configDir.resolve(LayoutPresetBank.PRESETS_FILE);
-        presets = LayoutPresetBank.load(file, layoutCodec, fallback);
-        if (!Files.isRegularFile(file)) {
-            savePresetBankQuietly();
-        }
+        presetStore.attach(configDir, layoutCodec, presetStore.data());
+        presetStore.load(current, filler);
     }
 
     private void captureActivePreset() {
-        if (presets == null || workspace == null) {
-            return;
-        }
-        presets = presets.withWorkspace(presets.active(), workspace);
+        presetStore.capture(workspace());
     }
 
     private void savePresetBank() throws IOException {
-        if (presets == null || layoutCodec == null || configDir == null) {
-            return;
-        }
         captureActivePreset();
-        LayoutPresetBank.save(configDir.resolve(LayoutPresetBank.PRESETS_FILE), presets, layoutCodec);
+        presetStore.save();
     }
 
     private void savePresetBankQuietly() {
-        try {
-            savePresetBank();
-        } catch (IOException | RuntimeException e) {
-            LOGGER.warn("Failed to write spliced terminal layout presets", e);
-        }
+        captureActivePreset();
+        presetStore.saveQuietly();
     }
 
     /** 视口变化（窗口缩放）时调用：只重算 transient 投影，不动持久化几何。 */
@@ -813,7 +727,7 @@ public final class DockManager {
         }
         this.screenWidth = newWidth;
         this.screenHeight = newHeight;
-        if (workspace == null) {
+        if (workspace() == null) {
             return;
         }
         // Viewport clamping is a transient projection concern. Keep the canonical workspace (and
@@ -822,39 +736,8 @@ public final class DockManager {
         // 但只夹位置不够：窗口比视口还大时会被夹成原样（既超出屏幕又拖不动，因为拖动也是"夹进视口"），
         // 所以这里再把**视口副本**里放不下的 root 缩进视口内。用户一旦真的拖动窗口，
         // 那次编辑写回 canonical 的就是他看到的尺寸，符合预期。
-        viewportWorkspace = fitRootsToViewport(clampWorkspaceToViewport(workspace));
+        viewportWorkspace = fitRootsToViewport(clampWorkspaceToViewport(workspace()));
         projectionDirty = true;
-    }
-
-    /** 视口内保留的边距（与默认布局构造时的 {@code VIEWPORT_MARGIN} 一致）。 */
-    private static final int VIEWPORT_FIT_MARGIN = 8;
-
-    /**
-     * 把放不进视口的 root 收缩到视口内（只缩不放）。
-     *
-     * <p>加载来的布局可能是在更大的窗口里存下的：视口钳制只能挪位置、不能缩尺寸，
-     * 于是窗口超出屏幕且拖不动（拖动 = 把目标矩形夹进视口，超尺寸时结果恒等于原样）。
-     * 这里把 canonical workspace 的 root 尺寸收到视口内，让"拖标题栏移动窗口"至少有可移动空间。</p>
-     */
-    private DockWorkspace fitRootsToViewport(DockWorkspace source) {
-        DockWorkspace next = source;
-        for (FloatingRoot root : source.roots()) {
-            DockRect bounds = root.bounds();
-            int maxWidth = Math.max(1, screenWidth - VIEWPORT_FIT_MARGIN);
-            int maxHeight = Math.max(1, screenHeight - VIEWPORT_FIT_MARGIN);
-            if (bounds.width() <= maxWidth && bounds.height() <= maxHeight) {
-                continue;
-            }
-            // 不能低于树的固有最小尺寸（LayoutEngine 会保住每个模块的最小尺寸，写更小的值没有意义，
-            // 只会让 canonical 与投影来回抖动）
-            DockSize minimum = minimumOf(layoutEngine.project(next), root.rootId());
-            DockRect fitted = clampRectToViewport(new DockRect(
-                    bounds.x(), bounds.y(),
-                    Math.max(minimum.width(), Math.min(bounds.width(), maxWidth)),
-                    Math.max(minimum.height(), Math.min(bounds.height(), maxHeight))), DockSize.ZERO);
-            next = editor.setRootBounds(next, root.rootId(), fitted);
-        }
-        return next;
     }
 
     public int structureVersion() {
@@ -866,8 +749,8 @@ public final class DockManager {
         return panelsView;
     }
 
-    public DockWorkspace workspaceSnapshot() {
-        return workspace;
+    private DockWorkspace fitRootsToViewport(DockWorkspace source) {
+        return viewportFitter().fit(source);
     }
 
     /**
@@ -896,13 +779,22 @@ public final class DockManager {
 
     // --- 投影缓存 ----------------------------------------------------------------
 
+    private ViewportFitter viewportFitter() {
+        DockInsets insets = layoutEditing.active()
+                ? new DockInsets(editorInsetLeft, editorInsetTop, editorInsetRight, editorInsetBottom)
+                : DockInsets.NONE;
+        return new ViewportFitter(screenWidth, screenHeight, insets, editor, layoutEngine);
+    }
+
+    public DockWorkspace workspaceSnapshot() {
+        return workspace();
+    }
+
     private void ensureProjection() {
-        if (!projectionDirty || workspace == null || viewportWorkspace == null || layoutEngine == null) {
+        if (!projectionDirty || workspace() == null || viewportWorkspace == null || layoutEngine == null) {
             return;
         }
         leavesCache.clear();
-        paintOrderCache = null;
-        paintBandCache = null;
         LayoutProjection next = layoutEngine.project(viewportWorkspace);
         for (FloatingRoot root : viewportWorkspace.roots()) {
             int visibleLeaves = 0;
@@ -941,24 +833,20 @@ public final class DockManager {
                 panel.setFloatControl(visible && canFloat && leaf == floatControlLeaf, root.floating(),
                         root.group());
             }
-            for (LeafNode leaf : LayoutTrees.leaves(root.content())) {
-                ModulePanel panel = panelsByModuleId.get(leaf.moduleId());
-                if (panel == null) {
-                    continue;
-                }
-                panel.contentRightInset = panel.preferredContentRightInset();
-                panel.contentOffsetX = 0;
-                panel.contentOffsetY = 0;
-                panel.layoutSlots();
-            }
         }
         projection = next;
+        rootStack = new RootStack(viewportWorkspace, next, MAX_Z_BAND);
         projectionDirty = false;
+    }
+
+    public void flushPanelLayouts() {
+        ensureProjection();
+        panelLayoutReconciler.reconcile(projection, panels);
     }
 
     /** 本轮布局是否有可见的固定（非浮动）窗口；工具栏类 chrome 依赖该不变量。 */
     public boolean hasVisibleAnchored() {
-        return hasVisibleAnchored(workspace);
+        return hasVisibleAnchored(workspace());
     }
 
     private boolean hasVisibleAnchored(DockWorkspace candidate) {
@@ -989,12 +877,12 @@ public final class DockManager {
      * @return true 表示本次调用修改了布局（调用方应落盘）
      */
     public boolean ensureAnchoredVisible() {
-        if (workspace == null || hasVisibleAnchored()) {
+        if (workspace() == null || hasVisibleAnchored()) {
             return false;
         }
         ModulePanel pick = null;
         for (ModulePanel panel : panels) {
-            if (workspace.policyFor(panel.id()).visible()) {
+            if (workspace().policyFor(panel.id()).visible()) {
                 pick = panel;
                 break;
             }
@@ -1006,7 +894,7 @@ public final class DockManager {
             return false;
         }
         LeafNode leaf = leafForPanel(pick);
-        DockWorkspace next = workspace;
+        DockWorkspace next = workspace();
         if (!next.policyFor(pick.id()).visible()) {
             next = editor.setLeafVisible(next, leaf.nodeId(), true, null, null, null);
         }
@@ -1022,16 +910,18 @@ public final class DockManager {
             replaceGestureWorkspace(changed, structural);
             return;
         }
-        if (changed.equals(workspace)) {
+        if (structural) {
+            changed = fitCompositeRootsToShell(changed);
+        }
+        if (changed.equals(workspace())) {
             return;
         }
         // Every path into replaceWorkspace is a real user layout edit (move, resize, split,
         // visibility, detach, snap, or undo). It is therefore the point at which it is safe to
         // release the post-load-failure write guard.
-        persistenceBlockedAfterLoadFailure = false;
-        workspace = changed;
+        dockSession.replace(changed);
         viewportWorkspace = clampWorkspaceToViewport(changed);
-        workspaceRevision++;
+        dockSession.markUserEdit();
         projectionDirty = true;
         if (structural) {
             structureVersion++;
@@ -1041,10 +931,10 @@ public final class DockManager {
     }
 
     private void replaceGestureWorkspace(DockWorkspace changed, boolean structural) {
-        if (changed.equals(workspace)) {
+        if (changed.equals(workspace())) {
             return;
         }
-        workspace = changed;
+        dockSession.replace(changed);
         DockWorkspace nextViewport = clampGestureViewport(changed, structural);
         if (nextViewport.equals(viewportWorkspace)) {
             // Geometry is identical to what is already projected, so the live drag preview needs no
@@ -1089,20 +979,7 @@ public final class DockManager {
     }
 
     private DockWorkspace clampWorkspaceToViewport(DockWorkspace source) {
-        // Sanitize persisted coordinates before the layout engine performs any additions.
-        List<FloatingRoot> sanitizedRoots = new ArrayList<FloatingRoot>();
-        for (FloatingRoot root : source.roots()) {
-            sanitizedRoots.add(root.withBounds(clampRectToViewport(root.bounds(), DockSize.ZERO)));
-        }
-        DockWorkspace sanitized = source.withRoots(sanitizedRoots);
-        LayoutProjection measured = layoutEngine.project(sanitized);
-
-        List<FloatingRoot> clampedRoots = new ArrayList<FloatingRoot>();
-        for (FloatingRoot root : sanitized.roots()) {
-            DockSize minimum = minimumOf(measured, root.rootId());
-            clampedRoots.add(root.withBounds(clampRectToViewport(root.bounds(), minimum)));
-        }
-        return source.withRoots(clampedRoots);
+        return viewportFitter().clamp(source);
     }
 
     private static DockSize minimumOf(LayoutProjection measured, String rootId) {
@@ -1115,22 +992,7 @@ public final class DockManager {
     }
 
     private DockRect clampRectToViewport(DockRect bounds, DockSize minimum) {
-        // 编辑态把画布缩到 chrome 之内：窗口标题条不会滑到侧栏/工具栏底下
-        int minX = editingLayout ? editorInsetLeft : 0;
-        int minY = editingLayout ? editorInsetTop : 0;
-        int maxRight = Math.max(minX + 1, screenWidth - (editingLayout ? editorInsetRight : 0));
-        int maxBottom = Math.max(minY + 1, screenHeight - (editingLayout ? editorInsetBottom : 0));
-        int canvasWidth = Math.max(1, maxRight - minX);
-        int canvasHeight = Math.max(1, maxBottom - minY);
-        int width = Math.min(canvasWidth, Math.max(bounds.width(), minimum.width()));
-        int height = Math.min(canvasHeight, Math.max(bounds.height(), minimum.height()));
-        width = Math.max(1, width);
-        height = Math.max(1, height);
-        int maxX = Math.max(minX, maxRight - width);
-        int maxY = Math.max(minY, maxBottom - height);
-        int x = (int) Math.max((long) minX, Math.min((long) bounds.x(), (long) maxX));
-        int y = (int) Math.max((long) minY, Math.min((long) bounds.y(), (long) maxY));
-        return new DockRect(x, y, width, height);
+        return viewportFitter().clampRect(bounds, minimum);
     }
 
     /**
@@ -1146,7 +1008,7 @@ public final class DockManager {
                     visibleLeaves++;
                 }
             }
-            if (visibleLeaves < 2) {
+            if (visibleLeaves == 0) {
                 continue;
             }
             DockSize fitted = layoutEngine.preferredSize(next, root.content());
@@ -1162,18 +1024,8 @@ public final class DockManager {
         return next;
     }
 
-    /** Persists only a dirty workspace revision; repeated close/store hooks perform no file IO. */
     public void save() {
-        if (persistence == null || workspace == null || persistedRevision == workspaceRevision
-                || persistenceBlockedAfterLoadFailure || gestureCanonicalWorkspace != null) {
-            return;
-        }
-        try {
-            persistence.save(workspace);
-            persistedRevision = workspaceRevision;
-        } catch (IOException | RuntimeException e) {
-            LOGGER.warn("Failed to write dock layout v{}", DockLayoutDto.CURRENT_VERSION, e);
-        }
+        dockSession.save(workspace(), gestureCanonicalWorkspace != null);
     }
 
     private void rememberUndoPoint(DockWorkspace snapshot) {
@@ -1181,7 +1033,7 @@ public final class DockManager {
             // Gesture previews must not enter the undo history; only the committed result does.
             return;
         }
-        if (snapshot == null || snapshot.equals(workspace)) {
+        if (snapshot == null || snapshot.equals(workspace())) {
             return;
         }
         if (undoHistory.remember(snapshot)) {
@@ -1191,7 +1043,7 @@ public final class DockManager {
 
     private DockWorkspace takeInteractionStartWorkspace() {
         DockWorkspace pending = takePendingFocusWorkspace();
-        return pending != null ? pending : workspace;
+        return pending != null ? pending : workspace();
     }
 
     private DockWorkspace takePendingFocusWorkspace() {
@@ -1201,7 +1053,7 @@ public final class DockManager {
     }
 
     private void commitInteraction(DockWorkspace beforeInteraction) {
-        if (beforeInteraction != null && !beforeInteraction.equals(workspace)) {
+        if (beforeInteraction != null && !beforeInteraction.equals(workspace())) {
             rememberUndoPoint(beforeInteraction);
         }
         save();
@@ -1216,7 +1068,7 @@ public final class DockManager {
         if (restore == null) {
             return;
         }
-        persistenceBlockedAfterLoadFailure = false;
+        dockSession.allowPersistence();
         structureVersion++;
         replaceWorkspace(restore, true);
         save();
@@ -1235,7 +1087,7 @@ public final class DockManager {
             return;
         }
         // W4b：同 applyPresetWorkspace —— 快照要在替换之后再记（否则被 equals 守卫静默丢弃）
-        DockWorkspace before = workspace;
+        DockWorkspace before = workspace();
         replaceWorkspace(edited, true);
         rememberUndoPoint(before);
         save();
@@ -1244,10 +1096,10 @@ public final class DockManager {
     // --- 模块可见性与窗口模式 -----------------------------------------------------
 
     public ModuleLayoutPolicy policyFor(ModulePanel panel) {
-        if (workspace == null) {
+        if (workspace() == null) {
             return ModuleLayoutPolicy.defaults();
         }
-        return workspace.policyFor(panel.id());
+        return workspace().policyFor(panel.id());
     }
 
     public void setModulePolicy(ModulePanel panel, ModuleLayoutPolicy policy) {
@@ -1255,8 +1107,8 @@ public final class DockManager {
             throw new NullPointerException("panel and policy");
         }
         LeafNode leaf = leafForPanel(panel);
-        ModuleLayoutPolicy current = workspace.policyFor(panel.id());
-        DockWorkspace next = workspace;
+        ModuleLayoutPolicy current = workspace().policyFor(panel.id());
+        DockWorkspace next = workspace();
         if (current.visible() != policy.visible()) {
             DockRect previousBounds = current.visible() ? projectionBounds(leaf.nodeId()) : null;
             next = editor.setLeafVisible(
@@ -1268,18 +1120,18 @@ public final class DockManager {
         if (!hasVisibleAnchored(next)) {
             return;
         }
-        replaceWorkspace(next, false);
+        replaceWorkspace(next, true);
     }
 
     public void toggleVisible(ModulePanel panel) {
         LeafNode leaf = leafForPanel(panel);
-        boolean currentlyVisible = workspace.policyFor(leaf.moduleId()).visible();
+        boolean currentlyVisible = workspace().policyFor(leaf.moduleId()).visible();
         boolean nextVisible = !currentlyVisible;
         DockRect previousBounds = currentlyVisible ? projectionBounds(leaf.nodeId()) : null;
-        rememberUndoPoint(workspace);
+        rememberUndoPoint(workspace());
         replaceWorkspace(
                 editor.setLeafVisible(
-                        workspace, leaf.nodeId(), nextVisible, previousBounds, null, previousBounds),
+                        workspace(), leaf.nodeId(), nextVisible, previousBounds, null, previousBounds),
                 false);
         save();
         host.onModuleVisibilityChanged();
@@ -1289,15 +1141,15 @@ public final class DockManager {
     public void hideModule(ModulePanel panel) {
         ensureProjection();
         LeafNode leaf = leafForPanel(panel);
-        if (!workspace.policyFor(leaf.moduleId()).visible()) {
+        if (!workspace().policyFor(leaf.moduleId()).visible()) {
             return;
         }
         if (!panel.closable()) {
             return;
         }
-        rememberUndoPoint(workspace);
+        rememberUndoPoint(workspace());
         replaceWorkspace(
-                editor.setLeafVisible(workspace, leaf.nodeId(), false, null, null, null),
+                editor.setLeafVisible(workspace(), leaf.nodeId(), false, null, null, null),
                 false);
         save();
         // 通知宿主同步可见集合（终端据此推送 panelMask）；否则服务端的旧 mask 会把这次隐藏还原
@@ -1308,19 +1160,19 @@ public final class DockManager {
     public void revealModule(ModulePanel panel) {
         ensureProjection();
         LeafNode leaf = leafForPanel(panel);
-        DockWorkspace next = workspace;
+        DockWorkspace next = workspace();
         FloatingRoot holder = rootContainingNode(next, leaf.nodeId());
         if (holder != null && holder.hidden()) {
             next = editor.setRootHidden(next, holder.rootId(), false);
         }
-        if (!workspace.policyFor(leaf.moduleId()).visible()) {
+        if (!workspace().policyFor(leaf.moduleId()).visible()) {
             next = editor.setLeafVisible(next, leaf.nodeId(), true, null, null, null);
         }
         FloatingRoot root = rootContainingNode(next, leaf.nodeId());
         if (root != null) {
             next = editor.raiseRoot(next, root.rootId());
         }
-        if (next != workspace) {
+        if (next != workspace()) {
             replaceWorkspace(next, false);
             host.onModuleVisibilityChanged();
         }
@@ -1333,7 +1185,7 @@ public final class DockManager {
         ensureProjection();
         Set<String> ids = new LinkedHashSet<String>();
         for (ModulePanel panel : panelsView) {
-            if (workspace != null && workspace.policyFor(panel.id()).visible()) {
+            if (workspace() != null && workspace().policyFor(panel.id()).visible()) {
                 ids.add(panel.id());
             }
         }
@@ -1342,8 +1194,8 @@ public final class DockManager {
 
     public boolean isModuleVisible(String moduleId) {
         ensureProjection();
-        return workspace != null && panelsByModuleId.containsKey(moduleId)
-                && workspace.policyFor(moduleId).visible();
+        return workspace() != null && panelsByModuleId.containsKey(moduleId)
+                && workspace().policyFor(moduleId).visible();
     }
 
     /**
@@ -1361,7 +1213,7 @@ public final class DockManager {
         }
         ensureProjection();
         LeafNode leaf = leafForPanel(panel);
-        boolean currentlyVisible = workspace.policyFor(moduleId).visible();
+        boolean currentlyVisible = workspace().policyFor(moduleId).visible();
         if (currentlyVisible == visible) {
             return false;
         }
@@ -1369,15 +1221,15 @@ public final class DockManager {
             if (!panel.closable()) {
                 return false;
             }
-            DockWorkspace candidate = editor.setLeafVisible(workspace, leaf.nodeId(), false, null, null, null);
+            DockWorkspace candidate = editor.setLeafVisible(workspace(), leaf.nodeId(), false, null, null, null);
             if (!hasVisibleAnchored(candidate)) {
                 return false;
             }
         }
         DockRect previousBounds = currentlyVisible ? projectionBounds(leaf.nodeId()) : null;
-        rememberUndoPoint(workspace);
+        rememberUndoPoint(workspace());
         replaceWorkspace(
-                editor.setLeafVisible(workspace, leaf.nodeId(), visible, previousBounds, null, previousBounds),
+                editor.setLeafVisible(workspace(), leaf.nodeId(), visible, previousBounds, null, previousBounds),
                 false);
         save();
         host.onModuleVisibilityChanged();
@@ -1407,16 +1259,16 @@ public final class DockManager {
         if (!root.floating()) {
             return;
         }
-        replaceWorkspace(editor.setRootMode(workspace, root.rootId(), true, !root.pinned()), true);
+        replaceWorkspace(editor.setRootMode(workspace(), root.rootId(), true, !root.pinned()), true);
         save();
     }
 
     public boolean canToggleFloating(ModulePanel panel) {
-        if (panel == null || workspace == null) {
+        if (panel == null || workspace() == null) {
             return false;
         }
         FloatingRoot root = rootOf(panel);
-        return root.floating() || hasVisibleAnchored(editor.setRootMode(workspace, root.rootId(), true, false));
+        return root.floating() || hasVisibleAnchored(editor.setRootMode(workspace(), root.rootId(), true, false));
     }
 
     public void toggleFloating(ModulePanel panel) {
@@ -1431,17 +1283,17 @@ public final class DockManager {
         if (root.floating() == floating) {
             return;
         }
-        rememberUndoPoint(workspace);
-        replaceWorkspace(editor.setRootMode(workspace, root.rootId(), floating, false), true);
+        rememberUndoPoint(workspace());
+        replaceWorkspace(editor.setRootMode(workspace(), root.rootId(), floating, false), true);
         save();
     }
 
     public boolean isFloatingWindow(ModulePanel panel) {
-        return panel != null && workspace != null && rootOf(panel).floating();
+        return panel != null && workspace() != null && rootOf(panel).floating();
     }
 
     public boolean isJoinedWindow(ModulePanel panel) {
-        return panel != null && workspace != null && rootOf(panel).content() instanceof SplitNode;
+        return panel != null && workspace() != null && rootOf(panel).content() instanceof SplitNode;
     }
 
     public boolean isFloatingUnpinned(ModulePanel panel) {
@@ -1450,7 +1302,7 @@ public final class DockManager {
     }
 
     public boolean isEffectivelyVisible(ModulePanel panel) {
-        if (workspace == null || panel == null || panelsByModuleId.get(panel.id()) != panel) {
+        if (workspace() == null || panel == null || panelsByModuleId.get(panel.id()) != panel) {
             return false;
         }
         ensureProjection();
@@ -1459,14 +1311,14 @@ public final class DockManager {
     }
 
     private FloatingRoot rootOf(ModulePanel panel) {
-        return rootContainingNode(workspace, leafForPanel(panel).nodeId());
+        return rootContainingNode(workspace(), leafForPanel(panel).nodeId());
     }
 
     private LeafNode leafForPanel(ModulePanel panel) {
         if (panel == null || panelsByModuleId.get(panel.id()) != panel) {
             throw new IllegalArgumentException("panel is not registered with this dock");
         }
-        for (FloatingRoot root : workspace.roots()) {
+        for (FloatingRoot root : workspace().roots()) {
             for (LeafNode leaf : LayoutTrees.leaves(root.content())) {
                 if (leaf.moduleId().equals(panel.id())) {
                     return leaf;
@@ -1506,9 +1358,9 @@ public final class DockManager {
                 .rootId().equals(root.rootId())) {
             return;
         }
-        DockWorkspace beforeInteraction = workspace;
-        replaceWorkspace(editor.raiseRoot(workspace, root.rootId()), false);
-        if (!beforeInteraction.equals(workspace)) {
+        DockWorkspace beforeInteraction = workspace();
+        replaceWorkspace(editor.raiseRoot(workspace(), root.rootId()), false);
+        if (!beforeInteraction.equals(workspace())) {
             pendingFocusWorkspace = beforeInteraction;
         }
     }
@@ -1538,10 +1390,10 @@ public final class DockManager {
         }
 
         DockWorkspace beforeInteraction = takeInteractionStartWorkspace();
-        boolean rootRaised = !beforeInteraction.equals(workspace);
+        boolean rootRaised = !beforeInteraction.equals(workspace());
         if (!viewportWorkspace.roots().get(viewportWorkspace.roots().size() - 1).rootId().equals(root.rootId())) {
-            replaceWorkspace(editor.raiseRoot(workspace, root.rootId()), false);
-            rootRaised = rootRaised || !beforeInteraction.equals(workspace);
+            replaceWorkspace(editor.raiseRoot(workspace(), root.rootId()), false);
+            rootRaised = rootRaised || !beforeInteraction.equals(workspace());
             root = rootById(root.rootId());
         }
 
@@ -1562,6 +1414,7 @@ public final class DockManager {
             activeRootId = root.rootId();
             grabOffsetX = mouseX - root.bounds().right();
             grabOffsetY = mouseY - root.bounds().bottom();
+            resizeStartBounds = root.bounds();
             gestureStartWorkspace = beforeInteraction;
             return true;
         }
@@ -1605,21 +1458,17 @@ public final class DockManager {
             boolean controlDown = host.controlDown();
             boolean detachLeaf = shouldDetachJoinedLeaf(host.altDown(), controlDown);
             if (controlDown) {
-                // Ctrl+drag moves the whole spliced window instead of taking a section out.
-                mode = Mode.DRAG_ROOT;
+                mode = Mode.PENDING_ROOT_DRAG;
                 activeRootId = root.rootId();
                 grabOffsetX = mouseX - root.bounds().x();
                 grabOffsetY = mouseY - root.bounds().y();
             } else if (root.content().nodeId().equals(leafNode.nodeId())) {
-                // A standalone leaf is itself the floating root, so retain the fast path that drags
-                // that root immediately.
-                mode = Mode.DRAG_ROOT;
+                mode = Mode.PENDING_ROOT_DRAG;
                 activeRootId = root.rootId();
                 grabOffsetX = mouseX - root.bounds().x();
                 grabOffsetY = mouseY - root.bounds().y();
             } else if (!detachLeaf) {
-                // Every joined window moves as one unit unless Alt is held.
-                mode = Mode.DRAG_ROOT;
+                mode = Mode.PENDING_ROOT_DRAG;
                 activeRootId = root.rootId();
                 grabOffsetX = mouseX - root.bounds().x();
                 grabOffsetY = mouseY - root.bounds().y();
@@ -1671,21 +1520,18 @@ public final class DockManager {
             return false;
         }
         if (gestureCanonicalWorkspace == null) {
-            gestureCanonicalWorkspace = workspace;
+            gestureCanonicalWorkspace = workspace();
             gestureCanonicalViewport = viewportWorkspace;
             gestureStructural = false;
         }
         ensureProjection();
-        if (mode == Mode.PENDING_LEAF_DRAG) {
+        if (mode == Mode.PENDING_ROOT_DRAG || mode == Mode.PENDING_LEAF_DRAG) {
             double dx = mouseX - pressX;
             double dy = mouseY - pressY;
             if (dx * dx + dy * dy < (double) LEAF_DRAG_THRESHOLD * LEAF_DRAG_THRESHOLD) {
                 return true;
             }
-            if (!detachPendingLeaf()) {
-                // Detach can become invalid if the projected leaf disappears between press and drag.
-                // A root may already have been raised at press time, so finish that edit instead of
-                // silently leaving it unsaved and without an undo point.
+            if (mode == Mode.PENDING_LEAF_DRAG && !detachPendingLeaf()) {
                 finishGesture();
                 return true;
             }
@@ -1699,7 +1545,7 @@ public final class DockManager {
                     (int) Math.round(mouseY - grabOffsetY),
                     bounds.width(),
                     bounds.height()), DockSize.ZERO);
-            replaceWorkspace(editor.setRootBounds(workspace, root.rootId(), moved), false);
+            replaceWorkspace(editor.setRootBounds(workspace(), root.rootId(), moved), false);
             updateDropCandidate(mouseX, mouseY);
             return true;
         }
@@ -1708,12 +1554,26 @@ public final class DockManager {
             DockSize minimum = rootMinimum(root.rootId());
             int width = (int) Math.round(mouseX - grabOffsetX - root.bounds().x());
             int height = (int) Math.round(mouseY - grabOffsetY - root.bounds().y());
+            if (host.shiftDown() && resizeStartBounds != null) {
+                double startWidth = Math.max(1, resizeStartBounds.width());
+                double startHeight = Math.max(1, resizeStartBounds.height());
+                double scale = Math.min(width / startWidth, height / startHeight);
+                scale = Math.max(0.05D, Math.round(scale * 20.0D) / 20.0D);
+                double minScale = Math.max(0.05D, Math.max(minimum.width() / startWidth,
+                        minimum.height() / startHeight));
+                double maxScale = Math.max(minScale, Math.min(
+                        (host.screenWidth() - resizeStartBounds.x()) / startWidth,
+                        (host.screenHeight() - resizeStartBounds.y()) / startHeight));
+                scale = Math.max(minScale, Math.min(maxScale, scale));
+                width = (int) Math.round(startWidth * scale);
+                height = (int) Math.round(startHeight * scale);
+            }
             DockRect resized = clampRectToViewport(new DockRect(
                     root.bounds().x(),
                     root.bounds().y(),
                     Math.max(1, width),
                     Math.max(1, height)), minimum);
-            replaceWorkspace(editor.setRootBounds(workspace, root.rootId(), resized), false);
+            replaceWorkspace(editor.setRootBounds(workspace(), root.rootId(), resized), false);
             return true;
         }
         if (mode == Mode.RESIZE_DIVIDER) {
@@ -1732,13 +1592,12 @@ public final class DockManager {
         if (button != 0 || mode == Mode.NONE) {
             return false;
         }
-        if (mode == Mode.PENDING_LEAF_DRAG) {
-            // A title click that never crossed the drag threshold does not detach the leaf, but it
-            // may still have raised a lower root. Commit that Z-order change as one undoable edit.
+        if (mode == Mode.PENDING_ROOT_DRAG || mode == Mode.PENDING_LEAF_DRAG) {
             finishGesture();
             return true;
         }
         if (mode == Mode.DRAG_ROOT) {
+            updateDropCandidate(mouseX, mouseY);
             if (dropCandidate != null) {
                 executeDrop(dropCandidate);
             } else {
@@ -1777,14 +1636,17 @@ public final class DockManager {
 
     private void finishGesture() {
         DockWorkspace beforeInteraction = gestureStartWorkspace;
-        DockWorkspace preview = workspace;
+        DockWorkspace preview = workspace();
         DockWorkspace canonical = gestureCanonicalWorkspace;
         boolean structural = gestureStructural;
         resetGestureState();
+        if (structural) {
+            preview = fitCompositeRootsToShell(preview);
+        }
         if (canonical != null && !preview.equals(canonical)) {
-            persistenceBlockedAfterLoadFailure = false;
-            workspace = preview;
-            workspaceRevision++;
+            dockSession.replace(preview);
+            viewportWorkspace = clampWorkspaceToViewport(preview);
+            dockSession.markUserEdit();
             projectionDirty = true;
             if (structural) {
                 structureVersion++;
@@ -1792,6 +1654,7 @@ public final class DockManager {
             ensureProjection();
         }
         commitInteraction(beforeInteraction);
+        flushPanelLayouts();
     }
 
     /** Commits a live pointer gesture exactly once; safe to call during screen removal. */
@@ -1820,6 +1683,7 @@ public final class DockManager {
         gestureCanonicalViewport = null;
         gestureStructural = false;
         pendingFocusWorkspace = null;
+        resizeStartBounds = null;
     }
 
     /** A joined leaf detaches only with Alt held; Ctrl drags the whole window instead. */
@@ -1841,7 +1705,7 @@ public final class DockManager {
             return false;
         }
         String newRootId = "root:" + NodeIds.random();
-        DockWorkspace changed = detachAndRestore(workspace, activeLeafNodeId, newRootId);
+        DockWorkspace changed = detachAndRestore(workspace(), activeLeafNodeId, newRootId);
         changed = editor.raiseRoot(changed, newRootId);
         replaceWorkspace(changed, true);
         activeRootId = newRootId;
@@ -1996,21 +1860,22 @@ public final class DockManager {
         double ratio = candidate.edge().draggedFirst() ? draggedFraction : 1.0 - draggedFraction;
 
         String splitNodeId = "split:" + NodeIds.random();
-        Map<String, DockSize> restore = new LinkedHashMap<String, DockSize>(workspace.restoreSizes());
+        LayoutProjection canonicalProjection = layoutEngine.project(workspace());
+        Map<String, DockSize> restore = new LinkedHashMap<String, DockSize>(workspace().restoreSizes());
         for (LeafNode leaf : LayoutTrees.leaves(targetViewportRoot.content())) {
-            LayoutProjection.LeafPlacement visible = projection.visibleLeaf(leaf.nodeId()).orElse(null);
+            LayoutProjection.LeafPlacement visible = canonicalProjection.visibleLeaf(leaf.nodeId()).orElse(null);
             if (visible != null) {
                 restore.put(leaf.nodeId(), visible.bounds().size());
             }
         }
         for (LeafNode leaf : LayoutTrees.leaves(draggedRoot.content())) {
-            LayoutProjection.LeafPlacement visible = projection.visibleLeaf(leaf.nodeId()).orElse(null);
+            LayoutProjection.LeafPlacement visible = canonicalProjection.visibleLeaf(leaf.nodeId()).orElse(null);
             if (visible != null) {
                 restore.put(leaf.nodeId(), visible.bounds().size());
             }
         }
         DockWorkspace joined = editor.insertSplit(
-                workspace.withRestoreSizes(restore),
+                workspace().withRestoreSizes(restore),
                 dragged.nodeId(),
                 candidate.targetNodeId(),
                 candidate.edge(),
@@ -2021,9 +1886,10 @@ public final class DockManager {
                 targetViewportRoot.bounds(), draggedRoot.bounds(), candidate.edge());
         LayoutNode joinedContent = rootContainingNode(joined, splitNodeId).content();
         DockSize fitted = layoutEngine.preferredSize(joined, joinedContent);
+        DockSize minimum = minimumOf(layoutEngine.project(joined), joinedRootId);
         expandedBounds = clampRectToViewport(new DockRect(
                 expandedBounds.x(), expandedBounds.y(),
-                Math.max(1, fitted.width()), Math.max(1, fitted.height())), DockSize.ZERO);
+                Math.max(1, fitted.width()), Math.max(1, fitted.height())), minimum);
         joined = editor.setRootBounds(joined, joinedRootId, expandedBounds);
         joined = editor.raiseRoot(joined, joinedRootId);
         replaceWorkspace(joined, true);
@@ -2082,7 +1948,7 @@ public final class DockManager {
         DockRect snapped = clampRectToViewport(
                 new DockRect(snappedX, snappedY, bounds.width(), bounds.height()),
                 rootMinimum(active.rootId()));
-        replaceWorkspace(editor.setRootBounds(workspace, active.rootId(), snapped), false);
+        replaceWorkspace(editor.setRootBounds(workspace(), active.rootId(), snapped), false);
     }
 
     private static int closestSnap(int current, List<Integer> candidates) {
@@ -2131,7 +1997,7 @@ public final class DockManager {
             return;
         }
         FloatingRoot root = rootById(activeRootId);
-        Map<String, DockSize> restore = new LinkedHashMap<String, DockSize>(workspace.restoreSizes());
+        Map<String, DockSize> restore = new LinkedHashMap<String, DockSize>(workspace().restoreSizes());
         if (root != null) {
             for (LeafNode leaf : LayoutTrees.leaves(root.content())) {
                 LayoutProjection.LeafPlacement visible = projection.visibleLeaf(leaf.nodeId()).orElse(null);
@@ -2142,7 +2008,7 @@ public final class DockManager {
         }
         applySeamDelta(restore, firstTouch, split.axis(), delta);
         applySeamDelta(restore, secondTouch, split.axis(), -delta);
-        DockWorkspace next = workspace.withRestoreSizes(restore);
+        DockWorkspace next = workspace().withRestoreSizes(restore);
 
         int firstMain = subtreeMainAfterDelta(split.first(), firstTouch, split.axis(), delta);
         int secondMain = subtreeMainAfterDelta(split.second(), secondTouch, split.axis(), -delta);
@@ -2158,7 +2024,7 @@ public final class DockManager {
                             Math.max(1, fitted.width()), Math.max(1, fitted.height())),
                     rootMinimum(root.rootId())));
         }
-        if (!next.equals(workspace)) {
+        if (!next.equals(workspace())) {
             replaceWorkspace(next, false);
             resizeLastX = mouseX;
             resizeLastY = mouseY;
@@ -2417,27 +2283,8 @@ public final class DockManager {
      * 按重叠关系分配时，平铺的默认布局只占 1 条带。</p>
      */
     private int zBandOf(FloatingRoot target) {
-        Map<String, Integer> bands = paintBandCache;
-        if (bands == null) {
-            bands = new HashMap<String, Integer>();
-            List<FloatingRoot> order = paintOrderRoots();
-            for (int i = 0; i < order.size(); i++) {
-                FloatingRoot root = order.get(i);
-                int band = 0;
-                for (int j = 0; j < i; j++) {
-                    FloatingRoot earlier = order.get(j);
-                    Integer earlierBand = bands.get(earlier.rootId());
-                    if (earlierBand == null || !intersects(earlier.bounds(), root.bounds())) {
-                        continue;
-                    }
-                    band = Math.max(band, earlierBand + 1);
-                }
-                bands.put(root.rootId(), Math.min(MAX_Z_BAND, band));
-            }
-            paintBandCache = bands;
-        }
-        Integer band = bands.get(target.rootId());
-        return band == null ? 0 : band;
+        ensureProjection();
+        return rootStack.bandOf(target.rootId());
     }
 
     /**
@@ -2455,7 +2302,7 @@ public final class DockManager {
             return false;
         }
         String ownerRootId = rootContainingNode(viewportWorkspace, leaf.nodeId()).rootId();
-        return isAreaUnobscured(viewportWorkspace, ownerRootId, area);
+        return rootStack.isAreaUnobscured(ownerRootId, area);
     }
 
     /**
@@ -2472,29 +2319,9 @@ public final class DockManager {
         return leaf != null && top.rootId().equals(rootContainingNode(viewportWorkspace, leaf.nodeId()).rootId());
     }
 
-    static boolean isAreaUnobscured(DockWorkspace workspace, String ownerRootId, DockRect area) {
-        List<FloatingRoot> roots = workspace.roots();
-        int ownerIndex = -1;
-        for (int i = 0; i < roots.size(); i++) {
-            FloatingRoot root = roots.get(i);
-            if (root.rootId().equals(ownerRootId)) {
-                if (!hasVisibleLeaf(workspace, root.content()) || !contains(root.bounds(), area)) {
-                    return false;
-                }
-                ownerIndex = i;
-                break;
-            }
-        }
-        if (ownerIndex < 0) {
-            return false;
-        }
-        for (int i = ownerIndex + 1; i < roots.size(); i++) {
-            FloatingRoot higher = roots.get(i);
-            if (hasVisibleLeaf(workspace, higher.content()) && intersects(higher.bounds(), area)) {
-                return false;
-            }
-        }
-        return true;
+    private List<FloatingRoot> paintOrderRoots() {
+        ensureProjection();
+        return rootStack.roots();
     }
 
     private static boolean hasVisibleLeaf(DockWorkspace workspace, LayoutNode node) {
@@ -2695,27 +2522,14 @@ public final class DockManager {
         return null;
     }
 
-    private List<FloatingRoot> paintOrderRoots() {
-        if (paintOrderCache != null) {
-            return paintOrderCache;
-        }
-        List<FloatingRoot> unpinned = new ArrayList<FloatingRoot>();
-        List<FloatingRoot> pinned = new ArrayList<FloatingRoot>();
-        for (FloatingRoot root : viewportWorkspace.roots()) {
-            if (!rootEffectivelyVisible(root.rootId())) {
-                continue;
-            }
-            if (root.pinned()) {
-                pinned.add(root);
-            } else {
-                unpinned.add(root);
+    private LayoutNode findNode(String nodeId) {
+        for (FloatingRoot root : workspace().roots()) {
+            Optional<LayoutNode> node = LayoutTrees.find(root.content(), nodeId);
+            if (node.isPresent()) {
+                return node.get();
             }
         }
-        List<FloatingRoot> order = new ArrayList<FloatingRoot>(unpinned.size() + pinned.size());
-        order.addAll(unpinned);
-        order.addAll(pinned);
-        paintOrderCache = Collections.unmodifiableList(order);
-        return paintOrderCache;
+        throw new IllegalArgumentException("unknown node: " + nodeId);
     }
 
     /** The section whose title bar sits in the window's top-right corner carries the float button. */
@@ -2828,18 +2642,17 @@ public final class DockManager {
         throw new IllegalArgumentException("unknown root: " + rootId);
     }
 
-    private LayoutNode findNode(String nodeId) {
-        for (FloatingRoot root : workspace.roots()) {
-            Optional<LayoutNode> node = LayoutTrees.find(root.content(), nodeId);
-            if (node.isPresent()) {
-                return node.get();
-            }
-        }
-        throw new IllegalArgumentException("unknown node: " + nodeId);
+    private ModuleLayoutPolicy policyFor(LeafNode leaf) {
+        return workspace().policyFor(leaf.moduleId());
     }
 
-    private ModuleLayoutPolicy policyFor(LeafNode leaf) {
-        return workspace.policyFor(leaf.moduleId());
+    private enum Mode {
+        NONE,
+        PENDING_ROOT_DRAG,
+        PENDING_LEAF_DRAG,
+        DRAG_ROOT,
+        RESIZE_ROOT,
+        RESIZE_DIVIDER
     }
 
     private boolean canResizeNode(LayoutNode node) {

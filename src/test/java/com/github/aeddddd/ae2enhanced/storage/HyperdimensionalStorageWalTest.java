@@ -34,81 +34,85 @@ public class HyperdimensionalStorageWalTest {
     @TempDir
     public Path tempDir;
 
+    private static final java.util.List<HyperdimensionalStorageFile> fixtures = new java.util.ArrayList<>();
+
     @BeforeAll
     public static void boot() {
         AE2TestBootstrap.boot();
     }
 
+    @org.junit.jupiter.api.AfterEach
+    void cleanup() throws Exception {
+        for (HyperdimensionalStorageFile fixture : fixtures) fixture.close();
+        fixtures.clear();
+        com.github.aeddddd.ae2enhanced.test.util.TemporaryDirectoryCleaner.clearContents(tempDir);
+    }
+
     // ---- 工具 ----
 
-    private static final class Fixture {
-        final HyperdimensionalStorageFile file;
-        final ItemStorageAdapter adapter;
-
-        Fixture(Path worldDir, UUID id) {
-            this.file = new HyperdimensionalStorageFile(worldDir.toFile(), id);
-            this.adapter = new ItemStorageAdapter(file);
-            file.setStorageRef(adapter.getStorageMap());
-            file.beginLoad();    // 注册完成后启动异步首加载
-            file.awaitLoaded();  // 测试语义保持同步：构造返回时加载已完成
+    /**
+     * 能量分区（单例零字段描述符,descLen=0 为合法编码）端到端：
+     * 注入/提取、BigInteger 域计数、崩溃重放、优雅关闭。
+     * 回归防护：descLen=0 不得被判为损坏（历史事故：越界校验误伤单例分区）。
+     */
+    @Test
+    public void energySectionRoundTrip() {
+        // 无头环境 Loader.isModLoaded 不可用,按需注册能量通道（其他存储测试可能已注册）
+        try {
+            appeng.api.AEApi.instance().storage().getStorageChannel(
+                com.github.aeddddd.ae2enhanced.storage.energy.IEnergyStorageChannel.class);
+        } catch (RuntimeException absent) {
+            appeng.api.AEApi.instance().storage().registerStorageChannel(
+                com.github.aeddddd.ae2enhanced.storage.energy.IEnergyStorageChannel.class,
+                new com.github.aeddddd.ae2enhanced.storage.energy.EnergyStorageChannel());
         }
 
-        void inject(String ignored, int meta, long count) {
-            inject(new ItemStack(Items.DYE, 1, meta), count);
-        }
+        UUID id = UUID.randomUUID();
+        HyperdimensionalStorageFile f1 = new HyperdimensionalStorageFile(tempDir.toFile(), id);
+        HyperdimensionalEnergyStorageAdapter a1 = new HyperdimensionalEnergyStorageAdapter(f1);
+        f1.setEnergyStorageRef(a1.getStorageMap());
+        f1.beginLoad();
 
-        void inject(ItemStack stack, long count) {
-            IAEItemStack ae = channel().createStack(stack);
-            ae.setStackSize(count);
-            adapter.injectItems(ae, Actionable.MODULATE, null);
-        }
+        long inject1 = 5_000_000_000L;
+        a1.injectItems(com.github.aeddddd.ae2enhanced.storage.energy.AEEnergyStack.create(inject1),
+            appeng.api.config.Actionable.MODULATE, null);
+        assertThat(a1.getTotalCount().toLongSaturated()).isEqualTo(inject1);
 
-        void injectNbt(String key, String value, long count) {
-            ItemStack stack = new ItemStack(Items.DYE, 1, 7);
-            net.minecraft.nbt.NBTTagCompound tag = new net.minecraft.nbt.NBTTagCompound();
-            tag.setString(key, value);
-            stack.setTagCompound(tag);
-            inject(stack, count);
-        }
+        // SIMULATE 不扣减; MODULATE 部分提取
+        com.github.aeddddd.ae2enhanced.storage.energy.IAEEnergyStack sim =
+            a1.extractItems(com.github.aeddddd.ae2enhanced.storage.energy.AEEnergyStack.create(inject1),
+                appeng.api.config.Actionable.SIMULATE, null);
+        assertThat(sim).isNotNull();
+        assertThat(sim.getStackSize()).isEqualTo(inject1);
+        a1.extractItems(com.github.aeddddd.ae2enhanced.storage.energy.AEEnergyStack.create(2_000_000_000L),
+            appeng.api.config.Actionable.MODULATE, null);
+        assertThat(a1.getTotalCount().toLongSaturated()).isEqualTo(inject1 - 2_000_000_000L);
 
-        long countOf(int meta) {
-            IAEItemStack probe = channel().createStack(new ItemStack(Items.DYE, 1, meta));
-            probe.setStackSize(Long.MAX_VALUE);
-            IAEItemStack got = adapter.extractItems(probe, Actionable.SIMULATE, null);
-            return got == null ? 0L : got.getStackSize();
-        }
+        // 推进 BigInteger 域后崩溃
+        a1.injectItems(com.github.aeddddd.ae2enhanced.storage.energy.AEEnergyStack.create(Long.MAX_VALUE),
+            appeng.api.config.Actionable.MODULATE, null);
+        HugeCount total = a1.getTotalCount();
+        assertThat(total.isBig()).isTrue();
+        f1.onServerTick();
+        f1.debugFlushWalSync();
+        f1.debugSimulateCrash();
 
-        long countOfNbt(String key, String value) {
-            ItemStack stack = new ItemStack(Items.DYE, 1, 7);
-            net.minecraft.nbt.NBTTagCompound tag = new net.minecraft.nbt.NBTTagCompound();
-            tag.setString(key, value);
-            stack.setTagCompound(tag);
-            IAEItemStack probe = channel().createStack(stack);
-            probe.setStackSize(Long.MAX_VALUE);
-            IAEItemStack got = adapter.extractItems(probe, Actionable.SIMULATE, null);
-            return got == null ? 0L : got.getStackSize();
-        }
+        HyperdimensionalStorageFile f2 = new HyperdimensionalStorageFile(tempDir.toFile(), id);
+        HyperdimensionalEnergyStorageAdapter a2 = new HyperdimensionalEnergyStorageAdapter(f2);
+        f2.setEnergyStorageRef(a2.getStorageMap());
+        f2.beginLoad();
+        f2.awaitLoaded(); // 等异步首加载完成（recalcTotal 钩子执行后再读总数）
+        assertThat(a2.getTotalCount().toBigInteger()).isEqualTo(total.toBigInteger());
+        assertThat(f2.isSectionFailed(StorageSection.ENERGY)).isFalse();
+        f2.close();
 
-        void extractAll(int meta) {
-            IAEItemStack probe = channel().createStack(new ItemStack(Items.DYE, 1, meta));
-            probe.setStackSize(Long.MAX_VALUE);
-            adapter.extractItems(probe, Actionable.MODULATE, null);
-        }
-
-        void extractSome(int meta, long amount) {
-            IAEItemStack probe = channel().createStack(new ItemStack(Items.DYE, 1, meta));
-            probe.setStackSize(amount);
-            adapter.extractItems(probe, Actionable.MODULATE, null);
-        }
-
-        void tickAndFlushWal() {
-            file.onServerTick();
-            file.debugFlushWalSync();
-        }
-
-        private static IItemStorageChannel channel() {
-            return AEApi.instance().storage().getStorageChannel(IItemStorageChannel.class);
-        }
+        HyperdimensionalStorageFile f3 = new HyperdimensionalStorageFile(tempDir.toFile(), id);
+        HyperdimensionalEnergyStorageAdapter a3 = new HyperdimensionalEnergyStorageAdapter(f3);
+        f3.setEnergyStorageRef(a3.getStorageMap());
+        f3.beginLoad();
+        f3.awaitLoaded();
+        assertThat(a3.getTotalCount().toBigInteger()).isEqualTo(total.toBigInteger());
+        f3.close();
     }
 
     private Path walPath(UUID id) {
@@ -322,62 +326,75 @@ public class HyperdimensionalStorageWalTest {
         f2.file.close();
     }
 
-    /**
-     * 能量分区（单例零字段描述符,descLen=0 为合法编码）端到端：
-     * 注入/提取、BigInteger 域计数、崩溃重放、优雅关闭。
-     * 回归防护：descLen=0 不得被判为损坏（历史事故：越界校验误伤单例分区）。
-     */
-    @Test
-    public void energySectionRoundTrip() {
-        // 无头环境 Loader.isModLoaded 不可用,直接注册能量通道
-        appeng.api.AEApi.instance().storage().registerStorageChannel(
-            com.github.aeddddd.ae2enhanced.storage.energy.IEnergyStorageChannel.class,
-            new com.github.aeddddd.ae2enhanced.storage.energy.EnergyStorageChannel());
+    private static final class Fixture {
+        final HyperdimensionalStorageFile file;
+        final ItemStorageAdapter adapter;
 
-        UUID id = UUID.randomUUID();
-        HyperdimensionalStorageFile f1 = new HyperdimensionalStorageFile(tempDir.toFile(), id);
-        HyperdimensionalEnergyStorageAdapter a1 = new HyperdimensionalEnergyStorageAdapter(f1);
-        f1.setEnergyStorageRef(a1.getStorageMap());
-        f1.beginLoad();
+        Fixture(Path worldDir, UUID id) {
+            this.file = new HyperdimensionalStorageFile(worldDir.toFile(), id);
+            fixtures.add(this.file);
+            this.adapter = new ItemStorageAdapter(file);
+            file.setStorageRef(adapter.getStorageMap());
+            file.beginLoad();    // 注册完成后启动异步首加载
+            file.awaitLoaded();  // 测试语义保持同步：构造返回时加载已完成
+        }
 
-        long inject1 = 5_000_000_000L;
-        a1.injectItems(com.github.aeddddd.ae2enhanced.storage.energy.AEEnergyStack.create(inject1),
-            appeng.api.config.Actionable.MODULATE, null);
-        assertThat(a1.getTotalCount().toLongSaturated()).isEqualTo(inject1);
+        void inject(String ignored, int meta, long count) {
+            inject(new ItemStack(Items.DYE, 1, meta), count);
+        }
 
-        // SIMULATE 不扣减; MODULATE 部分提取
-        com.github.aeddddd.ae2enhanced.storage.energy.IAEEnergyStack sim =
-            a1.extractItems(com.github.aeddddd.ae2enhanced.storage.energy.AEEnergyStack.create(inject1),
-                appeng.api.config.Actionable.SIMULATE, null);
-        assertThat(sim).isNotNull();
-        assertThat(sim.getStackSize()).isEqualTo(inject1);
-        a1.extractItems(com.github.aeddddd.ae2enhanced.storage.energy.AEEnergyStack.create(2_000_000_000L),
-            appeng.api.config.Actionable.MODULATE, null);
-        assertThat(a1.getTotalCount().toLongSaturated()).isEqualTo(inject1 - 2_000_000_000L);
+        void inject(ItemStack stack, long count) {
+            IAEItemStack ae = channel().createStack(stack);
+            ae.setStackSize(count);
+            adapter.injectItems(ae, Actionable.MODULATE, null);
+        }
 
-        // 推进 BigInteger 域后崩溃
-        a1.injectItems(com.github.aeddddd.ae2enhanced.storage.energy.AEEnergyStack.create(Long.MAX_VALUE),
-            appeng.api.config.Actionable.MODULATE, null);
-        HugeCount total = a1.getTotalCount();
-        assertThat(total.isBig()).isTrue();
-        f1.onServerTick();
-        f1.debugFlushWalSync();
-        f1.debugSimulateCrash();
+        void injectNbt(String key, String value, long count) {
+            ItemStack stack = new ItemStack(Items.DYE, 1, 7);
+            net.minecraft.nbt.NBTTagCompound tag = new net.minecraft.nbt.NBTTagCompound();
+            tag.setString(key, value);
+            stack.setTagCompound(tag);
+            inject(stack, count);
+        }
 
-        HyperdimensionalStorageFile f2 = new HyperdimensionalStorageFile(tempDir.toFile(), id);
-        HyperdimensionalEnergyStorageAdapter a2 = new HyperdimensionalEnergyStorageAdapter(f2);
-        f2.beginLoad();
-        f2.awaitLoaded(); // 等异步首加载完成（recalcTotal 钩子执行后再读总数）
-        assertThat(a2.getTotalCount().toBigInteger()).isEqualTo(total.toBigInteger());
-        assertThat(f2.isSectionFailed(StorageSection.ENERGY)).isFalse();
-        f2.close();
+        long countOf(int meta) {
+            IAEItemStack probe = channel().createStack(new ItemStack(Items.DYE, 1, meta));
+            probe.setStackSize(Long.MAX_VALUE);
+            IAEItemStack got = adapter.extractItems(probe, Actionable.SIMULATE, null);
+            return got == null ? 0L : got.getStackSize();
+        }
 
-        HyperdimensionalStorageFile f3 = new HyperdimensionalStorageFile(tempDir.toFile(), id);
-        HyperdimensionalEnergyStorageAdapter a3 = new HyperdimensionalEnergyStorageAdapter(f3);
-        f3.beginLoad();
-        f3.awaitLoaded();
-        assertThat(a3.getTotalCount().toBigInteger()).isEqualTo(total.toBigInteger());
-        f3.close();
+        long countOfNbt(String key, String value) {
+            ItemStack stack = new ItemStack(Items.DYE, 1, 7);
+            net.minecraft.nbt.NBTTagCompound tag = new net.minecraft.nbt.NBTTagCompound();
+            tag.setString(key, value);
+            stack.setTagCompound(tag);
+            IAEItemStack probe = channel().createStack(stack);
+            probe.setStackSize(Long.MAX_VALUE);
+            IAEItemStack got = adapter.extractItems(probe, Actionable.SIMULATE, null);
+            return got == null ? 0L : got.getStackSize();
+        }
+
+        void extractAll(int meta) {
+            IAEItemStack probe = channel().createStack(new ItemStack(Items.DYE, 1, meta));
+            probe.setStackSize(Long.MAX_VALUE);
+            adapter.extractItems(probe, Actionable.MODULATE, null);
+        }
+
+        void extractSome(int meta, long amount) {
+            IAEItemStack probe = channel().createStack(new ItemStack(Items.DYE, 1, meta));
+            probe.setStackSize(amount);
+            adapter.extractItems(probe, Actionable.MODULATE, null);
+        }
+
+        void tickAndFlushWal() {
+            file.onServerTick();
+            file.debugFlushWalSync();
+        }
+
+        private static IItemStorageChannel channel() {
+            return AEApi.instance().storage().getStorageChannel(IItemStorageChannel.class);
+        }
     }
 
     /**

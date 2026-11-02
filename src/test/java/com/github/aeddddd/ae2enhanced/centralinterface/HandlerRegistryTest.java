@@ -45,46 +45,45 @@ public class HandlerRegistryTest {
         }
     }
 
+    private HandlerRegistry registry;
+
     @BeforeEach
     public void setUp() {
-        HandlerRegistry.resetForTesting();
+        registry = new HandlerRegistry();
     }
 
     /** 测试环境无任何 mod：init 只注册 DefaultSingleBatchHandler 兜底，且重复 init 幂等。 */
     @Test
     public void testInitRegistersOnlyDefaultFallback() {
-        HandlerRegistry.init();
+        registry.initialize();
 
-        List<IRemoteHandler> handlers = HandlerRegistry.getHandlers();
+        List<IRemoteHandler> handlers = registry.handlers();
         assertThat(handlers).hasSize(1);
         assertThat(handlers.get(0)).isInstanceOf(DefaultSingleBatchHandler.class);
 
-        // 重复 init 不重复注册
-        HandlerRegistry.init();
-        assertThat(HandlerRegistry.getHandlers()).hasSize(1);
+        registry.initialize();
+        assertThat(registry.handlers()).hasSize(1);
     }
 
     /** 未知 blockId 返回兜底 handler（HANDLERS.get(0)，即 DefaultSingleBatchHandler）。 */
     @Test
     public void testFindHandlerFallbackForUnknownBlockId() {
-        IRemoteHandler found = HandlerRegistry.findHandler("minecraft:furnace");
+        IRemoteHandler found = registry.find("minecraft:furnace");
 
         assertThat(found).isInstanceOf(DefaultSingleBatchHandler.class);
-        assertThat(found).isSameAs(HandlerRegistry.getHandlers().get(0));
-        // 兜底 handler 不主动匹配任何 blockId
+        assertThat(found).isSameAs(registry.handlers().get(0));
         assertThat(found.canHandle("minecraft:furnace")).isFalse();
     }
 
     /** 注入 fake handler 后，匹配的 blockId 优先返回 fake；不匹配仍回退到兜底。 */
     @Test
-    public void testRegisterForTestingFakeHandlerPriority() {
+    public void testRegisterFakeHandlerPriority() {
         IRemoteHandler fake = mock(IRemoteHandler.class);
         when(fake.canHandle("test:machine")).thenReturn(true);
-        HandlerRegistry.registerForTesting(fake);
+        registry.register(fake);
 
-        assertThat(HandlerRegistry.findHandler("test:machine")).isSameAs(fake);
-        assertThat(HandlerRegistry.findHandler("test:unknown"))
-                .isInstanceOf(DefaultSingleBatchHandler.class);
+        assertThat(registry.find("test:machine")).isSameAs(fake);
+        assertThat(registry.find("test:unknown")).isInstanceOf(DefaultSingleBatchHandler.class);
     }
 
     /** 多个 handler 同时匹配时，按注册顺序先注册者优先。 */
@@ -95,9 +94,9 @@ public class HandlerRegistryTest {
         when(first.canHandle("test:multi")).thenReturn(true);
         when(second.canHandle("test:multi")).thenReturn(true);
 
-        HandlerRegistry.registerForTesting(first);
-        HandlerRegistry.registerForTesting(second);
+        registry.register(first);
+        registry.register(second);
 
-        assertThat(HandlerRegistry.findHandler("test:multi")).isSameAs(first);
+        assertThat(registry.find("test:multi")).isSameAs(first);
     }
 }

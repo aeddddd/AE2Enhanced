@@ -1,7 +1,5 @@
 package com.github.aeddddd.ae2enhanced.centralinterface.handler.extendedcrafting;
 
-import com.github.aeddddd.ae2enhanced.centralinterface.TargetSession;
-
 import appeng.api.networking.security.IActionSource;
 import appeng.api.storage.data.IAEItemStack;
 import appeng.api.storage.data.IAEStack;
@@ -9,6 +7,7 @@ import appeng.util.item.AEItemStack;
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
 import com.github.aeddddd.ae2enhanced.centralinterface.IRemoteHandler;
 import com.github.aeddddd.ae2enhanced.centralinterface.IVirtualBatchCraftingHandler;
+import com.github.aeddddd.ae2enhanced.centralinterface.TargetSession;
 import com.github.aeddddd.ae2enhanced.storage.energy.AEEnergyStack;
 import net.minecraft.inventory.IInventory;
 import net.minecraft.inventory.InventoryCrafting;
@@ -238,18 +237,22 @@ public class CompressorHandler implements IRemoteHandler, IVirtualBatchCraftingH
 
     // ---- IVirtualCraftingHandler / IVirtualBatchCraftingHandler ----
 
-    @Override
-    public boolean canCraftVirtually(World world, BlockPos pos, InventoryCrafting ingredients, IAEItemStack[] outputs) {
+    @SuppressWarnings("unchecked")
+    private static Object findRecipeByOutput(ItemStack output) {
         initReflection();
-        if (outputs == null || outputs.length == 0 || outputs[0] == null) return false;
-
-        ItemStack expected = outputs[0].createItemStack();
-        if (expected.isEmpty()) return false;
-
-        Object recipe = findRecipeByOutput(expected);
-        if (recipe == null) return false;
-
-        return ingredientsMatchCompressor(recipe, ingredients);
+        try {
+            List<Object> recipes = (List<Object>) METHOD_GET_RECIPES.invoke(RECIPE_MANAGER_INSTANCE);
+            if (recipes == null) return null;
+            for (Object recipe : recipes) {
+                ItemStack recipeOutput = (ItemStack) METHOD_GET_OUTPUT.invoke(recipe);
+                if (com.github.aeddddd.ae2enhanced.centralinterface.recipe.RecipeBinding.exactMatch(recipeOutput, output)) {
+                    return recipe;
+                }
+            }
+        } catch (Exception e) {
+            // ignore
+        }
+        return null;
     }
 
     @Override
@@ -262,73 +265,76 @@ public class CompressorHandler implements IRemoteHandler, IVirtualBatchCraftingH
         );
     }
 
+    private static com.github.aeddddd.ae2enhanced.centralinterface.recipe.RecipeBinding bind(
+            Object recipe, IAEItemStack[] expectedOutputs) {
+        if (recipe == null) return null;
+        try {
+            ItemStack output = (ItemStack) METHOD_GET_OUTPUT.invoke(recipe);
+            return com.github.aeddddd.ae2enhanced.centralinterface.recipe.RecipeBinding.of(
+                    recipe, expectedOutputs, output);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    @Override
+    public boolean canCraftVirtually(World world, BlockPos pos, InventoryCrafting ingredients, IAEItemStack[] outputs) {
+        initReflection();
+        if (outputs == null || outputs.length == 0 || outputs[0] == null) return false;
+
+        Object recipe = findRecipeByOutput(outputs[0].createItemStack());
+        return bind(recipe, outputs) != null && ingredientsMatchCompressor(recipe, ingredients);
+    }
+
+    // ---- 配方查找与匹配 ----
+
     @Override
     public List<IAEStack> getVirtualCost(World world, BlockPos pos, InventoryCrafting ingredients, IAEItemStack[] outputs, long count) {
         List<IAEStack> costs = new ArrayList<>();
         initReflection();
+        if (count <= 0 || outputs == null || outputs.length == 0 || outputs[0] == null) return null;
 
         Object recipe = findRecipeByOutput(outputs[0].createItemStack());
-        if (recipe == null) return costs;
+        if (bind(recipe, outputs) == null || !ingredientsMatchCompressor(recipe, ingredients)) return null;
 
         int inputCount = getRecipeInputCount(recipe);
         int powerCost = getRecipePowerCost(recipe);
         Ingredient inputIngredient = getRecipeInput(recipe);
         Ingredient catalystIngredient = getRecipeCatalyst(recipe);
         boolean consumeCatalyst = consumeCatalyst(recipe);
+        if (inputCount <= 0 || inputIngredient == null || powerCost < 0) return null;
 
-        // 主材料：按配方 inputCount * count 扣除
-        ItemStack mainStack = findFirstMatchingStack(ingredients, inputIngredient);
-        if (!mainStack.isEmpty()) {
+        try {
+            ItemStack mainStack = findFirstMatchingStack(ingredients, inputIngredient);
+            if (mainStack.isEmpty()) return null;
             IAEItemStack mainCost = AEItemStack.fromItemStack(mainStack.copy());
-            mainCost.setStackSize((long) inputCount * count);
+            mainCost.setStackSize(Math.multiplyExact((long) inputCount, count));
             costs.add(mainCost);
-        }
 
-        // 催化剂：仅在消耗催化剂时扣除
-        if (consumeCatalyst && catalystIngredient != null) {
-            ItemStack catalystStack = findFirstMatchingStack(ingredients, catalystIngredient);
-            if (!catalystStack.isEmpty()) {
+            if (consumeCatalyst && catalystIngredient != null) {
+                ItemStack catalystStack = findFirstMatchingStack(ingredients, catalystIngredient);
+                if (catalystStack.isEmpty()) return null;
                 IAEItemStack catalystCost = AEItemStack.fromItemStack(catalystStack.copy());
                 catalystCost.setStackSize(count);
                 costs.add(catalystCost);
             }
-        }
 
-        // RF 消耗
-        if (powerCost > 0) {
-            costs.add(AEEnergyStack.create((long) powerCost * count));
+            if (powerCost > 0) {
+                costs.add(AEEnergyStack.create(Math.multiplyExact((long) powerCost, count)));
+            }
+        } catch (ArithmeticException overflow) {
+            return null;
         }
-
         return costs;
     }
 
     @Override
     public List<ItemStack> virtualCraftBatch(World world, BlockPos pos, InventoryCrafting ingredients, IAEItemStack[] outputs, long count, IActionSource source) {
-        List<ItemStack> products = new ArrayList<>();
-        if (!canCraftVirtually(world, pos, ingredients, outputs)) return products;
-        return scaleOutputsByCount(outputs, count);
-    }
-
-    // ---- 配方查找与匹配 ----
-
-    @SuppressWarnings("unchecked")
-    private static Object findRecipeByOutput(ItemStack output) {
-        initReflection();
-        try {
-            List<Object> recipes = (List<Object>) METHOD_GET_RECIPES.invoke(RECIPE_MANAGER_INSTANCE);
-            if (recipes == null) return null;
-            for (Object recipe : recipes) {
-                ItemStack recipeOutput = (ItemStack) METHOD_GET_OUTPUT.invoke(recipe);
-                if (!recipeOutput.isEmpty()
-                        && recipeOutput.getItem() == output.getItem()
-                        && recipeOutput.getMetadata() == output.getMetadata()) {
-                    return recipe;
-                }
-            }
-        } catch (Exception e) {
-            // ignore
-        }
-        return null;
+        Object recipe = outputs == null || outputs.length == 0 || outputs[0] == null
+                ? null : findRecipeByOutput(outputs[0].createItemStack());
+        com.github.aeddddd.ae2enhanced.centralinterface.recipe.RecipeBinding binding = bind(recipe, outputs);
+        if (binding == null || !ingredientsMatchCompressor(recipe, ingredients)) return new ArrayList<>();
+        return scaleOutputsByCount(binding.getOutputs(), count);
     }
 
     private static boolean ingredientsMatchCompressor(Object recipe, InventoryCrafting ingredients) {

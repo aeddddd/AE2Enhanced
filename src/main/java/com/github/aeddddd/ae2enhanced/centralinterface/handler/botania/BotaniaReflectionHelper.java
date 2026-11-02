@@ -1,11 +1,11 @@
 package com.github.aeddddd.ae2enhanced.centralinterface.handler.botania;
 
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
+import com.github.aeddddd.ae2enhanced.centralinterface.access.ITileAltarAccessor;
+import com.github.aeddddd.ae2enhanced.centralinterface.access.ITilePoolAccessor;
+import com.github.aeddddd.ae2enhanced.centralinterface.access.ITileRuneAltarAccessor;
+import com.github.aeddddd.ae2enhanced.centralinterface.access.ITileSimpleInventoryAccessor;
 import com.github.aeddddd.ae2enhanced.centralinterface.reflection.ReflectionCache;
-import com.github.aeddddd.ae2enhanced.mixin.late.botania.ITileAltarAccessor;
-import com.github.aeddddd.ae2enhanced.mixin.late.botania.ITilePoolAccessor;
-import com.github.aeddddd.ae2enhanced.mixin.late.botania.ITileRuneAltarAccessor;
-import com.github.aeddddd.ae2enhanced.mixin.late.botania.ITileSimpleInventoryAccessor;
 import net.minecraft.block.Block;
 import net.minecraft.block.properties.IProperty;
 import net.minecraft.block.state.IBlockState;

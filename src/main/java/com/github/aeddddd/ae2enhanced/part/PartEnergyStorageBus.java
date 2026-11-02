@@ -36,15 +36,14 @@ import appeng.util.Platform;
 import appeng.util.inv.InvOperation;
 import appeng.util.prioritylist.PrecisePriorityList;
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
-import com.github.aeddddd.ae2enhanced.gui.GuiHandler;
+import com.github.aeddddd.ae2enhanced.guiapi.GuiCatalog;
+import com.github.aeddddd.ae2enhanced.item.fakeitem.FakeEnergies;
 import com.github.aeddddd.ae2enhanced.platform.energy.EnergyAdapterRegistry;
 import com.github.aeddddd.ae2enhanced.platform.energy.IEnergyAdapter;
-import com.github.aeddddd.ae2enhanced.registry.content.PartRegistry;
 import com.github.aeddddd.ae2enhanced.storage.channel.ChannelRegistrationManager;
 import com.github.aeddddd.ae2enhanced.storage.energy.EnergyChannelResolver;
 import com.github.aeddddd.ae2enhanced.storage.energy.ExternalEnergyMonitor;
 import com.github.aeddddd.ae2enhanced.storage.energy.IAEEnergyStack;
-import com.github.aeddddd.ae2enhanced.util.fakeitem.FakeEnergies;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
@@ -273,7 +272,7 @@ public class PartEnergyStorageBus extends PartUpgradeable implements IGridTickab
     public boolean onPartActivate(EntityPlayer player, EnumHand hand, Vec3d pos) {
         if (Platform.isServer()) {
             TileEntity te = this.getHost().getTile();
-            int guiId = GuiHandler.GUI_ENERGY_STORAGE_BUS | (this.getSide().ordinal() << 8);
+            int guiId = GuiCatalog.GUI_ENERGY_STORAGE_BUS | (this.getSide().ordinal() << 8);
             player.openGui(AE2Enhanced.instance, guiId, te.getWorld(),
                     te.getPos().getX(), te.getPos().getY(), te.getPos().getZ());
         }
@@ -506,7 +505,7 @@ public class PartEnergyStorageBus extends PartUpgradeable implements IGridTickab
 
     /**
      * 优先级 GUI 的返回按钮目标.返回 null 表示不显示返回按钮
-     * (本总线 GUI 走项目自有 GuiHandler,无法通过 AE2 GuiBridge 回链).
+     * (本总线 GUI 走项目自有 GuiCatalog,无法通过 AE2 GuiBridge 回链).
      */
     @Override
     public appeng.core.sync.GuiBridge getGuiBridge() {

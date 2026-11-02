@@ -1,6 +1,6 @@
 package com.github.aeddddd.ae2enhanced.client.render;
 
-import com.github.aeddddd.ae2enhanced.tile.TileAdvancedMECollector;
+import com.github.aeddddd.ae2enhanced.collector.TileAdvancedMECollector;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.BufferBuilder;
 import net.minecraft.client.renderer.GlStateManager;

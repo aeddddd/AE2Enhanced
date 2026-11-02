@@ -1,57 +1,35 @@
 package com.github.aeddddd.ae2enhanced.client.gui.terminal;
 
+import com.github.aeddddd.ae2enhanced.client.gui.panel.*;
+import com.github.aeddddd.ae2enhanced.dock.model.*;
+import com.github.aeddddd.ae2enhanced.dock.workspace.DockLayoutCodec;
+import com.github.aeddddd.ae2enhanced.dock.workspace.DockLayoutFormatException;
+import com.github.aeddddd.ae2enhanced.dock.workspace.DockWorkspaceDefaults;
+import com.github.aeddddd.ae2enhanced.dock.workspace.LegacyMigrationContext;
+import org.junit.jupiter.api.Test;
+
+import java.util.*;
+import java.util.function.UnaryOperator;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.function.UnaryOperator;
-
-import org.junit.jupiter.api.Test;
-
-import com.github.aeddddd.ae2enhanced.client.gui.dock.model.DockInsets;
-import com.github.aeddddd.ae2enhanced.client.gui.dock.model.DockRect;
-import com.github.aeddddd.ae2enhanced.client.gui.dock.model.DockSize;
-import com.github.aeddddd.ae2enhanced.client.gui.dock.model.DockWorkspace;
-import com.github.aeddddd.ae2enhanced.client.gui.dock.model.DockWorkspaceEditor;
-import com.github.aeddddd.ae2enhanced.client.gui.dock.model.FloatingRoot;
-import com.github.aeddddd.ae2enhanced.client.gui.dock.model.LayoutEngine;
-import com.github.aeddddd.ae2enhanced.client.gui.dock.model.LayoutProjection;
-import com.github.aeddddd.ae2enhanced.client.gui.dock.model.LayoutStyle;
-import com.github.aeddddd.ae2enhanced.client.gui.dock.model.LayoutTrees;
-import com.github.aeddddd.ae2enhanced.client.gui.dock.model.LeafNode;
-import com.github.aeddddd.ae2enhanced.client.gui.dock.model.ModuleCatalog;
-import com.github.aeddddd.ae2enhanced.client.gui.dock.model.ModuleMetrics;
-import com.github.aeddddd.ae2enhanced.client.gui.dock.workspace.DockLayoutCodec;
-import com.github.aeddddd.ae2enhanced.client.gui.dock.workspace.DockLayoutFormatException;
-import com.github.aeddddd.ae2enhanced.client.gui.dock.workspace.DockWorkspaceDefaults;
-import com.github.aeddddd.ae2enhanced.client.gui.dock.workspace.LegacyMigrationContext;
-import com.github.aeddddd.ae2enhanced.client.gui.panel.CraftingPanel;
-import com.github.aeddddd.ae2enhanced.client.gui.panel.PatternEncodingPanel;
-import com.github.aeddddd.ae2enhanced.client.gui.panel.PlayerInvPanel;
-import com.github.aeddddd.ae2enhanced.client.gui.panel.RepoPanel;
-import com.github.aeddddd.ae2enhanced.client.gui.panel.StoragePanel;
-import com.github.aeddddd.ae2enhanced.client.gui.panel.UpgradePanel;
-import com.github.aeddddd.ae2enhanced.client.gui.panel.ViewCellPanel;
-
 /**
- * 默认布局：四个窗口，每个窗口都按自己内容的尺寸开，窗口之间留 8px 间隔。
+ * 默认布局：六个窗口，每个窗口都按自己内容的尺寸开，窗口之间留 8px 间隔。
  *
  * <pre>
  * w1 = H[repo | viewcell]        w3 = V[playerinv / upgrade]
  * w2 = H[crafting | storage]     w4 = pattern
+ *                                w5 = crafting management
+ * w6 = interface terminal
  * </pre>
  *
  * <p>默认布局一旦构造失败，{@code DockManager} 会静默退回"每个模块一个独立窗口"的级联摆放，
- * 因此这里把"四个窗口、七个模块齐全、尺寸贴合内容、能存读往返"这几条不变量锁住。</p>
+ * 因此这里把"六个窗口、九个模块齐全、尺寸贴合内容、能存读往返"这几条不变量锁住。</p>
  */
 class SplicedTermDefaultLayoutTest {
 
-    private static final int REPO_W = 352;
+    private static final int REPO_W = 244;
     private static final int REPO_H = 132;
     private static final int VIEWCELL_W = 32;
     private static final int VIEWCELL_H = 114;
@@ -63,8 +41,12 @@ class SplicedTermDefaultLayoutTest {
     private static final int UPGRADE_H = 42;
     private static final int PLAYER_W = 176;
     private static final int PLAYER_H = 96;
-    private static final int PATTERN_W = 171;
-    private static final int PATTERN_H = 132;
+    private static final int PATTERN_W = 200;
+    private static final int PATTERN_H = 92;
+    private static final int MANAGEMENT_W = 240;
+    private static final int MANAGEMENT_H = 132;
+    private static final int INTERFACE_W = 208;
+    private static final int INTERFACE_H = 157;
 
     /** 真实尺寸 catalog（投影用）。 */
     private static ModuleCatalog catalog() {
@@ -76,6 +58,8 @@ class SplicedTermDefaultLayoutTest {
         entries.put(UpgradePanel.MODULE_ID, metrics(UPGRADE_W, UPGRADE_H));
         entries.put(PlayerInvPanel.MODULE_ID, metrics(PLAYER_W, PLAYER_H));
         entries.put(PatternEncodingPanel.MODULE_ID, metrics(PATTERN_W, PATTERN_H));
+        entries.put(CraftingManagementPanel.MODULE_ID, metrics(MANAGEMENT_W, MANAGEMENT_H));
+        entries.put(InterfaceTerminalPanel.MODULE_ID, metrics(INTERFACE_W, INTERFACE_H));
         return new ModuleCatalog(entries);
     }
 
@@ -97,6 +81,8 @@ class SplicedTermDefaultLayoutTest {
         entries.put(UpgradePanel.MODULE_ID, inset(UPGRADE_W, UPGRADE_H, insets));
         entries.put(PlayerInvPanel.MODULE_ID, inset(PLAYER_W, PLAYER_H, insets));
         entries.put(PatternEncodingPanel.MODULE_ID, inset(PATTERN_W, PATTERN_H, insets));
+        entries.put(CraftingManagementPanel.MODULE_ID, inset(MANAGEMENT_W, MANAGEMENT_H, insets));
+        entries.put(InterfaceTerminalPanel.MODULE_ID, inset(INTERFACE_W, INTERFACE_H, insets));
         return new ModuleCatalog(entries);
     }
 
@@ -121,7 +107,7 @@ class SplicedTermDefaultLayoutTest {
                         visibleLeaves++;
                     }
                 }
-                if (visibleLeaves < 2) {
+                if (visibleLeaves == 0) {
                     continue;
                 }
                 DockSize fitted = engine.preferredSize(next, root.content());
@@ -173,28 +159,28 @@ class SplicedTermDefaultLayoutTest {
     }
 
     @Test
-    void defaultLayoutIsFourWindowsEachSizedToItsContent() {
+    void defaultLayoutIsSixWindowsEachSizedToItsContent() {
         DockWorkspace workspace = defaultLayout(1280, 685);
 
-        assertEquals(4, workspace.roots().size(),
-                "默认布局是四个窗口（多于/少于 4 说明 split 构造抛异常后退回了级联摆放）");
-        assertEquals(7, moduleIds(workspace).size(), "七个模块都要在默认布局里");
+        assertEquals(6, workspace.roots().size(),
+                "默认布局是六个窗口（多于/少于 6 说明 split 构造抛异常后退回了级联摆放）");
+        assertEquals(9, moduleIds(workspace).size(), "九个模块都要在默认布局里");
 
-        // w1 = repo | viewcell，行高由 repo 决定
-        assertEquals(new DockRect(356, 203, REPO_W + VIEWCELL_W, REPO_H), rootOf(workspace, RepoPanel.MODULE_ID),
+        assertEquals(new DockRect(378, 151, REPO_W + VIEWCELL_W, REPO_H), rootOf(workspace, RepoPanel.MODULE_ID),
                 "w1 应贴合 repo+viewcell 的内容尺寸");
-        // w2 = crafting | storage，两块内容等高
-        assertEquals(new DockRect(356, 343, CRAFTING_W + STORAGE_W, Math.max(CRAFTING_H, STORAGE_H)),
+        assertEquals(new DockRect(378, 291, CRAFTING_W + STORAGE_W, Math.max(CRAFTING_H, STORAGE_H)),
                 rootOf(workspace, CraftingPanel.MODULE_ID), "w2 应贴合 crafting+storage 的内容尺寸");
-        // w3 = playerinv / upgrade，两块内容等宽
-        assertEquals(new DockRect(748, 203, PLAYER_W, PLAYER_H + UPGRADE_H),
+        assertEquals(new DockRect(662, 151, PLAYER_W, PLAYER_H + UPGRADE_H),
                 rootOf(workspace, PlayerInvPanel.MODULE_ID), "w3 应贴合 playerinv+upgrade 的内容尺寸");
-        // w4 = pattern，独占一窗
-        assertEquals(new DockRect(748, 349, PATTERN_W, PATTERN_H),
+        assertEquals(new DockRect(662, 297, PATTERN_W, PATTERN_H),
                 rootOf(workspace, PatternEncodingPanel.MODULE_ID), "w4 应贴合编码区的内容尺寸");
+        assertEquals(new DockRect(662, 397, MANAGEMENT_W, MANAGEMENT_H),
+                rootOf(workspace, CraftingManagementPanel.MODULE_ID), "w5 应贴合合成管理的内容尺寸");
+        assertEquals(new DockRect(378, 377, INTERFACE_W, INTERFACE_H),
+                rootOf(workspace, InterfaceTerminalPanel.MODULE_ID), "w6 应贴合接口终端的内容尺寸");
     }
 
-    /** 四个窗口互不重叠，窗口之间至少留 8px 间隔。 */
+    /** 六个窗口互不重叠，窗口之间至少留 8px 间隔。 */
     @Test
     void windowsDoNotOverlap() {
         DockWorkspace workspace = defaultLayout(1280, 685);
@@ -218,21 +204,39 @@ class SplicedTermDefaultLayoutTest {
         verifyLeavesInsideWindows(workspace, real);
     }
 
-    /** 视口缩到 320x200（比内容还小）时，四个窗口要能整体等比缩下去且不越出视口。 */
+    /** 小视口保留仓库、View Cell 与背包，其余模块在编辑器中按需显示。 */
     @Test
-    void defaultLayoutShrinksIntoSmallViewports() {
+    void smallViewportUsesCompactLayout() {
         ModuleCatalog real = catalog();
         DockWorkspace workspace = defaultLayout(320, 200);
+        Set<String> expectedVisible = new LinkedHashSet<String>(Arrays.asList(
+                RepoPanel.MODULE_ID, PlayerInvPanel.MODULE_ID, ViewCellPanel.MODULE_ID));
+        Set<String> actualVisible = new LinkedHashSet<String>();
+        for (String moduleId : real.moduleIds()) {
+            if (workspace.policyFor(moduleId).visible()) {
+                actualVisible.add(moduleId);
+            }
+        }
+        assertEquals(expectedVisible, actualVisible, "小视口不能让所有窗口互相遮挡");
 
-        assertEquals(4, workspace.roots().size());
+        LayoutProjection projection = new LayoutEngine(real, new LayoutStyle(DockInsets.NONE, 0)).project(workspace);
         for (FloatingRoot root : workspace.roots()) {
             DockRect bounds = root.bounds();
-            assertTrue(bounds.width() > 0 && bounds.height() > 0, "缩后窗口必须有正面积");
+            assertTrue(bounds.width() > 0 && bounds.height() > 0, "窗口必须有正面积");
             assertTrue(bounds.right() <= 320, "root 越出视口宽度: " + bounds);
             assertTrue(bounds.bottom() <= 200, "root 越出视口高度: " + bounds);
             assertTrue(bounds.x() >= 0 && bounds.y() >= 0, "root 越出视口左上角: " + bounds);
+            for (LeafNode leaf : LayoutTrees.leaves(root.content())) {
+                if (!projection.visibleLeaf(leaf.nodeId()).isPresent()) {
+                    continue;
+                }
+                DockRect leafBounds = projection.visibleLeaf(leaf.nodeId()).get().bounds();
+                assertTrue(leafBounds.x() >= bounds.x() && leafBounds.right() <= bounds.right(),
+                        "可见 leaf 越出 root 水平范围: " + leaf.moduleId());
+                assertTrue(leafBounds.y() >= bounds.y() && leafBounds.bottom() <= bounds.bottom(),
+                        "可见 leaf 越出 root 垂直范围: " + leaf.moduleId());
+            }
         }
-        verifyLeavesInsideWindows(workspace, real);
     }
 
     /** 视口变大不会让任何面板变大：默认布局的尺寸只由内容决定。 */

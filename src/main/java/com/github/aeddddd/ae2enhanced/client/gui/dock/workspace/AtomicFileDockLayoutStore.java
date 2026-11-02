@@ -6,25 +6,19 @@
  */
 package com.github.aeddddd.ae2enhanced.client.gui.dock.workspace;
 
+import com.github.aeddddd.ae2enhanced.dock.model.DockWorkspace;
+import com.github.aeddddd.ae2enhanced.dock.workspace.DockLayoutCodec;
+import com.github.aeddddd.ae2enhanced.dock.workspace.DockLayoutFormatException;
+
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
-import java.nio.charset.CharacterCodingException;
-import java.nio.charset.CharsetDecoder;
-import java.nio.charset.CodingErrorAction;
-import java.nio.charset.MalformedInputException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.AtomicMoveNotSupportedException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
-import java.nio.file.StandardOpenOption;
+import java.nio.charset.*;
+import java.nio.file.*;
 import java.time.Instant;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
-
-import com.github.aeddddd.ae2enhanced.client.gui.dock.model.DockWorkspace;
 
 /** Atomic UTF-8 file persistence with an injected path for client config and tests. */
 public final class AtomicFileDockLayoutStore implements DockLayoutPersistence {

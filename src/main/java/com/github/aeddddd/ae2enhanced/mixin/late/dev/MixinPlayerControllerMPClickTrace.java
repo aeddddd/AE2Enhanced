@@ -20,7 +20,7 @@ public class MixinPlayerControllerMPClickTrace {
     @Inject(method = "windowClick", at = @At("HEAD"))
     private void ae2e$traceWindowClick(int windowId, int slotId, int mouseButton, ClickType type,
                                        EntityPlayer player, CallbackInfoReturnable<Object> cir) {
-        if (!com.github.aeddddd.ae2enhanced.util.dev.SplicedTermTestHarness.enabled()) {
+        if (!com.github.aeddddd.ae2enhanced.container.dev.SplicedTermTestHarness.enabled()) {
             return;
         }
         ClickPacketTrace.clientCall(windowId, slotId, mouseButton, String.valueOf(type));

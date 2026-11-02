@@ -1,10 +1,10 @@
 package com.github.aeddddd.ae2enhanced.item;
 
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
-import com.github.aeddddd.ae2enhanced.network.packet.PacketUMCAction;
-import com.github.aeddddd.ae2enhanced.util.memorycard.core.UMCCopyService;
-import com.github.aeddddd.ae2enhanced.util.memorycard.core.UMCPasteService;
-import com.github.aeddddd.ae2enhanced.util.memorycard.core.UMCSelectionService;
+import com.github.aeddddd.ae2enhanced.item.packet.PacketUMCAction;
+import com.github.aeddddd.ae2enhanced.item.memorycard.core.UMCCopyService;
+import com.github.aeddddd.ae2enhanced.item.memorycard.core.UMCPasteService;
+import com.github.aeddddd.ae2enhanced.item.memorycard.core.UMCSelectionService;
 import net.minecraft.block.Block;
 import net.minecraft.client.resources.I18n;
 import net.minecraft.client.util.ITooltipFlag;
@@ -413,86 +413,7 @@ public class ItemUniversalMemoryCard extends Item implements appeng.api.features
     // Client Events
     // ============================================================
 
-    @SideOnly(Side.CLIENT)
-    public static void registerClientEvents() {
-        MinecraftForge.EVENT_BUS.register(new ClientEvents());
-    }
 
-    @SideOnly(Side.CLIENT)
-    public static class ClientEvents {
-        @SideOnly(Side.CLIENT)
-        @SubscribeEvent(priority = net.minecraftforge.fml.common.eventhandler.EventPriority.HIGH)
-        public void onRightClickBlock(PlayerInteractEvent.RightClickBlock event) {
-            if (event.getWorld().isRemote && event.getHand() == EnumHand.MAIN_HAND) {
-                ItemStack stack = event.getEntityPlayer().getHeldItemMainhand();
-                if (stack.getItem() instanceof ItemUniversalMemoryCard) {
-                    EntityPlayer player = event.getEntityPlayer();
-                    boolean isSneaking = player.isSneaking();
-                    // 选取/清除修饰键均为可配置键位(默认左 Ctrl / 左 Alt),不再锁死
-                    boolean isSelect = com.github.aeddddd.ae2enhanced.client.handler.UMCKeyBindings.isSelectDown();
-                    boolean isClear = com.github.aeddddd.ae2enhanced.client.handler.UMCKeyBindings.isClearDown();
-
-                    net.minecraft.tileentity.TileEntity te = event.getWorld().getTileEntity(event.getPos());
-                    boolean isCentralInterface = te instanceof com.github.aeddddd.ae2enhanced.tile.TileCentralMEInterface;
-                    boolean isSmartPatternInterface = te instanceof com.github.aeddddd.ae2enhanced.tile.TileSmartPatternInterface;
-                    boolean isRecycler = te instanceof com.github.aeddddd.ae2enhanced.tile.TileMENetworkRecycler;
-                    boolean isSecurityStation = te instanceof appeng.tile.misc.TileSecurityStation;
-
-                    // 安全终端:普通右键不再拦截——直接打开终端 GUI,
-                    // 绑定改为将卡放入终端的编码槽(INetworkEncodable,与无线终端一致)
-                    if (isSecurityStation && !isSneaking && !isSelect && !isClear) {
-                        return;
-                    }
-
-                    // 智能样板接口绑定：客户端查询 JEI 后直接发送 PacketSmartPatternBind
-                    if (isSmartPatternInterface && !isSneaking && !isSelect && !isClear) {
-                        handleSmartPatternBindClient(player, stack, event.getPos(), event.getWorld());
-                        event.setCanceled(true);
-                        event.setCancellationResult(EnumActionResult.FAIL);
-                        return;
-                    }
-
-                    PacketUMCAction.ActionType type;
-                    if (isRecycler && isClear && !isSneaking && !isSelect) {
-                        type = PacketUMCAction.ActionType.CLEAR_RECYCLER_BINDINGS;
-                    } else if (isRecycler && !isSneaking && !isSelect) {
-                        type = PacketUMCAction.ActionType.BIND_RECYCLER;
-                    } else if (isCentralInterface && isClear && !isSneaking && !isSelect) {
-                        type = PacketUMCAction.ActionType.CLEAR_BINDINGS;
-                    } else if (isCentralInterface && !isSneaking && !isSelect) {
-                        type = PacketUMCAction.ActionType.BIND_SOURCE;
-                    } else if (isSelect) {
-                        type = PacketUMCAction.ActionType.SELECT;
-                    } else if (isSneaking) {
-                        type = PacketUMCAction.ActionType.COPY;
-                    } else {
-                        type = PacketUMCAction.ActionType.PASTE;
-                    }
-
-                    AE2Enhanced.network.sendToServer(new PacketUMCAction(type, event.getPos(), event.getFace()));
-                    event.setCanceled(true);
-                    event.setCancellationResult(EnumActionResult.FAIL);
-                }
-            }
-        }
-
-        @SideOnly(Side.CLIENT)
-        @SubscribeEvent
-        public void onMouseInput(MouseEvent event) {
-            if (event.getButton() == 1 && event.isButtonstate()) {
-                net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getMinecraft();
-                if (mc.player == null || mc.currentScreen != null) return;
-                ItemStack stack = mc.player.getHeldItemMainhand();
-                if (stack.getItem() instanceof ItemUniversalMemoryCard) {
-                    net.minecraft.util.math.RayTraceResult ray = mc.objectMouseOver;
-                    if (ray == null || ray.typeOfHit == net.minecraft.util.math.RayTraceResult.Type.MISS) {
-                        AE2Enhanced.network.sendToServer(new PacketUMCAction(PacketUMCAction.ActionType.OPEN_GUI));
-                        event.setCanceled(true);
-                    }
-                }
-            }
-        }
-    }
 
     // ============================================================
     // Server Action Handler (called by PacketUMCAction.Handler)
@@ -507,12 +428,18 @@ public class ItemUniversalMemoryCard extends Item implements appeng.api.features
         switch (message.getType()) {
             case COPY: {
                 EnumFacing face = message.getFace();
-                if (face != null) UMCCopyService.handleCopy(player, stack, message.getPos(), face);
+                if (face != null && com.github.aeddddd.ae2enhanced.network.RequestContext
+                        .canUseHeldMemoryCardAt(player, message.getPos())) {
+                    UMCCopyService.handleCopy(player, stack, message.getPos(), face);
+                }
                 break;
             }
             case PASTE: {
                 EnumFacing face = message.getFace();
-                if (face != null) UMCPasteService.handlePaste(player, stack, message.getPos(), face);
+                if (face != null && com.github.aeddddd.ae2enhanced.network.RequestContext
+                        .canUseHeldMemoryCardAt(player, message.getPos())) {
+                    UMCPasteService.handlePaste(player, stack, message.getPos(), face);
+                }
                 break;
             }
             case SELECT: {
@@ -521,7 +448,9 @@ public class ItemUniversalMemoryCard extends Item implements appeng.api.features
                 break;
             }
             case CLEAR_CONFIG:
-                clearConfig(stack);
+                if (com.github.aeddddd.ae2enhanced.network.RequestContext.canConfigureHeldMemoryCard(player)) {
+                    clearConfig(stack);
+                }
                 break;
             case CLEAR_SELECTIONS:
                 clearSelections(stack);
@@ -606,7 +535,7 @@ public class ItemUniversalMemoryCard extends Item implements appeng.api.features
     // ============================================================
 
     @SideOnly(Side.CLIENT)
-    private static void handleSmartPatternBindClient(EntityPlayer player, ItemStack stack, BlockPos interfacePos, World world) {
+    public static void handleSmartPatternBindClient(EntityPlayer player, ItemStack stack, BlockPos interfacePos, World world) {
         List<SelectionEntry> selections = getSelections(stack);
         if (selections.isEmpty()) {
             player.sendMessage(new TextComponentTranslation("gui.ae2enhanced.umc.msg.no_selections"));
@@ -679,7 +608,7 @@ public class ItemUniversalMemoryCard extends Item implements appeng.api.features
     @Override
     @SideOnly(Side.CLIENT)
     public void addInformation(ItemStack stack, World world, List<String> tooltip, ITooltipFlag flag) {
-        boolean detail = com.github.aeddddd.ae2enhanced.client.handler.UMCKeyBindings.isTooltipDetailDown();
+        boolean detail = com.github.aeddddd.ae2enhanced.clientapi.ClientInput.tooltipDetailDown();
 
         // ===== 常驻概要(未按详情键时仅显示这些) =====
         if (hasConfig(stack)) {
@@ -697,8 +626,7 @@ public class ItemUniversalMemoryCard extends Item implements appeng.api.features
         }
         if (!detail) {
             tooltip.add(I18n.format("item.ae2enhanced.universal_memory_card.tooltip.hold_detail",
-                    com.github.aeddddd.ae2enhanced.client.handler.UMCKeyBindings.displayName(
-                            com.github.aeddddd.ae2enhanced.client.handler.UMCKeyBindings.TOOLTIP_DETAIL)));
+                    com.github.aeddddd.ae2enhanced.clientapi.ClientInput.displayName(0)));
             return;
         }
 
@@ -758,10 +686,8 @@ public class ItemUniversalMemoryCard extends Item implements appeng.api.features
         // ===== 第三组：操作提示(键名为实际绑定,可在控制菜单改绑) =====
         tooltip.add(I18n.format("item.ae2enhanced.universal_memory_card.tooltip.separator"));
         tooltip.add(I18n.format("item.ae2enhanced.universal_memory_card.tooltip.section_actions"));
-        String selectKey = com.github.aeddddd.ae2enhanced.client.handler.UMCKeyBindings.displayName(
-                com.github.aeddddd.ae2enhanced.client.handler.UMCKeyBindings.SELECT_MODIFIER);
-        String clearKey = com.github.aeddddd.ae2enhanced.client.handler.UMCKeyBindings.displayName(
-                com.github.aeddddd.ae2enhanced.client.handler.UMCKeyBindings.CLEAR_MODIFIER);
+        String selectKey = com.github.aeddddd.ae2enhanced.clientapi.ClientInput.displayName(1);
+        String clearKey = com.github.aeddddd.ae2enhanced.clientapi.ClientInput.displayName(2);
         tooltip.add(I18n.format("item.ae2enhanced.universal_memory_card.tooltip.sneak"));
         tooltip.add(I18n.format("item.ae2enhanced.universal_memory_card.tooltip.use"));
         tooltip.add(I18n.format("item.ae2enhanced.universal_memory_card.tooltip.ctrl", selectKey,

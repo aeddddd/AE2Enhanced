@@ -1,29 +1,21 @@
 package com.github.aeddddd.ae2enhanced.client.gui.panel;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.IdentityHashMap;
-import java.util.List;
-import java.util.Set;
-
-import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.FontRenderer;
-import net.minecraft.client.gui.Gui;
-import net.minecraft.client.resources.I18n;
-import net.minecraft.inventory.Slot;
-
 import appeng.client.gui.AEBaseGui;
 import appeng.client.gui.widgets.GuiScrollbar;
 import appeng.client.me.InternalSlotME;
 import appeng.client.me.SlotME;
-
+import com.github.aeddddd.ae2enhanced.client.gui.dock.Ae2ModernArt;
 import com.github.aeddddd.ae2enhanced.client.gui.dock.ChromeLayout;
 import com.github.aeddddd.ae2enhanced.client.gui.dock.ModulePanel;
 import com.github.aeddddd.ae2enhanced.client.gui.dock.NinePatch;
 import com.github.aeddddd.ae2enhanced.client.gui.util.CraftingHighlight;
 import com.github.aeddddd.ae2enhanced.client.me.OmniItemRepo;
-import com.github.aeddddd.ae2enhanced.config.AE2EnhancedConfig;
 import com.github.aeddddd.ae2enhanced.container.ContainerSplicedTerm;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.resources.I18n;
+import net.minecraft.inventory.Slot;
+
+import java.util.*;
 
 /**
  * 物品仓库模块：承接 {@code OmniItemRepo} 的 R3 分页物品列表（ME 展示槽位 + 搜索框 + 自持滚动条 +
@@ -60,11 +52,11 @@ public final class RepoPanel extends ModulePanel {
     public static final int SEARCH_ROW_HEIGHT = 18;
     public static final int MIN_COLUMNS = 9;
     public static final int MIN_ROWS = 3;
-    /** 滚动条宽度（AE2 的 {@code GuiScrollbar} 默认值）。 */
+    /** 滚动条宽度（AE2 {@code Scrollbar.DEFAULT}：creative tabs 12px 滑块）。 */
     public static final int SCROLLBAR_WIDTH = 12;
     /** 物品格带与滚动条之间的间隔。 */
     public static final int SCROLLBAR_GAP = 2;
-    public static final int DEFAULT_COLUMNS = 18;
+    public static final int DEFAULT_COLUMNS = 12;
     public static final int DEFAULT_ROWS = 5;
     /** 设置按钮边长（AE2 的 {@code GuiImgButton} 是 16×16）。 */
     public static final int TITLE_CONTROL_SIZE = 16;
@@ -72,10 +64,10 @@ public final class RepoPanel extends ModulePanel {
     /** 标题栏右侧的设置按钮个数：SORT_BY / VIEW_MODE / SORT_DIRECTION / SEARCH_MODE。 */
     public static final int TITLE_SETTING_COUNT = 4;
     /** 合成状态入口（{@code GuiTabButton}）的绘制宽高。 */
-    public static final int CRAFT_STATUS_WIDTH = 25;
-    public static final int CRAFT_STATUS_HEIGHT = 22;
-    /** 合成状态按钮相对面板顶边向上突出的像素（AE2 的 tab 观感）。 */
-    private static final int CRAFT_STATUS_RAISE = 3;
+    public static final int CRAFT_STATUS_WIDTH = 20;
+    public static final int CRAFT_STATUS_HEIGHT = 20;
+    /** 模块开关小按钮的边长与间距（与搜索框同一行，右对齐）。 */
+    public static final int MODULE_SWITCH_SIZE = 16;
     /** 配置缺失时的兜底列数上限（与 {@code AE2EnhancedConfig.Terminal.REPO_MAX_COLUMNS} 一致）。 */
     private static final int FALLBACK_MAX_COLUMNS = 26;
 
@@ -96,6 +88,9 @@ public final class RepoPanel extends ModulePanel {
     /** 形状与已登记的 {@code inventorySlots} 不一致（宿主下一个 tick 重建）。 */
     private boolean slotsStale;
     private long layoutVersion;
+    /** 合成状态按钮相对面板顶边向上突出的像素（AE2 的 tab 观感）。 */
+    private static final int CRAFT_STATUS_RAISE = 5;
+    private int laidOutWidth = -1;
 
     private Runnable scrollListener;
     /** 本面板正在拖拽自己的滚动条（DockManager 内容路由据此把后续拖动留给本面板）。 */
@@ -159,8 +154,7 @@ public final class RepoPanel extends ModulePanel {
 
     /** 配置里的列数上限（配置尚未初始化时回退到兜底值）。 */
     public static int maxRepoColumns() {
-        AE2EnhancedConfig.Terminal terminal = AE2EnhancedConfig.terminal;
-        int configured = terminal != null ? terminal.maxRepoColumns : FALLBACK_MAX_COLUMNS;
+        int configured = com.github.aeddddd.ae2enhanced.config.ServerConfig.current().terminal.maxRepoColumns;
         return Math.max(MIN_COLUMNS, Math.min(FALLBACK_MAX_COLUMNS, configured));
     }
 
@@ -204,13 +198,7 @@ public final class RepoPanel extends ModulePanel {
     public int gridTop() {
         return contentTop() + SEARCH_ROW_HEIGHT;
     }
-
-    /** 搜索框的包围盒：{@code {x, y, width, height}}（右侧让出模块开关那一排）。 */
-    public int[] searchFieldBounds() {
-        int width = Math.min(contentWidth(), columns * SLOT_SIZE + SCROLLBAR_GAP + SCROLLBAR_WIDTH);
-        width -= moduleSwitchRowReserve();
-        return new int[] { contentLeft(), contentTop() + 3, Math.max(40, width), 11 };
-    }
+    private int laidOutHeight = -1;
 
     public int scrollBarLeft() {
         return contentLeft() + columns * SLOT_SIZE + SCROLLBAR_GAP;
@@ -220,8 +208,12 @@ public final class RepoPanel extends ModulePanel {
         return gridTop();
     }
 
-    public int scrollBarHeight() {
-        return rows * SLOT_SIZE;
+    /** 搜索框的包围盒：{@code {x, y, width, height}}（右侧让出模块开关那一排）。 */
+    public int[] searchFieldBounds() {
+        int width = Math.min(contentWidth(), columns * SLOT_SIZE + SCROLLBAR_GAP + SCROLLBAR_WIDTH);
+        width -= moduleSwitchRowReserve();
+        return new int[] { contentLeft(), contentTop() + 3, Math.max(40, width),
+                com.github.aeddddd.ae2enhanced.client.gui.dock.Ae2Theme.FIELD_HEIGHT };
     }
 
     public int columns() {
@@ -243,8 +235,10 @@ public final class RepoPanel extends ModulePanel {
 
     // ==================== 模块开关（阶段 3b 的最小显隐入口） ====================
 
-    /** 模块开关小按钮的边长与间距（与搜索框同一行，右对齐）。 */
-    public static final int MODULE_SWITCH_SIZE = 22;
+    public int scrollBarHeight() {
+        // AE2：slotsPerRow * 18 - 2
+        return Math.max(15, rows * SLOT_SIZE - 2);
+    }
     public static final int MODULE_SWITCH_GAP = 2;
 
     /**
@@ -321,20 +315,11 @@ public final class RepoPanel extends ModulePanel {
 
     /** 开关行占用的宽度（含与搜索框之间的间隔）。 */
     private int moduleSwitchRowReserve() {
-        if (moduleSwitchHost == null || moduleSwitchHost.switchCount() <= 0) {
-            return editorButtonReserve() == 0 ? 0 : editorButtonReserve() + 4;
-        }
-        int count = moduleSwitchHost.switchCount();
-        return count * MODULE_SWITCH_SIZE + (count - 1) * MODULE_SWITCH_GAP + 4 + editorButtonReserve();
+        return editorButtonReserve() == 0 ? 0 : editorButtonReserve() + 4;
     }
 
     private int moduleSwitchRowWidth() {
-        int width = editorButtonReserve();
-        if (moduleSwitchHost == null || moduleSwitchHost.switchCount() <= 0) {
-            return width;
-        }
-        int count = moduleSwitchHost.switchCount();
-        return width + count * MODULE_SWITCH_SIZE + (count - 1) * MODULE_SWITCH_GAP;
+        return editorButtonReserve();
     }
 
     /** "编辑布局"入口按钮的位置（开关行最左侧）。 */
@@ -371,17 +356,13 @@ public final class RepoPanel extends ModulePanel {
 
     /** 命中测试：返回开关下标，未命中返回 -1。 */
     public int moduleSwitchAt(double mx, double my) {
-        if (moduleSwitchHost == null || !visible) {
+        if (moduleSwitchHost == null || my < moduleSwitchY() || my >= moduleSwitchY() + MODULE_SWITCH_SIZE) {
             return -1;
         }
-        int top = moduleSwitchY();
-        if (my < top || my >= top + MODULE_SWITCH_SIZE) {
-            return -1;
-        }
-        for (int i = 0; i < moduleSwitchHost.switchCount(); i++) {
-            int left = moduleSwitchX(i);
+        for (int index = 0; index < moduleSwitchHost.switchCount(); index++) {
+            int left = moduleSwitchX(index);
             if (mx >= left && mx < left + MODULE_SWITCH_SIZE) {
-                return i;
+                return index;
             }
         }
         return -1;
@@ -397,11 +378,11 @@ public final class RepoPanel extends ModulePanel {
             return true;
         }
         int index = moduleSwitchAt(mx, my);
-        if (index < 0 || moduleSwitchHost == null) {
-            return false;
+        if (index >= 0) {
+            moduleSwitchHost.toggleSwitch(index);
+            return true;
         }
-        moduleSwitchHost.toggleSwitch(index);
-        return true;
+        return false;
     }
 
     // ==================== 标题栏控件 ====================
@@ -470,9 +451,18 @@ public final class RepoPanel extends ModulePanel {
 
     // ==================== 槽位布局 ====================
 
+    /** 每帧守卫：窗口被拖动/缩放/合并后即使 reconcile 没来，也按新的内容尺寸重算列行。 */
+    public void tick() {
+        if (contentWidth() != laidOutWidth || contentHeight() != laidOutHeight) {
+            layoutSlots();
+        }
+    }
+
     @Override
     public void layoutSlots() {
         this.layoutVersion++;
+        this.laidOutWidth = contentWidth();
+        this.laidOutHeight = contentHeight();
         if (!visible) {
             for (SlotME slot : slotObjects) {
                 hideSlot(slot);
@@ -630,8 +620,8 @@ public final class RepoPanel extends ModulePanel {
         PlayerInvPanel.drawSlotBand(gridLeft(), gridTop(), columns, rows, zLevel);
         CraftingHighlight.drawPinnedRow(gridLeft(), gridTop(), columns,
                 container.getClientActiveCrafting(), zLevel);
-        renderModuleSwitches(zLevel);
-        // 滚动条自绘在背景层：被上层窗口的 9-slice 正常覆盖（不再有穿透的滚动条）
+        renderModuleSwitches(mouseX, mouseY, zLevel);
+        // 高版本 7px 滑块，不绘制自造轨道；遮挡仍由所在根窗口控制。
         if (scrollBar != null) {
             boolean pinnedRow = !container.getClientActiveCrafting().isEmpty();
             NinePatch.drawScrollbar(scrollBarLeft(), scrollBarTop(), SCROLLBAR_WIDTH, scrollBarHeight(),
@@ -640,45 +630,22 @@ public final class RepoPanel extends ModulePanel {
         }
     }
 
-    /** 模块开关：开着的画浅色底 + 深色字，关掉的画深色底 + 浅色字（一眼可辨）。 */
-    private void renderModuleSwitches(float zLevel) {
-        if (moduleSwitchHost == null || moduleSwitchHost.switchCount() <= 0) {
+    /** 搜索行只保留含义明确的布局编辑入口，面板显隐由标题按钮和编辑器负责。 */
+    private void renderModuleSwitches(int mouseX, int mouseY, float zLevel) {
+        if (!hasEditorButton()) {
             return;
         }
-        boolean pushed = NinePatch.pushZLevel(zLevel);
-        net.minecraft.client.gui.FontRenderer font = Minecraft.getMinecraft().fontRenderer;
         int top = moduleSwitchY();
-        if (hasEditorButton()) {
-            int left = editorButtonX();
-            // 入口按钮：AE2 风格凸起底 + 暖色字，与"模块开关"区分开
-            NinePatch.drawButtonBase(left, top, MODULE_SWITCH_EDITOR_SIZE, MODULE_SWITCH_EDITOR_SIZE,
-                    false, zLevel);
-            String label = moduleSwitchHost.editorButtonLabel();
-            if (font != null && label != null && !label.isEmpty()) {
-                String clipped = font.trimStringToWidth(label, MODULE_SWITCH_EDITOR_SIZE - 4);
-                font.drawString(clipped,
-                        left + (MODULE_SWITCH_EDITOR_SIZE - font.getStringWidth(clipped)) / 2,
-                        top + 5, 0xFF8A6A1E, false);
-            }
+        int left = editorButtonX();
+        boolean hovered = mouseX >= left && mouseY >= top
+                && mouseX < left + MODULE_SWITCH_EDITOR_SIZE && mouseY < top + MODULE_SWITCH_EDITOR_SIZE;
+        boolean pushed = NinePatch.pushZLevel(zLevel);
+        try {
+            Ae2ModernArt.drawToolbarButton(left - 1, top, hovered, true);
+            Ae2ModernArt.drawIcon(Ae2ModernArt.Icon.COG, left, top + 1, 0.0F);
+        } finally {
+            NinePatch.popZLevel(pushed);
         }
-        for (int i = 0; i < moduleSwitchHost.switchCount(); i++) {
-            int left = moduleSwitchX(i);
-            boolean on = moduleSwitchHost.isSwitchOn(i);
-            // AE2 风格：凸起按钮底（开 = 亮底 + 深字，关 = 灰底 + 温和字），1px 深描边
-            NinePatch.drawButtonBase(left, top, MODULE_SWITCH_SIZE, MODULE_SWITCH_SIZE, on, zLevel);
-            if (!on) {
-                Gui.drawRect(left + 1, top + 1, left + MODULE_SWITCH_SIZE - 1,
-                        top + MODULE_SWITCH_SIZE - 1, ChromeLayout.COLOR_MUTED);
-            }
-            String label = moduleSwitchHost.switchLabel(i);
-            if (font != null && label != null && !label.isEmpty()) {
-                String clipped = font.trimStringToWidth(label, MODULE_SWITCH_SIZE - 4);
-                font.drawString(clipped,
-                        left + (MODULE_SWITCH_SIZE - font.getStringWidth(clipped)) / 2,
-                        top + 5, on ? 0xFF413F54 : 0xFFE5E7ED, false);
-            }
-        }
-        NinePatch.popZLevel(pushed);
     }
 
     // ==================== 输入 ====================

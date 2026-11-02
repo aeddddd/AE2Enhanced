@@ -2,7 +2,7 @@ package com.github.aeddddd.ae2enhanced.client.gui;
 
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
 import com.github.aeddddd.ae2enhanced.item.ItemUniversalMemoryCard;
-import com.github.aeddddd.ae2enhanced.network.packet.PacketUMCAction;
+import com.github.aeddddd.ae2enhanced.item.packet.PacketUMCAction;
 import net.minecraft.block.Block;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.client.Minecraft;

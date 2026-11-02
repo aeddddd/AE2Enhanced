@@ -1,9 +1,7 @@
 package com.github.aeddddd.ae2enhanced.block;
 
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
-import com.github.aeddddd.ae2enhanced.gui.GuiHandler;
-import com.github.aeddddd.ae2enhanced.structure.ControllerIndex;
-import com.github.aeddddd.ae2enhanced.structure.HyperdimensionalStructure;
+import com.github.aeddddd.ae2enhanced.guiapi.GuiCatalog;
 import com.github.aeddddd.ae2enhanced.tile.TileHyperdimensionalController;
 import net.minecraft.block.Block;
 import net.minecraft.block.material.Material;
@@ -80,15 +78,40 @@ public class BlockHyperdimensionalController extends Block {
         }
     }
 
+    public static UUID readNexusId(ItemStack stack) {
+        NBTTagCompound tag = stack.getTagCompound();
+        if (tag == null) return null;
+        if (tag.hasUniqueId("nexusId")) return tag.getUniqueId("nexusId");
+        if (tag.hasKey("BlockEntityTag", 10)) {
+            NBTTagCompound tileTag = tag.getCompoundTag("BlockEntityTag");
+            if (tileTag.hasUniqueId("nexusId")) return tileTag.getUniqueId("nexusId");
+        }
+        return null;
+    }
+
+    @Override
+    public void getDrops(net.minecraft.util.NonNullList<ItemStack> drops, net.minecraft.world.IBlockAccess world,
+                         BlockPos pos, IBlockState state, int fortune) {
+        ItemStack stack = new ItemStack(this);
+        TileEntity te = world.getTileEntity(pos);
+        if (te instanceof TileHyperdimensionalController) {
+            UUID nexusId = ((TileHyperdimensionalController) te).getNexusId();
+            if (nexusId != null) {
+                NBTTagCompound tag = new NBTTagCompound();
+                tag.setUniqueId("nexusId", nexusId);
+                stack.setTagCompound(tag);
+            }
+        }
+        drops.add(stack);
+    }
+
     @Override
     public void onBlockPlacedBy(World world, BlockPos pos, IBlockState state, EntityLivingBase placer, ItemStack stack) {
         super.onBlockPlacedBy(world, pos, state, placer, stack);
         if (world.isRemote) return;
         TileEntity te = world.getTileEntity(pos);
         if (!(te instanceof TileHyperdimensionalController)) return;
-        NBTTagCompound tag = stack.getTagCompound();
-        if (tag == null || !tag.hasKey("nexusIdMost")) return;
-        UUID nexusId = tag.getUniqueId("nexusId");
+        UUID nexusId = readNexusId(stack);
         if (nexusId != null) {
             ((TileHyperdimensionalController) te).setNexusId(nexusId);
         }
@@ -113,11 +136,16 @@ public class BlockHyperdimensionalController extends Block {
             TileEntity te = world.getTileEntity(pos);
             if (te instanceof TileHyperdimensionalController) {
                 TileHyperdimensionalController tile = (TileHyperdimensionalController) te;
-                if (tile.isFormed()) {
-                    player.openGui(AE2Enhanced.instance, GuiHandler.GUI_HYPERDIMENSIONAL_NEXUS, world, pos.getX(), pos.getY(), pos.getZ());
-                } else {
-                    player.openGui(AE2Enhanced.instance, GuiHandler.GUI_HYPERDIMENSIONAL_UNFORMED, world, pos.getX(), pos.getY(), pos.getZ());
+                com.github.aeddddd.ae2enhanced.structureapi.StructureValidationResult result = HyperdimensionalStructure.validate(world, pos);
+                if (result == com.github.aeddddd.ae2enhanced.structureapi.StructureValidationResult.VALID && !tile.isFormed()) {
+                    HyperdimensionalStructure.assemble(world, pos);
+                } else if (result == com.github.aeddddd.ae2enhanced.structureapi.StructureValidationResult.INVALID && tile.isFormed()) {
+                    HyperdimensionalStructure.disassemble(world, pos);
+                } else if (result == com.github.aeddddd.ae2enhanced.structureapi.StructureValidationResult.DEFER_UNLOADED) {
+                    StructureEventHandler.defer(world, pos);
                 }
+                int gui = tile.isFormed() ? GuiCatalog.GUI_HYPERDIMENSIONAL_NEXUS : GuiCatalog.GUI_HYPERDIMENSIONAL_UNFORMED;
+                player.openGui(AE2Enhanced.instance, gui, world, pos.getX(), pos.getY(), pos.getZ());
             }
         }
         return true;

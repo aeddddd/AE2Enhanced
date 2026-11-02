@@ -1,7 +1,7 @@
 package com.github.aeddddd.ae2enhanced.mixin.late.world;
 
 import com.github.aeddddd.ae2enhanced.collector.CollectorRegistry;
-import com.github.aeddddd.ae2enhanced.tile.TileAdvancedMECollector;
+import com.github.aeddddd.ae2enhanced.collector.TileAdvancedMECollector;
 import net.minecraft.entity.item.EntityItem;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.item.ItemStack;
@@ -18,6 +18,10 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 @Mixin(value = EntityPlayer.class, remap = true)
 public class MixinEntityPlayerDropItem {
 
+    private static void ae2e$applyRemainder(ItemStack original, ItemStack remaining) {
+        original.setCount(remaining.getCount());
+    }
+
     // 带完整描述符,避免构建期 refmap 将同名重载 dropItem(boolean) 错误映射到 func_71040_bB
     @Inject(method = "dropItem(Lnet/minecraft/item/ItemStack;ZZ)Lnet/minecraft/entity/item/EntityItem;", at = @At("HEAD"), cancellable = true)
     private void ae2e$onDropItem(ItemStack droppedItem, boolean dropAround, boolean traceItem, CallbackInfoReturnable<EntityItem> cir) {
@@ -31,6 +35,8 @@ public class MixinEntityPlayerDropItem {
         ItemStack remaining = collector.tryCollectStackForced(droppedItem);
         if (remaining.isEmpty()) {
             cir.setReturnValue(null);
+        } else {
+            ae2e$applyRemainder(droppedItem, remaining);
         }
     }
 }

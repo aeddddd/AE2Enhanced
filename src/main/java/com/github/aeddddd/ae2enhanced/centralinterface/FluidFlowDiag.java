@@ -1,7 +1,6 @@
 package com.github.aeddddd.ae2enhanced.centralinterface;
 
-import com.github.aeddddd.ae2enhanced.diag.DiagLog;
-import com.github.aeddddd.ae2enhanced.diag.DiagSwitch;
+import com.github.aeddddd.ae2enhanced.observation.Observations;
 import net.minecraft.util.math.BlockPos;
 import net.minecraftforge.fluids.FluidStack;
 
@@ -88,7 +87,7 @@ public final class FluidFlowDiag {
 
     /** 开关是否打开；调用方可据此跳过昂贵的日志参数构造。 */
     public static boolean enabled() {
-        return DiagSwitch.isEnabled(DiagSwitch.CENTRAL_FLUID);
+        return Observations.isEnabled("centralfluid");
     }
 
     /**
@@ -100,7 +99,7 @@ public final class FluidFlowDiag {
      * @param args      消息参数
      */
     public static void log(String node, String fluidName, String message, Object... args) {
-        if (!DiagSwitch.isEnabled(DiagSwitch.CENTRAL_FLUID)) {
+        if (!Observations.isEnabled("centralfluid")) {
             return;
         }
         int seen = bump(node, fluidName == null ? "-" : fluidName);
@@ -108,7 +107,7 @@ public final class FluidFlowDiag {
             return;
         }
         String suffix = seen > BURST ? " [x" + seen + "]" : "";
-        DiagLog.info(DiagSwitch.CENTRAL_FLUID, "[AE2E-Fluid][" + node + "] " + message + suffix, args);
+        Observations.log("info", "centralfluid", "[AE2E-Fluid][" + node + "] " + message + suffix, args);
     }
 
     /**
@@ -121,7 +120,7 @@ public final class FluidFlowDiag {
     /** 记录"某位置的机器"上的节点，自动拼出"数量 + 流体名 + 位置". */
     public static void logAt(String node, FluidStack fluid, String blockId, BlockPos pos,
                              String action, Object... extra) {
-        if (!DiagSwitch.isEnabled(DiagSwitch.CENTRAL_FLUID)) {
+        if (!Observations.isEnabled("centralfluid")) {
             return;
         }
         StringBuilder sb = new StringBuilder();

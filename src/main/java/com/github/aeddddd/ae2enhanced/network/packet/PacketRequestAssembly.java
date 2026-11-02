@@ -1,12 +1,8 @@
 package com.github.aeddddd.ae2enhanced.network.packet;
 
-import com.github.aeddddd.ae2enhanced.registry.content.BlockRegistry;
-import com.github.aeddddd.ae2enhanced.structure.AssemblyStructure;
-import com.github.aeddddd.ae2enhanced.structure.HyperdimensionalStructure;
-import com.github.aeddddd.ae2enhanced.structure.SupercausalStructure;
-import com.github.aeddddd.ae2enhanced.tile.TileAssemblyController;
-import com.github.aeddddd.ae2enhanced.tile.TileComputationCore;
-import com.github.aeddddd.ae2enhanced.tile.TileHyperdimensionalController;
+import com.github.aeddddd.ae2enhanced.block.BlockRegistry;
+import com.github.aeddddd.ae2enhanced.block.HyperdimensionalStructure;
+import com.github.aeddddd.ae2enhanced.tile.*;
 import io.netty.buffer.ByteBuf;
 import net.minecraft.entity.player.EntityPlayerMP;
 import net.minecraft.tileentity.TileEntity;

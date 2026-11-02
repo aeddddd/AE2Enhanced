@@ -15,9 +15,7 @@ import appeng.util.inv.IAEAppEngInventory;
 import appeng.util.inv.InvOperation;
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
 import com.github.aeddddd.ae2enhanced.config.AE2EnhancedConfig;
-import com.github.aeddddd.ae2enhanced.integration.projecte.ProjectEHelper;
-import com.github.aeddddd.ae2enhanced.registry.content.BlockRegistry;
-import com.github.aeddddd.ae2enhanced.storage.EMCInventoryHandler;
+import com.github.aeddddd.ae2enhanced.storage.EmcStoragePort;
 import com.github.aeddddd.ae2enhanced.storage.ItemDescriptor;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.item.ItemStack;
@@ -73,12 +71,43 @@ public class TileEMCInterface extends TileAENetworkBase implements ICellContaine
 
     // 离线扣减冲刷节流
     private long lastOfflineFlushTick = -100;
+    private static final Set<TileEMCInterface> LOADED_INTERFACES =
+            Collections.newSetFromMap(new WeakHashMap<>());
+    private boolean emcViewDirty = false;
+    private long lastEmcViewTick = -100;
 
     /**
      * 标记需要向绑定玩家同步 ProjectE 知识/EMC 数据,由 update() 节流冲刷.
      */
     public void markSyncDirty() {
         this.syncDirty = true;
+    }
+
+    public static void flushAllPendingOfflineEmc() {
+        List<TileEMCInterface> snapshot;
+        synchronized (LOADED_INTERFACES) {
+            snapshot = new ArrayList<>(LOADED_INTERFACES);
+        }
+        for (TileEMCInterface tile : snapshot) {
+            if (tile.world != null && !tile.world.isRemote) {
+                tile.handler.flushPendingOfflineEmc();
+            }
+        }
+    }
+
+    /**
+     * 规范化白名单物品: count=1, 且对齐 ProjectE 学习知识时的 NBT 修剪规则
+     * (非 NBTWhitelist 物品剥离 NBT),保证与已学知识列表可匹配.
+     */
+    @Nonnull
+    private static ItemStack normalizeWhitelistStack(@Nonnull ItemStack stack) {
+        if (stack.isEmpty()) return ItemStack.EMPTY;
+        ItemStack copy = stack.copy();
+        copy.setCount(1);
+        if (copy.hasTagCompound() && !EmcStoragePort.shouldDupeWithNBT(copy)) {
+            copy.setTagCompound(null);
+        }
+        return copy;
     }
 
     public void invalidateHandlerCache() {
@@ -106,9 +135,8 @@ public class TileEMCInterface extends TileAENetworkBase implements ICellContaine
         return "emc_interface";
     }
 
-    @Override
-    protected ItemStack getProxyRepresentation() {
-        return new ItemStack(BlockRegistry.EMC_INTERFACE);
+    public void markEmcBalanceDirty() {
+        this.emcViewDirty = true;
     }
 
     @Nonnull
@@ -125,8 +153,9 @@ public class TileEMCInterface extends TileAENetworkBase implements ICellContaine
 
     // ---- 玩家绑定 ----
 
-    public boolean isBound() {
-        return ownerUUID != null && ProjectEHelper.isAvailable();
+    @Override
+    protected ItemStack getProxyRepresentation() {
+        return new ItemStack(getBlockType());
     }
 
     @Nullable
@@ -138,9 +167,27 @@ public class TileEMCInterface extends TileAENetworkBase implements ICellContaine
         return ownerName;
     }
 
+    public boolean isBound() {
+        return ownerUUID != null && EmcStoragePort.isAvailable();
+    }
+
+    /**
+     * 玩家是否有权管理(重新绑定/打开 GUI/编辑白名单)此接口.
+     * 未绑定时任何人可认领;已绑定时仅所有者或 OP(权限等级 2).
+     */
+    public boolean canManage(@Nonnull EntityPlayer player) {
+        if (ownerUUID == null) return true;
+        if (player.getUniqueID().equals(ownerUUID)) return true;
+        return player.canUseCommand(2, "");
+    }
+
     public void setOwner(@Nullable EntityPlayer player) {
         // 换绑前先把旧 owner 的待冲刷离线扣减结清,避免挂到错误账户
         handler.flushPendingOfflineEmc();
+        if (handler.hasPendingOfflineEmc()) {
+            AE2Enhanced.LOGGER.warn("[AE2E] Refusing to rebind EMC interface before the previous owner's debt is settled");
+            return;
+        }
         // 创造模式与解锁时点的所有者成就绑定,换绑/解绑后需重新达成上限解锁
         this.creativeMode = false;
         if (player == null) {
@@ -157,32 +204,22 @@ public class TileEMCInterface extends TileAENetworkBase implements ICellContaine
         syncToClient();
     }
 
-    /**
-     * 玩家是否有权管理(重新绑定/打开 GUI/编辑白名单)此接口.
-     * 未绑定时任何人可认领;已绑定时仅所有者或 OP(权限等级 2).
-     */
-    public boolean canManage(@Nonnull EntityPlayer player) {
-        if (ownerUUID == null) return true;
-        if (player.getUniqueID().equals(ownerUUID)) return true;
-        return player.canUseCommand(2, "");
+    // ---- 创造模式 ----
+
+    public boolean isCreativeMode() {
+        return creativeMode;
     }
 
     /**
      * 绑定玩家当前是否在线.
      * 离线时 ProjectE 返回的 TransmutationOffline 包装 provider 为只读快照,
-     * 读取走快照,扣减 EMC 由 ProjectEHelper.subtractEmcOffline 直接改写存档数据.
+     * 读取走快照,扣减 EMC 由 EmcStoragePort.subtractEmcOffline 直接改写存档数据.
      */
     public boolean isOwnerOnline() {
         if (ownerUUID == null) return false;
         net.minecraft.server.MinecraftServer server =
                 net.minecraftforge.fml.common.FMLCommonHandler.instance().getMinecraftServerInstance();
         return server != null && server.getPlayerList().getPlayerByUUID(ownerUUID) != null;
-    }
-
-    // ---- 创造模式 ----
-
-    public boolean isCreativeMode() {
-        return creativeMode;
     }
 
     /**
@@ -193,27 +230,13 @@ public class TileEMCInterface extends TileAENetworkBase implements ICellContaine
         if (this.creativeMode == creative) return;
         if (creative) {
             handler.flushPendingOfflineEmc();
+            if (handler.hasPendingOfflineEmc()) return;
         }
         this.creativeMode = creative;
         handler.invalidateAvailableCache();
         markDirty();
         notifyCellArrayUpdate();
         syncToClient();
-    }
-
-    /**
-     * 规范化白名单物品: count=1, 且对齐 ProjectE 学习知识时的 NBT 修剪规则
-     * (非 NBTWhitelist 物品剥离 NBT),保证与已学知识列表可匹配.
-     */
-    @Nonnull
-    private static ItemStack normalizeWhitelistStack(@Nonnull ItemStack stack) {
-        if (stack.isEmpty()) return ItemStack.EMPTY;
-        ItemStack copy = stack.copy();
-        copy.setCount(1);
-        if (copy.hasTagCompound() && !ProjectEHelper.shouldDupeWithNBT(copy)) {
-            copy.setTagCompound(null);
-        }
-        return copy;
     }
 
     private void syncToClient() {
@@ -232,7 +255,7 @@ public class TileEMCInterface extends TileAENetworkBase implements ICellContaine
         if (cachedKnowledgeProvider != null && cachedProviderOnline == online) {
             return cachedKnowledgeProvider;
         }
-        cachedKnowledgeProvider = ProjectEHelper.getKnowledgeProvider(ownerUUID);
+        cachedKnowledgeProvider = EmcStoragePort.getKnowledgeProvider(ownerUUID);
         cachedProviderOnline = online;
         return cachedKnowledgeProvider;
     }
@@ -354,6 +377,9 @@ public class TileEMCInterface extends TileAENetworkBase implements ICellContaine
     public void validate() {
         super.validate();
         if (world != null && !world.isRemote) {
+            synchronized (LOADED_INTERFACES) {
+                LOADED_INTERFACES.add(this);
+            }
             registerProjectEEvents();
         }
     }
@@ -361,9 +387,11 @@ public class TileEMCInterface extends TileAENetworkBase implements ICellContaine
     @Override
     public void invalidate() {
         super.invalidate();
-        // 卸载前尽力结清待冲刷的离线扣减,缩小崩溃/卸载丢失窗口
         if (world != null && !world.isRemote) {
             handler.flushPendingOfflineEmc();
+        }
+        synchronized (LOADED_INTERFACES) {
+            LOADED_INTERFACES.remove(this);
         }
         unregisterProjectEEvents();
     }
@@ -371,6 +399,12 @@ public class TileEMCInterface extends TileAENetworkBase implements ICellContaine
     @Override
     public void onChunkUnload() {
         super.onChunkUnload();
+        if (world != null && !world.isRemote) {
+            handler.flushPendingOfflineEmc();
+        }
+        synchronized (LOADED_INTERFACES) {
+            LOADED_INTERFACES.remove(this);
+        }
         unregisterProjectEEvents();
     }
 
@@ -380,14 +414,25 @@ public class TileEMCInterface extends TileAENetworkBase implements ICellContaine
 
         if (needsReady()) {
             clearNeedsReady();
-            getProxy().setIdlePowerUsage(AE2EnhancedConfig.emcInterface.idlePower);
+            getProxy().setIdlePowerUsage(com.github.aeddddd.ae2enhanced.config.ServerConfig.current().emcInterface.idlePower);
             getProxy().onReady();
         }
 
+        flushEmcViewIfNeeded();
         if (creativeMode) return; // 创造模式无 EMC 扣减/同步开销
 
         flushSyncIfNeeded();
         flushOfflineEmcIfNeeded();
+    }
+
+    private void flushEmcViewIfNeeded() {
+        if (!emcViewDirty) return;
+        long now = world.getTotalWorldTime();
+        if (now - lastEmcViewTick < com.github.aeddddd.ae2enhanced.config.ServerConfig.current().emcInterface.syncIntervalTicks) return;
+        if (notifyCellArrayUpdate()) {
+            emcViewDirty = false;
+            lastEmcViewTick = now;
+        }
     }
 
     /**
@@ -395,7 +440,7 @@ public class TileEMCInterface extends TileAENetworkBase implements ICellContaine
      */
     private void flushOfflineEmcIfNeeded() {
         long now = world.getTotalWorldTime();
-        if (now - lastOfflineFlushTick < AE2EnhancedConfig.emcInterface.syncIntervalTicks) return;
+        if (now - lastOfflineFlushTick < com.github.aeddddd.ae2enhanced.config.ServerConfig.current().emcInterface.syncIntervalTicks) return;
         if (!handler.hasPendingOfflineEmc()) return;
         lastOfflineFlushTick = now;
         handler.flushPendingOfflineEmc();
@@ -407,7 +452,7 @@ public class TileEMCInterface extends TileAENetworkBase implements ICellContaine
     private void flushSyncIfNeeded() {
         if (!syncDirty || ownerUUID == null) return;
         long now = world.getTotalWorldTime();
-        if (now - lastSyncTick < AE2EnhancedConfig.emcInterface.syncIntervalTicks) return;
+        if (now - lastSyncTick < com.github.aeddddd.ae2enhanced.config.ServerConfig.current().emcInterface.syncIntervalTicks) return;
         net.minecraft.server.MinecraftServer server =
                 net.minecraftforge.fml.common.FMLCommonHandler.instance().getMinecraftServerInstance();
         if (server == null) return;
@@ -415,7 +460,7 @@ public class TileEMCInterface extends TileAENetworkBase implements ICellContaine
         if (player == null) return; // 玩家离线,保留脏标记待其上线后同步
         syncDirty = false;
         lastSyncTick = now;
-        ProjectEHelper.sync(getKnowledgeProvider(), player);
+        EmcStoragePort.sync(getKnowledgeProvider(), player);
     }
 
     @Override
@@ -428,6 +473,7 @@ public class TileEMCInterface extends TileAENetworkBase implements ICellContaine
         }
         ownerName = compound.getString("OwnerName");
         creativeMode = compound.getBoolean("CreativeMode");
+        handler.readPendingOfflineEmc(compound);
 
         NBTTagList list = compound.getTagList("Whitelist", Constants.NBT.TAG_COMPOUND);
         for (int i = 0; i < WHITELIST_SIZE; i++) {
@@ -466,6 +512,7 @@ public class TileEMCInterface extends TileAENetworkBase implements ICellContaine
         if (creativeMode) {
             compound.setBoolean("CreativeMode", true);
         }
+        handler.writePendingOfflineEmc(compound);
 
         NBTTagList list = new NBTTagList();
         for (int i = 0; i < WHITELIST_SIZE; i++) {
@@ -509,19 +556,21 @@ public class TileEMCInterface extends TileAENetworkBase implements ICellContaine
 
     // ---- 内部辅助 ----
 
-    private void notifyCellArrayUpdate() {
+    private boolean notifyCellArrayUpdate() {
         try {
             IGrid grid = getProxy().getGrid();
             if (grid != null) {
                 grid.postEvent(new appeng.api.networking.events.MENetworkCellArrayUpdate());
+                return true;
             }
         } catch (GridAccessException e) {
             // grid 尚未就绪
         }
+        return false;
     }
 
     private void registerProjectEEvents() {
-        if (registeredEvents || !ProjectEHelper.isAvailable()) return;
+        if (registeredEvents || !EmcStoragePort.isAvailable()) return;
         registeredEvents = true;
         try {
             Class<?> clazz = Class.forName("com.github.aeddddd.ae2enhanced.integration.projecte.ProjectEEventHandler");
@@ -544,7 +593,9 @@ public class TileEMCInterface extends TileAENetworkBase implements ICellContaine
 
     @Override
     public void disassemble() {
-        // EMC 接口无结构,解绑即可
+        // EMC 接口无结构,解绑即可；旧债务未结清时保留原绑定供下次恢复
+        handler.flushPendingOfflineEmc();
+        if (handler.hasPendingOfflineEmc()) return;
         ownerUUID = null;
         ownerName = "";
         creativeMode = false;

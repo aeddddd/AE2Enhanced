@@ -4,7 +4,7 @@ import appeng.api.storage.data.IAEItemStack;
 import appeng.api.storage.data.IAEStack;
 import appeng.tile.storage.TileIOPort;
 import com.github.aeddddd.ae2enhanced.item.ItemFluidDrop;
-import com.github.aeddddd.ae2enhanced.util.fakeitem.EssentiaFakeItemChecks;
+import com.github.aeddddd.ae2enhanced.item.fakeitem.EssentiaFakeItemChecks;
 import net.minecraft.item.ItemStack;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;

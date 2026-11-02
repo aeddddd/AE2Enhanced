@@ -41,9 +41,11 @@ public class ContainerSmartPatternInterface extends Container {
 
     private final TileSmartPatternInterface tile;
     private final Slot[][] miniGuiInputSlots = new Slot[9][9];
+    private long expectedRevision;
 
     public ContainerSmartPatternInterface(InventoryPlayer playerInv, TileSmartPatternInterface tile) {
         this.tile = tile;
+        this.expectedRevision = tile.getPatternRevision();
 
         // 配方显示槽位, 45 个 SlotFake
         int slotIndex = 0;
@@ -141,6 +143,14 @@ public class ContainerSmartPatternInterface extends Container {
         return tile;
     }
 
+    public long getExpectedRevision() {
+        return expectedRevision;
+    }
+
+    public void setExpectedRevision(long expectedRevision) {
+        this.expectedRevision = expectedRevision;
+    }
+
     @Override
     public ItemStack slotClick(int slotId, int dragType, ClickType clickTypeIn, EntityPlayer player) {
         if (slotId >= SLOT_RECIPE_START && slotId < SLOT_RECIPE_START + SLOT_RECIPE_COUNT) {
@@ -155,6 +165,9 @@ public class ContainerSmartPatternInterface extends Container {
             }
             // 覆盖 SlotFake 的默认交互,确保能正常编辑
             if (clickTypeIn == ClickType.PICKUP) {
+                if (!player.world.isRemote && !tile.prepareEdit(expectedRevision)) {
+                    return player.inventory.getItemStack();
+                }
                 Slot slot = this.inventorySlots.get(slotId);
                 ItemStack held = player.inventory.getItemStack();
                 if (held.isEmpty()) {
@@ -163,6 +176,7 @@ public class ContainerSmartPatternInterface extends Container {
                     ItemStack copy = held.copy();
                     slot.putStack(copy);
                 }
+                if (!player.world.isRemote) expectedRevision = tile.getPatternRevision();
                 return player.inventory.getItemStack();
             }
         }
@@ -172,6 +186,9 @@ public class ContainerSmartPatternInterface extends Container {
                 return player.inventory.getItemStack();
             }
             if (clickTypeIn == ClickType.PICKUP) {
+                if (!player.world.isRemote && !tile.prepareEdit(expectedRevision)) {
+                    return player.inventory.getItemStack();
+                }
                 Slot slot = this.inventorySlots.get(slotId);
                 ItemStack held = player.inventory.getItemStack();
                 if (held.isEmpty()) {
@@ -180,6 +197,7 @@ public class ContainerSmartPatternInterface extends Container {
                     ItemStack copy = held.copy();
                     slot.putStack(copy);
                 }
+                if (!player.world.isRemote) expectedRevision = tile.getPatternRevision();
                 return player.inventory.getItemStack();
             }
         }
@@ -202,8 +220,10 @@ public class ContainerSmartPatternInterface extends Container {
                 }
             } else if (index >= SLOT_MINIGUI_INPUT_START && index < SLOT_MINIGUI_OUTPUT_START + SLOT_MINIGUI_OUTPUT_COUNT) {
                 // MiniGUI 幽灵槽（存的是标记而非真实物品）-> 清除标记，不倒入背包
+                if (!player.world.isRemote && !tile.prepareEdit(expectedRevision)) return ItemStack.EMPTY;
                 slot.putStack(ItemStack.EMPTY);
                 slot.onSlotChanged();
+                if (!player.world.isRemote) expectedRevision = tile.getPatternRevision();
                 detectAndSendChanges();
                 return ItemStack.EMPTY;
             } else if (index >= SLOT_PLAYER_START) {

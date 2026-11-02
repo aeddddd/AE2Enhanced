@@ -84,10 +84,10 @@ class RepoPanelTest {
 
     @Test
     void defaultColumnsFeedTheRepoCapacity() {
-        // 默认 18 列 × 5 行 = 90 个可见格 → 缓存 270，与旧 Omni 终端的默认页容量一致
+        // 默认 12 列 × 5 行 = 60 个可见格 → 缓存 180，仓库形状与初始分页容量一致
         int slotsPerPage = RepoPanel.DEFAULT_COLUMNS * RepoPanel.DEFAULT_ROWS;
         assertEquals(OmniItemRepo.DEFAULT_SLOTS_PER_PAGE, slotsPerPage);
-        assertEquals(270, OmniItemRepo.capacityFor(slotsPerPage));
+        assertEquals(180, OmniItemRepo.capacityFor(slotsPerPage));
     }
 
     @Test
@@ -110,11 +110,11 @@ class RepoPanelTest {
 
     @Test
     void titleControlsReserveCoversAllFiveControls() {
-        // 合成状态 tab(25) + 间隔(1) + 4×设置按钮(16) + 3×按钮间隔(1) + 2px 余量 = 95
-        assertEquals(95, RepoPanel.titleControlsWidth());
+        // 合成状态 tab(20) + 间隔(1) + 4×设置按钮(16) + 3×按钮间隔(1) + 2px 余量 = 90
+        assertEquals(90, RepoPanel.titleControlsWidth());
         assertEquals(4, RepoPanel.TITLE_SETTING_COUNT);
         assertEquals(16, RepoPanel.TITLE_CONTROL_SIZE);
-        assertEquals(25, RepoPanel.CRAFT_STATUS_WIDTH);
+        assertEquals(20, RepoPanel.CRAFT_STATUS_WIDTH);
     }
 
     @Test
@@ -133,9 +133,9 @@ class RepoPanelTest {
 
     @Test
     void scrollbarGeometryStaysInsideTheContentWidth() {
+        // AE2 1.21 物品仓库使用 Scrollbar.DEFAULT（12px），与原生 GuiScrollbar 默认值一致
         assertEquals(12, RepoPanel.SCROLLBAR_WIDTH);
         assertEquals(12, new GuiScrollbar().getWidth());
-        // 18 列的面板：格子带 324 + 间隔 2 + 滚动条 12 = 338 = 内容宽度
         assertEquals(18 * RepoPanel.SLOT_SIZE, contentWidthOf(panelWidthFor(18)) - RepoPanel.SCROLLBAR_GAP
                 - RepoPanel.SCROLLBAR_WIDTH);
     }

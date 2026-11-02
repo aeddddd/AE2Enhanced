@@ -6,10 +6,11 @@ import appeng.api.storage.IMEMonitor;
 import appeng.api.storage.channels.IItemStorageChannel;
 import appeng.api.storage.data.IAEItemStack;
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
-import com.github.aeddddd.ae2enhanced.config.AE2EnhancedConfig;
-import com.github.aeddddd.ae2enhanced.item.ItemAdvancedMEOmniTool;
+import com.github.aeddddd.ae2enhanced.config.ServerConfig;
+import com.github.aeddddd.ae2enhanced.omnitool.ItemAdvancedMEOmniTool;
 import com.github.aeddddd.ae2enhanced.omnitool.OmniToolUpgrades;
 import com.github.aeddddd.ae2enhanced.omnitool.network.WirelessTransmitterNetworkLink;
+import com.github.aeddddd.ae2enhanced.util.ServerTickCounter;
 import net.minecraft.block.Block;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.client.util.ITooltipFlag;
@@ -68,83 +69,6 @@ public class MiningModule implements IOmniToolModule {
         return Integer.MAX_VALUE;
     }
 
-    @Override
-    public boolean onBlockStartBreak(ItemStack stack, BlockPos pos, EntityPlayer player) {
-        int mode = ItemAdvancedMEOmniTool.getMode(stack);
-        if (mode != ItemAdvancedMEOmniTool.MODE_UNIVERSAL && mode != ItemAdvancedMEOmniTool.MODE_TRAVEL) {
-            return false;
-        }
-
-        // 混沌核心：允许破坏 DE 混沌水晶（即使 hardness = -1）
-        if (ItemAdvancedMEOmniTool.hasChaosCore(stack) && isChaosCrystal(player.world, pos)) {
-            IBlockState state = player.world.getBlockState(pos);
-            Block block = state.getBlock();
-            if (!player.world.isRemote) {
-                block.dropBlockAsItem(player.world, pos, state, ItemAdvancedMEOmniTool.getFortuneLevel(stack));
-                player.world.setBlockToAir(pos);
-                block.breakBlock(player.world, pos, state);
-            }
-            return true;
-        }
-
-        int cooldown = getBreakCooldown(stack);
-        if (cooldown > 0) {
-            long now = player.world.getTotalWorldTime();
-            long last = getLastBreakTick(stack);
-            if (now - last < cooldown) {
-                // 同步方块状态到客户端，防止幽灵方块
-                if (!player.world.isRemote && player instanceof net.minecraft.entity.player.EntityPlayerMP) {
-                    ((net.minecraft.entity.player.EntityPlayerMP) player).connection.sendPacket(
-                            new net.minecraft.network.play.server.SPacketBlockChange(player.world, pos));
-                }
-                return true;
-            }
-            setLastBreakTick(stack, now);
-        }
-
-        // 基岩破坏者：允许破坏硬度为 -1 的不可破坏方块
-        if (ItemAdvancedMEOmniTool.hasBedrockBreaker(stack)) {
-            IBlockState state = player.world.getBlockState(pos);
-            Block block = state.getBlock();
-            if (block.getBlockHardness(state, player.world, pos) < 0.0F) {
-                if (!player.world.isRemote) {
-                    List<ItemStack> drops = block.getDrops(player.world, pos, state, ItemAdvancedMEOmniTool.getFortuneLevel(stack));
-                    if (drops.isEmpty()) {
-                        Item item = Item.getItemFromBlock(block);
-                        if (item != null && item != net.minecraft.init.Items.AIR) {
-                            drops.add(new ItemStack(item, 1, block.damageDropped(state)));
-                        }
-                    }
-                    handleDrops(player.world, player, pos, drops, stack);
-                    player.world.setBlockToAir(pos);
-                    block.breakBlock(player.world, pos, state);
-                }
-                return true;
-            }
-        }
-
-        // 高级精准采集：保留方块 NBT 掉落
-        if (ItemAdvancedMEOmniTool.isSilkTouchEnabled(stack) && ItemAdvancedMEOmniTool.isAdvancedSilkTouchEnabled(stack)) {
-            return breakBlockWithNBT(stack, player.world, pos, player);
-        }
-
-        return false;
-    }
-
-    @Override
-    public void addTooltip(ItemStack stack, World world, List<String> tooltip, ITooltipFlag flag) {
-        int cooldown = getBreakCooldown(stack);
-        tooltip.add(TextFormatting.GRAY + "▸ " + TextFormatting.WHITE
-                + net.minecraft.client.resources.I18n.format("item.ae2enhanced.me_omni_tool.break_cooldown",
-                TextFormatting.YELLOW + String.valueOf(cooldown)));
-
-        int dropMode = ItemAdvancedMEOmniTool.getDropMode(stack);
-        String dropModeName = net.minecraft.client.resources.I18n.format(ItemAdvancedMEOmniTool.getDropModeNameKey(dropMode));
-        tooltip.add(TextFormatting.GRAY + "▸ " + TextFormatting.WHITE
-                + net.minecraft.client.resources.I18n.format("item.ae2enhanced.me_omni_tool.drop_mode",
-                TextFormatting.YELLOW + dropModeName));
-    }
-
     public static void forceBreakBlock(EntityPlayer player, World world, BlockPos pos, ItemStack stack) {
         if (world.isRemote) return;
         IBlockState state = world.getBlockState(pos);
@@ -153,9 +77,9 @@ public class MiningModule implements IOmniToolModule {
 
         int cooldown = getBreakCooldown(stack);
         if (cooldown > 0) {
-            long now = world.getTotalWorldTime();
+            long now = ServerTickCounter.now(player);
             long last = getLastBreakTick(stack);
-            if (now - last < cooldown) {
+            if (ServerTickCounter.isCoolingDown(last, now, cooldown)) {
                 if (player instanceof net.minecraft.entity.player.EntityPlayerMP) {
                     ((net.minecraft.entity.player.EntityPlayerMP) player).connection.sendPacket(
                             new net.minecraft.network.play.server.SPacketBlockChange(world, pos));
@@ -195,6 +119,38 @@ public class MiningModule implements IOmniToolModule {
             block.harvestBlock(world, player, pos, state, te, stack);
         }
         world.playEvent(2001, pos, net.minecraft.block.Block.getStateId(state));
+    }
+
+    @Override
+    public void addTooltip(ItemStack stack, World world, List<String> tooltip, ITooltipFlag flag) {
+        int cooldown = getBreakCooldown(stack);
+        tooltip.add(TextFormatting.GRAY + "▸ " + TextFormatting.WHITE
+                + net.minecraft.client.resources.I18n.format("item.ae2enhanced.me_omni_tool.break_cooldown",
+                TextFormatting.YELLOW + String.valueOf(cooldown)));
+
+        int dropMode = ItemAdvancedMEOmniTool.getDropMode(stack);
+        String dropModeName = net.minecraft.client.resources.I18n.format(ItemAdvancedMEOmniTool.getDropModeNameKey(dropMode));
+        tooltip.add(TextFormatting.GRAY + "▸ " + TextFormatting.WHITE
+                + net.minecraft.client.resources.I18n.format("item.ae2enhanced.me_omni_tool.drop_mode",
+                TextFormatting.YELLOW + dropModeName));
+    }
+
+    public static boolean isBlacklisted(Block block) {
+        long now = System.currentTimeMillis();
+        if (blacklistCache == null || now - blacklistCacheTime > 5000L) {
+            blacklistCache = new HashSet<>();
+            for (String raw : ServerConfig.current().omniTool.breakableBlacklist()) {
+                if (raw == null || raw.trim().isEmpty()) continue;
+                try {
+                    blacklistCache.add(new ResourceLocation(raw.trim()));
+                } catch (Exception e) {
+                    AE2Enhanced.LOGGER.warn("[AE2E] Invalid breakable blacklist entry: {}", raw);
+                }
+            }
+            blacklistCacheTime = now;
+        }
+        ResourceLocation reg = block.getRegistryName();
+        return reg != null && blacklistCache.contains(reg);
     }
 
     /**
@@ -316,22 +272,67 @@ public class MiningModule implements IOmniToolModule {
         return true;
     }
 
-    public static boolean isBlacklisted(Block block) {
-        long now = System.currentTimeMillis();
-        if (blacklistCache == null || now - blacklistCacheTime > 5000L) {
-            blacklistCache = new HashSet<>();
-            for (String raw : AE2EnhancedConfig.omniTool.breakableBlacklist) {
-                if (raw == null || raw.trim().isEmpty()) continue;
-                try {
-                    blacklistCache.add(new ResourceLocation(raw.trim()));
-                } catch (Exception e) {
-                    AE2Enhanced.LOGGER.warn("[AE2E] Invalid breakable blacklist entry: {}", raw);
-                }
-            }
-            blacklistCacheTime = now;
+    @Override
+    public boolean onBlockStartBreak(ItemStack stack, BlockPos pos, EntityPlayer player) {
+        int mode = ItemAdvancedMEOmniTool.getMode(stack);
+        if (mode != ItemAdvancedMEOmniTool.MODE_UNIVERSAL && mode != ItemAdvancedMEOmniTool.MODE_TRAVEL) {
+            return false;
         }
-        ResourceLocation reg = block.getRegistryName();
-        return reg != null && blacklistCache.contains(reg);
+
+        // 混沌核心：允许破坏 DE 混沌水晶（即使 hardness = -1）
+        if (ItemAdvancedMEOmniTool.hasChaosCore(stack) && isChaosCrystal(player.world, pos)) {
+            IBlockState state = player.world.getBlockState(pos);
+            Block block = state.getBlock();
+            if (!player.world.isRemote) {
+                block.dropBlockAsItem(player.world, pos, state, ItemAdvancedMEOmniTool.getFortuneLevel(stack));
+                player.world.setBlockToAir(pos);
+                block.breakBlock(player.world, pos, state);
+            }
+            return true;
+        }
+
+        int cooldown = getBreakCooldown(stack);
+        if (cooldown > 0) {
+            long now = ServerTickCounter.now(player);
+            long last = getLastBreakTick(stack);
+            if (ServerTickCounter.isCoolingDown(last, now, cooldown)) {
+                // 同步方块状态到客户端，防止幽灵方块
+                if (!player.world.isRemote && player instanceof net.minecraft.entity.player.EntityPlayerMP) {
+                    ((net.minecraft.entity.player.EntityPlayerMP) player).connection.sendPacket(
+                            new net.minecraft.network.play.server.SPacketBlockChange(player.world, pos));
+                }
+                return true;
+            }
+            setLastBreakTick(stack, now);
+        }
+
+        // 基岩破坏者：允许破坏硬度为 -1 的不可破坏方块
+        if (ItemAdvancedMEOmniTool.hasBedrockBreaker(stack)) {
+            IBlockState state = player.world.getBlockState(pos);
+            Block block = state.getBlock();
+            if (block.getBlockHardness(state, player.world, pos) < 0.0F) {
+                if (!player.world.isRemote) {
+                    List<ItemStack> drops = block.getDrops(player.world, pos, state, ItemAdvancedMEOmniTool.getFortuneLevel(stack));
+                    if (drops.isEmpty()) {
+                        Item item = Item.getItemFromBlock(block);
+                        if (item != null && item != net.minecraft.init.Items.AIR) {
+                            drops.add(new ItemStack(item, 1, block.damageDropped(state)));
+                        }
+                    }
+                    handleDrops(player.world, player, pos, drops, stack);
+                    player.world.setBlockToAir(pos);
+                    block.breakBlock(player.world, pos, state);
+                }
+                return true;
+            }
+        }
+
+        // 高级精准采集：保留方块 NBT 掉落
+        if (ItemAdvancedMEOmniTool.isSilkTouchEnabled(stack) && ItemAdvancedMEOmniTool.isAdvancedSilkTouchEnabled(stack)) {
+            return breakBlockWithNBT(stack, player.world, pos, player);
+        }
+
+        return false;
     }
 
     private static boolean isChaosCrystal(World world, BlockPos pos) {

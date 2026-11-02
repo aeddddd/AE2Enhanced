@@ -1,9 +1,8 @@
 package com.github.aeddddd.ae2enhanced.block;
 
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
-import com.github.aeddddd.ae2enhanced.gui.GuiHandler;
-import com.github.aeddddd.ae2enhanced.structure.ComputationCoreIndex;
-import com.github.aeddddd.ae2enhanced.structure.SupercausalStructure;
+import com.github.aeddddd.ae2enhanced.guiapi.GuiCatalog;
+import com.github.aeddddd.ae2enhanced.tile.SupercausalStructure;
 import com.github.aeddddd.ae2enhanced.tile.TileComputationCore;
 import net.minecraft.block.Block;
 import net.minecraft.block.material.Material;
@@ -103,16 +102,18 @@ public class BlockComputationCore extends Block {
             TileEntity te = world.getTileEntity(pos);
             if (te instanceof TileComputationCore) {
                 TileComputationCore tile = (TileComputationCore) te;
-                if (!tile.isFormed()) {
-                    SupercausalStructure.ValidationResult result = SupercausalStructure.validate(world, pos);
-                    if (result.passed) {
-                        SupercausalStructure.assemble(world, pos);
-                        player.openGui(AE2Enhanced.instance, GuiHandler.GUI_COMPUTATION_FORMED, world, pos.getX(), pos.getY(), pos.getZ());
-                    } else {
-                        player.openGui(AE2Enhanced.instance, GuiHandler.GUI_COMPUTATION_UNFORMED, world, pos.getX(), pos.getY(), pos.getZ());
-                    }
+                SupercausalStructure.ValidationResult result = SupercausalStructure.validate(world, pos);
+                if (result.status == com.github.aeddddd.ae2enhanced.structureapi.StructureValidationResult.VALID) {
+                    if (!tile.isFormed()) SupercausalStructure.assemble(world, pos);
+                    player.openGui(AE2Enhanced.instance, GuiCatalog.GUI_COMPUTATION_FORMED, world, pos.getX(), pos.getY(), pos.getZ());
                 } else {
-                    player.openGui(AE2Enhanced.instance, GuiHandler.GUI_COMPUTATION_FORMED, world, pos.getX(), pos.getY(), pos.getZ());
+                    if (result.status == com.github.aeddddd.ae2enhanced.structureapi.StructureValidationResult.DEFER_UNLOADED) {
+                        StructureEventHandler.defer(world, pos);
+                    } else if (tile.isFormed()) {
+                        SupercausalStructure.disassemble(world, pos);
+                    }
+                    int gui = tile.isFormed() ? GuiCatalog.GUI_COMPUTATION_FORMED : GuiCatalog.GUI_COMPUTATION_UNFORMED;
+                    player.openGui(AE2Enhanced.instance, gui, world, pos.getX(), pos.getY(), pos.getZ());
                 }
             }
         }

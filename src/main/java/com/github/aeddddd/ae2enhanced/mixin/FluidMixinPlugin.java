@@ -17,12 +17,8 @@ public class FluidMixinPlugin implements IMixinConfigPlugin {
 
     @Override
     public void onLoad(String mixinPackage) {
-        // CleanroomMC 兼容: 用 getResource 检查类文件是否存在, 避免 Class.forName 触发 transformer
-        // 导致类被 ActualClassLoader 标记 invalid, 进而导致 AE2FC 自身初始化失败
         try {
-            ClassLoader cl = Thread.currentThread().getContextClassLoader();
-            java.net.URL url = cl.getResource("com/glodblock/github/FluidCraft.class");
-            ae2fcNotLoaded = url == null;
+            ae2fcNotLoaded = !com.github.aeddddd.ae2enhanced.integration.BootstrapCapabilities.hasAe2fc();
         } catch (Exception e) {
             ae2fcNotLoaded = true;
         }

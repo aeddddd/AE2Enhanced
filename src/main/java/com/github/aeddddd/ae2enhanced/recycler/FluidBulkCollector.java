@@ -42,6 +42,14 @@ public class FluidBulkCollector {
         return result;
     }
 
+    List<IAEFluidStack> snapshot() {
+        List<IAEFluidStack> result = new ArrayList<>(buffer.size());
+        for (IAEFluidStack stack : buffer) {
+            result.add(stack.copy());
+        }
+        return result;
+    }
+
     public boolean isEmpty() {
         return buffer.isEmpty();
     }

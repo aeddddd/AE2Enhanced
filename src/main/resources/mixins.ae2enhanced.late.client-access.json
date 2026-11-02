@@ -1,0 +1,14 @@
+{
+  "package": "com.github.aeddddd.ae2enhanced.client.gui.terminal.access",
+  "plugin": "com.github.aeddddd.ae2enhanced.mixin.LateMixinPlugin",
+  "refmap": "mixin.refmap.json",
+  "target": "@env(DEFAULT)",
+  "minVersion": "0.8",
+  "compatibilityLevel": "JAVA_8",
+  "mixins": [],
+  "client": [
+    "IGuiMEMonitorableAccessor",
+    "IItemRepoAccessor"
+  ],
+  "server": []
+}

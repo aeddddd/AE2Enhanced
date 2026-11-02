@@ -115,7 +115,7 @@ public class CentralInterfaceArchitectureTest {
 
         assertThat(declared)
                 .as("5 个 @WrapOperation 包同一 pushPattern 调用点的嵌套语义由 mixins json 的声明顺序决定，"
-                        + "重排等价于改写 CPU 记账语义（见 docs/planning/central-interface-handler-refactor-plan.md §3.2）")
+                        + "重排等价于改写 CPU 记账语义（见 docs/archive/planning/central-interface-handler-refactor-plan.md §3.2）")
                 .isEqualTo(REQUIRED_PUSH_PATTERN_WRAPPERS);
     }
 

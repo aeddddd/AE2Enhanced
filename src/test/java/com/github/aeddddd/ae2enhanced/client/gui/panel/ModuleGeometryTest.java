@@ -31,9 +31,9 @@ class ModuleGeometryTest {
     }
 
     @Test
-    void storageGridIsNineByThree() {
+    void storageGridIsNineByFour() {
         assertEquals(9 * 18, StoragePanel.contentWidthForGrid());
-        assertEquals(3 * 18, StoragePanel.contentHeightForGrid());
+        assertEquals(4 * 18, StoragePanel.contentHeightForGrid());
         assertEquals(StoragePanel.contentWidthForGrid() + 2 * ModulePanel.CONTENT_PADDING,
                 StoragePanel.panelWidthForGrid());
         assertEquals(ModulePanel.TITLE_BAR_HEIGHT + StoragePanel.contentHeightForGrid()

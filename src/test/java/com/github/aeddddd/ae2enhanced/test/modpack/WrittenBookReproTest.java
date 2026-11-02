@@ -1,23 +1,23 @@
 package com.github.aeddddd.ae2enhanced.test.modpack;
 
-import java.util.concurrent.TimeUnit;
-
-import org.junit.jupiter.api.Assumptions;
-import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Test;
-
 import appeng.api.storage.data.IAEItemStack;
 import appeng.crafting.CraftingJob;
-
 import com.github.aeddddd.ae2enhanced.diag.harvest.HarvestSnapshot.StackRef;
 import com.github.aeddddd.ae2enhanced.diag.metrics.Counter;
 import com.github.aeddddd.ae2enhanced.diag.metrics.MetricsRegistry;
 import com.github.aeddddd.ae2enhanced.test.support.PlanView;
 import com.github.aeddddd.ae2enhanced.test.support.ProcessingPatternBuilder;
+import org.junit.jupiter.api.Assumptions;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.Test;
+
+import java.util.concurrent.TimeUnit;
 
 /** 临时复现:latest(14).log 中 written_book×1 订单(569 键肉丸单元自举重解超时截断).
  * 快照未采集玩家编码的 written_book 处理样板,按日志中的真实输入手工注入:
  * in=[105 tardis_stem, 28 tardis_branch, 76 tardis_casing, 20 tardis_polyp] out=[1 written_book]. */
+@Tag("replay")
 public class WrittenBookReproTest {
 
     private static ModpackFixture.Loaded loaded;

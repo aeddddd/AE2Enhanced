@@ -192,9 +192,9 @@ public class IVirtualBatchCraftingHandlerContractTest {
         assertThat(products.get(0).getCount()).isEqualTo(2);
     }
 
-    /** createItemStack 返回空（ItemStack.EMPTY）的模板被跳过。 */
+    /** 任一有效数量模板无法物化时整批拒绝，不能静默丢失其余产物。 */
     @Test
-    public void testScaleOutputsSkipsEmptyTemplate() {
+    public void testScaleOutputsRejectsEmptyTemplate() {
         MinimalVirtualHandler handler = new MinimalVirtualHandler();
         IAEItemStack emptyTemplate = mock(IAEItemStack.class);
         when(emptyTemplate.getStackSize()).thenReturn(5L);
@@ -204,8 +204,7 @@ public class IVirtualBatchCraftingHandlerContractTest {
         List<ItemStack> products = handler.scaleOutputsByCount(
                 new IAEItemStack[] { emptyTemplate, valid }, 1);
 
-        assertThat(products).hasSize(1);
-        assertThat(products.get(0).getItem()).isEqualTo(Items.APPLE);
+        assertThat(products).isEmpty();
     }
 
     /** outputs 数组中的 null 元素被跳过。 */

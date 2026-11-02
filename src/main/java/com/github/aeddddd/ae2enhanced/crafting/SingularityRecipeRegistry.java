@@ -48,6 +48,10 @@ public class SingularityRecipeRegistry {
         PENDING_REMOVALS.add(id);
     }
 
+    public static void cancelRemoval(String id) {
+        PENDING_REMOVALS.remove(id);
+    }
+
     public static void applyPendingRemovals() {
         if (PENDING_REMOVALS.isEmpty()) return;
         for (String id : PENDING_REMOVALS) {

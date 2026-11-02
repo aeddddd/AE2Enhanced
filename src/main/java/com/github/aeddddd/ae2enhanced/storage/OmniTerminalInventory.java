@@ -8,6 +8,9 @@ import net.minecraft.util.ResourceLocation;
 import net.minecraftforge.common.util.Constants;
 import net.minecraftforge.items.ItemStackHandler;
 
+import java.util.Set;
+import java.util.concurrent.CopyOnWriteArraySet;
+
 /**
  * 支持单槽位 Integer.MAX_VALUE 堆叠的 ItemStackHandler.
  * 用于 Omni Terminal 的 pattern 存储区与右侧扩展存储,
@@ -18,21 +21,40 @@ import net.minecraftforge.items.ItemStackHandler;
  */
 public class OmniTerminalInventory extends ItemStackHandler {
 
-    private Runnable onContentsChangedCallback;
+    private final Runnable persistentChangeListener;
+    private final Set<Runnable> changeListeners = new CopyOnWriteArraySet<>();
+    private final java.util.Map<Integer, NBTTagCompound> rawEntries = new java.util.HashMap<>();
+    private final java.util.List<NBTTagCompound> outOfRangeEntries = new java.util.ArrayList<>();
+    private NBTTagCompound preservedRoot;
+    private NBTTagCompound preservedDocument;
 
     public OmniTerminalInventory(int size) {
+        this(size, () -> { });
+    }
+
+    public OmniTerminalInventory(int size, Runnable persistentChangeListener) {
         super(size);
+        this.persistentChangeListener = persistentChangeListener;
     }
 
     public void setOnContentsChangedCallback(Runnable callback) {
-        this.onContentsChangedCallback = callback;
+        addOnContentsChangedListener(callback);
+    }
+
+    public void addOnContentsChangedListener(Runnable callback) {
+        if (callback != null) this.changeListeners.add(callback);
+    }
+
+    public void removeOnContentsChangedListener(Runnable callback) {
+        if (callback != null) this.changeListeners.remove(callback);
     }
 
     @Override
     protected void onContentsChanged(int slot) {
         super.onContentsChanged(slot);
-        if (this.onContentsChangedCallback != null) {
-            this.onContentsChangedCallback.run();
+        this.persistentChangeListener.run();
+        for (Runnable listener : this.changeListeners) {
+            listener.run();
         }
     }
 
@@ -79,30 +101,37 @@ public class OmniTerminalInventory extends ItemStackHandler {
         return reachedLimit ? copyStackWithSize(stack, stack.getCount() - limit) : ItemStack.EMPTY;
     }
 
+    @Override
+    public void setStackInSlot(int slot, ItemStack stack) {
+        rawEntries.remove(slot);
+        super.setStackInSlot(slot, stack);
+    }
+
     /**
      * 自定义序列化：使用 Integer 存储 Count,绕过 byte 限制.
      */
     @Override
     public NBTTagCompound serializeNBT() {
+        if (preservedDocument != null) return preservedDocument.copy();
         NBTTagList list = new NBTTagList();
         for (int i = 0; i < stacks.size(); i++) {
             ItemStack stack = stacks.get(i);
+            NBTTagCompound raw = rawEntries.get(i);
             if (!stack.isEmpty()) {
-                NBTTagCompound itemTag = new NBTTagCompound();
+                NBTTagCompound itemTag = PreservedNbt.mergeStack(stack.serializeNBT(), raw);
                 itemTag.setInteger("Slot", i);
-                itemTag.setString("id", stack.getItem().getRegistryName().toString());
                 itemTag.setInteger("Count", stack.getCount());
-                itemTag.setShort("Damage", (short) stack.getItemDamage());
-                if (stack.hasTagCompound()) {
-                    itemTag.setTag("tag", stack.getTagCompound().copy());
-                }
                 list.appendTag(itemTag);
+            } else if (raw != null) {
+                list.appendTag(raw.copy());
             }
         }
+        for (NBTTagCompound raw : outOfRangeEntries) list.appendTag(raw.copy());
         NBTTagCompound nbt = new NBTTagCompound();
         nbt.setTag("Items", list);
         nbt.setInteger("Size", stacks.size());
-        return nbt;
+        return PreservedNbt.mergeRoot(nbt, preservedRoot,
+                new java.util.HashSet<>(java.util.Arrays.asList("Items", "Size")));
     }
 
     /**
@@ -110,6 +139,16 @@ public class OmniTerminalInventory extends ItemStackHandler {
      */
     @Override
     public void deserializeNBT(NBTTagCompound nbt) {
+        if (nbt.hasKey("Size", Constants.NBT.TAG_INT)
+                && (nbt.getInteger("Size") < 0 || nbt.getInteger("Size") > 4096)) {
+            preservedDocument = nbt.copy();
+            return;
+        }
+        preservedDocument = null;
+        preservedRoot = nbt.copy();
+        rawEntries.clear();
+        outOfRangeEntries.clear();
+        for (int i = 0; i < stacks.size(); i++) this.stacks.set(i, ItemStack.EMPTY);
         if (nbt.hasKey("Size", Constants.NBT.TAG_INT)) {
             setSize(nbt.getInteger("Size"));
         } else if (nbt.hasKey("Items", Constants.NBT.TAG_LIST)) {
@@ -120,18 +159,18 @@ public class OmniTerminalInventory extends ItemStackHandler {
         for (int i = 0; i < tagList.tagCount(); i++) {
             NBTTagCompound itemTag = tagList.getCompoundTagAt(i);
             int slot = itemTag.getInteger("Slot");
-            if (slot >= 0 && slot < stacks.size()) {
-                Item item = Item.REGISTRY.getObject(new ResourceLocation(itemTag.getString("id")));
-                if (item != null) {
-                    int count = itemTag.getInteger("Count");
-                    int damage = itemTag.getShort("Damage");
-                    ItemStack stack = new ItemStack(item, count, damage);
-                    if (itemTag.hasKey("tag", Constants.NBT.TAG_COMPOUND)) {
-                        stack.setTagCompound(itemTag.getCompoundTag("tag"));
-                    }
-                    this.stacks.set(slot, stack);
-                }
+            if (slot < 0 || slot >= stacks.size()) {
+                outOfRangeEntries.add(itemTag.copy());
+                continue;
             }
+            Item item = Item.REGISTRY.getObject(new ResourceLocation(itemTag.getString("id")));
+            int count = itemTag.getInteger("Count");
+            if (item != null && count > 0) {
+                ItemStack stack = new ItemStack(itemTag);
+                stack.setCount(count);
+                this.stacks.set(slot, stack);
+            }
+            rawEntries.put(slot, itemTag.copy());
         }
         onLoad();
     }

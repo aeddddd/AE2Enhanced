@@ -1,14 +1,11 @@
 package com.github.aeddddd.ae2enhanced.ring;
 
-import com.github.aeddddd.ae2enhanced.config.AE2EnhancedConfig;
 import net.minecraft.entity.EntityLivingBase;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.item.ItemStack;
 import net.minecraft.potion.PotionEffect;
 
-import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
@@ -21,8 +18,6 @@ public final class RingProtection {
 
     private RingProtection() {}
 
-    /** 传送白名单：本 mod 自身的合法位移(Blink/穿墙自救/个人维度传送)设置后跳过拦截 */
-    private static final Map<UUID, Long> TELEPORT_ALLOW = new HashMap<>();
     /** 内部 setHealth 白名单：指环自身回血/保底血量写入不被 setHealth 拦截 */
     private static final Set<UUID> HEALTH_BYPASS = new HashSet<>();
 
@@ -42,7 +37,7 @@ public final class RingProtection {
         if (!(entity instanceof EntityPlayer) || entity.world.isRemote) return false;
         ItemStack ring = getRing(entity);
         if (ring.isEmpty() || !RingNBT.isAscended(ring)) return false;
-        long cost = RingEnergyHandler.price(ring, AE2EnhancedConfig.ring.strongKillBlockCost);
+        long cost = RingEnergyHandler.price(ring, com.github.aeddddd.ae2enhanced.config.ServerConfig.current().ring.strongKillBlockCost);
         return RingEnergyHandler.consumeThrottled(
                 (EntityPlayer) entity, ring, cost, RingEnergyHandler.Category.BLOCK);
     }
@@ -77,7 +72,7 @@ public final class RingProtection {
             // 客户端无能量判定能力,按模式镜像(能量耗尽时可能有短暂表现差异)
             return true;
         }
-        long cost = RingEnergyHandler.price(ring, AE2EnhancedConfig.ring.potionRemoveCost);
+        long cost = RingEnergyHandler.price(ring, com.github.aeddddd.ae2enhanced.config.ServerConfig.current().ring.potionRemoveCost);
         return RingEnergyHandler.consumeFully((EntityPlayer) entity, ring, cost);
     }
 
@@ -89,18 +84,17 @@ public final class RingProtection {
         return !ring.isEmpty() && RingNBT.isNoPullEnabled(ring);
     }
 
-    /** 标记玩家接下来 ticks 内的位移为本 mod 合法行为(如穿墙自救、Blink). */
-    public static void allowTeleport(UUID playerId, long expiryWorldTime) {
-        TELEPORT_ALLOW.put(playerId, expiryWorldTime);
+    /** 本模组所有合法传送共用的调用级白名单。 */
+    public static TeleportWhitelist.Scope allowTeleport(EntityPlayer player) {
+        return TeleportWhitelist.open(player.getUniqueID());
     }
 
     public static boolean isTeleportAllowed(EntityPlayer player) {
-        Long expiry = TELEPORT_ALLOW.get(player.getUniqueID());
-        return expiry != null && expiry >= player.world.getTotalWorldTime();
+        return TeleportWhitelist.isAllowed(player.getUniqueID());
     }
 
     public static void discard(UUID playerId) {
-        TELEPORT_ALLOW.remove(playerId);
+        TeleportWhitelist.discard(playerId);
         HEALTH_BYPASS.remove(playerId);
     }
 

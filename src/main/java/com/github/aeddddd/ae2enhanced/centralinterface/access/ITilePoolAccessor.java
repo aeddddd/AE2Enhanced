@@ -1,0 +1,31 @@
+package com.github.aeddddd.ae2enhanced.centralinterface.access;
+
+import net.minecraft.block.state.IBlockState;
+import net.minecraft.entity.item.EntityItem;
+import net.minecraft.item.ItemStack;
+import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.gen.Invoker;
+import vazkii.botania.api.recipe.RecipeManaInfusion;
+import vazkii.botania.common.block.tile.mana.TilePool;
+
+/**
+ * TilePool 方法访问器.
+ *
+ * <p>TilePool 声明了 renderHUD(Minecraft, ScaledResolution) 客户端方法,
+ * 在 Dedicated Server 上任何 getMethod/getDeclaredMethod 反射都会因解析方法签名
+ * 抛出 NoClassDefFoundError,因此必须通过 Invoker 访问.</p>
+ */
+@Mixin(value = TilePool.class, remap = false)
+public interface ITilePoolAccessor {
+
+    @Invoker("getMatchingRecipe")
+    static RecipeManaInfusion ae2e$getMatchingRecipe(ItemStack stack, IBlockState state) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Invoker("getCurrentMana")
+    int ae2e$getCurrentMana();
+
+    @Invoker("collideEntityItem")
+    boolean ae2e$collideEntityItem(EntityItem item);
+}

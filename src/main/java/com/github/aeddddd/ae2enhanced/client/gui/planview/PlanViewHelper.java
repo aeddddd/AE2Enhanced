@@ -1,13 +1,11 @@
 package com.github.aeddddd.ae2enhanced.client.gui.planview;
 
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Set;
-
+import appeng.api.storage.data.IAEItemStack;
+import appeng.api.storage.data.IItemList;
+import com.github.aeddddd.ae2enhanced.AE2Enhanced;
+import com.github.aeddddd.ae2enhanced.client.specialcrafting.SpecialPlanClientCache;
+import com.github.aeddddd.ae2enhanced.config.ClientPreferences;
+import com.github.aeddddd.ae2enhanced.specialcrafting.SpecialPlanInfo;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.FontRenderer;
 import net.minecraft.item.Item;
@@ -16,13 +14,7 @@ import net.minecraft.nbt.NBTTagCompound;
 import net.minecraftforge.common.config.Config;
 import net.minecraftforge.common.config.ConfigManager;
 
-import appeng.api.storage.data.IAEItemStack;
-import appeng.api.storage.data.IItemList;
-
-import com.github.aeddddd.ae2enhanced.AE2Enhanced;
-import com.github.aeddddd.ae2enhanced.client.specialcrafting.SpecialPlanClientCache;
-import com.github.aeddddd.ae2enhanced.config.AE2EnhancedConfig;
-import com.github.aeddddd.ae2enhanced.specialcrafting.SpecialPlanInfo;
+import java.util.*;
 
 /**
  * 合成计划/CPU 状态界面的列表视图助手: 过滤(搜索) + 混合排序 + 模式持久化.
@@ -49,23 +41,23 @@ public final class PlanViewHelper {
     // ==================== 模式存取(持久化到客户端配置) ====================
 
     public static PlanSortMode confirmMode() {
-        return parse(AE2EnhancedConfig.craftingDisplay.confirmSortMode, PlanSortMode.CONFIRM_CYCLE);
+        return parse(ClientPreferences.current().craftingDisplay.confirmSortMode, PlanSortMode.CONFIRM_CYCLE);
     }
 
     public static PlanSortMode cpuMode() {
-        return parse(AE2EnhancedConfig.craftingDisplay.cpuSortMode, PlanSortMode.CPU_CYCLE);
+        return parse(ClientPreferences.current().craftingDisplay.cpuSortMode, PlanSortMode.CPU_CYCLE);
     }
 
     public static PlanSortMode cycleConfirmMode(boolean backwards) {
         PlanSortMode next = cycle(PlanSortMode.CONFIRM_CYCLE, confirmMode(), backwards);
-        AE2EnhancedConfig.craftingDisplay.confirmSortMode = next.name();
+        ClientPreferences.setConfirmSortMode(next.name());
         ConfigManager.sync(AE2Enhanced.MOD_ID, Config.Type.INSTANCE);
         return next;
     }
 
     public static PlanSortMode cycleCpuMode(boolean backwards) {
         PlanSortMode next = cycle(PlanSortMode.CPU_CYCLE, cpuMode(), backwards);
-        AE2EnhancedConfig.craftingDisplay.cpuSortMode = next.name();
+        ClientPreferences.setCpuSortMode(next.name());
         ConfigManager.sync(AE2Enhanced.MOD_ID, Config.Type.INSTANCE);
         return next;
     }

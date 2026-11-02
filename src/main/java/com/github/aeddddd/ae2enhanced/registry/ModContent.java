@@ -1,15 +1,14 @@
 package com.github.aeddddd.ae2enhanced.registry;
 
-import com.github.aeddddd.ae2enhanced.AE2Enhanced;
-import com.github.aeddddd.ae2enhanced.registry.content.BlockRegistry;
-import com.github.aeddddd.ae2enhanced.registry.content.ItemRegistry;
-import com.github.aeddddd.ae2enhanced.registry.content.PartRegistry;
-import com.github.aeddddd.ae2enhanced.util.compat.Ae2fcCompat;
-import com.github.aeddddd.ae2enhanced.util.fakeitem.FakeEnergies;
-import com.github.aeddddd.ae2enhanced.util.fakeitem.FakeFluids;
 import appeng.api.config.Upgrades;
+import com.github.aeddddd.ae2enhanced.AE2Enhanced;
+import com.github.aeddddd.ae2enhanced.block.BlockRegistry;
+import com.github.aeddddd.ae2enhanced.item.ItemRegistry;
+import com.github.aeddddd.ae2enhanced.item.fakeitem.FakeEnergies;
+import com.github.aeddddd.ae2enhanced.item.fakeitem.FakeFluids;
+import com.github.aeddddd.ae2enhanced.part.PartRegistry;
+import com.github.aeddddd.ae2enhanced.util.compat.Ae2fcCompat;
 import net.minecraft.item.ItemStack;
-import net.minecraftforge.fml.common.Loader;
 
 /**
  * 内容注册中心：假物品、升级卡、物质炮弹药、各类初始化注册表
@@ -30,18 +29,17 @@ public final class ModContent {
         if (!Ae2fcCompat.AE2FC_LOADED) {
             tryInitFakeWithExtraCheck(
                     new String[]{"mekanism", "mekeng"},
-                    "com.github.aeddddd.ae2enhanced.util.fakeitem.FakeGases",
+                    "com.github.aeddddd.ae2enhanced.item.fakeitem.FakeGases",
                     new String[]{"com.mekeng.github.common.me.storage.IGasStorageChannel"});
         }
         tryInitFakeWithExtraCheck(
                 new String[]{"thaumcraft", "thaumicenergistics"},
-                "com.github.aeddddd.ae2enhanced.util.fakeitem.FakeEssentias",
+                "com.github.aeddddd.ae2enhanced.item.fakeitem.FakeEssentias",
                 new String[]{"thaumicenergistics.api.storage.IAEEssentiaStack"});
-        tryInitFake(new String[]{"botania"}, "com.github.aeddddd.ae2enhanced.util.fakeitem.FakeMana");
-        tryInitFake(new String[]{"astralsorcery"}, "com.github.aeddddd.ae2enhanced.util.fakeitem.FakeStarlight");
+        tryInitFake(new String[]{"botania"}, "com.github.aeddddd.ae2enhanced.item.fakeitem.FakeMana");
+        tryInitFake(new String[]{"astralsorcery"}, "com.github.aeddddd.ae2enhanced.item.fakeitem.FakeStarlight");
 
-        com.github.aeddddd.ae2enhanced.util.memorycard.core.MemoryCardHandlerRegistry.init();
-        com.github.aeddddd.ae2enhanced.centralinterface.HandlerRegistry.init();
+        com.github.aeddddd.ae2enhanced.item.memorycard.core.MemoryCardHandlerRegistry.init();
     }
 
     /**
@@ -56,8 +54,7 @@ public final class ModContent {
             return;
         }
         try {
-            Class<?> clazz = Class.forName(className);
-            clazz.getMethod("init").invoke(null);
+            com.github.aeddddd.ae2enhanced.integration.RuntimeIntegrationRegistry.invokeStatic(className, "init");
         } catch (Throwable e) {
             AE2Enhanced.LOGGER.warn("[AE2E] Failed to initialize fake item handler {} (required mods not fully available)", className, e);
         }
@@ -75,7 +72,7 @@ public final class ModContent {
         if (requiredApiClasses != null) {
             for (String apiClass : requiredApiClasses) {
                 try {
-                    Class.forName(apiClass);
+                    com.github.aeddddd.ae2enhanced.integration.RuntimeIntegrationRegistry.classForName(apiClass);
                 } catch (ClassNotFoundException e) {
                     AE2Enhanced.LOGGER.warn("[AE2E] API class {} not found, skipping fake item handler {}", apiClass, className);
                     return;
@@ -88,7 +85,7 @@ public final class ModContent {
     private static boolean allModsLoaded(String[] modIds) {
         if (modIds == null) return true;
         for (String modId : modIds) {
-            if (!Loader.isModLoaded(modId)) {
+            if (!com.github.aeddddd.ae2enhanced.integration.RuntimeIntegrationRegistry.isModLoaded(modId)) {
                 return false;
             }
         }

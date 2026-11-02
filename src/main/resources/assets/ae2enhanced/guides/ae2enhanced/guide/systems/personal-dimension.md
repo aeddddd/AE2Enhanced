@@ -29,8 +29,10 @@ Every player can own a private, flat, single-biome dimension. The <ItemLink id="
 
 ## Floor Preset
 
-The floor generates at y=64 (config `personalDimension.floorY`) with 2 layers of bedrock below. The pattern comes from a JSON preset (`personalDimension.presetPath`, default `ae2enhanced/personal_dimension_floor.json`, copied to the config folder on first start). The built-in preset tiles a 96x96 pattern of <ItemLink id="yellow_stripes_block_b" /> Caution Blocks and concrete. Unknown blocks fall back to bedrock.
+The floor generates at y=64 (config `personalDimension.floorY`) from the compatible JSON `default` preset. New chunks have no bedrock substrate. Open the management GUI and choose the **Preset** tab to preview the preset, edit road, road-line and platform colors, then apply and repaint with live remaining-chunk progress. The `/ae2e pd floor style`, `color` and `apply` commands remain available. Old bedrock is removed only in the two layers below the target floor. Region scanning is asynchronous; world edits, lighting and chunk packets are main-thread batches. Unloaded chunks resume on load, and task progress persists across restart.
 
-## Sharing and Permissions
+## Team and Personal Modes
 
-Invite others with `/ae2e pd invite <player>`. Four permissions exist: ENTER, BUILD, INTERACT, MANAGE_RULES; invites grant the first three. Manage per-player with `/ae2e pd setperm <player> <perm> <true|false>`, remove with `kick`, and inspect with `info`. Owners and level-2 operators bypass all checks. See [Commands and Config](systems/commands-config.md).
+`/ae2e pd mode <auto|team|personal>` selects the default; `/ae2e pd enter [mode]` enters it. AUTO uses an FTB PLAYER team when present, otherwise your personal world. TEAM without a team gives an explicit message. Both worlds remain intact when switching.
+
+FTB teams own team membership and MOD/OWNER management. The old invite/kick/setperm UI is removed; legacy whitelist data remains readable. Forge/FTB ranks control enter, build, interact, manage and bypass nodes. Interactions and return points are checked server-side. Personal owners or team MOD/OWNER can edit rules and floors. See [Commands and Config](systems/commands-config.md).

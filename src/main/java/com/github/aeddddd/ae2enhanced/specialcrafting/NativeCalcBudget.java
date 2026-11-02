@@ -1,18 +1,15 @@
 package com.github.aeddddd.ae2enhanced.specialcrafting;
 
 import appeng.crafting.CraftingJob;
-
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
-import com.github.aeddddd.ae2enhanced.config.AE2EnhancedConfig;
-import com.github.aeddddd.ae2enhanced.diag.DiagEvents;
-import com.github.aeddddd.ae2enhanced.diag.metrics.MetricsRegistry;
-import com.github.aeddddd.ae2enhanced.mixin.bridge.ICraftingJobBudgetAccess;
+import com.github.aeddddd.ae2enhanced.craftingapi.CraftingJobBudgetAccess;
+import com.github.aeddddd.ae2enhanced.observation.Observations;
 
 /**
  * 原生回落计算的时间预算助手.
  * <p>复杂大单回落到原生递归计算时可能长时间不结束,而下单流程会同步等待
  * future,把服务器线程挂起整个计算时长;预算状态由本模组 job 类自持
- * ({@link ICraftingJobBudgetAccess}),心跳检查由 MixinCraftingJob
+ * ({@link CraftingJobBudgetAccess}),心跳检查由 MixinCraftingJob
  * 挂在原生 handlePausing 上.</p>
  */
 public final class NativeCalcBudget {
@@ -25,9 +22,14 @@ public final class NativeCalcBudget {
      * 普通原生 job 不受影响.
      */
     public static void arm(CraftingJob job) {
-        if (job instanceof ICraftingJobBudgetAccess) {
-            long budgetMs = Math.max(1, AE2EnhancedConfig.crafting.nativeCalcBudgetMs);
-            ((ICraftingJobBudgetAccess) job)
+        arm(job, com.github.aeddddd.ae2enhanced.config.ServerConfig.current().crafting.nativeCalcBudgetMs);
+    }
+
+    /** LP 请求路径只使用请求快照中的预算。 */
+    public static void arm(CraftingJob job, int configuredBudgetMs) {
+        if (job instanceof CraftingJobBudgetAccess) {
+            long budgetMs = Math.max(1, configuredBudgetMs);
+            ((CraftingJobBudgetAccess) job)
                     .ae2enhanced$armNativeCalcBudget(System.nanoTime() + budgetMs * 1_000_000L);
         }
     }
@@ -39,10 +41,10 @@ public final class NativeCalcBudget {
      * 再抛 InterruptedException 借原生取消语义收尾.
      */
     public static void checkDeadline(CraftingJob job) throws InterruptedException {
-        if (!(job instanceof ICraftingJobBudgetAccess)) {
+        if (!(job instanceof CraftingJobBudgetAccess)) {
             return;
         }
-        ICraftingJobBudgetAccess access = (ICraftingJobBudgetAccess) job;
+        CraftingJobBudgetAccess access = (CraftingJobBudgetAccess) job;
         long deadline = access.ae2enhanced$nativeCalcDeadlineNanos();
         if (deadline > 0L && System.nanoTime() - deadline >= 0L) {
             access.ae2enhanced$markNativeCalcAborted();
@@ -58,12 +60,17 @@ public final class NativeCalcBudget {
      * @return 是否发生了超预算中断
      */
     public static boolean warnIfAborted(CraftingJob job) {
-        if (job instanceof ICraftingJobBudgetAccess
-                && ((ICraftingJobBudgetAccess) job).ae2enhanced$nativeCalcAborted()) {
+        return warnIfAborted(job, com.github.aeddddd.ae2enhanced.config.ServerConfig.current().crafting.nativeCalcBudgetMs);
+    }
+
+    /** LP 请求路径用同一份快照记录预算，避免配置变更令诊断与实际控制不一致。 */
+    public static boolean warnIfAborted(CraftingJob job, int configuredBudgetMs) {
+        if (job instanceof CraftingJobBudgetAccess
+                && ((CraftingJobBudgetAccess) job).ae2enhanced$nativeCalcAborted()) {
             AE2Enhanced.LOGGER.warn("[合成计划] 原生计算超预算({}ms)已中断,计划按缺料处理(不可提交): {}",
-                    AE2EnhancedConfig.crafting.nativeCalcBudgetMs, job.getOutput());
-            MetricsRegistry.counter("crafting.nativeCalcAbort").increment();
-            DiagEvents.warn("crafting", "原生计算超预算(" + AE2EnhancedConfig.crafting.nativeCalcBudgetMs
+                    configuredBudgetMs, job.getOutput());
+            Observations.counter("crafting.nativeCalcAbort").increment();
+            Observations.event("WARN", "crafting", "原生计算超预算(" + configuredBudgetMs
                     + "ms)已中断: " + job.getOutput());
             return true;
         }

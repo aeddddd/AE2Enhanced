@@ -1,5 +1,6 @@
 package com.github.aeddddd.ae2enhanced.tile;
 
+import appeng.api.AEApi;
 import appeng.api.networking.IGrid;
 import appeng.api.networking.IGridNode;
 import appeng.api.networking.crafting.ICraftingJob;
@@ -7,6 +8,8 @@ import appeng.api.networking.crafting.ICraftingLink;
 import appeng.api.networking.crafting.ICraftingRequester;
 import appeng.api.networking.events.MENetworkCraftingCpuChange;
 import appeng.api.networking.security.IActionHost;
+import appeng.api.networking.storage.IStorageGrid;
+import appeng.api.storage.IMEMonitor;
 import appeng.api.storage.channels.IItemStorageChannel;
 import appeng.api.storage.data.IAEItemStack;
 import appeng.api.util.AECableType;
@@ -17,12 +20,9 @@ import appeng.me.helpers.MachineSource;
 import appeng.parts.CableBusContainer;
 import appeng.tile.networking.TileCableBus;
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
-import com.github.aeddddd.ae2enhanced.block.BlockComputationCore;
-import com.github.aeddddd.ae2enhanced.block.BlockSuperCraftingInterface;
-import com.github.aeddddd.ae2enhanced.mixin.bridge.IComputationCoreAccess;
-import com.github.aeddddd.ae2enhanced.mixin.late.accessor.ICraftingCPUClusterAccessor;
-import com.github.aeddddd.ae2enhanced.registry.content.BlockRegistry;
-import com.github.aeddddd.ae2enhanced.structure.SupercausalStructure;
+import com.github.aeddddd.ae2enhanced.crafting.access.IComputationCoreAccess;
+import com.github.aeddddd.ae2enhanced.crafting.access.mixin.ICraftingCPUClusterAccessor;
+import com.github.aeddddd.ae2enhanced.tile.SupercausalStructure;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
@@ -54,15 +54,14 @@ public class TileComputationCore extends TileAENetworkBase implements IActionHos
 
     public static final int MAX_PARALLEL = 16384;
     private static final String NBT_CPU_POOL = "cpuPool";
+    private static final String NBT_CLIENT_TASKS = "clientTasks";
     private static final String DEFAULT_NAME = "Supercausal Computation Core";
 
     private boolean formed = false;
     private int parallelLimit = 0;
-
-
-
-    // CPU 集群池：索引 0 为常驻集群,>0 为动态集群
     private final List<CraftingCPUCluster> cpuPool = new ArrayList<>();
+    private final List<ComputationCoreTaskSummary> clientTaskSummaries = new ArrayList<>();
+    private final java.util.List<NBTTagCompound> preservedClusterEntries = new java.util.ArrayList<>();
 
     // ---------- 状态访问 ----------
 
@@ -77,18 +76,15 @@ public class TileComputationCore extends TileAENetworkBase implements IActionHos
     public List<CraftingCPUCluster> getCpuPool() {
         return cpuPool;
     }
+    private NBTTagCompound lastClientSyncTag;
 
-    /**
-     * 返回当前活跃的合成订单数量(即处于忙碌状态的 CPU 集群数).
-     */
+    public List<ComputationCoreTaskSummary> getTaskSummaries() {
+        return java.util.Collections.unmodifiableList(clientTaskSummaries);
+    }
+
     public int getActiveOrderCount() {
-        int count = 0;
-        for (CraftingCPUCluster cpu : cpuPool) {
-            if (cpu.isBusy()) {
-                count++;
-            }
-        }
-        return count;
+        if (world != null && world.isRemote) return clientTaskSummaries.size();
+        return createTaskSummaries().size();
     }
 
     @Override
@@ -126,20 +122,49 @@ public class TileComputationCore extends TileAENetworkBase implements IActionHos
         removeCpuPoolFromCraftingGridCache();
     }
 
+    private List<ComputationCoreTaskSummary> createTaskSummaries() {
+        List<ComputationCoreTaskSummary> summaries = new ArrayList<>();
+        for (CraftingCPUCluster cpu : cpuPool) {
+            IAEItemStack finalOutput = cpu.getFinalOutput();
+            long start = cpu.getStartItemCount();
+            long remaining = cpu.getRemainingItemCount();
+            if (!cpu.isBusy() && finalOutput == null && start == 0 && remaining == 0) continue;
+            summaries.add(new ComputationCoreTaskSummary(cpu.getName(),
+                    finalOutput != null ? finalOutput.createItemStack() : ItemStack.EMPTY,
+                    start, remaining, cpu.getElapsedTime()));
+        }
+        return summaries;
+    }
+
     public void disassemble() {
         IGridNode node = getProxy().getNode();
+        IMEMonitor<IAEItemStack> network = null;
+        if (node != null && node.getGrid() != null) {
+            try {
+                IStorageGrid storage = node.getGrid().getCache(IStorageGrid.class);
+                if (storage != null) {
+                    network = storage.getInventory(AEApi.instance().storage()
+                            .getStorageChannel(IItemStorageChannel.class));
+                }
+            } catch (RuntimeException e) {
+                AE2Enhanced.LOGGER.warn("[AE2E] CPU recovery network unavailable; dropping remainders");
+            }
+        }
         this.formed = false;
         this.parallelLimit = 0;
 
+        List<CraftingCPUCluster> retained = new ArrayList<>();
+        MachineSource source = new MachineSource(this);
+        java.util.function.Predicate<ItemStack> drop = world != null && !world.isRemote
+                ? this::dropCpuStack : null;
         for (CraftingCPUCluster cpu : new ArrayList<>(cpuPool)) {
-            try {
-                cpu.cancel();
-            } catch (Exception e) {
-                AE2Enhanced.LOGGER.error("[AE2E] Error cancelling CraftingCPUCluster on disassemble: {}", e.toString());
-            }
+            boolean drained = com.github.aeddddd.ae2enhanced.crafting.CpuInventoryRecovery.cancelAndDrain(
+                    cpu::cancel, cpu.getInventory(), network, source, drop);
+            if (!drained) retained.add(cpu);
         }
         removeCpuPoolFromCraftingGridCache();
         cpuPool.clear();
+        cpuPool.addAll(retained);
 
         unbindMeInterface();
 
@@ -155,60 +180,12 @@ public class TileComputationCore extends TileAENetworkBase implements IActionHos
 
     // ---------- ITickable ----------
 
-    @Override
-    public void update() {
-        if (world == null || world.isRemote) return;
-
-        if (needsReady && formed) {
-            clearNeedsReady();
-            getProxy().onReady();
-            bindMeInterface();
-        }
-
-        if (formed && world.getTotalWorldTime() % 20 == 0) {
-            bindMeInterface();
-        }
-
-        if (formed) {
-            injectCpuPoolIntoCraftingGridCache();
-        }
-
-        if (!formed || cpuPool.isEmpty()) return;
-
-        // 统计空闲数量
-        int idleCount = 0;
-        for (CraftingCPUCluster cpu : cpuPool) {
-            if (!cpu.isBusy()) idleCount++;
-        }
-
-        // 清理空闲的额外集群,但始终保留至少 1 个空闲 CPU
-        Iterator<CraftingCPUCluster> it = cpuPool.iterator();
-        boolean changed = false;
-        while (it.hasNext()) {
-            CraftingCPUCluster cpu = it.next();
-            if (cpu != cpuPool.get(0) && !cpu.isBusy() && isInventoryEmpty(cpu)) {
-                if (idleCount > 1) {
-                    it.remove();
-                    idleCount--;
-                    changed = true;
-                }
-            }
-        }
-
-        // 如果所有集群都忙碌,立即创建一个备用空闲集群
-        if (idleCount == 0) {
-            CraftingCPUCluster standby = createCluster();
-            cpuPool.add(standby);
-            injectCpuPoolIntoCraftingGridCache();
-            changed = true;
-        }
-
-        if (changed) {
-            IGridNode node = getProxy().getNode();
-            if (node != null && node.getGrid() != null) {
-                node.getGrid().postEvent(new MENetworkCraftingCpuChange(node));
-            }
-        }
+    private boolean dropCpuStack(ItemStack stack) {
+        if (stack == null || stack.isEmpty() || world == null || world.isRemote) return false;
+        net.minecraft.entity.item.EntityItem drop = new net.minecraft.entity.item.EntityItem(world,
+                pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5, stack);
+        drop.setDefaultPickupDelay();
+        return world.spawnEntity(drop);
     }
 
     // ---------- Job Submission ----------
@@ -248,6 +225,60 @@ public class TileComputationCore extends TileAENetworkBase implements IActionHos
 
     // ---------- ME 接口绑定 ----------
 
+    @Override
+    public void update() {
+        if (world == null || world.isRemote) return;
+
+        if (needsReady && formed) {
+            clearNeedsReady();
+            getProxy().onReady();
+            bindMeInterface();
+        }
+
+        if (formed && world.getTotalWorldTime() % 20 == 0) {
+            bindMeInterface();
+        }
+
+        if (formed) {
+            injectCpuPoolIntoCraftingGridCache();
+        }
+
+        if (formed && world.getTotalWorldTime() % 20 == 0) syncToClient();
+        if (!formed || cpuPool.isEmpty()) return;
+
+        int idleCount = 0;
+        for (CraftingCPUCluster cpu : cpuPool) {
+            if (!cpu.isBusy()) idleCount++;
+        }
+
+        Iterator<CraftingCPUCluster> it = cpuPool.iterator();
+        boolean changed = false;
+        while (it.hasNext()) {
+            CraftingCPUCluster cpu = it.next();
+            if (cpu != cpuPool.get(0) && !cpu.isBusy() && isInventoryEmpty(cpu)) {
+                if (idleCount > 1) {
+                    it.remove();
+                    idleCount--;
+                    changed = true;
+                }
+            }
+        }
+
+        if (idleCount == 0) {
+            CraftingCPUCluster standby = createCluster();
+            cpuPool.add(standby);
+            injectCpuPoolIntoCraftingGridCache();
+            changed = true;
+        }
+
+        if (changed) {
+            IGridNode node = getProxy().getNode();
+            if (node != null && node.getGrid() != null) {
+                node.getGrid().postEvent(new MENetworkCraftingCpuChange(node));
+            }
+        }
+    }
+
     private void bindMeInterface() {
         if (world == null) return;
         BlockPos interfacePos = getMeInterfacePos();
@@ -255,8 +286,8 @@ public class TileComputationCore extends TileAENetworkBase implements IActionHos
         TileEntity te = world.getTileEntity(interfacePos);
         if (te instanceof TileSuperCraftingInterface) {
             IBlockState state = world.getBlockState(interfacePos);
-            if (state.getBlock() instanceof BlockSuperCraftingInterface && !state.getValue(BlockSuperCraftingInterface.FORMED)) {
-                world.setBlockState(interfacePos, state.withProperty(BlockSuperCraftingInterface.FORMED, true));
+            if (TileBlockStates.is(state, TileBlockStates.SUPER_CRAFTING_INTERFACE) && !TileBlockStates.formed(state)) {
+                world.setBlockState(interfacePos, TileBlockStates.formed(state, true));
                 // setBlockState 可能在某些情况下重新创建 TileEntity,需要重新获取
                 te = world.getTileEntity(interfacePos);
             }
@@ -265,21 +296,6 @@ public class TileComputationCore extends TileAENetworkBase implements IActionHos
                 if (iface.getControllerPos() == null) {
                     iface.setControllerPos(pos);
                 }
-            }
-        }
-        updateCableConnections(interfacePos);
-    }
-
-    private void unbindMeInterface() {
-        if (world == null) return;
-        BlockPos interfacePos = getMeInterfacePos();
-        if (interfacePos == null) return;
-        TileEntity te = world.getTileEntity(interfacePos);
-        if (te instanceof TileSuperCraftingInterface) {
-            ((TileSuperCraftingInterface) te).setControllerPos(null);
-            IBlockState state = world.getBlockState(interfacePos);
-            if (state.getBlock() instanceof BlockSuperCraftingInterface && state.getValue(BlockSuperCraftingInterface.FORMED)) {
-                world.setBlockState(interfacePos, state.withProperty(BlockSuperCraftingInterface.FORMED, false));
             }
         }
         updateCableConnections(interfacePos);
@@ -352,9 +368,19 @@ public class TileComputationCore extends TileAENetworkBase implements IActionHos
         return "computation_core";
     }
 
-    @Override
-    protected ItemStack getProxyRepresentation() {
-        return new ItemStack(BlockRegistry.COMPUTATION_CORE);
+    private void unbindMeInterface() {
+        if (world == null) return;
+        BlockPos interfacePos = getMeInterfacePos();
+        if (interfacePos == null) return;
+        TileEntity te = world.getTileEntity(interfacePos);
+        if (te instanceof TileSuperCraftingInterface) {
+            ((TileSuperCraftingInterface) te).setControllerPos(null);
+            IBlockState state = world.getBlockState(interfacePos);
+            if (TileBlockStates.is(state, TileBlockStates.SUPER_CRAFTING_INTERFACE) && TileBlockStates.formed(state)) {
+                world.setBlockState(interfacePos, TileBlockStates.formed(state, false));
+            }
+        }
+        updateCableConnections(interfacePos);
     }
 
     @Nonnull
@@ -364,15 +390,24 @@ public class TileComputationCore extends TileAENetworkBase implements IActionHos
     }
 
     @Override
-    public void securityBreak() {
+    protected ItemStack getProxyRepresentation() {
+        return new ItemStack(getBlockType());
     }
 
     // ---------- NBT / 同步 ----------
 
+    @Override
+    public void securityBreak() {
+        if (world != null) SupercausalStructure.disassemble(world, pos);
+        else disassemble();
+    }
+
     private void syncToClient() {
-        if (world != null && !world.isRemote) {
-            world.notifyBlockUpdate(pos, world.getBlockState(pos), world.getBlockState(pos), 2);
-        }
+        if (world == null || world.isRemote) return;
+        NBTTagCompound update = getUpdateTag();
+        if (update.equals(lastClientSyncTag)) return;
+        lastClientSyncTag = update.copy();
+        world.notifyBlockUpdate(pos, world.getBlockState(pos), world.getBlockState(pos), 2);
     }
 
     @Override
@@ -380,9 +415,13 @@ public class TileComputationCore extends TileAENetworkBase implements IActionHos
         super.readFromNBT(compound);
         this.formed = compound.getBoolean("formed");
         this.parallelLimit = compound.getInteger("parallelLimit");
+        cpuPool.clear();
+        clientTaskSummaries.clear();
+        preservedClusterEntries.clear();
+        lastClientSyncTag = null;
         getProxy().readFromNBT(compound);
 
-        if (formed && compound.hasKey(NBT_CPU_POOL)) {
+        if ((world == null || !world.isRemote) && compound.hasKey(NBT_CPU_POOL)) {
             NBTTagList list = compound.getTagList(NBT_CPU_POOL, 10);
             for (int i = 0; i < list.tagCount(); i++) {
                 NBTTagCompound cpuTag = list.getCompoundTagAt(i);
@@ -390,7 +429,9 @@ public class TileComputationCore extends TileAENetworkBase implements IActionHos
                 try {
                     cpu.readFromNBT(cpuTag);
                 } catch (Exception e) {
-                    AE2Enhanced.LOGGER.error("[AE2E] Failed to read CraftingCPUCluster NBT, dropping cluster: {}", e.toString());
+                    AE2Enhanced.LOGGER.warn("[AE2E] Failed to read CraftingCPUCluster NBT; preserving opaque entry: {}",
+                            e.toString());
+                    preservedClusterEntries.add(cpuTag.copy());
                     continue;
                 }
                 cpuPool.add(cpu);
@@ -406,13 +447,13 @@ public class TileComputationCore extends TileAENetworkBase implements IActionHos
         getProxy().writeToNBT(compound);
 
         NBTTagList list = new NBTTagList();
+        for (NBTTagCompound raw : preservedClusterEntries) list.appendTag(raw.copy());
         for (CraftingCPUCluster cpu : cpuPool) {
             NBTTagCompound cpuTag = new NBTTagCompound();
             cpu.writeToNBT(cpuTag);
             list.appendTag(cpuTag);
         }
         compound.setTag(NBT_CPU_POOL, list);
-
         return compound;
     }
 
@@ -422,7 +463,30 @@ public class TileComputationCore extends TileAENetworkBase implements IActionHos
         compound.setBoolean("formed", formed);
         compound.setInteger("parallelLimit", parallelLimit);
         getProxy().writeToNBT(compound);
+        NBTTagList tasks = new NBTTagList();
+        for (ComputationCoreTaskSummary summary : createTaskSummaries()) {
+            tasks.appendTag(summary.writeToNBT());
+        }
+        compound.setTag(NBT_CLIENT_TASKS, tasks);
         return compound;
+    }
+
+    private void readClientSync(NBTTagCompound compound) {
+        super.readFromNBT(compound);
+        formed = compound.getBoolean("formed");
+        parallelLimit = compound.getInteger("parallelLimit");
+        cpuPool.clear();
+        clientTaskSummaries.clear();
+        NBTTagList tasks = compound.getTagList(NBT_CLIENT_TASKS, 10);
+        for (int i = 0; i < tasks.tagCount(); i++) {
+            clientTaskSummaries.add(ComputationCoreTaskSummary.readFromNBT(tasks.getCompoundTagAt(i)));
+        }
+        getProxy().readFromNBT(compound);
+    }
+
+    @Override
+    public void handleUpdateTag(NBTTagCompound tag) {
+        readClientSync(tag);
     }
 
     @Override
@@ -432,7 +496,7 @@ public class TileComputationCore extends TileAENetworkBase implements IActionHos
 
     @Override
     public void onDataPacket(NetworkManager net, SPacketUpdateTileEntity pkt) {
-        readFromNBT(pkt.getNbtCompound());
+        readClientSync(pkt.getNbtCompound());
     }
 
     @Override
@@ -446,10 +510,10 @@ public class TileComputationCore extends TileAENetworkBase implements IActionHos
     @Nonnull
     public AxisAlignedBB getRenderBoundingBox() {
         if (world == null) return super.getRenderBoundingBox();
-        if (!(world.getBlockState(pos).getBlock() instanceof BlockComputationCore)) {
+        if (!(TileBlockStates.is(world.getBlockState(pos), TileBlockStates.COMPUTATION_CORE))) {
             return super.getRenderBoundingBox();
         }
-        EnumFacing facing = world.getBlockState(pos).getValue(BlockComputationCore.FACING);
+        EnumFacing facing = TileBlockStates.facing(world.getBlockState(pos));
         EnumFacing structureDir = facing.getOpposite();
         double cx = pos.getX() + 0.5 + structureDir.getXOffset() * 9.0;
         double cy = pos.getY() + 0.5;

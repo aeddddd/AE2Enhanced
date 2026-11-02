@@ -3,8 +3,8 @@ package com.github.aeddddd.ae2enhanced.storage.codec;
 import com.github.aeddddd.ae2enhanced.storage.FluidDescriptor;
 import com.github.aeddddd.ae2enhanced.storage.StorageConstants;
 import net.minecraft.nbt.CompressedStreamTools;
-import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.nbt.NBTSizeTracker;
+import net.minecraft.nbt.NBTTagCompound;
 import net.minecraftforge.fluids.Fluid;
 import net.minecraftforge.fluids.FluidRegistry;
 
@@ -23,7 +23,10 @@ public class FluidDescriptorCodec implements DescriptorCodec<FluidDescriptor> {
 
     @Override
     public void write(DataOutput out, FluidDescriptor descriptor) throws IOException {
-        String id = descriptor.getFluid() != null ? descriptor.getFluid().getName() : "water";
+        if (descriptor.getFluid() == null) {
+            throw new IOException("Fluid is null; refusing to substitute water");
+        }
+        String id = descriptor.getFluid().getName();
         byte[] idBytes = id.getBytes("UTF-8");
         out.writeInt(idBytes.length);
         out.write(idBytes);

@@ -11,13 +11,13 @@ import appeng.me.cache.GridStorageCache;
 import appeng.me.cache.NetworkMonitor;
 import com.github.aeddddd.ae2enhanced.storage.energy.IAEEnergyStack;
 import com.github.aeddddd.ae2enhanced.storage.energy.IEnergyStorageChannel;
-import com.github.aeddddd.ae2enhanced.util.fakeitem.FakeEnergies;
+import com.github.aeddddd.ae2enhanced.item.fakeitem.FakeEnergies;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-import com.github.aeddddd.ae2enhanced.mixin.late.accessor.INetworkMonitorAccessor;
+import com.github.aeddddd.ae2enhanced.storage.access.mixin.INetworkMonitorAccessor;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;

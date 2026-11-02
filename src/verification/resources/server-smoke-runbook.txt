@@ -1,0 +1,27 @@
+AE2Enhanced dedicated-server smoke harness
+
+Automatic acceptance:
+  ./gradlew serverSmokeTest
+
+Optional client observation (Windows, JDK 25 on PATH):
+  ./gradlew serverSmokeTest -PsmokeHoldForClient
+  ./gradlew runClient
+
+The smoke server listens on an ephemeral port because server-port=0. Read the
+SMOKE_HOLD_READY line in build/verification/serverSmoke/logs/latest.log for the
+actual bound port, then connect the development client to 127.0.0.1:<port>. The hold server does not
+shut down after serverStarted. Stop it with the server console's stop command;
+only a complete shutdown after successful checks emits SMOKE_PASS. The default
+watchdog is 300 seconds; increase it for a longer manual session with, for example,
+-PsmokeWatchdogSeconds=3600.
+
+Automatic mode always exits by itself. EOF on stdin is explicitly not a PASS.
+
+M2a scope lifecycle acceptance runs in the same task after the ordinary smoke
+server. Three real dedicated-server JVMs open A1 -> B -> A2. Each places a real
+Central tile, acquires TargetOwnershipTracker ownership, and records the actual
+world root, scope ID, service/ownership counts and stop/release order. The task
+fails unless all nine lifecycle records pass and A2 reopens A's root with a new
+scope and no leaked ownership. Evidence is archived under:
+  build/reports/verification/serverScopeChain/
+  build/verification/serverScopeChain/scope-lifecycle.tsv

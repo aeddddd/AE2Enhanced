@@ -1,7 +1,5 @@
 package com.github.aeddddd.ae2enhanced.centralinterface.handler.astralsorcery;
 
-import com.github.aeddddd.ae2enhanced.centralinterface.TargetSession;
-
 import appeng.api.networking.security.IActionSource;
 import appeng.api.storage.data.IAEItemStack;
 import appeng.api.storage.data.IAEStack;
@@ -9,12 +7,14 @@ import appeng.util.item.AEItemStack;
 import com.github.aeddddd.ae2enhanced.centralinterface.HandlerUtils;
 import com.github.aeddddd.ae2enhanced.centralinterface.IRemoteHandler;
 import com.github.aeddddd.ae2enhanced.centralinterface.IVirtualBatchCraftingHandler;
+import com.github.aeddddd.ae2enhanced.centralinterface.TargetSession;
 import com.github.aeddddd.ae2enhanced.storage.starlight.AEStarlightStack;
 import net.minecraft.entity.item.EntityItem;
 import net.minecraft.inventory.InventoryCrafting;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.crafting.Ingredient;
 import net.minecraft.tileentity.TileEntity;
+import net.minecraft.util.EnumParticleTypes;
 import net.minecraft.util.NonNullList;
 import net.minecraft.util.math.AxisAlignedBB;
 import net.minecraft.util.math.BlockPos;
@@ -25,13 +25,7 @@ import net.minecraftforge.items.IItemHandlerModifiable;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
-import net.minecraft.util.EnumParticleTypes;
+import java.util.*;
 
 /**
  * Astral Sorcery 星辉祭坛远程处理器.
@@ -72,6 +66,7 @@ public class AstralSorceryHandler implements IRemoteHandler, IVirtualBatchCrafti
     private static Method METHOD_MARK_FOR_UPDATE;
     private static Method METHOD_GET_NEEDED_LEVEL;
     private static Method METHOD_GET_OUTPUT_FOR_MATCHING;
+    private static Method METHOD_GET_OUTPUT;
     private static Method METHOD_GET_NATIVE_RECIPE;
     private static Method METHOD_FULFILLES_STARLIGHT;
     private static Method METHOD_FIND_MATCHING_RECIPE;
@@ -110,6 +105,8 @@ public class AstralSorceryHandler implements IRemoteHandler, IVirtualBatchCrafti
 
             METHOD_GET_NEEDED_LEVEL = CLASS_ABSTRACT_ALTAR_RECIPE.getMethod("getNeededLevel");
             METHOD_GET_OUTPUT_FOR_MATCHING = CLASS_ABSTRACT_ALTAR_RECIPE.getMethod("getOutputForMatching");
+            METHOD_GET_OUTPUT = CLASS_ABSTRACT_ALTAR_RECIPE.getMethod("getOutput",
+                    Class.forName("hellfirepvp.astralsorcery.common.crafting.helper.ShapeMap"), CLASS_TILE_ALTAR);
             METHOD_GET_NATIVE_RECIPE = CLASS_ABSTRACT_ALTAR_RECIPE.getMethod("getNativeRecipe");
             METHOD_FULFILLES_STARLIGHT = CLASS_ABSTRACT_ALTAR_RECIPE.getMethod("fulfillesStarlightRequirement", CLASS_TILE_ALTAR);
             METHOD_CRAFTING_TICK_TIME = CLASS_ABSTRACT_ALTAR_RECIPE.getMethod("craftingTickTime");
@@ -317,12 +314,7 @@ public class AstralSorceryHandler implements IRemoteHandler, IVirtualBatchCrafti
         TileEntity te = world.getTileEntity(pos);
         if (!CLASS_TILE_ALTAR.isInstance(te)) return false;
 
-        ItemStack expected = outputs[0].createItemStack();
-        Object recipe = findAltarRecipeByOutput(expected);
-        if (recipe == null) return false;
-
-        List<Ingredient> required = collectRequiredIngredients(recipe);
-        return matchIngredients(required, ingredients);
+        return bindVirtualRecipe(ingredients, outputs) != null;
     }
 
     @Override
@@ -337,13 +329,11 @@ public class AstralSorceryHandler implements IRemoteHandler, IVirtualBatchCrafti
 
     @Override
     public List<IAEStack> getVirtualCost(World world, BlockPos pos, InventoryCrafting ingredients, IAEItemStack[] outputs, long count) {
+        if (count <= 0) return null;
+        com.github.aeddddd.ae2enhanced.centralinterface.recipe.RecipeBinding binding = bindVirtualRecipe(ingredients, outputs);
+        if (binding == null) return null;
+        Object recipe = binding.getRecipe();
         List<IAEStack> costs = new ArrayList<>();
-        initReflection();
-        if (outputs == null || outputs.length == 0 || outputs[0] == null) return costs;
-
-        Object recipe = findAltarRecipeByOutput(outputs[0].createItemStack());
-        if (recipe == null) return costs;
-
         List<Ingredient> required = collectRequiredIngredients(recipe);
         List<ItemStack> available = HandlerUtils.collectNonEmpty(ingredients);
         for (Ingredient ing : required) {
@@ -359,18 +349,39 @@ public class AstralSorceryHandler implements IRemoteHandler, IVirtualBatchCrafti
         }
 
         int starlight = getPassiveStarlightRequired(recipe);
+        if (starlight < 0) return null;
         if (starlight > 0) {
-            costs.add(AEStarlightStack.create((long) starlight * count));
+            try {
+                costs.add(AEStarlightStack.create(Math.multiplyExact((long) starlight, count)));
+            } catch (ArithmeticException overflow) {
+                return null;
+            }
         }
-
         return costs;
     }
 
     @Override
     public List<ItemStack> virtualCraftBatch(World world, BlockPos pos, InventoryCrafting ingredients, IAEItemStack[] outputs, long count, IActionSource source) {
-        List<ItemStack> products = new ArrayList<>();
-        if (!canCraftVirtually(world, pos, ingredients, outputs)) return products;
-        return scaleOutputsByCount(outputs, count);
+        com.github.aeddddd.ae2enhanced.centralinterface.recipe.RecipeBinding binding = bindVirtualRecipe(ingredients, outputs);
+        return binding == null ? new ArrayList<>() : scaleOutputsByCount(binding.getOutputs(), count);
+    }
+
+    private com.github.aeddddd.ae2enhanced.centralinterface.recipe.RecipeBinding bindVirtualRecipe(
+            InventoryCrafting ingredients, IAEItemStack[] outputs) {
+        initReflection();
+        if (outputs == null || outputs.length == 0 || outputs[0] == null) return null;
+        Object recipe = findAltarRecipeByOutput(outputs[0].createItemStack());
+        if (recipe == null || !matchIngredients(collectRequiredIngredients(recipe), ingredients)) return null;
+        try {
+            if (recipe.getClass().getMethod(METHOD_GET_OUTPUT.getName(), METHOD_GET_OUTPUT.getParameterTypes())
+                    .getDeclaringClass() != CLASS_ABSTRACT_ALTAR_RECIPE) {
+                return null;
+            }
+            ItemStack actualOutput = (ItemStack) METHOD_GET_OUTPUT.invoke(recipe, null, null);
+            return com.github.aeddddd.ae2enhanced.centralinterface.recipe.RecipeBinding.of(recipe, outputs, actualOutput);
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     // ---- 批量虚拟合成辅助 ----
@@ -384,9 +395,7 @@ public class AstralSorceryHandler implements IRemoteHandler, IVirtualBatchCrafti
             for (List<?> list : recipes.values()) {
                 for (Object recipe : list) {
                     ItemStack recipeOutput = (ItemStack) METHOD_GET_OUTPUT_FOR_MATCHING.invoke(recipe);
-                    if (!recipeOutput.isEmpty()
-                            && recipeOutput.getItem() == output.getItem()
-                            && recipeOutput.getMetadata() == output.getMetadata()) {
+                    if (com.github.aeddddd.ae2enhanced.centralinterface.recipe.RecipeBinding.exactMatch(recipeOutput, output)) {
                         return recipe;
                     }
                 }
@@ -401,11 +410,10 @@ public class AstralSorceryHandler implements IRemoteHandler, IVirtualBatchCrafti
         List<Ingredient> required = new ArrayList<>();
         try {
             Object nativeRecipe = METHOD_GET_NATIVE_RECIPE.invoke(recipe);
-            if (nativeRecipe instanceof net.minecraft.item.crafting.IRecipe) {
-                for (Ingredient ing : ((net.minecraft.item.crafting.IRecipe) nativeRecipe).getIngredients()) {
-                    if (ing != null && ing != Ingredient.EMPTY) {
-                        required.add(ing);
-                    }
+            if (!(nativeRecipe instanceof net.minecraft.item.crafting.IRecipe)) return null;
+            for (Ingredient ing : ((net.minecraft.item.crafting.IRecipe) nativeRecipe).getIngredients()) {
+                if (ing != null && ing != Ingredient.EMPTY) {
+                    required.add(ing);
                 }
             }
 
@@ -416,7 +424,7 @@ public class AstralSorceryHandler implements IRemoteHandler, IVirtualBatchCrafti
             // TraitRecipe 外部 additionallyRequiredStacks(光波增幅器 / AttunementRelay)
             addHandleIngredients(required, recipe, CLASS_TRAIT_RECIPE, FIELD_ADDITIONALLY_REQUIRED_STACKS);
         } catch (Exception e) {
-            // ignore
+            return null;
         }
         return required;
     }
@@ -457,6 +465,7 @@ public class AstralSorceryHandler implements IRemoteHandler, IVirtualBatchCrafti
     }
 
     private boolean matchIngredients(List<Ingredient> required, InventoryCrafting ingredients) {
+        if (required == null) return false;
         List<ItemStack> available = HandlerUtils.collectNonEmpty(ingredients);
         for (Ingredient ing : required) {
             if (ing == null || ing == Ingredient.EMPTY) continue;

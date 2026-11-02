@@ -41,22 +41,39 @@ import java.util.Map;
  * 自己 mod 的命名空间,故两级索引互不重叠、彼此顺序无歧义；若将来某 handler 开始匹配外来
  * 命名空间的 id,必须同时调整索引声明,否则该 id 的优先级会被索引顺序而非注册顺序决定。</p>
  */
-public class HandlerRegistry {
+public class HandlerRegistry implements AutoCloseable {
 
-    private static final String[] NO_IDS = new String[0];
-    private static final String[] NO_PREFIXES = new String[0];
+    private final String[] NO_IDS = new String[0];
+    private final String[] NO_PREFIXES = new String[0];
 
-    private static final List<IRemoteHandler> HANDLERS = new ArrayList<>();
+    private final List<IRemoteHandler> HANDLERS = new ArrayList<>();
     /** 精确 blockId → 候选 handler(按注册顺序). */
-    private static final Map<String, List<IRemoteHandler>> EXACT_INDEX = new HashMap<>();
+    private final Map<String, List<IRemoteHandler>> EXACT_INDEX = new HashMap<>();
     /** 命名空间前缀规则(按注册顺序). */
-    private static final List<PrefixRule> PREFIX_RULES = new ArrayList<>();
-    private static boolean initialized = false;
+    private final List<PrefixRule> PREFIX_RULES = new ArrayList<>();
+    private boolean initialized = false;
+
+    public static HandlerRegistry instance() {
+        return com.github.aeddddd.ae2enhanced.runtime.RuntimeScopes.requireServer()
+                .service(HandlerRegistry.class, HandlerRegistry::new);
+    }
+
+    public static void init() {
+        instance().initialize();
+    }
 
     /**
-     * 初始化注册表.线程安全,重复调用无效果.
+     * 根据方块 ID 查找匹配的处理器.
+     *
+     * @param blockId 方块注册 ID(如 "minecraft:furnace")
+     * @return 匹配的 handler；若无可匹配者,返回默认 fallback
      */
-    public static synchronized void init() {
+    public static IRemoteHandler findHandler(String blockId) {
+        return instance().find(blockId);
+    }
+
+    /** 初始化注册表.线程安全,重复调用无效果. */
+    public synchronized void initialize() {
         if (initialized) {
             return;
         }
@@ -122,16 +139,16 @@ public class HandlerRegistry {
     }
 
     /** 加载并注册一个按<b>精确 blockId</b>匹配的 handler. */
-    private static void tryLoadExact(String modId, String className, String... exactBlockIds) {
+    private void tryLoadExact(String modId, String className, String... exactBlockIds) {
         tryLoad(modId, className, exactBlockIds, NO_PREFIXES);
     }
 
     /** 加载并注册一个按<b>命名空间前缀</b>匹配的 handler. */
-    private static void tryLoadPrefix(String modId, String className, String... prefixes) {
+    private void tryLoadPrefix(String modId, String className, String... prefixes) {
         tryLoad(modId, className, NO_IDS, prefixes);
     }
 
-    private static void tryLoad(String modId, String className, String[] exactBlockIds, String[] prefixes) {
+    private void tryLoad(String modId, String className, String[] exactBlockIds, String[] prefixes) {
         if (!Loader.isModLoaded(modId)) {
             return;
         }
@@ -154,7 +171,7 @@ public class HandlerRegistry {
      * <p>门控与反射隔离不变：{@code Loader.isModLoaded} 为假时连类名都不会被触碰，
      * 因此未安装的 mod 对应的类（及其反射入口）永远不会被加载。</p>
      */
-    private static void tryLoadSpec(String modId, String className) {
+    private void tryLoadSpec(String modId, String className) {
         if (!Loader.isModLoaded(modId)) {
             return;
         }
@@ -168,7 +185,7 @@ public class HandlerRegistry {
     }
 
     /** 按 handler 自己的表项登记匹配规则（表项是 blockId 规则的唯一声明处）。 */
-    private static void registerFromSpec(AbstractMachineHandler handler) {
+    private void registerFromSpec(AbstractMachineHandler handler) {
         MachineSpec spec = handler.spec();
         register(handler,
                 spec.exactBlockIds().toArray(NO_IDS),
@@ -176,7 +193,7 @@ public class HandlerRegistry {
     }
 
     /** 追加注册 handler 并把它挂到两级索引上(未声明规则的 handler 只能靠线性扫描命中). */
-    private static void register(IRemoteHandler handler, String[] exactBlockIds, String[] prefixes) {
+    private void register(IRemoteHandler handler, String[] exactBlockIds, String[] prefixes) {
         HANDLERS.add(handler);
         for (String exactBlockId : exactBlockIds) {
             List<IRemoteHandler> candidates = EXACT_INDEX.get(exactBlockId);
@@ -191,14 +208,8 @@ public class HandlerRegistry {
         }
     }
 
-    /**
-     * 根据方块 ID 查找匹配的处理器.
-     *
-     * @param blockId 方块注册 ID(如 "minecraft:furnace")
-     * @return 匹配的 handler；若无可匹配者,返回默认 fallback
-     */
-    public static IRemoteHandler findHandler(String blockId) {
-        init();
+    public IRemoteHandler find(String blockId) {
+        initialize();
         IRemoteHandler indexed = findByIndex(blockId);
         if (indexed != null) {
             return indexed;
@@ -218,7 +229,7 @@ public class HandlerRegistry {
      *
      * <p>候选一律要过 {@link IRemoteHandler#canHandle(String)},索引只做剪枝不做裁决.</p>
      */
-    private static IRemoteHandler findByIndex(String blockId) {
+    private IRemoteHandler findByIndex(String blockId) {
         if (blockId == null) {
             // null 直接交回线性扫描：逐个交给 canHandle 结果均为 false,两条路径结果一致
             return null;
@@ -239,38 +250,28 @@ public class HandlerRegistry {
         return null;
     }
 
-    /**
-     * 获取所有已注册的处理器副本(用于调试或列表展示).
-     */
-    public static List<IRemoteHandler> getHandlers() {
-        init();
+    /** 获取所有已注册的处理器副本(用于调试或列表展示). */
+    public List<IRemoteHandler> handlers() {
+        initialize();
         return new ArrayList<>(HANDLERS);
     }
 
-    /**
-     * 清空注册表并允许重新初始化。<b>仅供单元测试使用</b>：静态注册表状态需要在
-     * 测试间隔离，生产代码不得调用此方法。
-     */
-    public static synchronized void resetForTesting() {
+    /** 追加无索引规则的 handler；独立实例也可注入 fake 进行匹配测试。 */
+    public synchronized void register(IRemoteHandler handler) {
+        initialize();
+        register(handler, NO_IDS, NO_PREFIXES);
+    }
+
+    @Override
+    public synchronized void close() {
         HANDLERS.clear();
         EXACT_INDEX.clear();
         PREFIX_RULES.clear();
         initialized = false;
     }
 
-    /**
-     * 向注册表追加一个处理器。<b>仅供单元测试使用</b>：用于注入 fake handler
-     * 验证 {@link #findHandler(String)} 的匹配顺序与兜底行为。
-     *
-     * <p>注入的 handler 不声明 blockId 规则,因此只会被线性扫描命中,注册顺序即优先级。</p>
-     */
-    public static synchronized void registerForTesting(IRemoteHandler handler) {
-        init();
-        register(handler, NO_IDS, NO_PREFIXES);
-    }
-
     /** 一条命名空间前缀规则：命中条件 = blockId 以 {@code prefix} 开头,且 handler 的 canHandle 通过. */
-    private static final class PrefixRule {
+    private final class PrefixRule {
         private final String prefix;
         private final IRemoteHandler handler;
 

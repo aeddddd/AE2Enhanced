@@ -1,14 +1,13 @@
 package com.github.aeddddd.ae2enhanced.dimension;
 
-import static org.assertj.core.api.Assertions.assertThat;
-
-import java.util.UUID;
-
-import org.junit.jupiter.api.Test;
-
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.nbt.NBTTagList;
 import net.minecraft.util.math.BlockPos;
+import org.junit.jupiter.api.Test;
+
+import java.util.UUID;
+
+import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * {@link PersonalDimensionData} 的 NBT 序列化、双向索引与迁移逻辑测试。
@@ -82,8 +81,8 @@ public class PersonalDimensionDataTest {
         PersonalDimensionData data = new PersonalDimensionData();
         NBTTagCompound tag = data.writeToNBT(new NBTTagCompound());
 
-        // CURRENT_VERSION = 1
-        assertThat(tag.getInteger("version")).isEqualTo(1);
+        // CURRENT_VERSION = 2（团队条目、进入偏好与地板状态）
+        assertThat(tag.getInteger("version")).isEqualTo(2);
     }
 
     /** 读取缺失 version 字段的旧存档时回退为 0，数据仍能正常加载。 */
@@ -113,6 +112,17 @@ public class PersonalDimensionDataTest {
         assertThat(data.getEntryByDimensionId(10)).isNull();
         assertThat(data.getEntryByDimensionId(20).playerId).isEqualTo(PLAYER_A);
         assertThat(data.getEntry(PLAYER_A).dimensionId).isEqualTo(20);
+    }
+
+    @Test
+    public void testUpdateDimensionMappingCanUnassignWithoutReverseEntry() {
+        PersonalDimensionData data = new PersonalDimensionData();
+        data.updateDimensionMapping(PLAYER_A, 10);
+        data.updateDimensionMapping(PLAYER_A, Integer.MIN_VALUE);
+
+        assertThat(data.getEntry(PLAYER_A).dimensionId).isEqualTo(Integer.MIN_VALUE);
+        assertThat(data.getEntryByDimensionId(10)).isNull();
+        assertThat(data.getEntryByDimensionId(Integer.MIN_VALUE)).isNull();
     }
 
     /** 从未分配状态（MIN_VALUE）首次绑定维度时不会误删任何映射。 */

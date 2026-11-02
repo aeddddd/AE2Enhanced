@@ -1,27 +1,26 @@
 package com.github.aeddddd.ae2enhanced;
 
+import com.github.aeddddd.ae2enhanced.config.ClientPreferences;
+import com.github.aeddddd.ae2enhanced.dimension.PersonalDimensionManager;
 import com.github.aeddddd.ae2enhanced.event.ModEventHandler;
-import com.github.aeddddd.ae2enhanced.util.network.WirelessChannelTickHandler;
-import net.minecraftforge.common.MinecraftForge;
 import com.github.aeddddd.ae2enhanced.gui.GuiHandler;
+import com.github.aeddddd.ae2enhanced.item.ItemRegistry;
+import com.github.aeddddd.ae2enhanced.network.ModNetwork;
 import com.github.aeddddd.ae2enhanced.proxy.CommonProxy;
 import com.github.aeddddd.ae2enhanced.registry.GameRegistryManager;
 import com.github.aeddddd.ae2enhanced.registry.ModContent;
-import com.github.aeddddd.ae2enhanced.registry.ModNetwork;
 import com.github.aeddddd.ae2enhanced.registry.ModRecipes;
-import com.github.aeddddd.ae2enhanced.registry.content.ItemRegistry;
-import com.github.aeddddd.ae2enhanced.dimension.PersonalDimensionManager;
+import com.github.aeddddd.ae2enhanced.runtime.ModProcessScope;
+import com.github.aeddddd.ae2enhanced.runtime.RuntimeScopes;
 import com.github.aeddddd.ae2enhanced.storage.channel.ChannelRegistrationManager;
+import com.github.aeddddd.ae2enhanced.tile.network.WirelessChannelTickHandler;
 import net.minecraft.creativetab.CreativeTabs;
 import net.minecraft.item.ItemStack;
+import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.common.config.ConfigManager;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.common.SidedProxy;
-import net.minecraftforge.fml.common.event.FMLInitializationEvent;
-import net.minecraftforge.fml.common.event.FMLPostInitializationEvent;
-import net.minecraftforge.fml.common.event.FMLPreInitializationEvent;
-import net.minecraftforge.fml.common.event.FMLServerStartedEvent;
-import net.minecraftforge.fml.common.event.FMLServerStartingEvent;
+import net.minecraftforge.fml.common.event.*;
 import net.minecraftforge.fml.common.network.NetworkRegistry;
 import net.minecraftforge.fml.common.network.simpleimpl.SimpleNetworkWrapper;
 import org.apache.logging.log4j.LogManager;
@@ -61,6 +60,10 @@ public class AE2Enhanced {
     @Mod.EventHandler
     public void preInit(FMLPreInitializationEvent event) {
         ConfigManager.sync(MOD_ID, net.minecraftforge.common.config.Config.Type.INSTANCE);
+        RuntimeScopes.startProcess(new ModProcessScope(MOD_ID, VERSION, event.getSide().isServer(),
+                com.github.aeddddd.ae2enhanced.config.BootConfig.capture()));
+        ClientPreferences.publish();
+        com.github.aeddddd.ae2enhanced.integration.RuntimeIntegrationRegistry.preInit();
         PersonalDimensionManager.registerDimensionType();
         com.github.aeddddd.ae2enhanced.dimension.PresetLoader.copyDefaultPresetToConfigIfMissing();
         GameRegistryManager.initItems();
@@ -71,17 +74,23 @@ public class AE2Enhanced {
 
     @Mod.EventHandler
     public void init(FMLInitializationEvent event) {
+        com.github.aeddddd.ae2enhanced.dimension.PrivateDimensionPermissions.register();
         NetworkRegistry.INSTANCE.registerGuiHandler(instance, new GuiHandler());
         proxy.init(event);
 
         checkMixinEnvironment();
+        com.github.aeddddd.ae2enhanced.integration.RuntimeIntegrationRegistry.init();
 
         // 注册存储通道：根据外部通道存在性决定是否注册 AE2E 自有通道
         ChannelRegistrationManager.registerChannels();
 
         // 注册 TII 资源提供者(仅在 TII 存在时加载注册器类,避免无条件引用 TII 类)
-        if (com.github.aeddddd.ae2enhanced.integration.terminal.tii.TiiCompat.isLoaded()) {
-            MinecraftForge.EVENT_BUS.register(new com.github.aeddddd.ae2enhanced.integration.terminal.TiiResourceRegistration());
+        if (com.github.aeddddd.ae2enhanced.integration.terminal.tii.TiiCompat.isLoaded()
+                && com.github.aeddddd.ae2enhanced.config.BootConfig.current().integrationEnabled("tii")) {
+            com.github.aeddddd.ae2enhanced.integration.terminal.TiiResourceRegistration tiiRegistration =
+                    new com.github.aeddddd.ae2enhanced.integration.terminal.TiiResourceRegistration();
+            MinecraftForge.EVENT_BUS.register(tiiRegistration);
+            tiiRegistration.registerDirect();
         }
 
         ModContent.init();
@@ -97,26 +106,19 @@ public class AE2Enhanced {
     @Mod.EventHandler
     public void postInit(FMLPostInitializationEvent event) {
         proxy.postInit(event);
-
-        // 元件终端(Cell Terminal)集成: 注册 EMC 接口的存储总线扫描器.
-        // 经 Class.forName 隔离,避免无条件加载类引用 cellterminal 类
-        if (net.minecraftforge.fml.common.Loader.isModLoaded("cellterminal")) {
-            try {
-                Class<?> clazz = Class.forName("com.github.aeddddd.ae2enhanced.integration.cellterminal.CellTerminalIntegration");
-                clazz.getMethod("init").invoke(null);
-            } catch (Exception e) {
-                LOGGER.warn("[AE2E] Failed to register Cell Terminal integration", e);
-            }
-        }
+        com.github.aeddddd.ae2enhanced.integration.RuntimeIntegrationRegistry.postInit();
     }
 
     @Mod.EventHandler
     public void serverStarting(FMLServerStartingEvent event) {
+        RuntimeScopes.startServer();
         event.registerServerCommand(new com.github.aeddddd.ae2enhanced.command.CommandAE2Enhanced());
     }
 
     @Mod.EventHandler
     public void serverStarted(FMLServerStartedEvent event) {
+        RuntimeScopes.bindServerSaveRoot(net.minecraftforge.fml.common.FMLCommonHandler.instance()
+                .getMinecraftServerInstance().getWorld(0).getSaveHandler().getWorldDirectory().toPath());
         PersonalDimensionManager.onServerStarted(event);
         // 世界加载完成后使处理仓配方索引失效,首次使用时以完整注册表重建
         //（cells/CraftTweaker 等在 init 之后才完成注册,过早构建会漏配方）
@@ -125,10 +127,30 @@ public class AE2Enhanced {
 
     @Mod.EventHandler
     public void serverStopping(net.minecraftforge.fml.common.event.FMLServerStoppingEvent event) {
-        // 清理中枢接口目标所有权静态表，避免单机跨存档重载后旧实例残留锁死机器
-        com.github.aeddddd.ae2enhanced.centralinterface.TargetOwnershipTracker.instance().clearAll();
-        // 全部超维度仓储会话落盘关闭（WAL 冲刷 + checkpoint），保证关服耐久
-        com.github.aeddddd.ae2enhanced.storage.HyperdimensionalStorageManager.closeAll();
+        net.minecraft.server.MinecraftServer server = net.minecraftforge.fml.common.FMLCommonHandler.instance().getMinecraftServerInstance();
+        if (server != null) {
+            for (net.minecraft.entity.player.EntityPlayerMP player : server.getPlayerList().getPlayers()) {
+                com.github.aeddddd.ae2enhanced.ring.RingManager.discard(player.getUniqueID());
+            }
+        }
+        com.github.aeddddd.ae2enhanced.dimension.rules.PlayerAbilityApplier.clearAll();
+        com.github.aeddddd.ae2enhanced.ring.TeleportWhitelist.clear();
+        com.github.aeddddd.ae2enhanced.ring.CredentialRecoveryTracker.clear();
+        com.github.aeddddd.ae2enhanced.util.ServerTickCounter.clear();
+        com.github.aeddddd.ae2enhanced.tile.TileEMCInterface.flushAllPendingOfflineEmc();
+        com.github.aeddddd.ae2enhanced.integration.RuntimeIntegrationRegistry.serverStopping();
+        RuntimeScopes.stopServer();
+        try {
+            // 全部超维度仓储会话落盘关闭（WAL 冲刷 + checkpoint），保证关服耐久
+            com.github.aeddddd.ae2enhanced.storage.HyperdimensionalStorageManager.closeAll();
+        } finally {
+            RuntimeScopes.closeServer();
+        }
+    }
+
+    @Mod.EventHandler
+    public void serverStopped(net.minecraftforge.fml.common.event.FMLServerStoppedEvent event) {
+        RuntimeScopes.releaseServer();
     }
 
     private void checkMixinEnvironment() {

@@ -2,7 +2,6 @@ package com.github.aeddddd.ae2enhanced.event;
 
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
 import com.github.aeddddd.ae2enhanced.crafting.SingularityRecipe;
-import com.github.aeddddd.ae2enhanced.crafting.SingularityRecipeRegistry;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.init.SoundEvents;
 import net.minecraft.item.ItemStack;
@@ -31,7 +30,7 @@ public class SingularityRitualHandler {
         EntityPlayer player = event.getEntityPlayer();
         ItemStack held = event.getItemStack();
 
-        SingularityRecipe recipe = SingularityRecipeRegistry.findMatching(world, pos, held);
+        SingularityRecipe recipe = com.github.aeddddd.ae2enhanced.chamber.RecipeCatalog.findSingularity(world, pos, held);
         if (recipe == null) {
             return;
         }

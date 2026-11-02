@@ -2,53 +2,42 @@ package com.github.aeddddd.ae2enhanced.proxy;
 
 import appeng.api.AEApi;
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
-import com.github.aeddddd.ae2enhanced.config.AE2EnhancedConfig;
-import com.github.aeddddd.ae2enhanced.registry.content.BlockRegistry;
-import com.github.aeddddd.ae2enhanced.registry.content.ItemRegistry;
-import com.github.aeddddd.ae2enhanced.registry.content.PartRegistry;
 import com.github.aeddddd.ae2enhanced.client.handler.KeyHandlerOmniTool;
 import com.github.aeddddd.ae2enhanced.client.model.FluidDropModel;
 import com.github.aeddddd.ae2enhanced.client.model.StarlightDropModel;
-import com.github.aeddddd.ae2enhanced.client.render.EssentiaPacketModel;
-import com.github.aeddddd.ae2enhanced.client.render.RenderBlackHole;
-import com.github.aeddddd.ae2enhanced.client.render.RenderComputationCore;
-import com.github.aeddddd.ae2enhanced.client.render.SelectionBoxRenderer;
-import com.github.aeddddd.ae2enhanced.client.render.ChunkPowerHighlightRenderer;
-import com.github.aeddddd.ae2enhanced.client.render.RenderHyperdimensionalController;
-import com.github.aeddddd.ae2enhanced.client.render.RenderMicroSingularity;
+import com.github.aeddddd.ae2enhanced.client.render.*;
+import com.github.aeddddd.ae2enhanced.item.ItemRegistry;
 import com.github.aeddddd.ae2enhanced.item.ItemUpgradeCard;
 import com.github.aeddddd.ae2enhanced.item.ItemVirtualParallelCard;
-import com.github.aeddddd.ae2enhanced.part.PartStockingBus;
-import com.github.aeddddd.ae2enhanced.part.PartUniversalExportBus;
-import com.github.aeddddd.ae2enhanced.part.PartUniversalImportBus;
+import com.github.aeddddd.ae2enhanced.item.fakeitem.FakeItemRegister;
+import com.github.aeddddd.ae2enhanced.runtime.RuntimeScopes;
 import com.github.aeddddd.ae2enhanced.tile.TileAssemblyController;
 import com.github.aeddddd.ae2enhanced.tile.TileComputationCore;
 import com.github.aeddddd.ae2enhanced.tile.TileHyperdimensionalController;
 import com.github.aeddddd.ae2enhanced.tile.TileMicroSingularity;
-import com.github.aeddddd.ae2enhanced.util.fakeitem.FakeItemRegister;
-
 import net.minecraft.block.Block;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.block.model.IBakedModel;
 import net.minecraft.client.renderer.block.model.ModelResourceLocation;
 import net.minecraft.client.settings.KeyBinding;
 import net.minecraft.item.Item;
+import net.minecraft.item.ItemStack;
 import net.minecraftforge.client.event.ModelBakeEvent;
-import net.minecraftforge.client.settings.KeyConflictContext;
-import net.minecraftforge.client.settings.KeyModifier;
-import net.minecraftforge.fml.common.gameevent.InputEvent;
 import net.minecraftforge.client.event.ModelRegistryEvent;
 import net.minecraftforge.client.event.TextureStitchEvent;
 import net.minecraftforge.client.model.ModelLoader;
 import net.minecraftforge.client.model.ModelLoaderRegistry;
+import net.minecraftforge.client.settings.KeyConflictContext;
+import net.minecraftforge.client.settings.KeyModifier;
+import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.fluids.FluidStack;
+import net.minecraftforge.fml.client.registry.ClientRegistry;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.common.Optional;
-import net.minecraftforge.fml.client.registry.ClientRegistry;
 import net.minecraftforge.fml.common.event.FMLInitializationEvent;
 import net.minecraftforge.fml.common.event.FMLPreInitializationEvent;
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
-import net.minecraftforge.common.MinecraftForge;
+import net.minecraftforge.fml.common.gameevent.InputEvent;
 import net.minecraftforge.fml.relauncher.Side;
 import net.minecraftforge.fml.relauncher.SideOnly;
 import org.lwjgl.input.Keyboard;
@@ -72,92 +61,45 @@ public class ClientProxy extends CommonProxy {
     );
 
 
-    @Override
-    public void preInit(FMLPreInitializationEvent event) {
-        super.preInit(event);
-        ClientRegistry.registerKeyBinding(OPEN_OMNI_TERMINAL_KEY);
-        ClientRegistry.registerKeyBinding(TOGGLE_MAGNET_KEY);
-        ClientRegistry.registerKeyBinding(com.github.aeddddd.ae2enhanced.guide.GuideHotkeyHandler.OPEN_GUIDE_KEY);
-        com.github.aeddddd.ae2enhanced.client.handler.UMCKeyBindings.register();
-        KeyHandlerOmniTool.init();
-        com.github.aeddddd.ae2enhanced.client.handler.KeyHandlerRing.init();
-    }
-
-    @Override
-    public void init(FMLInitializationEvent event) {
-        super.init(event);
-        MinecraftForge.EVENT_BUS.register(new KeyHandlerOmniTool());
-        MinecraftForge.EVENT_BUS.register(new com.github.aeddddd.ae2enhanced.client.handler.KeyHandlerRing());
-        com.github.aeddddd.ae2enhanced.item.ItemUniversalMemoryCard.registerClientEvents();
-        MinecraftForge.EVENT_BUS.register(new SelectionBoxRenderer());
-        MinecraftForge.EVENT_BUS.register(new com.github.aeddddd.ae2enhanced.client.render.CollectorBoundsRenderer());
-        MinecraftForge.EVENT_BUS.register(new com.github.aeddddd.ae2enhanced.client.hud.PlacementToolHudRenderer());
-        MinecraftForge.EVENT_BUS.register(new com.github.aeddddd.ae2enhanced.client.render.PlacementPreviewRenderer());
-        MinecraftForge.EVENT_BUS.register(new ChunkPowerHighlightRenderer());
-        MinecraftForge.EVENT_BUS.register(new com.github.aeddddd.ae2enhanced.client.render.BindingLineRenderer());
-
-        // 停靠引擎开发演示屏：/ae2edockdemo 打开 GuiDockDemo（阶段 1 手工验证入口）
-        // TODO(AE2E): 正式发布前移除或加配置开关
-        net.minecraftforge.client.ClientCommandHandler.instance
-                .registerCommand(new com.github.aeddddd.ae2enhanced.client.gui.dock.DockDemoCommand());
-
-        // 指南系统：资源重载加载页面 + 按住 G 热键
-        if (AE2EnhancedConfig.guide.enabled) {
-            com.github.aeddddd.ae2enhanced.guide.GuideManager.init();
-            MinecraftForge.EVENT_BUS.register(new com.github.aeddddd.ae2enhanced.guide.GuideHotkeyHandler());
-        }
-
-        ClientRegistry.bindTileEntitySpecialRenderer(TileAssemblyController.class, new RenderBlackHole());
-        ClientRegistry.bindTileEntitySpecialRenderer(TileMicroSingularity.class, new RenderMicroSingularity());
-        ClientRegistry.bindTileEntitySpecialRenderer(
-                com.github.aeddddd.ae2enhanced.tile.TileSingularityChamber.class,
-                new com.github.aeddddd.ae2enhanced.client.render.RenderTileSingularityChamber());
-        ClientRegistry.bindTileEntitySpecialRenderer(TileHyperdimensionalController.class, new RenderHyperdimensionalController());
-        ClientRegistry.bindTileEntitySpecialRenderer(TileComputationCore.class, new RenderComputationCore());
-        ClientRegistry.bindTileEntitySpecialRenderer(
-                com.github.aeddddd.ae2enhanced.tile.TileDisplayPanel.class,
-                new com.github.aeddddd.ae2enhanced.client.render.RenderDisplayWall());
-        // 被约束微型奇点：注册内置物品渲染器(TEISR)
-        if (ItemRegistry.CONSTRAINED_MICRO_SINGULARITY != null) {
-            ItemRegistry.CONSTRAINED_MICRO_SINGULARITY.initModel();
-        }
-        // E2a：注册 EssentiaDrop 的内置物品渲染器(流体/气体使用标准模型系统)
-        if (ItemRegistry.ESSENTIA_DROP != null) {
+    @SideOnly(Side.CLIENT)
+    private static void initializeContentModels() {
+        for (com.github.aeddddd.ae2enhanced.registry.content.ContentDefinition.ItemDefinition definition
+                : com.github.aeddddd.ae2enhanced.registry.content.ContentDefinition.ITEMS) {
+            Item item = definition.getter.get();
+            if (item == null) {
+                continue;
+            }
             try {
-                java.lang.reflect.Method initModel = ItemRegistry.ESSENTIA_DROP.getClass().getMethod("initModel");
-                initModel.invoke(ItemRegistry.ESSENTIA_DROP);
+                switch (definition.modelType) {
+                    case CONSTRAINED_MICRO_SINGULARITY:
+                        item.setTileEntityItemStackRenderer(
+                                com.github.aeddddd.ae2enhanced.client.render.ConstrainedSingularityItemRenderer.INSTANCE);
+                        break;
+                    case ESSENTIA_DROP:
+                        item.setTileEntityItemStackRenderer(
+                                com.github.aeddddd.ae2enhanced.client.render.EssentiaItemRenderer.INSTANCE);
+                        break;
+                    default:
+                        break;
+                }
             } catch (Exception e) {
-                AE2Enhanced.LOGGER.error("[AE2E] Failed to init essentia drop model", e);
+                AE2Enhanced.LOGGER.error("[AE2E] Failed to init " + definition.registryName + " model", e);
             }
         }
-        // E2a：注册流体假物品的 ItemColors,根据流体颜色染色
-        if (ItemRegistry.FLUID_DROP != null) {
-            Minecraft.getMinecraft().getItemColors().registerItemColorHandler((stack, tintIndex) -> {
-                FluidStack fluid = com.github.aeddddd.ae2enhanced.item.ItemFluidDrop.getFluidStack(stack);
-                if (fluid != null) {
-                    return fluid.getFluid().getColor(fluid);
-                }
-                return -1;
-            }, ItemRegistry.FLUID_DROP);
-        }
-        // E2a：注册气体假物品的 ItemColors,根据气体 tint 染色(复刻 ae2fc ClientProxy.init)
-        if (ItemRegistry.GAS_DROP != null) {
-            Minecraft.getMinecraft().getItemColors().registerItemColorHandler((stack, tintIndex) -> {
-                try {
-                    Object gas = FakeItemRegister.getStack(stack);
-                    if (gas != null) {
-                        Object gasType = gas.getClass().getMethod("getGas").invoke(gas);
-                        if (gasType != null) {
-                            int tint = (int) gasType.getClass().getMethod("getTint").invoke(gasType);
-                            return tint | 0xFF000000;
-                        }
-                    }
-                } catch (Exception ignored) {
-                }
-                return -1;
-            }, ItemRegistry.GAS_DROP);
-        }
+    }
 
+    @SideOnly(Side.CLIENT)
+    @SubscribeEvent
+    public static void onClientConnected(net.minecraftforge.fml.common.network.FMLNetworkEvent.ClientConnectedToServerEvent event) {
+        com.github.aeddddd.ae2enhanced.guide.client.ScriptGuideClient.clear();
+        RuntimeScopes.connectClient();
+    }
+
+    @SideOnly(Side.CLIENT)
+    @SubscribeEvent
+    public static void onClientDisconnected(net.minecraftforge.fml.common.network.FMLNetworkEvent.ClientDisconnectionFromServerEvent event) {
+        com.github.aeddddd.ae2enhanced.guide.client.ScriptGuideClient.clear();
+        RuntimeScopes.disconnectClient();
     }
 
     @SideOnly(Side.CLIENT)
@@ -189,6 +131,86 @@ public class ClientProxy extends CommonProxy {
 
     @SideOnly(Side.CLIENT)
     @SubscribeEvent
+    public static void registerModels(ModelRegistryEvent event) {
+        for (com.github.aeddddd.ae2enhanced.registry.content.ContentDefinition.BlockDefinition definition
+                : com.github.aeddddd.ae2enhanced.registry.content.ContentDefinition.BLOCKS) {
+            Block block = definition.getter.get();
+            if (block != null && definition.modelType
+                    == com.github.aeddddd.ae2enhanced.registry.content.ContentDefinition.ModelType.BLOCK_ITEM) {
+                registerBlockItemModel(block);
+            }
+        }
+        for (com.github.aeddddd.ae2enhanced.registry.content.ContentDefinition.ItemDefinition definition
+                : com.github.aeddddd.ae2enhanced.registry.content.ContentDefinition.ITEMS) {
+            Item item = definition.getter.get();
+            if (item != null) {
+                registerItemModel(definition, item);
+            }
+        }
+    }
+
+    @SideOnly(Side.CLIENT)
+    private static void registerItemModel(
+            com.github.aeddddd.ae2enhanced.registry.content.ContentDefinition.ItemDefinition definition, Item item) {
+        ModelResourceLocation[] variants = modelLocations(definition.modelVariants);
+        switch (definition.modelType) {
+            case SIMPLE:
+            case CONSTRAINED_MICRO_SINGULARITY:
+                registerItemModel(item);
+                break;
+            case PART:
+                AEApi.instance().registries().partModels().registerModels(definition.partModels.get());
+                registerItemModel(item);
+                break;
+            case UPGRADE_CARD:
+                ModelLoader.registerItemVariants(item, variants);
+                ModelLoader.setCustomMeshDefinition(item, stack -> upgradeCardModel(stack, variants));
+                break;
+            case ESSENTIA_DROP:
+                ModelLoader.setCustomMeshDefinition(item, stack -> modelLocation(definition.registryName));
+                break;
+            case FLUID_DROP:
+                ModelLoaderRegistry.registerLoader(new FluidDropModel.Loader());
+                ModelLoader.setCustomModelResourceLocation(item, 0,
+                        new ModelResourceLocation(FluidDropModel.MODEL_LOCATION, "inventory"));
+                break;
+            case STARLIGHT_DROP:
+                ModelLoaderRegistry.registerLoader(new StarlightDropModel.Loader());
+                ModelLoader.setCustomModelResourceLocation(item, 0,
+                        new ModelResourceLocation(StarlightDropModel.MODEL_LOCATION, "inventory"));
+                break;
+            case GAS_DROP:
+                registerGasDropModel(item);
+                break;
+            case VIRTUAL_PARALLEL_CARD:
+                ModelLoader.registerItemVariants(item, variants);
+                ModelLoader.setCustomMeshDefinition(item, stack -> {
+                    int tier = ItemVirtualParallelCard.getTier(stack);
+                    return variants[tier >= 0 && tier < variants.length ? tier : 0];
+                });
+                break;
+            case OMNI_TOOL:
+                ModelLoader.registerItemVariants(item, variants);
+                ModelLoader.setCustomMeshDefinition(item, stack -> {
+                    int mode = com.github.aeddddd.ae2enhanced.omnitool.ItemAdvancedMEOmniTool.getMode(stack);
+                    return variants[mode >= 0 && mode < variants.length ? mode : 0];
+                });
+                break;
+            case OMNI_UPGRADE_CARD:
+                ModelLoader.registerItemVariants(item, variants);
+                ModelLoader.setCustomMeshDefinition(item, stack -> {
+                    int meta = stack.getMetadata();
+                    return meta >= 0 && meta < variants.length
+                            ? variants[meta] : modelLocation("omni_upgrade_card_unknown");
+                });
+                break;
+            default:
+                break;
+        }
+    }
+
+    @SideOnly(Side.CLIENT)
+    @SubscribeEvent
     public static void onModelBake(ModelBakeEvent event) {
         // 将 essentia_drop 的模型替换为 BakedEssentiaPacketModel,使 isBuiltInRenderer()=true
         // 从而触发 RenderItem 调用 Item 自己的 TileEntityItemStackRenderer
@@ -202,216 +224,132 @@ public class ClientProxy extends CommonProxy {
     }
 
     @SideOnly(Side.CLIENT)
-    @SubscribeEvent
-    public static void registerModels(ModelRegistryEvent event) {
-        registerBlockItemModel(BlockRegistry.ASSEMBLY_CONTROLLER);
-        registerBlockItemModel(BlockRegistry.ASSEMBLY_ME_INTERFACE);
-        registerBlockItemModel(BlockRegistry.ASSEMBLY_CASING);
-        registerBlockItemModel(BlockRegistry.ASSEMBLY_INNER_WALL);
-        registerBlockItemModel(BlockRegistry.ASSEMBLY_STABILIZER);
-        // 微型奇点无 ItemBlock,无需注册物品模型
-        registerBlockItemModel(BlockRegistry.SINGULARITY_CHAMBER);
-
-        registerBlockItemModel(BlockRegistry.HYPERDIMENSIONAL_CONTROLLER);
-        registerBlockItemModel(BlockRegistry.HYPERDIMENSIONAL_ME_INTERFACE);
-        registerBlockItemModel(BlockRegistry.HYPERDIMENSIONAL_CASING);
-        registerBlockItemModel(BlockRegistry.HYPERDIMENSIONAL_SINGULARITY_CORE);
-
-        // 第三阶段：超因果计算核心
-        registerBlockItemModel(BlockRegistry.COMPUTATION_CORE);
-        registerBlockItemModel(BlockRegistry.CONSTANT_TENSOR_FIELD_CASING);
-        registerBlockItemModel(BlockRegistry.CONSTANT_SPINOR_FIELD_CASING);
-        registerBlockItemModel(BlockRegistry.CAUSAL_ANCHOR_CORE);
-        registerBlockItemModel(BlockRegistry.SUPER_CRAFTING_INTERFACE);
-        registerBlockItemModel(BlockRegistry.WIRELESS_CHANNEL_TRANSMITTER);
-        registerBlockItemModel(BlockRegistry.CHUNK_POWER_NODE);
-        registerBlockItemModel(BlockRegistry.COMPRESSED_CHUNK_POWER_NODE);
-        if (BlockRegistry.CHUNK_MANA_NODE != null) {
-            registerBlockItemModel(BlockRegistry.CHUNK_MANA_NODE);
-            registerBlockItemModel(BlockRegistry.COMPRESSED_CHUNK_MANA_NODE);
+    private static ModelResourceLocation upgradeCardModel(ItemStack stack, ModelResourceLocation[] variants) {
+        switch (stack.getMetadata()) {
+            case ItemUpgradeCard.META_PARALLEL:
+                return variants[1];
+            case ItemUpgradeCard.META_SPEED:
+                return variants[2];
+            case ItemUpgradeCard.META_CAPACITY:
+                return variants[3];
+            case ItemUpgradeCard.META_EFFICIENCY:
+                return variants[5];
+            case ItemUpgradeCard.META_RESERVED1:
+                return variants[4];
+            case ItemUpgradeCard.META_RESERVED2:
+                return variants[6];
+            default:
+                return variants[0];
         }
-        registerBlockItemModel(BlockRegistry.CENTRAL_ME_INTERFACE);
-        registerBlockItemModel(BlockRegistry.SMART_PATTERN_INTERFACE);
-        registerBlockItemModel(BlockRegistry.NETWORK_ACCESS_NODE);
-        registerBlockItemModel(BlockRegistry.ADVANCED_ME_COLLECTOR);
-        registerBlockItemModel(BlockRegistry.ME_NETWORK_RECYCLER);
-        registerBlockItemModel(BlockRegistry.YELLOW_STRIPES_BLOCK_B);
-        registerBlockItemModel(BlockRegistry.DISPLAY_PANEL);
-        registerBlockItemModel(BlockRegistry.DISPLAY_FRAME_DARK);
-        registerBlockItemModel(BlockRegistry.DISPLAY_FRAME_LIGHT);
-        if (BlockRegistry.EMC_INTERFACE != null) {
-            registerBlockItemModel(BlockRegistry.EMC_INTERFACE);
+    }
+
+    @SideOnly(Side.CLIENT)
+    private static void registerGasDropModel(Item item) {
+        try {
+            Class<?> loaderClass = Class.forName("com.github.aeddddd.ae2enhanced.client.model.GasDropModel$Loader");
+            ModelLoaderRegistry.registerLoader((net.minecraftforge.client.model.ICustomModelLoader) loaderClass.newInstance());
+            ModelLoader.setCustomModelResourceLocation(item, 0, modelLocation("gas_drop"));
+        } catch (Exception e) {
+            AE2Enhanced.LOGGER.error("[AE2E] Failed to register gas drop model", e);
+        }
+    }
+
+    @SideOnly(Side.CLIENT)
+    private static ModelResourceLocation[] modelLocations(java.util.List<String> names) {
+        ModelResourceLocation[] result = new ModelResourceLocation[names.size()];
+        for (int i = 0; i < result.length; i++) {
+            result[i] = modelLocation(names.get(i));
+        }
+        return result;
+    }
+
+    @SideOnly(Side.CLIENT)
+    private static ModelResourceLocation modelLocation(String name) {
+        return new ModelResourceLocation(AE2Enhanced.MOD_ID + ":" + name, "inventory");
+    }
+
+    @Override
+    public void preInit(FMLPreInitializationEvent event) {
+        super.preInit(event);
+        com.github.aeddddd.ae2enhanced.client.network.ClientPacketHandlerRegistration.register();
+        com.github.aeddddd.ae2enhanced.client.dev.PrivateDimensionAcceptanceDriver.register();
+        com.github.aeddddd.ae2enhanced.guide.client.GuideAcceptanceDriver.register();
+        ClientRegistry.registerKeyBinding(OPEN_OMNI_TERMINAL_KEY);
+        ClientRegistry.registerKeyBinding(TOGGLE_MAGNET_KEY);
+        ClientRegistry.registerKeyBinding(com.github.aeddddd.ae2enhanced.guide.GuideHotkeyHandler.OPEN_GUIDE_KEY);
+        com.github.aeddddd.ae2enhanced.client.handler.UMCKeyBindings.register();
+        KeyHandlerOmniTool.init();
+        com.github.aeddddd.ae2enhanced.client.handler.KeyHandlerRing.init();
+    }
+
+    @Override
+    public void init(FMLInitializationEvent event) {
+        super.init(event);
+        com.github.aeddddd.ae2enhanced.gui.GuiEndpointRegistry.register(
+                Side.CLIENT, new com.github.aeddddd.ae2enhanced.client.gui.GuiClientEndpoint());
+        MinecraftForge.EVENT_BUS.register(new KeyHandlerOmniTool());
+        MinecraftForge.EVENT_BUS.register(new com.github.aeddddd.ae2enhanced.client.handler.KeyHandlerRing());
+        MinecraftForge.EVENT_BUS.register(new com.github.aeddddd.ae2enhanced.client.event.PlacementInputHandler());
+        com.github.aeddddd.ae2enhanced.client.event.UMCClientEvents.register();
+        MinecraftForge.EVENT_BUS.register(new SelectionBoxRenderer());
+        MinecraftForge.EVENT_BUS.register(new com.github.aeddddd.ae2enhanced.client.render.CollectorBoundsRenderer());
+        MinecraftForge.EVENT_BUS.register(new com.github.aeddddd.ae2enhanced.client.hud.PlacementToolHudRenderer());
+        MinecraftForge.EVENT_BUS.register(new com.github.aeddddd.ae2enhanced.client.render.PlacementPreviewRenderer());
+        MinecraftForge.EVENT_BUS.register(new ChunkPowerHighlightRenderer());
+        MinecraftForge.EVENT_BUS.register(new com.github.aeddddd.ae2enhanced.client.render.BindingLineRenderer());
+
+        // 停靠引擎开发演示屏：/ae2edockdemo 打开 GuiDockDemo（阶段 1 手工验证入口）
+        // TODO(AE2E): 正式发布前移除或加配置开关
+        net.minecraftforge.client.ClientCommandHandler.instance
+                .registerCommand(new com.github.aeddddd.ae2enhanced.client.gui.dock.DockDemoCommand());
+
+        // 指南系统：资源重载加载页面 + 按住 G 热键
+        if (com.github.aeddddd.ae2enhanced.config.ClientPreferences.current().guide.enabled) {
+            com.github.aeddddd.ae2enhanced.guide.GuideManager.init();
+            MinecraftForge.EVENT_BUS.register(new com.github.aeddddd.ae2enhanced.guide.GuideHotkeyHandler());
         }
 
-        // 注册升级卡的所有模型 variant
-        ModelLoader.registerItemVariants(ItemRegistry.UPGRADE_CARD,
-            new ModelResourceLocation(AE2Enhanced.MOD_ID + ":upgrade_card", "inventory"),
-            new ModelResourceLocation(AE2Enhanced.MOD_ID + ":upgrade_card_parallel", "inventory"),
-            new ModelResourceLocation(AE2Enhanced.MOD_ID + ":upgrade_card_speed", "inventory"),
-            new ModelResourceLocation(AE2Enhanced.MOD_ID + ":upgrade_card_capacity", "inventory"),
-            new ModelResourceLocation(AE2Enhanced.MOD_ID + ":upgrade_card_upload", "inventory"),
-            new ModelResourceLocation(AE2Enhanced.MOD_ID + ":upgrade_card_efficiency", "inventory"),
-            new ModelResourceLocation(AE2Enhanced.MOD_ID + ":upgrade_card_reserved", "inventory")
-        );
-
-        // 新材料物品模型
-        registerItemModel(ItemRegistry.CONFORMAL_CHARGE);
-        registerItemModel(ItemRegistry.DIFFERENTIAL_FORM_STABILIZER);
-        registerItemModel(ItemRegistry.STABLE_SPACETIME_MANIFOLD);
-        // EssentiaDrop：使用 CustomMeshDefinition 让所有 damage 值都映射到同一个模型路径
-        if (ItemRegistry.ESSENTIA_DROP != null) {
-            ModelLoader.setCustomMeshDefinition(ItemRegistry.ESSENTIA_DROP, stack ->
-                    new ModelResourceLocation(AE2Enhanced.MOD_ID + ":essentia_drop", "inventory"));
+        ClientRegistry.bindTileEntitySpecialRenderer(TileAssemblyController.class, new RenderBlackHole());
+        ClientRegistry.bindTileEntitySpecialRenderer(TileMicroSingularity.class, new RenderMicroSingularity());
+        ClientRegistry.bindTileEntitySpecialRenderer(
+                com.github.aeddddd.ae2enhanced.tile.TileSingularityChamber.class,
+                new com.github.aeddddd.ae2enhanced.client.render.RenderTileSingularityChamber());
+        ClientRegistry.bindTileEntitySpecialRenderer(TileHyperdimensionalController.class, new RenderHyperdimensionalController());
+        ClientRegistry.bindTileEntitySpecialRenderer(TileComputationCore.class, new RenderComputationCore());
+        ClientRegistry.bindTileEntitySpecialRenderer(
+                com.github.aeddddd.ae2enhanced.tile.TileDisplayPanel.class,
+                new com.github.aeddddd.ae2enhanced.client.render.RenderDisplayWall());
+        initializeContentModels();
+        // E2a：注册流体假物品的 ItemColors,根据流体颜色染色
+        if (ItemRegistry.FLUID_DROP != null) {
+            Minecraft.getMinecraft().getItemColors().registerItemColorHandler((stack, tintIndex) -> {
+                FluidStack fluid = com.github.aeddddd.ae2enhanced.item.ItemFluidDrop.getFluidStack(stack);
+                if (fluid != null) {
+                    return fluid.getFluid().getColor(fluid);
+                }
+                return -1;
+            }, ItemRegistry.FLUID_DROP);
         }
-
-        // 注册 FluidDrop / GasDrop / StarlightDrop 的自定义模型加载器
-        ModelLoaderRegistry.registerLoader(new FluidDropModel.Loader());
-        ModelLoader.setCustomModelResourceLocation(ItemRegistry.FLUID_DROP, 0,
-                new ModelResourceLocation(FluidDropModel.MODEL_LOCATION, "inventory"));
-
-        if (ItemRegistry.STARLIGHT_DROP != null) {
-            ModelLoaderRegistry.registerLoader(new StarlightDropModel.Loader());
-            ModelLoader.setCustomModelResourceLocation(ItemRegistry.STARLIGHT_DROP, 0,
-                    new ModelResourceLocation(StarlightDropModel.MODEL_LOCATION, "inventory"));
-        }
-
+        // E2a：注册气体假物品的 ItemColors,根据气体 tint 染色(复刻 ae2fc ClientProxy.init)
         if (ItemRegistry.GAS_DROP != null) {
-            try {
-                Class<?> loaderClass = Class.forName("com.github.aeddddd.ae2enhanced.client.model.GasDropModel$Loader");
-                ModelLoaderRegistry.registerLoader((net.minecraftforge.client.model.ICustomModelLoader) loaderClass.newInstance());
-                ModelLoader.setCustomModelResourceLocation(ItemRegistry.GAS_DROP, 0,
-                        new ModelResourceLocation(AE2Enhanced.MOD_ID + ":gas_drop", "inventory"));
-            } catch (Exception e) {
-                AE2Enhanced.LOGGER.error("[AE2E] Failed to register gas drop model", e);
-            }
-        }
-
-        // E1a：注册通用输入总线的 Part 模型和物品模型
-        if (PartRegistry.PART_UNIVERSAL_IMPORT_BUS != null) {
-            AEApi.instance().registries().partModels().registerModels(PartUniversalImportBus.MODELS);
-            registerItemModel(PartRegistry.PART_UNIVERSAL_IMPORT_BUS);
-        }
-        // E1b：注册通用输出总线的 Part 模型和物品模型
-        if (PartRegistry.PART_UNIVERSAL_EXPORT_BUS != null) {
-            AEApi.instance().registries().partModels().registerModels(PartUniversalExportBus.MODELS);
-            registerItemModel(PartRegistry.PART_UNIVERSAL_EXPORT_BUS);
-        }
-
-        // E1c：注册 Stocking 总线的 Part 模型和物品模型
-        if (PartRegistry.PART_STOCKING_BUS != null) {
-            AEApi.instance().registries().partModels().registerModels(PartStockingBus.MODELS);
-            registerItemModel(PartRegistry.PART_STOCKING_BUS);
-        }
-
-        // 频道接收卡 / 通用存储卡物品模型（与 Stocking 总线是否注册无关）
-        registerItemModel(ItemRegistry.CHANNEL_RECEIVER_CARD);
-        registerItemModel(ItemRegistry.UNIVERSAL_MEMORY_CARD);
-
-        // 能源存储总线的 Part 模型和物品模型(双注册缺一不可)
-        if (PartRegistry.PART_ENERGY_STORAGE_BUS != null) {
-            AEApi.instance().registries().partModels().registerModels(
-                    com.github.aeddddd.ae2enhanced.part.PartEnergyStorageBus.MODELS);
-            registerItemModel(PartRegistry.PART_ENERGY_STORAGE_BUS);
-        }
-
-        // Omni 无线终端物品模型
-        registerItemModel(ItemRegistry.OMNI_WIRELESS_TERMINAL);
-        // 第二代(可拼接终端):模型 JSON 复用同一张图标
-        // TODO(AE2E): 阶段 5 换独立美术(第二代终端图标)
-        registerItemModel(ItemRegistry.OMNI_WIRELESS_TERMINAL_II);
-        registerItemModel(ItemRegistry.SMART_BLANK_PATTERN);
-        registerItemModel(ItemRegistry.SMART_PATTERN);
-        registerItemModel(ItemRegistry.ENERGY_DROP);
-        if (ItemRegistry.MANA_DROP != null) {
-            registerItemModel(ItemRegistry.MANA_DROP);
-        }
-
-        // ME 放置工具
-        registerItemModel(ItemRegistry.ME_PLACEMENT_TOOL);
-
-        // 虚拟并行卡：8 个 tier 使用 ItemMeshDefinition 动态切换模型
-        if (ItemRegistry.VIRTUAL_PARALLEL_CARD != null) {
-            ModelResourceLocation[] tierModels = new ModelResourceLocation[ItemVirtualParallelCard.MAX_TIER];
-            for (int i = 0; i < tierModels.length; i++) {
-                tierModels[i] = new ModelResourceLocation(
-                        AE2Enhanced.MOD_ID + ":virtual_parallel_card_" + (i + 1), "inventory");
-            }
-            ModelLoader.registerItemVariants(ItemRegistry.VIRTUAL_PARALLEL_CARD, tierModels);
-            ModelLoader.setCustomMeshDefinition(ItemRegistry.VIRTUAL_PARALLEL_CARD, stack -> {
-                int tier = ItemVirtualParallelCard.getTier(stack);
-                if (tier < 0 || tier >= tierModels.length) {
-                    tier = 0;
+            Minecraft.getMinecraft().getItemColors().registerItemColorHandler((stack, tintIndex) -> {
+                try {
+                    Object gas = FakeItemRegister.getStack(stack);
+                    if (gas != null) {
+                        Object gasType = com.github.aeddddd.ae2enhanced.integration.RuntimeIntegrationRegistry
+                                .method(gas.getClass(), "getGas").invoke(gas);
+                        if (gasType != null) {
+                            int tint = (int) com.github.aeddddd.ae2enhanced.integration.RuntimeIntegrationRegistry
+                                    .method(gasType.getClass(), "getTint").invoke(gasType);
+                            return tint | 0xFF000000;
+                        }
+                    }
+                } catch (Exception ignored) {
                 }
-                return tierModels[tier];
-            });
-        }
-        if (ItemRegistry.PERSONAL_DIMENSION != null) {
-            registerItemModel(ItemRegistry.PERSONAL_DIMENSION);
-        }
-        if (ItemRegistry.GUIDE_BOOK != null) {
-            registerItemModel(ItemRegistry.GUIDE_BOOK);
-        }
-        if (ItemRegistry.SINGULARITY_CONSTRICTOR != null) {
-            registerItemModel(ItemRegistry.SINGULARITY_CONSTRICTOR);
-        }
-        if (ItemRegistry.CONSTRAINED_MICRO_SINGULARITY != null) {
-            registerItemModel(ItemRegistry.CONSTRAINED_MICRO_SINGULARITY);
-        }
-        if (ItemRegistry.NETWORK_LINK_CREDENTIAL != null) {
-            registerItemModel(ItemRegistry.NETWORK_LINK_CREDENTIAL);
+                return -1;
+            }, ItemRegistry.GAS_DROP);
         }
 
-        // 先进ME工具：4模式使用 ItemMeshDefinition 动态切换模型
-        if (ItemRegistry.ME_OMNI_TOOL != null) {
-            ModelLoader.registerItemVariants(ItemRegistry.ME_OMNI_TOOL,
-                new ModelResourceLocation(AE2Enhanced.MOD_ID + ":me_omni_tool_basic", "inventory"),
-                new ModelResourceLocation(AE2Enhanced.MOD_ID + ":me_omni_tool_mode1", "inventory"),
-                new ModelResourceLocation(AE2Enhanced.MOD_ID + ":me_omni_tool_mode2", "inventory"),
-                new ModelResourceLocation(AE2Enhanced.MOD_ID + ":me_omni_tool_mode3", "inventory")
-            );
-            ModelLoader.setCustomMeshDefinition(ItemRegistry.ME_OMNI_TOOL, stack -> {
-                int mode = com.github.aeddddd.ae2enhanced.item.ItemAdvancedMEOmniTool.getMode(stack);
-                switch (mode) {
-                    case 0: return new ModelResourceLocation(AE2Enhanced.MOD_ID + ":me_omni_tool_basic", "inventory");
-                    case 1: return new ModelResourceLocation(AE2Enhanced.MOD_ID + ":me_omni_tool_mode1", "inventory");
-                    case 2: return new ModelResourceLocation(AE2Enhanced.MOD_ID + ":me_omni_tool_mode2", "inventory");
-                    case 3: return new ModelResourceLocation(AE2Enhanced.MOD_ID + ":me_omni_tool_mode3", "inventory");
-                    default: return new ModelResourceLocation(AE2Enhanced.MOD_ID + ":me_omni_tool_basic", "inventory");
-                }
-            });
-        }
-
-        // Omni 专用升级卡模型(根据 metadata 动态选择)
-        ModelLoader.registerItemVariants(ItemRegistry.OMNI_UPGRADE_CARD,
-            new ModelResourceLocation(AE2Enhanced.MOD_ID + ":omni_upgrade_card_magnet", "inventory"),
-            new ModelResourceLocation(AE2Enhanced.MOD_ID + ":omni_upgrade_card_picker", "inventory")
-        );
-        ModelLoader.setCustomMeshDefinition(ItemRegistry.OMNI_UPGRADE_CARD, stack -> {
-            int meta = stack.getMetadata();
-            String name = (meta == 0) ? "magnet" : (meta == 1) ? "picker" : "unknown";
-            return new ModelResourceLocation(AE2Enhanced.MOD_ID + ":omni_upgrade_card_" + name, "inventory");
-        });
-
-        // 使用 ItemMeshDefinition 根据 metadata 动态选择模型
-        ModelLoader.setCustomMeshDefinition(ItemRegistry.UPGRADE_CARD, stack -> {
-            int meta = stack.getMetadata();
-            switch (meta) {
-                case ItemUpgradeCard.META_PARALLEL:
-                    return new ModelResourceLocation(AE2Enhanced.MOD_ID + ":upgrade_card_parallel", "inventory");
-                case ItemUpgradeCard.META_SPEED:
-                    return new ModelResourceLocation(AE2Enhanced.MOD_ID + ":upgrade_card_speed", "inventory");
-                case ItemUpgradeCard.META_CAPACITY:
-                    return new ModelResourceLocation(AE2Enhanced.MOD_ID + ":upgrade_card_capacity", "inventory");
-                case ItemUpgradeCard.META_EFFICIENCY:
-                    return new ModelResourceLocation(AE2Enhanced.MOD_ID + ":upgrade_card_efficiency", "inventory");
-                case ItemUpgradeCard.META_RESERVED1:
-                    return new ModelResourceLocation(AE2Enhanced.MOD_ID + ":upgrade_card_upload", "inventory");
-                case ItemUpgradeCard.META_RESERVED2:
-                    return new ModelResourceLocation(AE2Enhanced.MOD_ID + ":upgrade_card_reserved", "inventory");
-                default:
-                    return new ModelResourceLocation(AE2Enhanced.MOD_ID + ":upgrade_card", "inventory");
-            }
-        });
     }
 
     @SideOnly(Side.CLIENT)

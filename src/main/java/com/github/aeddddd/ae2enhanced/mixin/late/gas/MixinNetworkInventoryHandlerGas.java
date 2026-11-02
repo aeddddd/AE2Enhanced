@@ -12,7 +12,7 @@ import appeng.api.storage.data.IAEStack;
 import appeng.me.cache.SecurityCache;
 import appeng.me.storage.NetworkInventoryHandler;
 import com.github.aeddddd.ae2enhanced.item.ItemGasDrop;
-import com.github.aeddddd.ae2enhanced.util.fakeitem.FakeGases;
+import com.github.aeddddd.ae2enhanced.item.fakeitem.FakeGases;
 import com.mekeng.github.common.me.data.IAEGasStack;
 import com.mekeng.github.common.me.storage.IGasStorageChannel;
 import org.spongepowered.asm.mixin.Mixin;

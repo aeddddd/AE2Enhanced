@@ -1,8 +1,8 @@
 package com.github.aeddddd.ae2enhanced.block;
 
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
-import com.github.aeddddd.ae2enhanced.gui.GuiHandler;
-import com.github.aeddddd.ae2enhanced.network.packet.PacketDisplayAction;
+import com.github.aeddddd.ae2enhanced.display.packet.PacketDisplayAction;
+import com.github.aeddddd.ae2enhanced.guiapi.GuiCatalog;
 import com.github.aeddddd.ae2enhanced.tile.TileDisplayPanel;
 import net.minecraft.block.Block;
 import net.minecraft.block.material.Material;
@@ -23,7 +23,7 @@ import javax.annotation.Nullable;
  * 趋势显示幕墙面板方块.
  *
  * <p>水平朝向决定显示面; 同朝向面板组成 2~16 × 2~9 的实心矩形即成型.
- * 右键打开配置 GUI; 潜行+右键循环切换图表类型.</p>
+ * 右键打开配置 GUI；配置修改由服务端按当前容器与权限校验.</p>
  */
 public class BlockDisplayPanel extends Block {
 
@@ -81,7 +81,7 @@ public class BlockDisplayPanel extends Block {
         if (!(te instanceof TileDisplayPanel)) return false;
         TileDisplayPanel panel = (TileDisplayPanel) te;
         if (world.isRemote) {
-            // 潜行+右键: 循环切换图表类型, 无需打开 GUI
+            // 服务端仍会按目标 Tile 的当前容器与权限决定是否接受该请求
             if (player.isSneaking() && panel.isFormed()) {
                 AE2Enhanced.network.sendToServer(
                         new PacketDisplayAction(panel.getMasterPos() != null ? panel.getMasterPos() : pos,
@@ -95,7 +95,7 @@ public class BlockDisplayPanel extends Block {
         panel.update();
         if (panel.isFormed() && panel.getMasterPos() != null) {
             BlockPos master = panel.getMasterPos();
-            player.openGui(AE2Enhanced.instance, GuiHandler.GUI_DISPLAY_WALL,
+            player.openGui(AE2Enhanced.instance, GuiCatalog.GUI_DISPLAY_WALL,
                     world, master.getX(), master.getY(), master.getZ());
         } else {
             player.sendMessage(new net.minecraft.util.text.TextComponentTranslation(

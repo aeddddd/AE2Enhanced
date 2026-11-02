@@ -1,9 +1,9 @@
 package com.github.aeddddd.ae2enhanced.integration.jei;
 
 import com.github.aeddddd.ae2enhanced.item.ItemEssentiaDrop;
-import com.github.aeddddd.ae2enhanced.registry.content.ItemRegistry;
+import com.github.aeddddd.ae2enhanced.item.ItemRegistry;
 import com.github.aeddddd.ae2enhanced.util.compat.Ae2fcCompat;
-import com.github.aeddddd.ae2enhanced.util.fakeitem.FakeItemRegister;
+import com.github.aeddddd.ae2enhanced.item.fakeitem.FakeItemRegister;
 import mekanism.api.gas.GasStack;
 import net.minecraft.item.ItemStack;
 import net.minecraftforge.fluids.FluidStack;

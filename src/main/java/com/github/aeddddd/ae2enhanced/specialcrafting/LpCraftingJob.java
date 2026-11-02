@@ -23,9 +23,7 @@ import appeng.crafting.MECraftingInventory;
 import appeng.hooks.TickHandler;
 
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
-import com.github.aeddddd.ae2enhanced.diag.metrics.MetricsRegistry;
-import com.github.aeddddd.ae2enhanced.diag.plan.PlanTracker;
-import com.github.aeddddd.ae2enhanced.specialcrafting.lp.LpHotStart;
+import com.github.aeddddd.ae2enhanced.observation.Observations;
 import com.github.aeddddd.ae2enhanced.specialcrafting.lp.SccLpSolve.Execution;
 
 /**
@@ -37,9 +35,13 @@ import com.github.aeddddd.ae2enhanced.specialcrafting.lp.SccLpSolve.Execution;
  * 含成环样板执行的计划标记特殊,执行走超因果计算核心(无限库存 + 门控/配额调度).</p>
  */
 public class LpCraftingJob extends CraftingJob
-        implements com.github.aeddddd.ae2enhanced.mixin.bridge.ICraftingJobBudgetAccess {
+        implements com.github.aeddddd.ae2enhanced.craftingapi.CraftingJobBudgetAccess {
 
     protected final World world;
+
+    /** 每 job 只捕获一次；FALLBACK 委托原生 LP run 时也沿用同一份。 */
+    @Nullable
+    private RequestConfigSnapshot requestConfig;
 
     /** 本次计划是否含成环样板执行（物化成功后用于特殊标记）. */
     protected boolean hasCycleBoundary;
@@ -50,6 +52,22 @@ public class LpCraftingJob extends CraftingJob
     /** 未解出单元数(SpecialPlanInfo 同步用). */
     public int unresolvedUnits() {
         return this.unresolvedUnits;
+    }
+
+    @Nullable
+    private ResolvedPlan resolvedPlan;
+    @Nullable
+    private LpPlanMaterializer.Report materializationReport;
+
+    /** 回落原因计数:reason 取冒号前段(排除物品键等变长部分),键不存在计 unknown. */
+    private static void recordFallback(@Nullable String reason) {
+        String key = reason == null ? "unknown" : reason.split(":")[0];
+        Observations.counter("plan.fallback." + key).increment();
+    }
+
+    @Nullable
+    public ResolvedPlan resolvedPlan() {
+        return this.resolvedPlan;
     }
 
     /** 原生回落计算预算状态（MixinCraftingJob 的 handlePausing 心跳读取）. */
@@ -86,58 +104,89 @@ public class LpCraftingJob extends CraftingJob
         this.world = w;
     }
 
+    @Nullable
+    public LpPlanMaterializer.Report materializationReport() {
+        return this.materializationReport;
+    }
+
     @Override
     public void run() {
         long planStart = System.nanoTime();
-        // 是否经 super.run() 回落原生;该路径已由 MixinCraftingJob 的 run RETURN 钩子计数,避免重复
+        RequestConfigSnapshot config = requestConfig();
         boolean delegatedToNative = false;
         try {
             TickHandler.INSTANCE.registerCraftingSimulation(this.world, this);
             Ae2CraftingReflect.handlePausing(this);
 
-            CraftingTreeNode root = this.computeLpPlan();
+            CraftingTreeNode root = this.computeLpPlan(config);
             if (root == null) {
-                Ae2CraftingReflect.setAvailableCheck(this, null);
-                // 回落原生:挂计算预算——病态计划的原生递归可能永不结束,
-                // 而下单流程(如 RandomComplement 的 setJob 混入)会同步阻塞服务器线程
+                prepareNativeFallback();
                 recordFallback(this.lastFallbackReason);
-                MetricsRegistry.timer("plan.computeMs.lpPhase").record(System.nanoTime() - planStart);
-                NativeCalcBudget.arm(this);
+                Observations.timer("plan.computeMs.lpPhase").record(System.nanoTime() - planStart);
+                NativeCalcBudget.arm(this, config.nativeCalcBudgetMs);
                 delegatedToNative = true;
                 super.run();
-                NativeCalcBudget.warnIfAborted(this);
+                NativeCalcBudget.warnIfAborted(this, config.nativeCalcBudgetMs);
                 return;
             }
             Ae2CraftingReflect.setTree(this, root);
             Ae2CraftingReflect.nodeDive(root, this);
-            // 缺料(模拟)计划不标记:原生 submitJob 本就拒绝模拟计划;
-            // 功能开关关闭时不标记(提交/执行零干预)
-            if (this.hasCycleBoundary && !this.isSimulation()
-                    && SpecialCraftingRuntime.isEnabled()) {
+            revalidateMaterialization(root);
+            if (this.hasCycleBoundary && !this.isSimulation() && config.specialCrafting) {
                 SpecialPlanMarker.mark(this);
             }
             SpecialPlanDisplayHook.sendPlanInfo(this);
             Ae2CraftingReflect.finish(this);
+        } catch (InterruptedException e) {
+            SpecialLog.info("[LP计划] 计算被取消");
+            NativeCalcBudget.warnIfAborted(this, config.nativeCalcBudgetMs);
+            Ae2CraftingReflect.finish(this);
         } catch (Throwable t) {
             AE2Enhanced.LOGGER.warn("LP 计划异常,回落原生计算", t);
-            Ae2CraftingReflect.setAvailableCheck(this, null);
+            prepareNativeFallback();
             recordFallback(this.lastFallbackReason != null ? this.lastFallbackReason : "exception");
-            MetricsRegistry.timer("plan.computeMs.lpPhase").record(System.nanoTime() - planStart);
-            NativeCalcBudget.arm(this);
+            Observations.timer("plan.computeMs.lpPhase").record(System.nanoTime() - planStart);
+            NativeCalcBudget.arm(this, config.nativeCalcBudgetMs);
             delegatedToNative = true;
             super.run();
-            NativeCalcBudget.warnIfAborted(this);
+            NativeCalcBudget.warnIfAborted(this, config.nativeCalcBudgetMs);
         } finally {
             if (!delegatedToNative) {
-                PlanTracker.onJobComputed(this, System.nanoTime() - planStart);
+                PlanObservationFactory.onJobComputed(this, System.nanoTime() - planStart);
             }
         }
     }
 
-    /** 回落原因计数:reason 取冒号前段(排除物品键等变长部分),键不存在计 unknown. */
-    private static void recordFallback(@Nullable String reason) {
-        String key = reason == null ? "unknown" : reason.split(":")[0];
-        MetricsRegistry.counter("plan.fallback." + key).increment();
+    /** dive 后重验最终树；任何物化差异都钉为不可提交。 */
+    protected final void revalidateMaterialization(CraftingTreeNode root) {
+        if (this.materializationReport == null) {
+            return;
+        }
+        this.materializationReport = this.materializationReport.revalidate(root);
+        if (!this.materializationReport.committable()) {
+            Ae2CraftingReflect.setSimulate(this, true);
+            AE2Enhanced.LOGGER.warn("[LP计划] 物化契约拒绝提交: {}", this.materializationReport.reasons());
+        }
+    }
+
+    /** 原生 request 会从根节点就地建树，回落前必须丢弃所有 LP/原生半成品。 */
+    protected final void prepareNativeFallback() {
+        ICraftingGrid cc = Ae2CraftingReflect.getCc(this);
+        Ae2CraftingReflect.setTree(this,
+                new CraftingTreeNode(cc, this, this.getOutput().copy(), null, -1, 0));
+        Ae2CraftingReflect.setAvailableCheck(this, null);
+        this.resolvedPlan = null;
+        this.materializationReport = null;
+        this.hasCycleBoundary = false;
+        this.unresolvedUnits = 0;
+    }
+
+    /** run 与 computeLpPlan 的共用入口；直接调用 computeLpPlan 的兼容路径也在此捕获。 */
+    protected final RequestConfigSnapshot requestConfig() {
+        if (this.requestConfig == null) {
+            this.requestConfig = RequestConfigSnapshot.capture();
+        }
+        return this.requestConfig;
     }
 
     /**
@@ -145,7 +194,13 @@ public class LpCraftingJob extends CraftingJob
      * → LpPlanMaterializer 物化原生树.失败/异常返回 null(调用方回落原生).
      */
     @Nullable
-    protected CraftingTreeNode computeLpPlan() {
+    protected CraftingTreeNode computeLpPlan() throws InterruptedException {
+        return computeLpPlan(requestConfig());
+    }
+
+    /** 整单配置只经此参数进入求解链，不在单元循环或回落路径重读。 */
+    @Nullable
+    protected CraftingTreeNode computeLpPlan(RequestConfigSnapshot config) throws InterruptedException {
         IActionSource src = Ae2CraftingReflect.getActionSrc(this);
         ICraftingGrid cc = Ae2CraftingReflect.getCc(this);
         IAEItemStack output = this.getOutput();
@@ -156,21 +211,17 @@ public class LpCraftingJob extends CraftingJob
                 this.lastFallbackReason = "no_pattern_index";
                 return null;
             }
-            // 开关入口一次性解析(任务 4):此后全链路传参,循环内不得再读系统属性,
-            // 否则同一次求解会混用档位(轨迹不可复现)
-            PruneSettings prune = PruneSettings.fromSystemProperties();
-            LpPlanCache.Settings cacheSettings = LpPlanCache.Settings.fromSystemProperties();
-            LpHotStart.Chain chain = LpHotStart.Chain.fromSystemProperties();
             MECraftingInventory original = Ae2CraftingReflect.getOriginal(this);
             Ae2CraftingReflect.setAvailableCheck(this,
                     new MECraftingInventory(original, false, false, false));
             JobStockSource stockSource = new JobStockSource(original, src);
             CondensationPlanner.LpPlanOutcome outcome = CondensationPlanner.solve(cc, index, output,
-                    output.getStackSize(), stockSource, prune, chain, cacheSettings);
+                    output.getStackSize(), stockSource, config);
+            Ae2CraftingReflect.handlePausing(this);
             this.unresolvedUnits = outcome.degradedUnits;
             // 降级单元埋点(库存直通/截断,正常应为 0)
             for (int i = 0; i < outcome.degradedUnits; i++) {
-                MetricsRegistry.counter("plan.lp.degradedUnit").increment();
+                Observations.counter("plan.lp.degradedUnit").increment();
             }
             CraftingTreeNode root = new CraftingTreeNode(cc, this, output.copy(), null, -1, 0);
             // R5 快路径:无正计数执行时对账层不触碰库存(FlowReconciler 的 times 空分支),
@@ -179,29 +230,23 @@ public class LpCraftingJob extends CraftingJob
                     ? null
                     : stockSource.mutatingStockCopy();
             FlowReconciler.Reconciled reconciled = FlowReconciler.reconcile(cc, index, output,
-                    output.getStackSize(), outcome, inv, root, src);
-            LpPlanMaterializer.attach(cc, this, root, output, reconciled.executions, reconciled.times,
-                    reconciled.missing, reconciled.totalExtracted);
-            if (!reconciled.missing.isEmpty() || outcome.degradedUnits > 0) {
-                // 缺料计划显式置模拟标志(原生失败重试同语义),否则产出"有缺料却标记可提交"
-                // 的不一致计划;含未解单元的计划同样不可提交(UNKNOWN 语义:单元缺口
-                // 未经验证,缺料列表不为其编列明细)
+                    output.getStackSize(), outcome, inv, root, src, this);
+            this.resolvedPlan = ResolvedPlan.of(output, outcome, reconciled, root, index);
+            this.unresolvedUnits = this.resolvedPlan.unresolvedUnits();
+            this.hasCycleBoundary = this.resolvedPlan.hasCycleBoundary();
+            this.materializationReport = LpPlanMaterializer.attach(cc, this, root, this.resolvedPlan);
+            if (!this.materializationReport.committable()) {
                 Ae2CraftingReflect.setSimulate(this, true);
-            }
-            // 含成环样板执行的 LP 计划:执行层走特殊 CPU 门控
-            for (Execution exec : reconciled.executions) {
-                if (reconciled.times.getOrDefault(exec, 0L) > 0 && index.isCycleStep(exec.pattern)) {
-                    this.hasCycleBoundary = true;
-                    break;
-                }
             }
             SpecialLog.info(
                     "[LP计划] 完成: {}×{},单元 {}(活跃 LP {},降级 {}),执行记录 {},缺料 {} 种,迭代 {},求解 {}ms",
                     output, output.getStackSize(), outcome.units, outcome.lpUnits, outcome.degradedUnits,
-                    reconciled.executions.size(), reconciled.missing.size(), outcome.iterations,
-                    outcome.wallMs);
+                    this.resolvedPlan.executions().size(), this.resolvedPlan.missingView().size(),
+                    outcome.iterations, outcome.wallMs);
             dumpPlanDetail(output, stockSource, outcome, reconciled);
             return root;
+        } catch (InterruptedException e) {
+            throw e;
         } catch (Throwable t) {
             this.lastFallbackReason = "lp_exception";
             AE2Enhanced.LOGGER.warn("[LP计划] 异常,回落原生计算", t);

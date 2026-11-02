@@ -23,8 +23,8 @@ public class PacketPersonalDimensionRulesHandler implements IMessageHandler<Pack
             rules.flightEnabled = message.isFlightEnabled();
             rules.movementSpeed = PlayerAbilityApplier.clampMovementSpeed(message.getMovementSpeed());
             rules.noFlightInertia = message.isNoFlightInertia();
-            // 规则始终作用于玩家自己的个人维度
-            PersonalDimensionManager.setRules(player.getUniqueID(), rules);
+            // 规则作用于当前维度所有者，服务端复核个人所有者或团队 MOD/OWNER 身份
+            PersonalDimensionManager.submitRules(player, rules);
         });
         return null;
     }

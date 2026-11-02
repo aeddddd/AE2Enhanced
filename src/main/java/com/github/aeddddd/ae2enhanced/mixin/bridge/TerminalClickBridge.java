@@ -8,13 +8,13 @@ import appeng.core.sync.packets.PacketInventoryAction;
 import appeng.helpers.InventoryAction;
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
 import com.github.aeddddd.ae2enhanced.container.ContainerOmniTerm;
-import com.github.aeddddd.ae2enhanced.network.packet.PacketMEMonitorableAction;
+import com.github.aeddddd.ae2enhanced.item.ItemRegistry;
+import com.github.aeddddd.ae2enhanced.item.fakeitem.EssentiaFakeItemChecks;
+import com.github.aeddddd.ae2enhanced.item.fakeitem.FakeItemRegister;
 import com.github.aeddddd.ae2enhanced.network.packet.PacketPickerAction;
-import com.github.aeddddd.ae2enhanced.registry.content.ItemRegistry;
 import com.github.aeddddd.ae2enhanced.terminal.UnifiedResourceTerminalBridge;
+import com.github.aeddddd.ae2enhanced.terminal.packet.PacketMEMonitorableAction;
 import com.github.aeddddd.ae2enhanced.util.compat.Ae2fcCompat;
-import com.github.aeddddd.ae2enhanced.util.fakeitem.EssentiaFakeItemChecks;
-import com.github.aeddddd.ae2enhanced.util.fakeitem.FakeItemRegister;
 import net.minecraft.client.gui.GuiScreen;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.inventory.ClickType;
@@ -63,6 +63,11 @@ public final class TerminalClickBridge {
                     }
                 }
             }
+        }
+
+        if (Ae2fcCompat.AE2FC_LOADED && com.github.aeddddd.ae2enhanced.integration.ae2fc.Ae2fcTerminalClickBridge
+                .onHandleMouseClick(gui, s, mouseButton)) {
+            return true;
         }
 
         // 统一资源终端桥接（RF/Mana/Starlight）
@@ -161,7 +166,8 @@ public final class TerminalClickBridge {
             NBTTagCompound nbt = new NBTTagCompound();
             if (gas != null) {
                 try {
-                    nbt = (NBTTagCompound) gas.getClass().getMethod("write", NBTTagCompound.class).invoke(gas, new NBTTagCompound());
+                    nbt = (NBTTagCompound) com.github.aeddddd.ae2enhanced.integration.RuntimeIntegrationRegistry
+                            .method(gas.getClass(), "write", NBTTagCompound.class).invoke(gas, new NBTTagCompound());
                 } catch (Exception e) {
                     AE2Enhanced.LOGGER.warn("[AE2E] Failed to serialize gas NBT in GUI click", e);
                 }
@@ -188,9 +194,11 @@ public final class TerminalClickBridge {
     private static Object getGasFromItem(ItemStack stack) {
         if (stack.isEmpty()) return null;
         try {
-            Class<?> iGasItemClass = Class.forName("mekanism.api.gas.IGasItem");
+            Class<?> iGasItemClass = com.github.aeddddd.ae2enhanced.integration.RuntimeIntegrationRegistry
+                    .classForName("mekanism.api.gas.IGasItem");
             if (iGasItemClass.isInstance(stack.getItem())) {
-                return iGasItemClass.getMethod("getGas", ItemStack.class).invoke(stack.getItem(), stack);
+                return com.github.aeddddd.ae2enhanced.integration.RuntimeIntegrationRegistry
+                        .method(iGasItemClass, "getGas", ItemStack.class).invoke(stack.getItem(), stack);
             }
         } catch (Exception e) {
             AE2Enhanced.LOGGER.warn("[AE2E] Failed to get gas from item", e);

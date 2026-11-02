@@ -11,7 +11,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-import com.github.aeddddd.ae2enhanced.client.gui.dock.model.DockWorkspace;
+import com.github.aeddddd.ae2enhanced.dock.model.DockWorkspace;
 
 /**
  * Bounded ring of workspace snapshots for the one-step undo.

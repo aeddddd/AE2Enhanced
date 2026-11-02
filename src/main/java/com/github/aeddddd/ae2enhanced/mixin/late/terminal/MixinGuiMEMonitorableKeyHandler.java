@@ -2,7 +2,7 @@ package com.github.aeddddd.ae2enhanced.mixin.late.terminal;
 
 import appeng.client.gui.implementations.GuiMEMonitorable;
 import com.github.aeddddd.ae2enhanced.client.JEISearchKeyHandler;
-import com.github.aeddddd.ae2enhanced.mixin.late.accessor.IGuiMEMonitorableAccessor;
+import com.github.aeddddd.ae2enhanced.client.gui.terminal.access.IGuiMEMonitorableAccessor;
 import org.lwjgl.input.Keyboard;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;

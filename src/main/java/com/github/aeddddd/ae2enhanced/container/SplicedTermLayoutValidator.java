@@ -1,18 +1,17 @@
 package com.github.aeddddd.ae2enhanced.container;
 
-import java.util.LinkedHashMap;
-import java.util.Map;
-import java.util.function.UnaryOperator;
-
+import com.github.aeddddd.ae2enhanced.dock.model.DockSize;
+import com.github.aeddddd.ae2enhanced.dock.model.ModuleCatalog;
+import com.github.aeddddd.ae2enhanced.dock.model.ModuleMetrics;
+import com.github.aeddddd.ae2enhanced.dock.workspace.DockLayoutCodec;
+import com.github.aeddddd.ae2enhanced.dock.workspace.DockLayoutFormatException;
+import com.github.aeddddd.ae2enhanced.dock.workspace.LegacyMigrationContext;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.github.aeddddd.ae2enhanced.client.gui.dock.model.DockSize;
-import com.github.aeddddd.ae2enhanced.client.gui.dock.model.ModuleCatalog;
-import com.github.aeddddd.ae2enhanced.client.gui.dock.model.ModuleMetrics;
-import com.github.aeddddd.ae2enhanced.client.gui.dock.workspace.DockLayoutCodec;
-import com.github.aeddddd.ae2enhanced.client.gui.dock.workspace.DockLayoutFormatException;
-import com.github.aeddddd.ae2enhanced.client.gui.dock.workspace.LegacyMigrationContext;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.function.UnaryOperator;
 
 /**
  * 服务端对客户端上传的布局 JSON 做<strong>只读校验</strong>（阶段 4a）。

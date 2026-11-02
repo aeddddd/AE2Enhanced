@@ -1,7 +1,7 @@
 package com.github.aeddddd.ae2enhanced.client.gui;
 
 import com.github.aeddddd.ae2enhanced.container.ContainerComputationUnformed;
-import com.github.aeddddd.ae2enhanced.structure.SupercausalStructure;
+import com.github.aeddddd.ae2enhanced.tile.SupercausalStructure;
 import com.github.aeddddd.ae2enhanced.tile.TileComputationCore;
 import net.minecraft.block.Block;
 import net.minecraft.entity.player.InventoryPlayer;

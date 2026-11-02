@@ -21,13 +21,14 @@ public class ModernTabButton extends GuiTabButton {
 
     private final Ae2ModernArt.Icon icon;
     private final ItemStack item;
+    private float paintZ;
 
     public ModernTabButton(int x, int y, Ae2ModernArt.Icon icon, String message, RenderItem itemRenderer) {
         super(x, y, 0, message, itemRenderer);
         this.icon = icon;
         this.item = null;
         this.width = 20;
-        this.height = 22;
+        this.height = 20;
     }
 
     public ModernTabButton(int x, int y, ItemStack itemStack, String message, RenderItem itemRenderer) {
@@ -35,7 +36,16 @@ public class ModernTabButton extends GuiTabButton {
         this.icon = null;
         this.item = itemStack;
         this.width = 20;
-        this.height = 22;
+        this.height = 20;
+    }
+
+    public ModernTabButton setPaintZ(float paintZ) {
+        this.paintZ = paintZ;
+        return this;
+    }
+
+    public float paintZ() {
+        return paintZ;
     }
 
     @Override
@@ -46,25 +56,29 @@ public class ModernTabButton extends GuiTabButton {
         this.hovered = mouseX >= this.x && mouseY >= this.y
                 && mouseX < this.x + this.width && mouseY < this.y + this.height;
         GlStateManager.color(1.0F, 1.0F, 1.0F, 1.0F);
-        // 19.x 页签底：20x20 原尺寸，垂直居中在 22px 高的 widget 里
-        Ae2ModernArt.drawIcon(Ae2ModernArt.Icon.TAB_BUTTON_BACKGROUND, this.x,
-                this.y + (this.height - 20) / 2, 0.0F);
-        if (this.icon != null) {
-            Ae2ModernArt.drawIcon(this.icon, this.x + 2, this.y + (this.height - 16) / 2 + 1, 0.0F);
-        } else if (this.item != null && !this.item.isEmpty()) {
-            float previousZ = this.zLevel;
-            RenderItem renderItem = mc.getRenderItem();
-            float previousItemZ = renderItem.zLevel;
-            this.zLevel = 100.0F;
-            renderItem.zLevel = 100.0F;
-            GlStateManager.enableDepth();
-            RenderHelper.enableGUIStandardItemLighting();
-            renderItem.renderItemAndEffectIntoGUI(this.item, this.x + 2, this.y + (this.height - 16) / 2);
-            RenderHelper.disableStandardItemLighting();
-            GlStateManager.disableDepth();
-            renderItem.zLevel = previousItemZ;
-            this.zLevel = previousZ;
+        boolean pushed = com.github.aeddddd.ae2enhanced.client.gui.dock.NinePatch.pushZLevel(this.paintZ);
+        try {
+            Ae2ModernArt.drawIcon(Ae2ModernArt.Icon.TAB_BUTTON_BACKGROUND, this.x, this.y, 0.0F);
+            if (this.icon != null) {
+                Ae2ModernArt.drawIcon(this.icon, this.x + 2, this.y + 1, 0.0F);
+            } else if (this.item != null && !this.item.isEmpty()) {
+                float previousZ = this.zLevel;
+                RenderItem renderItem = mc.getRenderItem();
+                float previousItemZ = renderItem.zLevel;
+                this.zLevel = 0.0F;
+                renderItem.zLevel = 0.0F;
+                GlStateManager.enableDepth();
+                RenderHelper.enableGUIStandardItemLighting();
+                renderItem.renderItemAndEffectIntoGUI(this.item, this.x + 2, this.y + (this.height - 16) / 2);
+                RenderHelper.disableStandardItemLighting();
+                // 终端后续按钮仍依赖深度测试表达各自窗口层级。
+                GlStateManager.enableDepth();
+                renderItem.zLevel = previousItemZ;
+                this.zLevel = previousZ;
+            }
+            GlStateManager.color(1.0F, 1.0F, 1.0F, 1.0F);
+        } finally {
+            com.github.aeddddd.ae2enhanced.client.gui.dock.NinePatch.popZLevel(pushed);
         }
-        GlStateManager.color(1.0F, 1.0F, 1.0F, 1.0F);
     }
 }

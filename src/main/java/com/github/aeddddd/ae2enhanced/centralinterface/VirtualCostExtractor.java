@@ -19,6 +19,7 @@ import net.minecraftforge.fml.common.Loader;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -118,7 +119,13 @@ public class VirtualCostExtractor {
             if (isEmpty(cost)) continue;
             IAEStack got = extractOne(storage, cost, Actionable.MODULATE, source, itemSource);
             if (!isSufficient(got, cost)) {
-                rollback(storage, extracted, source, itemSource);
+                if (!isEmpty(got)) {
+                    extracted.add(got);
+                }
+                List<IAEStack> remaining = rollback(storage, extracted, source, itemSource);
+                if (!remaining.isEmpty()) {
+                    throw new RollbackException(remaining);
+                }
                 return null;
             }
             extracted.add(cost.copy());
@@ -127,14 +134,32 @@ public class VirtualCostExtractor {
     }
 
     /**
-     * 回滚已提取的资源。用于能量扣除失败后恢复已提取的材料。
+     * 回滚已提取的资源，返回原库存拒收的实际余量。
      */
-    public static void rollbackExtracted(IStorageGrid storage, List<IAEStack> extracted, IActionSource source,
-                                         IMEInventory<IAEItemStack> itemSource) {
+    public static List<IAEStack> rollbackExtracted(IStorageGrid storage, List<IAEStack> extracted, IActionSource source,
+                                                   IMEInventory<IAEItemStack> itemSource) {
         if (extracted == null || extracted.isEmpty()) {
-            return;
+            return Collections.emptyList();
         }
-        rollback(storage, extracted, source, itemSource);
+        return rollback(storage, extracted, source, itemSource);
+    }
+
+    private static List<IAEStack> rollback(IStorageGrid storage, List<IAEStack> extracted, IActionSource source,
+                                           IMEInventory<IAEItemStack> itemSource) {
+        List<IAEStack> remaining = new ArrayList<>();
+        for (IAEStack stack : extracted) {
+            if (isEmpty(stack)) continue;
+            try {
+                IAEStack rejected = injectOne(storage, stack, source, itemSource);
+                if (!isEmpty(rejected)) {
+                    remaining.add(rejected);
+                }
+            } catch (Throwable t) {
+                AE2Enhanced.LOGGER.warn("[AE2E] Virtual cost rollback injection threw: {}", t.toString());
+                remaining.add(stack);
+            }
+        }
+        return remaining;
     }
 
     /**
@@ -254,61 +279,60 @@ public class VirtualCostExtractor {
         }
     }
 
-    private static void rollback(IStorageGrid storage, List<IAEStack> extracted, IActionSource source,
-                                 IMEInventory<IAEItemStack> itemSource) {
-        for (IAEStack stack : extracted) {
-            injectOne(storage, stack, source, itemSource);
-        }
-    }
-
-    private static void injectOne(IStorageGrid storage, IAEStack stack, IActionSource source,
-                                  IMEInventory<IAEItemStack> itemSource) {
+    private static IAEStack injectOne(IStorageGrid storage, IAEStack stack, IActionSource source,
+                                      IMEInventory<IAEItemStack> itemSource) throws Exception {
         if (stack instanceof IAEItemStack) {
             if (itemSource != null) {
-                itemSource.injectItems((IAEItemStack) stack, Actionable.MODULATE, source);
-                return;
+                return itemSource.injectItems((IAEItemStack) stack, Actionable.MODULATE, source);
             }
             IStorageChannel<IAEItemStack> channel = AEApi.instance().storage().getStorageChannel(IItemStorageChannel.class);
-            storage.getInventory(channel).injectItems((IAEItemStack) stack, Actionable.MODULATE, source);
-            return;
+            return storage.getInventory(channel).injectItems((IAEItemStack) stack, Actionable.MODULATE, source);
         }
         if (stack instanceof IAEFluidStack) {
             IStorageChannel<IAEFluidStack> channel = AEApi.instance().storage().getStorageChannel(IFluidStorageChannel.class);
-            storage.getInventory(channel).injectItems((IAEFluidStack) stack, Actionable.MODULATE, source);
-            return;
+            return storage.getInventory(channel).injectItems((IAEFluidStack) stack, Actionable.MODULATE, source);
         }
 
         String className = stack.getClass().getName();
         for (ChannelRoute route : CHANNEL_ROUTES) {
             if (route.matches(className)) {
-                injectViaChannel(storage, stack, source, route);
-                return;
+                return injectViaChannel(storage, stack, source, route);
             }
         }
         AE2Enhanced.LOGGER.warn("[AE2E] Cannot rollback unknown stack type: {}", className);
+        return stack;
     }
 
     @SuppressWarnings({"unchecked", "rawtypes"})
-    private static void injectViaChannel(IStorageGrid storage, IAEStack stack, IActionSource source, ChannelRoute route) {
-        try {
-            IStorageChannel channel;
-            IAEStack input = stack;
-            if (ENERGY_ROUTE_TOKEN.equals(route.classNameToken) && EnergyChannelResolver.isFluxChannelActive()) {
-                // 与 extractViaChannel 同理: Flux 通道下必须注入 FluxStack
-                channel = (IStorageChannel) EnergyChannelResolver.getChannel();
-                input = EnergyChannelResolver.createStack(stack.getStackSize());
-                if (input == null) return;
-            } else {
-                Class<?> channelClass = Class.forName(route.channelClassName);
-                channel = AEApi.instance().storage().getStorageChannel((Class) channelClass);
-            }
-            if (channel == null) return;
+    private static IAEStack injectViaChannel(IStorageGrid storage, IAEStack stack, IActionSource source, ChannelRoute route) throws Exception {
+        IStorageChannel channel;
+        IAEStack input = stack;
+        if (ENERGY_ROUTE_TOKEN.equals(route.classNameToken) && EnergyChannelResolver.isFluxChannelActive()) {
+            channel = (IStorageChannel) EnergyChannelResolver.getChannel();
+            input = EnergyChannelResolver.createStack(stack.getStackSize());
+            if (input == null) return stack;
+        } else {
+            Class<?> channelClass = Class.forName(route.channelClassName);
+            channel = AEApi.instance().storage().getStorageChannel((Class) channelClass);
+        }
+        if (channel == null) return stack;
 
-            IMEInventory monitor = storage.getInventory(channel);
-            if (monitor == null) return;
+        IMEInventory monitor = storage.getInventory(channel);
+        if (monitor == null) return stack;
+        return (IAEStack) monitor.injectItems(input, Actionable.MODULATE, source);
+    }
 
-            monitor.injectItems(input, Actionable.MODULATE, source);
-        } catch (Exception ignored) {
+    /** 提取已经失败，且自动回滚仍有资源未能回到原库存。 */
+    public static final class RollbackException extends RuntimeException {
+        private final List<IAEStack> remaining;
+
+        RollbackException(List<IAEStack> remaining) {
+            super("Virtual cost rollback left " + remaining.size() + " resource stack(s)");
+            this.remaining = new ArrayList<>(remaining);
+        }
+
+        public List<IAEStack> getRemaining() {
+            return Collections.unmodifiableList(this.remaining);
         }
     }
 }

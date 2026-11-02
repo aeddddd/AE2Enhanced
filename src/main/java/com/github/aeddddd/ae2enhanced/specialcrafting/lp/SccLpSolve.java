@@ -1,22 +1,15 @@
 package com.github.aeddddd.ae2enhanced.specialcrafting.lp;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.TreeMap;
-
-import javax.annotation.Nullable;
-
 import appeng.api.networking.crafting.ICraftingGrid;
 import appeng.api.networking.crafting.ICraftingPatternDetails;
 import appeng.api.storage.data.IAEItemStack;
-
 import com.github.aeddddd.ae2enhanced.specialcrafting.FlowReconciler;
 import com.github.aeddddd.ae2enhanced.specialcrafting.NetworkPatternIndex;
 import com.github.aeddddd.ae2enhanced.specialcrafting.PruneSettings;
 import com.github.aeddddd.ae2enhanced.specialcrafting.RecursiveCraftingHelper;
+
+import javax.annotation.Nullable;
+import java.util.*;
 
 
 /**
@@ -175,6 +168,16 @@ public final class SccLpSolve {
             Map<ICraftingPatternDetails, Double> upperCaps,
             Map<ICraftingPatternDetails, Double> committed, PruneSettings settings,
             LpHotStart.Chain chain, String solverMode) {
+        return solve(cc, index, keys, stock, demands, upperCaps, committed, settings, chain, solverMode,
+                RevisedSimplex.Settings.fromSystemProperties());
+    }
+
+    /** legacy 数值预算和诊断同样由整单入口传入，兼容入口只在委托前捕获一次。 */
+    public static SccSolution solve(ICraftingGrid cc, NetworkPatternIndex index, List<IAEItemStack> keys,
+            Map<IAEItemStack, Long> stock, Map<IAEItemStack, Double> demands,
+            Map<ICraftingPatternDetails, Double> upperCaps,
+            Map<ICraftingPatternDetails, Double> committed, PruneSettings settings,
+            LpHotStart.Chain chain, String solverMode, RevisedSimplex.Settings legacySettings) {
         SccLpModelBuilder.Built built = SccLpModelBuilder.build(cc, index, keys, stock, demands, upperCaps,
                 committed, true);
 
@@ -188,7 +191,7 @@ public final class SccLpSolve {
         }
 
         // 阶段①: 赤字和最小化. c≥0 ⇒ y=0 对偶可行起步, 无需人工变量 Phase-1, 上界由界翻转处理
-        LpResult phase1 = solveLp(built.lp, solverMode, chain);
+        LpResult phase1 = solveLp(built.lp, solverMode, chain, legacySettings);
         if (phase1.status != LpResult.Status.OPTIMAL) {
             dumpOnFailure(phase1, built.lp, "阶段1");
             return SccSolution.failure(phase1, phase1.iterations);
@@ -209,7 +212,7 @@ public final class SccLpSolve {
         // 缺料时原生口径是分支序贪心显示语义, 去掉内化行重解让阶段③秩贪心复刻它
         if (obj1 > 1e-6 && built.rawRows > 0) {
             built = SccLpModelBuilder.build(cc, index, keys, stock, demands, upperCaps, committed, false);
-            phase1 = solveLp(built.lp, solverMode, chain);
+            phase1 = solveLp(built.lp, solverMode, chain, legacySettings);
             if (phase1.status != LpResult.Status.OPTIMAL) {
                 dumpOnFailure(phase1, built.lp, "阶段1-去内化");
                 return SccSolution.failure(phase1, phase1.iterations);
@@ -267,7 +270,7 @@ public final class SccLpSolve {
             upper2[n2 - 1] = LpModel.INF;
             phase2 = solveLp(
                     new LpModel(SparseMatrix.fromColumns(rows2, columns2), b2, cost2, lower2, upper2),
-                    solverMode, chain);
+                    solverMode, chain, legacySettings);
             iterations += phase2.iterations;
             if (phase2.status != LpResult.Status.OPTIMAL) {
                 dumpOnFailure(phase2, new LpModel(
@@ -327,7 +330,7 @@ public final class SccLpSolve {
         upper[n - 1] = LpModel.INF;
         LpModel phase3Model = new LpModel(SparseMatrix.fromColumns(oldRows + 2, columns), b, cost, lower, upper);
 
-        LpResult phase3 = solveLp(phase3Model, solverMode, chain);
+        LpResult phase3 = solveLp(phase3Model, solverMode, chain, legacySettings);
         iterations += phase3.iterations;
         if (phase3.status != LpResult.Status.OPTIMAL) {
             dumpOnFailure(phase3, phase3Model, "阶段3");
@@ -538,10 +541,11 @@ public final class SccLpSolve {
      * 并把本次产生的状态写回槽位; 走精确/legacy 的阶段不参与链(链只在相关阶段
      * 都走对偶单纯形时才真正串起来, {@code ExactSimplex.fits} 跨阈值时逐阶段独立).</p>
      */
-    private static LpResult solveLp(LpModel model, String mode, LpHotStart.Chain chain) {
+    private static LpResult solveLp(LpModel model, String mode, LpHotStart.Chain chain,
+            RevisedSimplex.Settings legacySettings) {
         switch (mode) {
             case "legacy":
-                return RevisedSimplex.solve(model);
+                return RevisedSimplex.solve(model, legacySettings);
             case "dual":
                 return solveDual(model, chain);
             case "exact":

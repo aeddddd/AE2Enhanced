@@ -6,6 +6,12 @@ AE2Enhanced 是 **AE2 Unofficial Extended Life (AE2-UEL)** 的终局扩展模组
 
 *当前发布版本:1.7.9.0*
 
+## 文档
+
+- [中文 Wiki](https://github.com/aeddddd/AE2Enhanced/wiki/首页)
+- [English Wiki](https://github.com/aeddddd/AE2Enhanced/wiki/Home)
+- 开发文档索引：本地开发工作区中的 `docs/README.md`（不纳入主仓库 Git）。
+
 ## 核心物品
 
 ### 全能无线终端

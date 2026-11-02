@@ -15,11 +15,19 @@ import java.util.List;
  */
 public class LateMixinLoader implements ILateMixinLoader {
 
+    private static boolean isMekCeuV10() {
+        return com.github.aeddddd.ae2enhanced.integration.BootstrapCapabilities.hasMekCeuV10();
+    }
+
     @Override
     public List<String> getMixinConfigs() {
         List<String> configs = new ArrayList<>(Arrays.asList(
                 "mixins.ae2enhanced.late.json",
+                "mixins.ae2enhanced.late.access.json",
+                "mixins.ae2enhanced.late.storage-access.json",
+                "mixins.ae2enhanced.late.client-access.json",
                 "mixins.ae2enhanced.late.tii.json",
+                "mixins.ae2enhanced.late.tii-compat.json",
                 "mixins.ae2enhanced.late.thaumic.json",
                 "mixins.ae2enhanced.late.gas.json"
                 // mixins.ae2enhanced.late.ring.json 目标全为 MC/Forge 原生类, 已移至
@@ -78,10 +86,5 @@ public class LateMixinLoader implements ILateMixinLoader {
             configs.add("mixins.ae2enhanced.late.mmce.json");
         }
         return configs;
-    }
-
-    private static boolean isMekCeuV10() {
-        ClassLoader loader = Thread.currentThread().getContextClassLoader();
-        return loader != null && loader.getResource("mekanism/api/fluid/IExtendedFluidTank.class") != null;
     }
 }

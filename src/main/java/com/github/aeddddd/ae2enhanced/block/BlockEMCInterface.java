@@ -1,7 +1,7 @@
 package com.github.aeddddd.ae2enhanced.block;
 
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
-import com.github.aeddddd.ae2enhanced.gui.GuiHandler;
+import com.github.aeddddd.ae2enhanced.guiapi.GuiCatalog;
 import com.github.aeddddd.ae2enhanced.tile.TileEMCInterface;
 import net.minecraft.block.Block;
 import net.minecraft.block.material.Material;
@@ -87,7 +87,7 @@ public class BlockEMCInterface extends Block {
                     player.sendMessage(new net.minecraft.util.text.TextComponentTranslation("chat.ae2enhanced.emc_interface.no_permission"));
                     return true;
                 }
-                player.openGui(AE2Enhanced.instance, GuiHandler.GUI_EMC_INTERFACE,
+                player.openGui(AE2Enhanced.instance, GuiCatalog.GUI_EMC_INTERFACE,
                         world, pos.getX(), pos.getY(), pos.getZ());
             }
         }

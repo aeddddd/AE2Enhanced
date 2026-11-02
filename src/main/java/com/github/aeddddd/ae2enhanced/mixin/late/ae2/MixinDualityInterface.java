@@ -15,7 +15,9 @@ import appeng.me.GridAccessException;
 import appeng.me.helpers.AENetworkProxy;
 import appeng.util.InventoryAdaptor;
 import appeng.util.Platform;
+import com.github.aeddddd.ae2enhanced.crafting.smartpattern.SmartPatternRepository;
 import com.github.aeddddd.ae2enhanced.item.ItemSmartPattern;
+import com.github.aeddddd.ae2enhanced.runtime.RuntimeScopes;
 import com.github.aeddddd.ae2enhanced.mixin.late.accessor.IMultiCraftingTrackerAccessor;
 import com.google.common.primitives.Ints;
 import net.minecraft.inventory.InventoryCrafting;
@@ -26,6 +28,7 @@ import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
@@ -101,6 +104,77 @@ public abstract class MixinDualityInterface {
 
     @Shadow
     private void updatePlan(int slot) {
+    }
+
+    @Unique
+    private final java.util.Map<java.util.UUID, SmartPatternRepository.ListenerRegistration>
+            ae2e$smartPatternListeners = new java.util.HashMap<>();
+
+    @Shadow
+    private void updateCraftingList() {
+    }
+
+    @Shadow
+    public net.minecraftforge.items.IItemHandler getPatterns() {
+        return null;
+    }
+
+    @Inject(method = "updateCraftingList", at = @At("RETURN"))
+    private void ae2e$syncSmartPatternListeners(CallbackInfo ci) {
+        World world = this.iHost.getTileEntity().getWorld();
+        if (world == null || world.isRemote || !RuntimeScopes.currentServer().isPresent()) return;
+        java.util.Set<java.util.UUID> deployed = new java.util.HashSet<>();
+        net.minecraftforge.items.IItemHandler patterns = getPatterns();
+        for (int slot = 0; slot < patterns.getSlots(); slot++) {
+            java.util.UUID id = ItemSmartPattern.getPatternDataId(patterns.getStackInSlot(slot));
+            if (id != null) deployed.add(id);
+        }
+        java.util.Iterator<java.util.Map.Entry<java.util.UUID, SmartPatternRepository.ListenerRegistration>> iterator =
+                ae2e$smartPatternListeners.entrySet().iterator();
+        while (iterator.hasNext()) {
+            java.util.Map.Entry<java.util.UUID, SmartPatternRepository.ListenerRegistration> entry = iterator.next();
+            if (!deployed.contains(entry.getKey())) {
+                entry.getValue().close();
+                iterator.remove();
+            }
+        }
+        for (java.util.UUID id : deployed) {
+            if (ae2e$smartPatternListeners.containsKey(id)) continue;
+            java.lang.ref.WeakReference<DualityInterface> self =
+                    new java.lang.ref.WeakReference<>((DualityInterface) (Object) this);
+            SmartPatternRepository.ListenerRegistration registration = SmartPatternRepository.get(world).listen(id,
+                    (changedId, revision) -> {
+                        DualityInterface duality = self.get();
+                        if (duality != null) {
+                            ((MixinDualityInterface) (Object) duality).ae2e$refreshSmartPattern(changedId);
+                        }
+                    });
+            ae2e$smartPatternListeners.put(id, registration);
+        }
+    }
+
+    @Unique
+    private void ae2e$refreshSmartPattern(java.util.UUID id) {
+        net.minecraftforge.items.IItemHandler patterns = getPatterns();
+        for (int slot = 0; slot < patterns.getSlots(); slot++) {
+            if (id.equals(ItemSmartPattern.getPatternDataId(patterns.getStackInSlot(slot)))) {
+                updateCraftingList();
+                return;
+            }
+        }
+        SmartPatternRepository.ListenerRegistration registration = ae2e$smartPatternListeners.remove(id);
+        if (registration != null) registration.close();
+    }
+
+    @Redirect(method = "readFromNBT", at = @At(value = "INVOKE",
+            target = "Lappeng/helpers/MultiCraftingTracker;readFromNBT(Lnet/minecraft/nbt/NBTTagCompound;)V"))
+    private void ae2e$deferCraftingLinkRestore(MultiCraftingTracker tracker, net.minecraft.nbt.NBTTagCompound data) {
+        // 配置恢复可能通过 updateSetting 取消任务，链接必须延后到 readFromNBT RETURN 恢复
+    }
+
+    @Inject(method = "readFromNBT", at = @At("RETURN"), require = 0)
+    private void ae2e$restoreCraftingLinksAfterConfig(net.minecraft.nbt.NBTTagCompound data, CallbackInfo ci) {
+        this.craftingTracker.readFromNBT(data);
     }
 
     /**

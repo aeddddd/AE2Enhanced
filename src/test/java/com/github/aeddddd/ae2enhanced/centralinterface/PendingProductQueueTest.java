@@ -1,20 +1,18 @@
 package com.github.aeddddd.ae2enhanced.centralinterface;
 
-import static org.assertj.core.api.Assertions.assertThat;
-
-import java.util.Arrays;
-import java.util.List;
-
-import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-
+import com.github.aeddddd.ae2enhanced.test.util.AE2TestBootstrap;
 import net.minecraft.init.Items;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.nbt.NBTTagList;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 
-import com.github.aeddddd.ae2enhanced.test.util.AE2TestBootstrap;
+import java.util.Arrays;
+import java.util.List;
+
+import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * {@link PendingProductQueue} 虚拟合成产物暂存队列测试。
@@ -156,6 +154,25 @@ public class PendingProductQueueTest {
         List<ItemStack> drained = queue.drainAll();
         assertThat(drained).hasSize(1);
         assertStackEquals(drained.get(0), new ItemStack(Items.APPLE, 2));
+    }
+
+    @Test
+    public void testUnknownItemEntryIsPreservedWithoutJoiningTheLiveQueue() {
+        NBTTagCompound unknown = new NBTTagCompound();
+        unknown.setString("id", "missing_mod:item");
+        unknown.setInteger("Count", 2);
+        NBTTagList list = new NBTTagList();
+        list.appendTag(unknown);
+        NBTTagCompound data = new NBTTagCompound();
+        data.setTag("pendingVirtualProducts", list);
+
+        queue.readFromNBT(data);
+        NBTTagCompound rewritten = new NBTTagCompound();
+        queue.writeToNBT(rewritten);
+
+        assertThat(queue.isEmpty()).isTrue();
+        assertThat(rewritten.getTagList("pendingVirtualProducts", 10).getCompoundTagAt(0))
+                .isEqualTo(unknown);
     }
 
     /** 读取缺失键的 NBT 时清空队列（clear 语义先于键检查）。 */

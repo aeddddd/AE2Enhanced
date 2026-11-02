@@ -25,7 +25,7 @@ public class ItemGuideBook extends Item {
     @Override
     public ActionResult<ItemStack> onItemRightClick(World worldIn, EntityPlayer playerIn, EnumHand handIn) {
         ItemStack stack = playerIn.getHeldItem(handIn);
-        if (worldIn.isRemote && com.github.aeddddd.ae2enhanced.config.AE2EnhancedConfig.guide.enabled) {
+        if (worldIn.isRemote && com.github.aeddddd.ae2enhanced.config.ClientPreferences.current().guide.enabled) {
             // 客户端打开指南（引用客户端类，仅在 isRemote 分支执行，服务端不会加载）
             com.github.aeddddd.ae2enhanced.guide.client.GuiGuide.open(null);
         }

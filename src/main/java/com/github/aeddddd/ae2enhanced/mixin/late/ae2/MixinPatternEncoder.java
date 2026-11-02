@@ -4,7 +4,7 @@ import appeng.container.AEBaseContainer;
 import appeng.container.implementations.ContainerPatternEncoder;
 import appeng.container.slot.SlotRestrictedInput;
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
-import com.github.aeddddd.ae2enhanced.util.compat.AssemblyAutoUploadHelper;
+import com.github.aeddddd.ae2enhanced.structure.compat.AssemblyAutoUploadHelper;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.entity.player.InventoryPlayer;
 import net.minecraft.item.ItemStack;

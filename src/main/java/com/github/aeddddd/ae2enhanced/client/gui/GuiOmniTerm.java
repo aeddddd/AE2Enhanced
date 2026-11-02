@@ -22,13 +22,13 @@ import appeng.core.localization.GuiText;
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
 import com.github.aeddddd.ae2enhanced.client.JEISearchKeyHandler;
 import com.github.aeddddd.ae2enhanced.client.gui.jei.GhostIngredientTarget;
-import com.github.aeddddd.ae2enhanced.client.gui.slot.RCSlotFakeCraftingMatrix;
-import com.github.aeddddd.ae2enhanced.client.gui.slot.RCSlotPatternOutputs;
+import com.github.aeddddd.ae2enhanced.client.gui.terminal.access.IGuiMEMonitorableAccessor;
 import com.github.aeddddd.ae2enhanced.client.gui.util.CraftingHighlight;
 import com.github.aeddddd.ae2enhanced.client.gui.util.GuiResourceCache;
 import com.github.aeddddd.ae2enhanced.client.gui.util.SlotPositionManager;
 import com.github.aeddddd.ae2enhanced.container.ContainerOmniTerm;
-import com.github.aeddddd.ae2enhanced.mixin.late.accessor.IGuiMEMonitorableAccessor;
+import com.github.aeddddd.ae2enhanced.container.slot.RCSlotFakeCraftingMatrix;
+import com.github.aeddddd.ae2enhanced.container.slot.RCSlotPatternOutputs;
 import com.github.aeddddd.ae2enhanced.network.packet.PacketOmniPageResult;
 import com.github.aeddddd.ae2enhanced.network.packet.PacketOmniTermAction;
 import net.minecraft.client.gui.Gui;
@@ -101,8 +101,10 @@ public class GuiOmniTerm extends GuiMEMonitorable
 
         // 通过 accessor 将 final repo 替换为 OmniItemRepo(支持合成置顶)
         try {
-            ((IGuiMEMonitorableAccessor) this).ae2e$setRepo(
-                    new com.github.aeddddd.ae2enhanced.client.me.OmniItemRepo(this.getScrollBar(), this));
+            com.github.aeddddd.ae2enhanced.client.me.OmniItemRepo queryRepo =
+                    new com.github.aeddddd.ae2enhanced.client.me.OmniItemRepo(this.getScrollBar(), this);
+            queryRepo.bindContainer(this.container);
+            ((IGuiMEMonitorableAccessor) this).ae2e$setRepo(queryRepo);
             this.isOmniRepo = true;
         } catch (Exception e) {
             AE2Enhanced.LOGGER.error("[AE2E] Failed to replace ItemRepo with OmniItemRepo", e);
@@ -498,9 +500,7 @@ public class GuiOmniTerm extends GuiMEMonitorable
         if (this.isOmniRepo) {
             com.github.aeddddd.ae2enhanced.client.me.OmniItemRepo omniRepo =
                     (com.github.aeddddd.ae2enhanced.client.me.OmniItemRepo) this.repo;
-            if (omniRepo.hasPendingRefresh()) {
-                omniRepo.handleUpdateNotify();
-            }
+            omniRepo.tick();
             // 检测 totalCount 变化更新滚动条
             long currentVersion = omniRepo.getRenderViewVersion();
             if (currentVersion != this.lastRenderedViewVersion) {
@@ -539,11 +539,11 @@ public class GuiOmniTerm extends GuiMEMonitorable
             Slot slot = this.getSlotUnderMouse(xCoord, yCoord);
             if (slot instanceof RCSlotFakeCraftingMatrix) {
                 int amount = slot.getStack().isEmpty() ? 1 : slot.getStack().getCount();
-                this.mc.displayGuiScreen(new GuiOmniAmount(this, 0, slot.getSlotIndex(), amount));
+                this.mc.displayGuiScreen(new GuiOmniAmount(this, 0, slot.getSlotIndex(), amount, slot.getStack()));
                 return;
             } else if (slot instanceof RCSlotPatternOutputs) {
                 int amount = slot.getStack().isEmpty() ? 1 : slot.getStack().getCount();
-                this.mc.displayGuiScreen(new GuiOmniAmount(this, 1, slot.getSlotIndex(), amount));
+                this.mc.displayGuiScreen(new GuiOmniAmount(this, 1, slot.getSlotIndex(), amount, slot.getStack()));
                 return;
             }
         }

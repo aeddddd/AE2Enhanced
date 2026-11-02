@@ -1,28 +1,20 @@
 package com.github.aeddddd.ae2enhanced.container;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-
 import appeng.api.storage.ITerminalHost;
 import appeng.container.guisync.GuiSync;
 import appeng.container.slot.SlotCraftingMatrix;
 import appeng.container.slot.SlotCraftingTerm;
-import appeng.container.slot.SlotPlayerHotBar;
-import appeng.container.slot.SlotPlayerInv;
-import appeng.util.Platform;
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
-import com.github.aeddddd.ae2enhanced.client.gui.slot.RCSlotFakeCraftingMatrix;
-import com.github.aeddddd.ae2enhanced.client.gui.slot.RCSlotPatternOutputs;
-import com.github.aeddddd.ae2enhanced.client.gui.slot.SlotHighCapacity;
-import com.github.aeddddd.ae2enhanced.client.gui.slot.SlotOmniUpgrade;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.entity.player.InventoryPlayer;
 import net.minecraft.inventory.Slot;
 import net.minecraft.item.ItemStack;
 
+import java.util.Collections;
+import java.util.List;
+
 /**
- * 可拼接终端的容器：原样继承 {@link ContainerOmniTerm}，只增加"槽位归属 + shift-click 白名单 + 可见性掩码"。
+ * 可拼接终端的容器：原样继承 {@link ContainerOmniTerm}，增加槽位归属、可见性掩码与全交互白名单。
  *
  * <p><strong>槽位注册顺序冻结</strong>：本类不改动任何槽位的创建顺序、数量与 slotNumber，
  * 也不改 R3 分页协议；坐标（xPos/yPos）是纯客户端概念，服务端逻辑只按索引区间工作。</p>
@@ -55,75 +47,21 @@ public class ContainerSplicedTerm extends ContainerOmniTerm {
     @GuiSync(GUI_SYNC_PANEL_MASK)
     public int panelMask = SplicedTermModules.ALL;
 
-    /** 稳定槽位列表（构造期按类型/访问器分类一次，不随可见性变化）。 */
-    private final List<Slot> playerInventorySlots = new ArrayList<Slot>();
-    private final List<Slot> viewCellSlots = new ArrayList<Slot>();
-    private final List<Slot> craftingMatrixSlots = new ArrayList<Slot>();
-    private final List<Slot> craftingOutputSlots = new ArrayList<Slot>();
-    private final List<Slot> storageSlots = new ArrayList<Slot>();
-    private final List<Slot> upgradeSlots = new ArrayList<Slot>();
-    private final List<Slot> patternSlots = new ArrayList<Slot>();
-    private final List<Slot> patternFeedSlots = new ArrayList<Slot>();
+    private final OmniSlotGroups slotGroups;
+    private final SplicedShiftClickService shiftClickService;
+    private final appeng.container.implementations.ContainerInterfaceTerminal interfaceTerminal;
 
     public ContainerSplicedTerm(InventoryPlayer ip, ITerminalHost host) {
         super(ip, host);
-        classifySlots();
+        this.interfaceTerminal = host instanceof appeng.helpers.WirelessTerminalGuiObject
+                ? new appeng.container.implementations.ContainerInterfaceTerminal(ip,
+                        (appeng.helpers.WirelessTerminalGuiObject) host, true)
+                : null;
+        this.slotGroups = OmniSlotGroups.classify(this.inventorySlots, this.patternInputSlots,
+                this.outputSlotGroup, this.getPatternCraftSlot(), this.getPatternSlotIn(), this.getPatternSlotOut(),
+                this.cellView);
+        this.shiftClickService = new SplicedShiftClickService(this);
         applyPanelMaskToPolicy();
-    }
-
-    /**
-     * 按槽位类型/容器访问器分类（只读遍历，绝不增删/重排）。
-     *
-     * <p>编码区先分类并登记进"已知槽位"集合：{@code SlotPatternTerm} 继承自
-     * {@code SlotCraftingTerm}，若先跑类型判断，craft 产出槽会被误当成合成输出槽
-     * （那会让它落进 {@code MODULE_CRAFTING_OUTPUT} 组，语义与白名单都错）。</p>
-     */
-    private void classifySlots() {
-        java.util.Set<Slot> patternArea = Collections.newSetFromMap(new java.util.IdentityHashMap<Slot, Boolean>());
-        for (int group = 0; group < this.getPatternGroupCount(); group++) {
-            for (RCSlotFakeCraftingMatrix slot : this.getPatternInputGroup(group)) {
-                patternSlots.add(slot);
-                patternArea.add(slot);
-            }
-            for (RCSlotPatternOutputs slot : this.getPatternOutputGroup(group)) {
-                patternSlots.add(slot);
-                patternArea.add(slot);
-            }
-        }
-        if (this.getPatternCraftSlot() != null) {
-            patternSlots.add(this.getPatternCraftSlot());
-            patternArea.add(this.getPatternCraftSlot());
-        }
-        if (this.getPatternSlotIn() != null) {
-            patternFeedSlots.add(this.getPatternSlotIn());
-            patternArea.add(this.getPatternSlotIn());
-        }
-        if (this.getPatternSlotOut() != null) {
-            patternFeedSlots.add(this.getPatternSlotOut());
-            patternArea.add(this.getPatternSlotOut());
-        }
-
-        for (Slot slot : this.inventorySlots) {
-            if (patternArea.contains(slot)) {
-                continue;
-            }
-            if (slot instanceof SlotPlayerInv || slot instanceof SlotPlayerHotBar) {
-                playerInventorySlots.add(slot);
-            } else if (slot instanceof SlotCraftingMatrix) {
-                craftingMatrixSlots.add(slot);
-            } else if (slot instanceof SlotCraftingTerm) {
-                craftingOutputSlots.add(slot);
-            } else if (slot instanceof SlotHighCapacity) {
-                storageSlots.add(slot);
-            } else if (slot instanceof SlotOmniUpgrade) {
-                upgradeSlots.add(slot);
-            }
-        }
-        for (int i = 0; i < this.cellView.length; i++) {
-            if (this.cellView[i] != null) {
-                viewCellSlots.add(this.cellView[i]);
-            }
-        }
     }
 
     /** 面板/宿主用来查询槽位归属（哪个槽位由哪个模块承接）。 */
@@ -148,10 +86,109 @@ public class ContainerSplicedTerm extends ContainerOmniTerm {
 
     // ==================== 可见性掩码 ====================
 
+    public static boolean allowsRecipeTransfer(int mask, byte mode, boolean isCrafting) {
+        if (mode < 0 || mode > 2) return false;
+        if (isCrafting) {
+            boolean crafting = mode == 0 || mode == 2;
+            boolean pattern = mode == 0 || mode == 1;
+            return (!crafting || SplicedTermModules.isVisible(mask, SplicedTermModules.CRAFTING))
+                    && (!pattern || SplicedTermModules.isVisible(mask, SplicedTermModules.PATTERN));
+        }
+        int module = mode == 2 ? SplicedTermModules.STORAGE : SplicedTermModules.PATTERN;
+        return SplicedTermModules.isVisible(mask, module);
+    }
+
+    public int getPanelMask() {
+        return this.panelMask;
+    }
+
+    public static int shiftClickCount() {
+        return SplicedShiftClickService.shiftClickCount();
+    }
+
+    @Override
+    public void onUpdate(String field, Object oldValue, Object newValue) {
+        super.onUpdate(field, oldValue, newValue);
+        if ("panelMask".equals(field)) {
+            applyPanelMaskToPolicy();
+        }
+    }
+
+    private void registerIfVisible(int maskIndex, String slotGroupId, List<Slot> slots) {
+        slotPolicy.setModuleSlots(slotGroupId,
+                SplicedTermModules.isVisible(this.panelMask, maskIndex) ? slots : Collections.<Slot>emptyList());
+    }
+
+    // ==================== 稳定槽位列表（面板的槽位来源） ====================
+
+    /**
+     * 按 {@link #panelMask} 重新登记各模块组。
+     *
+     * <p>被关闭的模块登记为空集合，于是 {@code canShiftClickFrom/Into} 与
+     * {@code shiftClickTargetsFor} 都会把它排除——服务端不再往看不见的槽位里放东西。</p>
+     */
+    public void applyPanelMaskToPolicy() {
+        registerIfVisible(SplicedTermModules.VIEWCELL, SplicedTermSlotPolicy.MODULE_VIEWCELL, slotGroups.viewCells);
+        registerIfVisible(SplicedTermModules.CRAFTING, SplicedTermSlotPolicy.MODULE_CRAFTING_MATRIX,
+                slotGroups.craftingMatrix);
+        registerIfVisible(SplicedTermModules.CRAFTING, SplicedTermSlotPolicy.MODULE_CRAFTING_OUTPUT,
+                slotGroups.craftingOutput);
+        registerIfVisible(SplicedTermModules.STORAGE, SplicedTermSlotPolicy.MODULE_STORAGE, slotGroups.storage);
+        registerIfVisible(SplicedTermModules.UPGRADE, SplicedTermSlotPolicy.MODULE_UPGRADE, slotGroups.upgrades);
+        registerIfVisible(SplicedTermModules.PATTERN, SplicedTermSlotPolicy.MODULE_PATTERN,
+                visiblePatternSlots());
+        registerIfVisible(SplicedTermModules.PATTERN, SplicedTermSlotPolicy.MODULE_PATTERN_FEED, slotGroups.patternFeed);
+        // repo 与 playerinv 由 SplicedTermModules.sanitize 保证永远可见
+        slotPolicy.setModuleSlots(SplicedTermSlotPolicy.MODULE_PLAYER, slotGroups.player);
+        // repo 的槽位是客户端运行时增删的 ME 展示槽，服务端没有对应对象；客户端由 RepoPanel 自行登记
+    }
+
+    public List<Slot> playerInventorySlots() {
+        return slotGroups.player;
+    }
+
+    public List<Slot> viewCellSlots() {
+        return slotGroups.viewCells;
+    }
+
+    public List<Slot> craftingMatrixSlots() {
+        return slotGroups.craftingMatrix;
+    }
+
+    /** 合成输出槽（{@code SlotCraftingTerm}），最多一个。 */
+    public List<Slot> craftingOutputSlots() {
+        return slotGroups.craftingOutput;
+    }
+
+    /** 合成输出槽，不存在时返回 {@code null}。 */
+    public Slot craftingOutputSlot() {
+        return slotGroups.craftingOutput.isEmpty() ? null : slotGroups.craftingOutput.get(0);
+    }
+
+    public List<Slot> storageSlots() {
+        return slotGroups.storage;
+    }
+
+    public List<Slot> upgradeSlots() {
+        return slotGroups.upgrades;
+    }
+
+    /** 编码区全部槽位（81 输入 + 27 输出 + 1 产出，角色 NONE：AE2 自己处理它们的点击）。 */
+    public List<Slot> patternSlots() {
+        return slotGroups.pattern;
+    }
+
+    /** 样板 in/out 槽（角色 BOTH：走槽位转移，与旧终端一致）。 */
+    public List<Slot> patternFeedSlots() {
+        return slotGroups.patternFeed;
+    }
+
+    // ==================== 全交互可见性 ====================
+
     /** 服务端入口：写入客户端报来的掩码（已归一化）并重算白名单。 */
     public void setPanelMask(int mask) {
         int next = SplicedTermModules.sanitize(mask);
-        if (com.github.aeddddd.ae2enhanced.util.dev.SplicedTermTestHarness.enabled()) {
+        if (com.github.aeddddd.ae2enhanced.container.dev.SplicedTermTestHarness.enabled()) {
             // E2 排障：确认 PanelVisibility 包是否真的到达服务端、以及是否在"值没变"时早退
             AE2Enhanced.LOGGER.info("[AE2E][HARNESS] NOTE E2-server-mask PacketOmniTermAction 到达：mask=0x{} → sanitize=0x{}，"
                             + "当前=0x{}，早退={}",
@@ -166,79 +203,66 @@ public class ContainerSplicedTerm extends ContainerOmniTerm {
         this.detectAndSendChanges();
     }
 
-    public int getPanelMask() {
-        return this.panelMask;
+    @Override
+    protected boolean usesLegacySlotCoordinates() {
+        return false;
     }
 
-    /**
-     * 按 {@link #panelMask} 重新登记各模块组。
-     *
-     * <p>被关闭的模块登记为空集合，于是 {@code canShiftClickFrom/Into} 与
-     * {@code shiftClickTargetsFor} 都会把它排除——服务端不再往看不见的槽位里放东西。</p>
-     */
-    public void applyPanelMaskToPolicy() {
-        registerIfVisible(SplicedTermModules.VIEWCELL, SplicedTermSlotPolicy.MODULE_VIEWCELL, viewCellSlots);
-        registerIfVisible(SplicedTermModules.CRAFTING, SplicedTermSlotPolicy.MODULE_CRAFTING_MATRIX,
-                craftingMatrixSlots);
-        registerIfVisible(SplicedTermModules.CRAFTING, SplicedTermSlotPolicy.MODULE_CRAFTING_OUTPUT,
-                craftingOutputSlots);
-        registerIfVisible(SplicedTermModules.STORAGE, SplicedTermSlotPolicy.MODULE_STORAGE, storageSlots);
-        registerIfVisible(SplicedTermModules.UPGRADE, SplicedTermSlotPolicy.MODULE_UPGRADE, upgradeSlots);
-        registerIfVisible(SplicedTermModules.PATTERN, SplicedTermSlotPolicy.MODULE_PATTERN, patternSlots);
-        registerIfVisible(SplicedTermModules.PATTERN, SplicedTermSlotPolicy.MODULE_PATTERN_FEED, patternFeedSlots);
-        // repo 与 playerinv 由 SplicedTermModules.sanitize 保证永远可见
-        slotPolicy.setModuleSlots(SplicedTermSlotPolicy.MODULE_PLAYER, playerInventorySlots);
-        // repo 的槽位是客户端运行时增删的 ME 展示槽，服务端没有对应对象；客户端由 RepoPanel 自行登记
+    @Override
+    public void loadPattern(byte mode, boolean isCrafting, int gridSize,
+            java.util.Map<Integer, ItemStack> inputs, java.util.Map<Integer, ItemStack> outputs) {
+        if (!allowsRecipeTransfer(panelMask, mode, isCrafting)) return;
+        super.loadPattern(mode, isCrafting, gridSize, inputs, outputs);
     }
 
-    private void registerIfVisible(int maskIndex, String slotGroupId, List<Slot> slots) {
-        slotPolicy.setModuleSlots(slotGroupId,
-                SplicedTermModules.isVisible(this.panelMask, maskIndex) ? slots : Collections.<Slot>emptyList());
+    @Override
+    public ItemStack slotClick(int slotId, int dragType, net.minecraft.inventory.ClickType clickType,
+            EntityPlayer player) {
+        if (slotId >= 0 && slotId < inventorySlots.size()
+                && !slotPolicy.isHosted(inventorySlots.get(slotId))) {
+            return player.inventory.getItemStack();
+        }
+        return super.slotClick(slotId, dragType, clickType, player);
     }
 
-    // ==================== 稳定槽位列表（面板的槽位来源） ====================
-
-    public List<Slot> playerInventorySlots() {
-        return Collections.unmodifiableList(playerInventorySlots);
+    public boolean isActionAllowed(String action) {
+        return SplicedActionRouter.isActionAllowed(panelMask, action);
     }
 
-    public List<Slot> viewCellSlots() {
-        return Collections.unmodifiableList(viewCellSlots);
-    }
-
-    public List<Slot> craftingMatrixSlots() {
-        return Collections.unmodifiableList(craftingMatrixSlots);
-    }
-
-    /** 合成输出槽（{@code SlotCraftingTerm}），最多一个。 */
-    public List<Slot> craftingOutputSlots() {
-        return Collections.unmodifiableList(craftingOutputSlots);
-    }
-
-    /** 合成输出槽，不存在时返回 {@code null}。 */
-    public Slot craftingOutputSlot() {
-        return craftingOutputSlots.isEmpty() ? null : craftingOutputSlots.get(0);
-    }
-
-    public List<Slot> storageSlots() {
-        return Collections.unmodifiableList(storageSlots);
-    }
-
-    public List<Slot> upgradeSlots() {
-        return Collections.unmodifiableList(upgradeSlots);
-    }
-
-    /** 编码区全部槽位（81 输入 + 27 输出 + 1 产出，角色 NONE：AE2 自己处理它们的点击）。 */
-    public List<Slot> patternSlots() {
-        return Collections.unmodifiableList(patternSlots);
-    }
-
-    /** 样板 in/out 槽（角色 BOTH：走槽位转移，与旧终端一致）。 */
-    public List<Slot> patternFeedSlots() {
-        return Collections.unmodifiableList(patternFeedSlots);
+    @Override
+    public void detectAndSendChanges() {
+        super.detectAndSendChanges();
+        if (interfaceTerminal != null
+                && SplicedTermModules.isVisible(panelMask, SplicedTermModules.INTERFACE_TERMINAL)) {
+            interfaceTerminal.detectAndSendChanges();
+        }
     }
 
     // ==================== shift-click ====================
+
+    @Override
+    public void doAction(net.minecraft.entity.player.EntityPlayerMP player,
+            appeng.helpers.InventoryAction action, int slot, long id) {
+        if (com.github.aeddddd.ae2enhanced.util.compat.Ae2fcFluidPatternHelper.isAe2fcFluidDrop(getTargetStack())
+                && action != appeng.helpers.InventoryAction.AUTO_CRAFT
+                && action != appeng.helpers.InventoryAction.ROLL_DOWN) {
+            return;
+        }
+        boolean hosted = slot < 0 || slot >= inventorySlots.size()
+                || slotPolicy.isHosted(inventorySlots.get(slot));
+        SplicedActionRouter.Target target = SplicedActionRouter.route(interfaceTerminal != null,
+                SplicedTermModules.isVisible(panelMask, SplicedTermModules.INTERFACE_TERMINAL),
+                id, slot, inventorySlots.size(), hosted);
+        switch (target) {
+            case INTERFACE:
+                interfaceTerminal.doAction(player, action, slot, id);
+                return;
+            case OMNI:
+                super.doAction(player, action, slot, id);
+                return;
+            default:
+        }
+    }
 
     /**
      * shift-click 转移：与旧终端对齐的自定白名单实现。
@@ -258,183 +282,10 @@ public class ContainerSplicedTerm extends ContainerOmniTerm {
      */
     @Override
     public ItemStack transferStackInSlot(EntityPlayer player, int index) {
-        detectShiftClickFlood(player, index);
-        if (Platform.isClient()) {
-            return ItemStack.EMPTY;
-        }
-        if (index < 0 || index >= this.inventorySlots.size()) {
-            return ItemStack.EMPTY;
-        }
-        Slot slot = this.inventorySlots.get(index);
-        if (slot == null || !slot.getHasStack()) {
-            return ItemStack.EMPTY;
-        }
-        if (!slotPolicy.canShiftClickFrom(slot)) {
-            return ItemStack.EMPTY;
-        }
-
-        ItemStack source = slot.getStack();
-        shiftClickCount++;
-        // 单次 shift-click 的耗时看门狗：正常是微秒级；超过阈值说明点击链上出现了无界/病态工作
-        // （历史事故：专用服务端被 ServerHangWatchdog 强杀，栈停在 shiftClickTargetsFor 的 addAll 上）。
-        // 只记一次 + 附带来源/目标规模，便于线上定位。
-        long clickStart = System.nanoTime();
-        List<Slot> targets = slotPolicy.shiftClickTargetsFor(slot);
-        long targetBuildNanos = System.nanoTime() - clickStart;
-        ItemStack remainder;
-        if (slotPolicy.isPlayerSlot(slot) && isViewCell(source)) {
-            // A17 修复：view cell 是终端的"升级件"而不是货物，必须只进 view cell 槽。
-            // 原来走"玩家侧先进 ME 网络"的通用路径，view cell 会被当成普通物品存进存储元件
-            // （实机证据：shift-click 后源槽清空、view cell 槽仍为空、光标为空）。
-            // AE2 原生 ContainerMEMonitorable.func_82846_b 正是用一条独立分支处理 view cell，
-            // 这里复刻同一语义，并且只在 viewcell 面板可见（白名单非空）时接收。
-            remainder = mergeInto(source.copy(), slotPolicy.slotsOf(SplicedTermSlotPolicy.MODULE_VIEWCELL));
-        } else if (slotPolicy.isPlayerSlot(slot)) {
-            // 与旧终端一致：玩家侧先进 ME 网络，装不下的再进其它已承接槽位
-            remainder = transferStackToContainer(source.copy());
-            if (!remainder.isEmpty()) {
-                remainder = mergeInto(remainder, targets);
-            }
-        } else {
-            remainder = mergeInto(source.copy(), targets);
-        }
-        long totalNanos = System.nanoTime() - clickStart;
-        if (totalNanos > 200000000L && !warnedSlowShiftClick) {
-            warnedSlowShiftClick = true;
-            AE2Enhanced.LOGGER.warn("[AE2E] shift-click 处理过慢：{}ms（其中算目标 {}ms），来源槽 {}（{}），"
-                            + "目标 {} 个；容器槽={}，模块规模={}",
-                    totalNanos / 1000000L, targetBuildNanos / 1000000L, index,
-                    slotPolicy.moduleOf(slot), targets.size(), this.inventorySlots.size(),
-                    slotPolicy.describeGroupSizes());
-        }
-        int moved = source.getCount() - remainder.getCount();
-        if (moved <= 0) {
-            // **一个都没搬动时必须返回空栈**（真实 bug 修复，见验收文档 Q 节）：
-            // vanilla 1.12.2 Container.slotClick 的 QUICK_MOVE 分支是
-            //   ItemStack r = transferStackInSlot(player, slotId);
-            //   while (!r.isEmpty() && ItemStack.areItemsEqual(slot.getStack(), r)) {
-            //       r = transferStackInSlot(player, slotId);
-            //   }
-            // 只要"源槽内容不变 + 返回原栈"这个组合成立，它就会**无限重试**——实测把专用服务端
-            // 一个 server tick 拖到 60s，被 ServerHangWatchdog 强杀（触发场景：viewcell 面板隐藏时
-            // shift-click view cell、所有目标都装不下等"什么都搬不了"的点击）。
-            // 返回空栈表示"这次点击没有产生任何变化"，这也正是 AE2/vanilla 其它实现（含 AE2 的
-            // func_82846_b）在同等情形下的约定，因此不会改变任何实际搬运语义。
-            return ItemStack.EMPTY;
-        }
-        ItemStack left = source.copy();
-        left.shrink(moved);
-        slot.putStack(left.isEmpty() ? ItemStack.EMPTY : left);
-        slot.onSlotChanged();
-        this.detectAndSendChanges();
-        return remainder;
+        return this.shiftClickService.transferStackInSlot(player, index);
     }
 
-    /** 过慢的 shift-click 只告警一次，避免刷屏。 */
-    private static boolean warnedSlowShiftClick;
-    /** 诊断计数器：服务端累计处理过多少次 shift-click（harness 用它看有没有点击风暴）。 */
-    private static int shiftClickCount;
-    /** 单 tick 内的点击计数（用于识别"点击洪流"）。 */
-    private static int clicksThisTick;
-    private static int lastClickTick = -1;
-    private static boolean warnedClickFlood;
-
-    /**
-     * 单 tick 点击洪流检测：正常玩家一个 tick 最多点一下；同一 tick 内出现成百上千次说明
-     * 有循环发包（客户端或服务端链路），而这正是"一个 tick 卡 60s"的直接成因（验收文档 K 节）。
-     * 触发时打印一次调用栈，便于定位是谁在反复投递。
-     */
-    private static void detectShiftClickFlood(EntityPlayer player, int index) {
-        int tick;
-        try {
-            tick = player.getServer().getTickCounter();
-        } catch (Throwable t) {
-            return;
-        }
-        if (tick != lastClickTick) {
-            lastClickTick = tick;
-            clicksThisTick = 0;
-        }
-        clicksThisTick++;
-        if (clicksThisTick == 200 && !warnedClickFlood) {
-            warnedClickFlood = true;
-            AE2Enhanced.LOGGER.warn("[AE2E] 单个 tick 内 shift-click 已被调用 {} 次（来源槽 {}）——疑似循环发包，"
-                    + "下面打印一次调用栈", clicksThisTick, index, new Throwable("shift-click flood"));
-        }
-    }
-
-    /** 诊断用：服务端累计 shift-click 处理次数。 */
-    public static int shiftClickCount() {
-        return shiftClickCount;
-    }
-
-    /** 是否为本模组/原版 AE2 的 view cell 物品（AE2 原生 shift-click 分支用的同一判据）。 */
-    private static boolean isViewCell(ItemStack stack) {
-        return isSameAsCached(appeng.api.AEApi.instance().definitions().items().viewCell(), stack);
-    }
-
-    /**
-     * 把物品合并进给定目标槽位；返回装不下的部分。
-     *
-     * <p>不使用父类的区间式 {@code mergeItemStack}：它的区间语义无法表达"跳过没有面板承接/已关闭的
-     * 槽位"，而这个白名单正是唯一要保证的约束。单槽上限取
-     * {@code min(slot.getSlotStackLimit(), stack.getMaxStackSize())}，与 AE2 原生 shift-click 一致。</p>
-     */
-    private ItemStack mergeInto(ItemStack stack, List<Slot> targets) {
-        if (stack.isEmpty() || targets == null || targets.isEmpty()) {
-            return stack;
-        }
-        // 第一遍：并入已有的同类堆（物品 + metadata + NBT 全等，比 AE2 的 isSameItem 更严格，避免 NBT 串味）
-        for (Slot target : targets) {
-            if (stack.isEmpty()) {
-                break;
-            }
-            if (!slotPolicy.canShiftClickInto(target)) {
-                continue;
-            }
-            // 只取一次目标栈：getHasStack() + getStack() 是两次访问，AE2 的包装槽位每次都会走
-            // itemHandler.getStackInSlot，假槽位还可能为显示新建 ItemStack——在点击热路径上必须省。
-            ItemStack existing = target.getStack();
-            if (existing.isEmpty() || !target.isItemValid(stack)) {
-                continue;
-            }
-            if (existing.getItem() != stack.getItem()
-                    || !ItemStack.areItemsEqual(existing, stack)
-                    || !ItemStack.areItemStackTagsEqual(existing, stack)) {
-                continue;
-            }
-            int limit = Math.min(target.getSlotStackLimit(), stack.getMaxStackSize());
-            int space = limit - existing.getCount();
-            if (space <= 0) {
-                continue;
-            }
-            int move = Math.min(space, stack.getCount());
-            existing.grow(move);
-            stack.shrink(move);
-            target.onSlotChanged();
-        }
-        // 第二遍：放进空槽
-        for (Slot target : targets) {
-            if (stack.isEmpty()) {
-                break;
-            }
-            if (!slotPolicy.canShiftClickInto(target)) {
-                continue;
-            }
-            ItemStack existing = target.getStack();
-            if (!existing.isEmpty() || !target.isItemValid(stack)) {
-                continue;
-            }
-            int move = Math.min(Math.min(target.getSlotStackLimit(), stack.getMaxStackSize()), stack.getCount());
-            if (move <= 0) {
-                continue;
-            }
-            ItemStack placed = stack.copy();
-            placed.setCount(move);
-            target.putStack(placed);
-            target.onSlotChanged();
-            stack.shrink(move);
-        }
-        return stack;
+    ItemStack transferStackToNetwork(ItemStack stack) {
+        return this.transferStackToContainer(stack);
     }
 }

@@ -1,6 +1,6 @@
 package com.github.aeddddd.ae2enhanced.mixin.late.ring;
 
-import com.github.aeddddd.ae2enhanced.item.ItemNetworkLinkCredential;
+import com.github.aeddddd.ae2enhanced.ring.ItemNetworkLinkCredential;
 import com.github.aeddddd.ae2enhanced.ring.RingNBT;
 import net.minecraft.entity.player.InventoryPlayer;
 import net.minecraft.inventory.IInventory;

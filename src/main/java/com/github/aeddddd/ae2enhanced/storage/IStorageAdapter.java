@@ -1,6 +1,9 @@
 package com.github.aeddddd.ae2enhanced.storage;
 
+import appeng.api.networking.security.IActionSource;
+
 import java.util.Map;
+import java.util.function.BiConsumer;
 
 /**
  * 超维度仓储中枢各类存储适配器的公共接口.
@@ -33,8 +36,9 @@ public interface IStorageAdapter {
      */
     void recalcTotal();
 
-    /**
-     * 设置任意变更回调.
-     */
+    /** 添加独立订阅；关闭返回的 token 只注销本次附着。 */
+    AttachmentToken attachSubscriber(Runnable onChange, BiConsumer<?, IActionSource> postChange);
+
+    /** 旧单回调入口仅替换其自身的兼容订阅。 */
     void setOnChangeCallback(Runnable callback);
 }

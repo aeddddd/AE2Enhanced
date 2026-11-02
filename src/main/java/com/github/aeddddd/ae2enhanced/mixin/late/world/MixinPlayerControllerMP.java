@@ -1,7 +1,7 @@
 package com.github.aeddddd.ae2enhanced.mixin.late.world;
 
+import com.github.aeddddd.ae2enhanced.omnitool.ItemAdvancedMEOmniTool;
 import com.github.aeddddd.ae2enhanced.omnitool.OmniToolUpgrades;
-import com.github.aeddddd.ae2enhanced.item.ItemAdvancedMEOmniTool;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.entity.EntityPlayerSP;

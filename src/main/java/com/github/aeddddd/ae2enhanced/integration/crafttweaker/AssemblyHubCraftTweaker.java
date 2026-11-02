@@ -9,27 +9,7 @@ import net.minecraft.item.ItemStack;
 import stanhebben.zenscript.annotations.ZenClass;
 import stanhebben.zenscript.annotations.ZenMethod;
 
-/**
- * CraftTweaker 集成: 允许通过 ZenScript 为 Assembly Hub 注册新的升级卡,
- * 类型仅限并行(Parallel)和速度(Speed).
- *
- * 用法示例:
- * <pre>
- *   // 注册自定义并行升级卡
- *   mods.ae2enhanced.AssemblyHub.registerParallelUpgrade(
- *       &lt;my_mod:quantum_parallel&gt;,
- *       5,
- *       [64, 2048, 65536, 2097152, 67108864]
- *   );
- *
- *   // 注册自定义速度升级卡
- *   mods.ae2enhanced.AssemblyHub.registerSpeedUpgrade(
- *       &lt;my_mod:temporal_accelerator&gt;,
- *       5,
- *       [20, 10, 5, 2, 1]
- *   );
- * </pre>
- */
+/** CraftTweaker Assembly Hub 自定义升级卡入口。 */
 @ZenRegister
 @ZenClass("mods.ae2enhanced.AssemblyHub")
 public class AssemblyHubCraftTweaker {
@@ -49,6 +29,16 @@ public class AssemblyHubCraftTweaker {
         CraftTweakerAPI.apply(new RemoveUpgradeAction(card));
     }
 
+    @ZenMethod
+    public static void removeUpgrade(String id) {
+        CraftTweakerAPI.apply(new RemoveUpgradeByIdAction(id));
+    }
+
+    @ZenMethod
+    public static String[] getUpgradeIds() {
+        return AssemblyHubUpgradeRegistry.recipeIds();
+    }
+
     public static class RegisterUpgradeAction implements IAction {
         private final IItemStack card;
         private final String type;
@@ -59,33 +49,42 @@ public class AssemblyHubCraftTweaker {
             this.card = card;
             this.type = type;
             this.maxStack = maxStack;
-            this.values = values;
+            this.values = values == null ? null : values.clone();
+        }
+
+        @Override
+        public boolean validate() {
+            if (card == null || !(card.getInternal() instanceof ItemStack)
+                    || ((ItemStack) card.getInternal()).isEmpty() || maxStack <= 0
+                    || values == null || values.length != maxStack) {
+                return false;
+            }
+            for (long value : values) {
+                if (value <= 0L) {
+                    return false;
+                }
+            }
+            return "parallel".equalsIgnoreCase(type) || "speed".equalsIgnoreCase(type);
+        }
+
+        @Override
+        public String describeInvalid() {
+            return "AssemblyHub upgrade requires a card, positive maxStack and exactly one positive value per card";
         }
 
         @Override
         public void apply() {
-            ItemStack internal = (ItemStack) card.getInternal();
-            ItemStack copy = internal.copy();
+            ItemStack copy = ((ItemStack) card.getInternal()).copy();
             copy.setCount(1);
-
-            AssemblyHubUpgradeRegistry.UpgradeType upgradeType;
-            if ("parallel".equalsIgnoreCase(type)) {
-                upgradeType = AssemblyHubUpgradeRegistry.UpgradeType.PARALLEL;
-            } else if ("speed".equalsIgnoreCase(type)) {
-                upgradeType = AssemblyHubUpgradeRegistry.UpgradeType.SPEED;
-            } else {
-                CraftTweakerAPI.logError("[AE2Enhanced] Unknown AssemblyHub upgrade type: " + type);
-                return;
-            }
-
+            AssemblyHubUpgradeRegistry.UpgradeType upgradeType = "parallel".equalsIgnoreCase(type)
+                    ? AssemblyHubUpgradeRegistry.UpgradeType.PARALLEL : AssemblyHubUpgradeRegistry.UpgradeType.SPEED;
             AssemblyHubUpgradeRegistry.register(new AssemblyHubUpgradeRegistry.UpgradeDefinition(
-                    copy, upgradeType, maxStack, values
-            ));
+                    copy, upgradeType, maxStack, values));
         }
 
         @Override
         public String describe() {
-            return "Registering AssemblyHub " + type + " upgrade: " + card.getName();
+            return "Registering AssemblyHub " + type + " upgrade";
         }
     }
 
@@ -97,15 +96,55 @@ public class AssemblyHubCraftTweaker {
         }
 
         @Override
+        public boolean validate() {
+            return card != null && card.getInternal() instanceof ItemStack
+                    && !((ItemStack) card.getInternal()).isEmpty();
+        }
+
+        @Override
+        public String describeInvalid() {
+            return "AssemblyHub.removeUpgrade requires a non-empty card";
+        }
+
+        @Override
         public void apply() {
-            // 升级定义仅由 CraftTweaker 注册,无脚本先于注册执行的问题,可直接移除
-            ItemStack internal = (ItemStack) card.getInternal();
-            AssemblyHubUpgradeRegistry.removeById(AssemblyHubUpgradeRegistry.keyOf(internal));
+            AssemblyHubUpgradeRegistry.removeById(
+                    AssemblyHubUpgradeRegistry.keyOf((ItemStack) card.getInternal()));
         }
 
         @Override
         public String describe() {
-            return "Removing AssemblyHub upgrade: " + card.getName();
+            return "Removing AssemblyHub upgrade";
+        }
+    }
+
+    public static class RemoveUpgradeByIdAction implements IAction {
+        private final String id;
+
+        public RemoveUpgradeByIdAction(String id) {
+            this.id = id;
+        }
+
+        @Override
+        public boolean validate() {
+            return id != null && !id.trim().isEmpty();
+        }
+
+        @Override
+        public String describeInvalid() {
+            return "AssemblyHub.removeUpgrade requires a non-empty id";
+        }
+
+        @Override
+        public void apply() {
+            if (!AssemblyHubUpgradeRegistry.removeById(id)) {
+                CraftTweakerAPI.logWarning("No AssemblyHub upgrade found with id " + id);
+            }
+        }
+
+        @Override
+        public String describe() {
+            return "Removing AssemblyHub upgrade " + id;
         }
     }
 }

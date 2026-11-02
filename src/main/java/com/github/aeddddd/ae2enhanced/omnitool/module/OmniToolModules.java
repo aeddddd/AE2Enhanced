@@ -1,6 +1,6 @@
 package com.github.aeddddd.ae2enhanced.omnitool.module;
 
-import com.github.aeddddd.ae2enhanced.item.ItemAdvancedMEOmniTool;
+import com.github.aeddddd.ae2enhanced.omnitool.ItemAdvancedMEOmniTool;
 
 /**
  * 全能工具模式模块注册表。
@@ -10,6 +10,7 @@ public final class OmniToolModules {
     private OmniToolModules() {}
 
     private static final IOmniToolModule[] MODULES = new IOmniToolModule[ItemAdvancedMEOmniTool.MODE_COUNT];
+    private static final CombatModule COMBAT_MODULE = new CombatModule();
 
     static {
         register(new MiningModule());
@@ -24,5 +25,9 @@ public final class OmniToolModules {
 
     public static IOmniToolModule getForMode(int mode) {
         return MODULES[mode % MODULES.length];
+    }
+
+    public static CombatModule combat() {
+        return COMBAT_MODULE;
     }
 }

@@ -1,10 +1,10 @@
 package com.github.aeddddd.ae2enhanced.client.gui;
 
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
+import com.github.aeddddd.ae2enhanced.chamber.packet.PacketChamberSync;
 import com.github.aeddddd.ae2enhanced.container.ContainerSingularityChamber;
-import com.github.aeddddd.ae2enhanced.network.packet.PacketChamberAction;
-import com.github.aeddddd.ae2enhanced.network.packet.PacketChamberSync;
 import com.github.aeddddd.ae2enhanced.tile.TileSingularityChamber;
+import com.github.aeddddd.ae2enhanced.tile.packet.PacketChamberAction;
 import net.minecraft.client.audio.PositionedSoundRecord;
 import net.minecraft.client.gui.inventory.GuiContainer;
 import net.minecraft.client.renderer.GlStateManager;

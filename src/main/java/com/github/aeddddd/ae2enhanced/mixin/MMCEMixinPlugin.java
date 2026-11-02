@@ -1,5 +1,6 @@
 package com.github.aeddddd.ae2enhanced.mixin;
 
+import com.github.aeddddd.ae2enhanced.integration.BootstrapCapabilities;
 import org.spongepowered.asm.mixin.extensibility.IMixinConfigPlugin;
 import org.spongepowered.asm.mixin.extensibility.IMixinInfo;
 
@@ -15,12 +16,7 @@ public class MMCEMixinPlugin implements IMixinConfigPlugin {
 
     @Override
     public void onLoad(String mixinPackage) {
-        try {
-            ClassLoader cl = Thread.currentThread().getContextClassLoader();
-            java.net.URL url = cl.getResource("github/kasuminova/mmce/common/tile/MEPatternProvider.class");
-            mmceLoaded = url != null;
-        } catch (Exception ignored) {
-        }
+        mmceLoaded = BootstrapCapabilities.hasResource(BootstrapCapabilities.MMCE_PATTERN_PROVIDER);
     }
 
     @Override

@@ -34,13 +34,10 @@ public class OmniTerminalStorage {
 
     private boolean dirty = false;
 
+    private NBTTagCompound preservedRoot;
+
     public OmniTerminalStorage() {
-        this.craftingInventory = new OmniTerminalInventory(SIZE_CRAFTING);
-        this.patternInputInventory = new OmniTerminalInventory(SIZE_PATTERN_INPUTS);
-        this.patternOutputInventory = new OmniTerminalInventory(SIZE_PATTERN_OUTPUTS);
-        this.rightStorageInventory = new OmniTerminalInventory(SIZE_RIGHT_STORAGE);
-        this.upgradeInventory = new OmniTerminalInventory(SIZE_UPGRADE);
-        this.patternInventory = new OmniTerminalInventory(SIZE_PATTERN);
+        this(() -> { });
     }
 
     public OmniTerminalInventory getCraftingInventory() {
@@ -79,7 +76,17 @@ public class OmniTerminalStorage {
         return dirty;
     }
 
+    public OmniTerminalStorage(Runnable persistentChangeListener) {
+        this.craftingInventory = new OmniTerminalInventory(SIZE_CRAFTING, persistentChangeListener);
+        this.patternInputInventory = new OmniTerminalInventory(SIZE_PATTERN_INPUTS, persistentChangeListener);
+        this.patternOutputInventory = new OmniTerminalInventory(SIZE_PATTERN_OUTPUTS, persistentChangeListener);
+        this.rightStorageInventory = new OmniTerminalInventory(SIZE_RIGHT_STORAGE, persistentChangeListener);
+        this.upgradeInventory = new OmniTerminalInventory(SIZE_UPGRADE, persistentChangeListener);
+        this.patternInventory = new OmniTerminalInventory(SIZE_PATTERN, persistentChangeListener);
+    }
+
     public void readFromNBT(NBTTagCompound compound) {
+        preservedRoot = compound.copy();
         if (compound.hasKey(KEY_CRAFTING, Constants.NBT.TAG_COMPOUND)) {
             craftingInventory.deserializeNBT(compound.getCompoundTag(KEY_CRAFTING));
         }
@@ -107,6 +114,8 @@ public class OmniTerminalStorage {
         compound.setTag(KEY_RIGHT_STORAGE, rightStorageInventory.serializeNBT());
         compound.setTag(KEY_UPGRADE, upgradeInventory.serializeNBT());
         compound.setTag(KEY_PATTERN, patternInventory.serializeNBT());
-        return compound;
+        return PreservedNbt.mergeRoot(compound, preservedRoot, new java.util.HashSet<>(java.util.Arrays.asList(
+                KEY_CRAFTING, KEY_PATTERN_INPUTS, KEY_PATTERN_OUTPUTS,
+                KEY_RIGHT_STORAGE, KEY_UPGRADE, KEY_PATTERN)));
     }
 }

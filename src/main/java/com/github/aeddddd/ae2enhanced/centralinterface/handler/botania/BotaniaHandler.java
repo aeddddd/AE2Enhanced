@@ -1,7 +1,5 @@
 package com.github.aeddddd.ae2enhanced.centralinterface.handler.botania;
 
-import com.github.aeddddd.ae2enhanced.centralinterface.TargetSession;
-
 import appeng.api.networking.security.IActionSource;
 import appeng.api.storage.data.IAEItemStack;
 import appeng.api.storage.data.IAEStack;
@@ -10,6 +8,7 @@ import com.github.aeddddd.ae2enhanced.AE2Enhanced;
 import com.github.aeddddd.ae2enhanced.centralinterface.HandlerUtils;
 import com.github.aeddddd.ae2enhanced.centralinterface.IRemoteHandler;
 import com.github.aeddddd.ae2enhanced.centralinterface.IVirtualBatchCraftingHandler;
+import com.github.aeddddd.ae2enhanced.centralinterface.TargetSession;
 import com.github.aeddddd.ae2enhanced.centralinterface.machine.EntityScanThrottle;
 import com.github.aeddddd.ae2enhanced.storage.mana.AEManaStack;
 import net.minecraft.entity.item.EntityItem;
@@ -17,19 +16,15 @@ import net.minecraft.inventory.InventoryCrafting;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.tileentity.TileEntity;
+import net.minecraft.util.EnumParticleTypes;
 import net.minecraft.util.math.AxisAlignedBB;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
-import net.minecraftforge.oredict.OreDictionary;
 import net.minecraftforge.items.IItemHandler;
-
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
 import net.minecraftforge.items.IItemHandlerModifiable;
-import net.minecraft.util.EnumParticleTypes;
+import net.minecraftforge.oredict.OreDictionary;
+
+import java.util.*;
 
 /**
  * Botania 远程处理器.
@@ -279,21 +274,8 @@ public class BotaniaHandler implements IRemoteHandler, IVirtualBatchCraftingHand
 
     // ---- IVirtualCraftingHandler / IVirtualBatchCraftingHandler ----
 
-    @Override
-    public boolean canCraftVirtually(World world, BlockPos pos, InventoryCrafting ingredients, IAEItemStack[] outputs) {
-        TileEntity te = world.getTileEntity(pos);
-        if (BotaniaReflectionHelper.isInstance(BotaniaReflectionHelper.CLASS_TILE_POOL, te)) {
-            return canCraftVirtuallyPool(world, pos, ingredients, outputs);
-        } else if (BotaniaReflectionHelper.isInstance(BotaniaReflectionHelper.CLASS_TILE_ALF_PORTAL, te)) {
-            return canCraftVirtuallyAlfPortal(world, pos, ingredients, outputs);
-        } else if (BotaniaReflectionHelper.isInstance(BotaniaReflectionHelper.CLASS_TILE_TERRA_PLATE, te)) {
-            return canCraftVirtuallyTerraPlate(world, pos, ingredients, outputs);
-        } else if (BotaniaReflectionHelper.isInstance(BotaniaReflectionHelper.CLASS_TILE_RUNE_ALTAR, te)) {
-            return canCraftVirtuallyRuneAltar(world, pos, ingredients, outputs);
-        } else if (BotaniaReflectionHelper.isInstance(BotaniaReflectionHelper.CLASS_TILE_ALTAR, te)) {
-            return canCraftVirtuallyAltar(world, pos, ingredients, outputs);
-        }
-        return false;
+    private static long checkedMultiply(long left, long right) {
+        return Math.multiplyExact(left, right);
     }
 
     @Override
@@ -307,27 +289,125 @@ public class BotaniaHandler implements IRemoteHandler, IVirtualBatchCraftingHand
     }
 
     @Override
+    public boolean canCraftVirtually(World world, BlockPos pos, InventoryCrafting ingredients, IAEItemStack[] outputs) {
+        return bindVirtualRecipe(world, pos, ingredients, outputs) != null;
+    }
+
+    @Override
     public List<IAEStack> getVirtualCost(World world, BlockPos pos, InventoryCrafting ingredients, IAEItemStack[] outputs, long count) {
-        TileEntity te = world.getTileEntity(pos);
-        if (BotaniaReflectionHelper.isInstance(BotaniaReflectionHelper.CLASS_TILE_POOL, te)) {
-            return getVirtualCostPool(world, pos, ingredients, outputs, count);
-        } else if (BotaniaReflectionHelper.isInstance(BotaniaReflectionHelper.CLASS_TILE_ALF_PORTAL, te)) {
-            return getVirtualCostAlfPortal(world, pos, ingredients, outputs, count);
-        } else if (BotaniaReflectionHelper.isInstance(BotaniaReflectionHelper.CLASS_TILE_TERRA_PLATE, te)) {
-            return getVirtualCostTerraPlate(world, pos, ingredients, outputs, count);
-        } else if (BotaniaReflectionHelper.isInstance(BotaniaReflectionHelper.CLASS_TILE_RUNE_ALTAR, te)) {
-            return getVirtualCostRuneAltar(world, pos, ingredients, outputs, count);
-        } else if (BotaniaReflectionHelper.isInstance(BotaniaReflectionHelper.CLASS_TILE_ALTAR, te)) {
-            return getVirtualCostAltar(world, pos, ingredients, outputs, count);
+        if (count <= 0 || bindVirtualRecipe(world, pos, ingredients, outputs) == null) return null;
+        try {
+            TileEntity te = world.getTileEntity(pos);
+            if (BotaniaReflectionHelper.isInstance(BotaniaReflectionHelper.CLASS_TILE_POOL, te)) {
+                return getVirtualCostPool(world, pos, ingredients, outputs, count);
+            } else if (BotaniaReflectionHelper.isInstance(BotaniaReflectionHelper.CLASS_TILE_ALF_PORTAL, te)) {
+                return getVirtualCostAlfPortal(world, pos, ingredients, outputs, count);
+            } else if (BotaniaReflectionHelper.isInstance(BotaniaReflectionHelper.CLASS_TILE_TERRA_PLATE, te)) {
+                return getVirtualCostTerraPlate(world, pos, ingredients, outputs, count);
+            } else if (BotaniaReflectionHelper.isInstance(BotaniaReflectionHelper.CLASS_TILE_RUNE_ALTAR, te)) {
+                return getVirtualCostRuneAltar(world, pos, ingredients, outputs, count);
+            } else if (BotaniaReflectionHelper.isInstance(BotaniaReflectionHelper.CLASS_TILE_ALTAR, te)) {
+                return getVirtualCostAltar(world, pos, ingredients, outputs, count);
+            }
+        } catch (ArithmeticException overflow) {
+            return null;
         }
-        return new ArrayList<>();
+        return null;
     }
 
     @Override
     public List<ItemStack> virtualCraftBatch(World world, BlockPos pos, InventoryCrafting ingredients, IAEItemStack[] outputs, long count, IActionSource source) {
-        List<ItemStack> products = new ArrayList<>();
-        if (!canCraftVirtually(world, pos, ingredients, outputs)) return products;
-        return scaleOutputsByCount(outputs, count);
+        com.github.aeddddd.ae2enhanced.centralinterface.recipe.RecipeBinding binding =
+                bindVirtualRecipe(world, pos, ingredients, outputs);
+        if (binding == null) return new ArrayList<>();
+        List<ItemStack> products = scaleOutputsByCount(binding.getOutputs(), count);
+        TileEntity te = world.getTileEntity(pos);
+        if (BotaniaReflectionHelper.isInstance(BotaniaReflectionHelper.CLASS_TILE_RUNE_ALTAR, te)) {
+            List<IAEItemStack> returnedRunes = new ArrayList<>();
+            for (int i = 0; i < ingredients.getSizeInventory(); i++) {
+                ItemStack stack = ingredients.getStackInSlot(i);
+                if (!stack.isEmpty() && stack.getItem() == BotaniaReflectionHelper.ITEM_RUNE) {
+                    returnedRunes.add(AEItemStack.fromItemStack(stack));
+                }
+            }
+            List<ItemStack> scaledReturns = scaleOutputsByCount(
+                    returnedRunes.toArray(new IAEItemStack[0]), count);
+            if (products.isEmpty() || !returnedRunes.isEmpty() && scaledReturns.isEmpty()) {
+                return new ArrayList<>();
+            }
+            products.addAll(scaledReturns);
+        }
+        return products;
+    }
+
+    private com.github.aeddddd.ae2enhanced.centralinterface.recipe.RecipeBinding bindVirtualRecipe(
+            World world, BlockPos pos, InventoryCrafting ingredients, IAEItemStack[] outputs) {
+        if (outputs == null || outputs.length == 0 || outputs[0] == null) return null;
+        TileEntity te = world.getTileEntity(pos);
+        ItemStack firstOutput = outputs[0].createItemStack();
+        Object recipe;
+        List<ItemStack> actualOutputs;
+        if (BotaniaReflectionHelper.isInstance(BotaniaReflectionHelper.CLASS_TILE_POOL, te)) {
+            recipe = findManaInfusionRecipeByOutput(firstOutput);
+            if (recipe == null || !matchesSingleInput(BotaniaReflectionHelper.manaInfusionGetInput(recipe), ingredients)) {
+                return null;
+            }
+            actualOutputs = com.github.aeddddd.ae2enhanced.centralinterface.recipe.RecipeBinding.singleOutput(
+                    BotaniaReflectionHelper.manaInfusionGetOutput(recipe));
+        } else if (BotaniaReflectionHelper.isInstance(BotaniaReflectionHelper.CLASS_TILE_ALF_PORTAL, te)) {
+            recipe = findElvenTradeRecipeByOutput(firstOutput);
+            if (recipe == null || !matchRecipeInputs(BotaniaReflectionHelper.elvenTradeGetInputs(recipe),
+                    HandlerUtils.collectNonEmpty(ingredients))) return null;
+            actualOutputs = new ArrayList<>();
+            for (Object output : BotaniaReflectionHelper.elvenTradeGetOutputs(recipe)) {
+                if (!(output instanceof ItemStack) || ((ItemStack) output).isEmpty()) return null;
+                actualOutputs.add((ItemStack) output);
+            }
+        } else if (BotaniaReflectionHelper.isInstance(BotaniaReflectionHelper.CLASS_TILE_TERRA_PLATE, te)) {
+            if (!canCraftVirtuallyTerraPlate(world, pos, ingredients, outputs)) return null;
+            ItemStack actual = new ItemStack(BotaniaReflectionHelper.ITEM_MANA_RESOURCE, 1, 4);
+            recipe = BotaniaReflectionHelper.ITEM_MANA_RESOURCE;
+            actualOutputs = com.github.aeddddd.ae2enhanced.centralinterface.recipe.RecipeBinding.singleOutput(actual);
+        } else if (BotaniaReflectionHelper.isInstance(BotaniaReflectionHelper.CLASS_TILE_RUNE_ALTAR, te)) {
+            recipe = findRuneAltarRecipeByOutput(firstOutput);
+            if (recipe == null) return null;
+            List<ItemStack> available = HandlerUtils.collectNonEmpty(ingredients);
+            ItemStack livingrock = new ItemStack(Item.getItemFromBlock(BotaniaReflectionHelper.BLOCK_LIVINGROCK), 1, 0);
+            if (consumeFromAvailable(available, livingrock).isEmpty()
+                    || !matchRecipeInputs(BotaniaReflectionHelper.petalsGetInputs(recipe), available)) return null;
+            actualOutputs = com.github.aeddddd.ae2enhanced.centralinterface.recipe.RecipeBinding.singleOutput(
+                    BotaniaReflectionHelper.petalsGetOutput(recipe));
+        } else if (BotaniaReflectionHelper.isInstance(BotaniaReflectionHelper.CLASS_TILE_ALTAR, te)) {
+            recipe = findPetalRecipeByOutput(firstOutput);
+            if (recipe == null) return null;
+            List<ItemStack> available = new ArrayList<>();
+            int seeds = 0;
+            for (int i = 0; i < ingredients.getSizeInventory(); i++) {
+                ItemStack stack = ingredients.getStackInSlot(i);
+                if (!stack.isEmpty()) {
+                    if (isSeed(stack)) seeds += stack.getCount();
+                    else available.add(stack.copy());
+                }
+            }
+            if (seeds != 1 || !matchRecipeInputs(BotaniaReflectionHelper.petalsGetInputs(recipe), available)) return null;
+            actualOutputs = com.github.aeddddd.ae2enhanced.centralinterface.recipe.RecipeBinding.singleOutput(
+                    BotaniaReflectionHelper.petalsGetOutput(recipe));
+        } else {
+            return null;
+        }
+        return com.github.aeddddd.ae2enhanced.centralinterface.recipe.RecipeBinding.of(recipe, outputs, actualOutputs);
+    }
+
+    private boolean matchesSingleInput(Object input, InventoryCrafting ingredients) {
+        int matched = 0;
+        int total = 0;
+        for (int i = 0; i < ingredients.getSizeInventory(); i++) {
+            ItemStack stack = ingredients.getStackInSlot(i);
+            if (stack.isEmpty()) continue;
+            total += stack.getCount();
+            if (matchesRecipeObject(input, stack)) matched += stack.getCount();
+        }
+        return total == 1 && matched == 1;
     }
 
     // ==================== Pool ====================
@@ -825,7 +905,7 @@ public class BotaniaHandler implements IRemoteHandler, IVirtualBatchCraftingHand
                 break;
             }
         }
-        costs.add(AEManaStack.create((long) BotaniaReflectionHelper.manaInfusionGetManaToConsume(recipe) * count));
+        costs.add(AEManaStack.create(checkedMultiply(BotaniaReflectionHelper.manaInfusionGetManaToConsume(recipe), count)));
         return costs;
     }
 
@@ -833,9 +913,7 @@ public class BotaniaHandler implements IRemoteHandler, IVirtualBatchCraftingHand
         if (output.isEmpty()) return null;
         for (Object recipe : BotaniaReflectionHelper.MANA_INFUSION_RECIPES) {
             ItemStack recipeOutput = BotaniaReflectionHelper.manaInfusionGetOutput(recipe);
-            if (!recipeOutput.isEmpty()
-                    && recipeOutput.getItem() == output.getItem()
-                    && recipeOutput.getMetadata() == output.getMetadata()) {
+            if (com.github.aeddddd.ae2enhanced.centralinterface.recipe.RecipeBinding.exactMatch(recipeOutput, output)) {
                 return recipe;
             }
         }
@@ -861,7 +939,7 @@ public class BotaniaHandler implements IRemoteHandler, IVirtualBatchCraftingHand
             ItemStack consumed = consumeFromAvailable(available, req);
             if (consumed.isEmpty()) continue;
             IAEItemStack cost = AEItemStack.fromItemStack(consumed);
-            cost.setStackSize((long) consumed.getCount() * count);
+            cost.setStackSize(checkedMultiply(consumed.getCount(), count));
             costs.add(cost);
         }
         return costs;
@@ -872,9 +950,7 @@ public class BotaniaHandler implements IRemoteHandler, IVirtualBatchCraftingHand
         for (Object recipe : BotaniaReflectionHelper.ELVEN_TRADE_RECIPES) {
             for (Object outputObj : BotaniaReflectionHelper.elvenTradeGetOutputs(recipe)) {
                 ItemStack recipeOutput = (ItemStack) outputObj;
-                if (!recipeOutput.isEmpty()
-                        && recipeOutput.getItem() == output.getItem()
-                        && recipeOutput.getMetadata() == output.getMetadata()) {
+                if (com.github.aeddddd.ae2enhanced.centralinterface.recipe.RecipeBinding.exactMatch(recipeOutput, output)) {
                     return recipe;
                 }
             }
@@ -891,15 +967,19 @@ public class BotaniaHandler implements IRemoteHandler, IVirtualBatchCraftingHand
         ItemStack expected = outputs[0].createItemStack();
         if (expected.getItem() != BotaniaReflectionHelper.ITEM_MANA_RESOURCE || expected.getMetadata() != 4) return false;
         boolean hasSteel = false, hasPearl = false, hasDiamond = false;
+        int total = 0;
         for (int i = 0; i < ingredients.getSizeInventory(); i++) {
             ItemStack stack = ingredients.getStackInSlot(i);
-            if (stack.isEmpty() || stack.getItem() != BotaniaReflectionHelper.ITEM_MANA_RESOURCE) continue;
+            if (stack.isEmpty()) continue;
+            total += stack.getCount();
+            if (stack.getItem() != BotaniaReflectionHelper.ITEM_MANA_RESOURCE || stack.getCount() != 1) return false;
             int meta = stack.getMetadata();
             if (meta == 0) hasSteel = true;
             else if (meta == 1) hasPearl = true;
             else if (meta == 2) hasDiamond = true;
+            else return false;
         }
-        return hasSteel && hasPearl && hasDiamond;
+        return total == 3 && hasSteel && hasPearl && hasDiamond;
     }
 
     private List<IAEStack> getVirtualCostTerraPlate(World world, BlockPos pos, InventoryCrafting ingredients, IAEItemStack[] outputs, long count) {
@@ -914,7 +994,7 @@ public class BotaniaHandler implements IRemoteHandler, IVirtualBatchCraftingHand
                 costs.add(cost);
             }
         }
-        costs.add(AEManaStack.create(TERRA_PLATE_MANA_COST * count));
+        costs.add(AEManaStack.create(checkedMultiply(TERRA_PLATE_MANA_COST, count)));
         return costs;
     }
 
@@ -942,7 +1022,7 @@ public class BotaniaHandler implements IRemoteHandler, IVirtualBatchCraftingHand
         ItemStack livingrock = consumeFromAvailable(available, livingrockTemplate);
         if (!livingrock.isEmpty()) {
             IAEItemStack cost = AEItemStack.fromItemStack(livingrock);
-            cost.setStackSize((long) livingrock.getCount() * count);
+            cost.setStackSize(checkedMultiply(livingrock.getCount(), count));
             costs.add(cost);
         }
 
@@ -951,11 +1031,11 @@ public class BotaniaHandler implements IRemoteHandler, IVirtualBatchCraftingHand
             ItemStack consumed = consumeFromAvailable(available, req);
             if (consumed.isEmpty()) continue;
             IAEItemStack cost = AEItemStack.fromItemStack(consumed);
-            cost.setStackSize((long) consumed.getCount() * count);
+            cost.setStackSize(checkedMultiply(consumed.getCount(), count));
             costs.add(cost);
         }
 
-        costs.add(AEManaStack.create((long) BotaniaReflectionHelper.runeAltarRecipeGetManaUsage(recipe) * count));
+        costs.add(AEManaStack.create(checkedMultiply(BotaniaReflectionHelper.runeAltarRecipeGetManaUsage(recipe), count)));
         return costs;
     }
 
@@ -963,9 +1043,7 @@ public class BotaniaHandler implements IRemoteHandler, IVirtualBatchCraftingHand
         if (output.isEmpty()) return null;
         for (Object recipe : BotaniaReflectionHelper.RUNE_ALTAR_RECIPES) {
             ItemStack recipeOutput = BotaniaReflectionHelper.petalsGetOutput(recipe);
-            if (!recipeOutput.isEmpty()
-                    && recipeOutput.getItem() == output.getItem()
-                    && recipeOutput.getMetadata() == output.getMetadata()) {
+            if (com.github.aeddddd.ae2enhanced.centralinterface.recipe.RecipeBinding.exactMatch(recipeOutput, output)) {
                 return recipe;
             }
         }
@@ -1000,7 +1078,7 @@ public class BotaniaHandler implements IRemoteHandler, IVirtualBatchCraftingHand
             ItemStack consumed = consumeFromAvailable(available, req);
             if (consumed.isEmpty()) continue;
             IAEItemStack cost = AEItemStack.fromItemStack(consumed);
-            cost.setStackSize((long) consumed.getCount() * count);
+            cost.setStackSize(checkedMultiply(consumed.getCount(), count));
             costs.add(cost);
         }
         return costs;
@@ -1010,9 +1088,7 @@ public class BotaniaHandler implements IRemoteHandler, IVirtualBatchCraftingHand
         if (output.isEmpty()) return null;
         for (Object recipe : BotaniaReflectionHelper.PETAL_RECIPES) {
             ItemStack recipeOutput = BotaniaReflectionHelper.petalsGetOutput(recipe);
-            if (!recipeOutput.isEmpty()
-                    && recipeOutput.getItem() == output.getItem()
-                    && recipeOutput.getMetadata() == output.getMetadata()) {
+            if (com.github.aeddddd.ae2enhanced.centralinterface.recipe.RecipeBinding.exactMatch(recipeOutput, output)) {
                 return recipe;
             }
         }

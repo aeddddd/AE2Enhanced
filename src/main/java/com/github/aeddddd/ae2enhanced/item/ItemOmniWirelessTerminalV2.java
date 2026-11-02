@@ -1,7 +1,7 @@
 package com.github.aeddddd.ae2enhanced.item;
 
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
-import com.github.aeddddd.ae2enhanced.gui.GuiHandler;
+import com.github.aeddddd.ae2enhanced.guiapi.GuiCatalog;
 import appeng.core.localization.PlayerMessages;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.item.ItemStack;
@@ -16,19 +16,16 @@ import net.minecraft.world.World;
  * <p>与 {@link ItemOmniWirelessTerminal} 的关系是"同一终端的两代外壳"：无线宿主链路
  * （{@code IWirelessTermHandler} 注册、供电、{@code getStorageId} 的 UUID、Baubles 饰品位）
  * 全部继承复用，唯一区别是打开哪个 GUI：
- * 本类打开 {@link GuiHandler#GUI_SPLICED_TERMINAL}（15，可拼接），旧类保持 11。</p>
+ * 本类打开 {@link GuiCatalog#GUI_SPLICED_TERMINAL}（15，可拼接），旧类保持 11。</p>
  *
  * <p>注意：两代物品各自持有独立的 storageId（NBT 里的 UUID 不同 → WorldSavedData 内容不同）。
- * 阶段 5 会加入"旧→新"转换配方（{@code old.copy()} 换物品类型但保留 storageId），
- * 实现内容零迁移；<strong>本阶段不加任何工作台配方</strong>，只能通过创造模式或命令获取。</p>
+ * "旧→新"转换配方换物品类型但保留 storageId，实现内容零迁移。</p>
  */
 public class ItemOmniWirelessTerminalV2 extends ItemOmniWirelessTerminal {
 
     public ItemOmniWirelessTerminalV2() {
         // 父类含名构造器完成注册名/翻译键/无线处理器注册（canHandle 按实例比较，两代互不干扰）
         super("omni_wireless_terminal_ii");
-        // V2 当前仅 dev 可见：不出现在创造模式物品栏（JEI 隐藏在 AE2EnhancedJEIPlugin 里做）。
-        setCreativeTab(null);
     }
 
     /**
@@ -51,7 +48,7 @@ public class ItemOmniWirelessTerminalV2 extends ItemOmniWirelessTerminal {
             if (hand == EnumHand.OFF_HAND) {
                 slot = 40;
             }
-            player.openGui(AE2Enhanced.instance, GuiHandler.GUI_SPLICED_TERMINAL, world, slot, 0, 0);
+            player.openGui(AE2Enhanced.instance, GuiCatalog.GUI_SPLICED_TERMINAL, world, slot, 0, 0);
         }
         return new ActionResult<>(EnumActionResult.SUCCESS, player.getHeldItem(hand));
     }

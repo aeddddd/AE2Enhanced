@@ -8,28 +8,25 @@ import net.minecraft.world.storage.MapStorage;
 import net.minecraft.world.storage.WorldSavedData;
 
 import javax.annotation.Nullable;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Comparator;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
-/**
- * 玩家个人维度数据的 WorldSavedData，保存在主世界。
- */
+/** 个人与团队私域维度的主世界持久化权威，数据名与旧个人 entries 布局保持不变。 */
 public class PersonalDimensionData extends WorldSavedData {
-
-    /**
-     * 当前使用的数据名。使用下划线而非冒号，避免 Windows 文件系统
-     * 将 {@code modid:data} 解析为 NTFS 备用数据流 (ADS) 而导致数据无法保存。
-     */
     private static final String DATA_NAME = AE2Enhanced.MOD_ID + "_personal_dimensions";
-    /**
-     * 旧版本使用的数据名。保留它用于一次性迁移已有数据。
-     */
     private static final String LEGACY_DATA_NAME = AE2Enhanced.MOD_ID + ":personal_dimensions";
-    private static final int CURRENT_VERSION = 1;
+    private static final int CURRENT_VERSION = 2;
 
     private final Map<UUID, PlayerDimEntry> entries = new ConcurrentHashMap<>();
     private final Map<Integer, UUID> dimToPlayer = new ConcurrentHashMap<>();
+    private final Map<String, TeamDimEntry> teamEntries = new ConcurrentHashMap<>();
+    private final Map<Integer, String> dimToTeam = new ConcurrentHashMap<>();
+    private final Map<String, TeamDimEntry> orphanedTeamEntries = new ConcurrentHashMap<>();
+    private final Map<UUID, DimensionPreference> preferences = new ConcurrentHashMap<>();
 
     public PersonalDimensionData() {
         super(DATA_NAME);
@@ -39,25 +36,22 @@ public class PersonalDimensionData extends WorldSavedData {
         super(name);
     }
 
-    /**
-     * 获取条目，不存在时创建。仅在真正需要写入（分配维度/邀请/设权限等）时使用。
-     */
     public PlayerDimEntry getEntry(UUID playerId) {
         return entries.computeIfAbsent(playerId, PlayerDimEntry::new);
     }
 
-    /**
-     * 只读查询条目，不存在时返回 null，不会创建空条目。
-     * 只读路径（如 pd info、能力应用）必须使用本方法，避免为任意 UUID
-     * 创建空条目并随 NBT 永久保存。
-     */
     @Nullable
     public PlayerDimEntry peekEntry(UUID playerId) {
         return entries.get(playerId);
     }
 
-    public java.util.Collection<PlayerDimEntry> getAllEntries() {
-        return entries.values();
+    private static NBTTagList writeTeams(java.util.List<TeamDimEntry> entries) {
+        entries.sort(Comparator.comparing((TeamDimEntry entry) -> entry.teamId).thenComparing(entry -> entry.bindingId));
+        NBTTagList list = new NBTTagList();
+        for (TeamDimEntry entry : entries) {
+            list.appendTag(entry.writeToNBT());
+        }
+        return list;
     }
 
     @Nullable
@@ -66,14 +60,8 @@ public class PersonalDimensionData extends WorldSavedData {
         return id != null ? entries.get(id) : null;
     }
 
-    public void updateDimensionMapping(UUID playerId, int dimId) {
-        PlayerDimEntry entry = getEntry(playerId);
-        if (entry.dimensionId != Integer.MIN_VALUE && entry.dimensionId != dimId) {
-            dimToPlayer.remove(entry.dimensionId);
-        }
-        entry.dimensionId = dimId;
-        dimToPlayer.put(dimId, playerId);
-        markDirty();
+    private static String orphanKey(String teamId, String bindingId) {
+        return teamId + "#" + bindingId;
     }
 
     public void setRules(UUID playerId, PersonalDimensionRules rules) {
@@ -98,9 +86,6 @@ public class PersonalDimensionData extends WorldSavedData {
         markDirty();
     }
 
-    /**
-     * 无条件清除指定玩家的返回点。
-     */
     public void clearReturnPoint(UUID playerId) {
         PlayerDimEntry entry = peekEntry(playerId);
         if (entry != null && entry.hasReturnPoint) {
@@ -109,9 +94,6 @@ public class PersonalDimensionData extends WorldSavedData {
         }
     }
 
-    /**
-     * 若指定玩家的返回点位于指定维度，则清除该返回点。
-     */
     public void clearReturnPointIfInDimension(UUID playerId, int dimId) {
         PlayerDimEntry entry = peekEntry(playerId);
         if (entry != null && entry.hasReturnPoint && entry.returnDim == dimId) {
@@ -120,9 +102,6 @@ public class PersonalDimensionData extends WorldSavedData {
         }
     }
 
-    /**
-     * 删除指定玩家的维度数据。用于管理员命令删除/重建维度。
-     */
     public void removeEntry(UUID playerId) {
         PlayerDimEntry entry = entries.remove(playerId);
         if (entry != null && entry.dimensionId != Integer.MIN_VALUE) {
@@ -131,14 +110,143 @@ public class PersonalDimensionData extends WorldSavedData {
         markDirty();
     }
 
-    /**
-     * 从另一个数据实例复制所有条目。用于旧数据名迁移。
-     */
+    public static PersonalDimensionData get(World world) {
+        if (world.isRemote) {
+            throw new IllegalStateException("PersonalDimensionData cannot be loaded on the client");
+        }
+        World overworld = world.getMinecraftServer() != null ? world.getMinecraftServer().getWorld(0) : world;
+        if (overworld == null) {
+            overworld = world;
+        }
+        MapStorage storage = overworld.getMapStorage();
+        PersonalDimensionData data = (PersonalDimensionData) storage.getOrLoadData(PersonalDimensionData.class, DATA_NAME);
+        if (data == null) {
+            PersonalDimensionData legacy = (PersonalDimensionData) storage.getOrLoadData(
+                    PersonalDimensionData.class, LEGACY_DATA_NAME);
+            if (legacy != null) {
+                data = new PersonalDimensionData();
+                data.copyFrom(legacy);
+                storage.setData(DATA_NAME, data);
+                data.markDirty();
+                AE2Enhanced.LOGGER.info("[AE2E] Migrated personal dimension data from legacy name '{}' to '{}'",
+                        LEGACY_DATA_NAME, DATA_NAME);
+            } else {
+                data = new PersonalDimensionData();
+                storage.setData(DATA_NAME, data);
+            }
+        }
+        return data;
+    }
+
+    public Collection<PlayerDimEntry> getAllEntries() {
+        return entries.values();
+    }
+
+    public void updateDimensionMapping(UUID playerId, int dimId) {
+        PlayerDimEntry entry = getEntry(playerId);
+        if (entry.dimensionId != Integer.MIN_VALUE) {
+            dimToPlayer.remove(entry.dimensionId, playerId);
+        }
+        entry.dimensionId = dimId;
+        if (dimId != Integer.MIN_VALUE) {
+            dimToPlayer.put(dimId, playerId);
+        }
+        markDirty();
+    }
+
+    public TeamDimEntry getTeamEntry(String teamId, String bindingId) {
+        TeamDimEntry existing = teamEntries.get(teamId);
+        if (existing != null && !existing.bindingId.equals(bindingId)) {
+            throw new IllegalStateException("Team binding mismatch for " + teamId);
+        }
+        return teamEntries.computeIfAbsent(teamId, id -> new TeamDimEntry(id, bindingId));
+    }
+
+    @Nullable
+    public TeamDimEntry peekTeamEntry(String teamId) {
+        return teamEntries.get(teamId);
+    }
+
+    @Nullable
+    public TeamDimEntry getTeamEntryByDimensionId(int dimId) {
+        String id = dimToTeam.get(dimId);
+        return id != null ? teamEntries.get(id) : null;
+    }
+
+    public Collection<TeamDimEntry> getAllTeamEntries() {
+        return teamEntries.values();
+    }
+
+    public Collection<TeamDimEntry> getOrphanedTeamEntries() {
+        return orphanedTeamEntries.values();
+    }
+
+    public void updateTeamDimensionMapping(String teamId, int dimId) {
+        TeamDimEntry entry = teamEntries.get(teamId);
+        if (entry == null) {
+            throw new IllegalArgumentException("Unknown team dimension " + teamId);
+        }
+        if (entry.dimensionId != Integer.MIN_VALUE) {
+            dimToTeam.remove(entry.dimensionId, teamId);
+        }
+        entry.dimensionId = dimId;
+        if (dimId != Integer.MIN_VALUE) {
+            dimToTeam.put(dimId, teamId);
+        }
+        markDirty();
+    }
+
+    /** 将团队条目及其世界引用隔离，world 目录不由本方法删除。 */
+    public void quarantineTeamEntry(String teamId) {
+        TeamDimEntry entry = teamEntries.remove(teamId);
+        if (entry == null) {
+            return;
+        }
+        entry.frozen = true;
+        if (entry.dimensionId != Integer.MIN_VALUE) {
+            dimToTeam.remove(entry.dimensionId, teamId);
+        }
+        orphanedTeamEntries.put(orphanKey(entry.teamId, entry.bindingId), entry);
+        markDirty();
+    }
+
+    public DimensionPreference getPreference(UUID playerId) {
+        return preferences.getOrDefault(playerId, DimensionPreference.AUTO);
+    }
+
+    public void setPreference(UUID playerId, DimensionPreference preference) {
+        DimensionPreference actual = preference == null ? DimensionPreference.AUTO : preference;
+        if (actual == DimensionPreference.AUTO) {
+            preferences.remove(playerId);
+        } else {
+            preferences.put(playerId, actual);
+        }
+        markDirty();
+    }
+
+    @Nullable
+    public DimensionOwner getOwnerByDimensionId(int dimId) {
+        PlayerDimEntry personal = getEntryByDimensionId(dimId);
+        if (personal != null) {
+            return DimensionOwner.personal(personal);
+        }
+        TeamDimEntry team = getTeamEntryByDimensionId(dimId);
+        return team == null ? null : DimensionOwner.team(team);
+    }
+
     public void copyFrom(PersonalDimensionData other) {
-        this.entries.clear();
-        this.entries.putAll(other.entries);
-        this.dimToPlayer.clear();
-        this.dimToPlayer.putAll(other.dimToPlayer);
+        entries.clear();
+        entries.putAll(other.entries);
+        dimToPlayer.clear();
+        dimToPlayer.putAll(other.dimToPlayer);
+        teamEntries.clear();
+        teamEntries.putAll(other.teamEntries);
+        dimToTeam.clear();
+        dimToTeam.putAll(other.dimToTeam);
+        orphanedTeamEntries.clear();
+        orphanedTeamEntries.putAll(other.orphanedTeamEntries);
+        preferences.clear();
+        preferences.putAll(other.preferences);
         markDirty();
     }
 
@@ -146,6 +254,10 @@ public class PersonalDimensionData extends WorldSavedData {
     public void readFromNBT(NBTTagCompound nbt) {
         entries.clear();
         dimToPlayer.clear();
+        teamEntries.clear();
+        dimToTeam.clear();
+        orphanedTeamEntries.clear();
+        preferences.clear();
         int version = nbt.hasKey("version", 99) ? nbt.getInteger("version") : 0;
         NBTTagList list = nbt.getTagList("entries", 10);
         for (int i = 0; i < list.tagCount(); i++) {
@@ -153,7 +265,7 @@ public class PersonalDimensionData extends WorldSavedData {
             UUID id;
             try {
                 id = UUID.fromString(tag.getString("playerUUID"));
-            } catch (IllegalArgumentException e) {
+            } catch (IllegalArgumentException exception) {
                 continue;
             }
             PlayerDimEntry entry = new PlayerDimEntry(id);
@@ -163,48 +275,65 @@ public class PersonalDimensionData extends WorldSavedData {
                 dimToPlayer.put(entry.dimensionId, id);
             }
         }
+        readTeams(nbt.getTagList("teamEntries", 10), false);
+        readTeams(nbt.getTagList("orphanedTeamEntries", 10), true);
+        NBTTagList preferenceList = nbt.getTagList("preferences", 10);
+        for (int i = 0; i < preferenceList.tagCount(); i++) {
+            NBTTagCompound tag = preferenceList.getCompoundTagAt(i);
+            try {
+                preferences.put(UUID.fromString(tag.getString("playerUUID")),
+                        DimensionPreference.parse(tag.getString("preference")));
+            } catch (IllegalArgumentException ignored) {
+            }
+        }
+    }
+
+    private void readTeams(NBTTagList list, boolean orphaned) {
+        for (int i = 0; i < list.tagCount(); i++) {
+            NBTTagCompound tag = list.getCompoundTagAt(i);
+            String teamId = tag.getString("teamId");
+            String bindingId = tag.getString("bindingId");
+            if (teamId.isEmpty() || bindingId.isEmpty()) {
+                continue;
+            }
+            TeamDimEntry entry = new TeamDimEntry(teamId, bindingId);
+            entry.readFromNBT(tag);
+            if (orphaned) {
+                entry.frozen = true;
+                orphanedTeamEntries.put(orphanKey(teamId, bindingId), entry);
+            } else {
+                teamEntries.put(teamId, entry);
+                if (entry.dimensionId != Integer.MIN_VALUE) {
+                    dimToTeam.put(entry.dimensionId, teamId);
+                }
+            }
+        }
     }
 
     @Override
     public NBTTagCompound writeToNBT(NBTTagCompound compound) {
         compound.setInteger("version", CURRENT_VERSION);
         NBTTagList list = new NBTTagList();
-        for (PlayerDimEntry entry : entries.values()) {
-            // 跳过既无维度又无白名单/规则改动的空条目，
-            // 避免只读查询意外创建的空条目随 NBT 永久保存
-            if (entry.isEmpty()) {
-                continue;
+        java.util.List<PlayerDimEntry> personal = new ArrayList<>(entries.values());
+        personal.sort(Comparator.comparing(entry -> entry.playerId));
+        for (PlayerDimEntry entry : personal) {
+            if (!entry.isEmpty()) {
+                list.appendTag(entry.writeToNBT());
             }
-            list.appendTag(entry.writeToNBT());
         }
         compound.setTag("entries", list);
+        compound.setTag("teamEntries", writeTeams(new ArrayList<>(teamEntries.values())));
+        compound.setTag("orphanedTeamEntries", writeTeams(new ArrayList<>(orphanedTeamEntries.values())));
+        NBTTagList preferenceList = new NBTTagList();
+        java.util.List<UUID> players = new ArrayList<>(preferences.keySet());
+        players.sort(UUID::compareTo);
+        for (UUID playerId : players) {
+            NBTTagCompound tag = new NBTTagCompound();
+            tag.setString("playerUUID", playerId.toString());
+            tag.setString("preference", preferences.get(playerId).name());
+            preferenceList.appendTag(tag);
+        }
+        compound.setTag("preferences", preferenceList);
         return compound;
-    }
-
-    public static PersonalDimensionData get(World world) {
-        if (world.isRemote) {
-            throw new IllegalStateException("PersonalDimensionData cannot be loaded on the client");
-        }
-        World overworld = world.getMinecraftServer() != null
-                ? world.getMinecraftServer().getWorld(0)
-                : world;
-        if (overworld == null) overworld = world;
-        MapStorage storage = overworld.getMapStorage();
-        PersonalDimensionData data = (PersonalDimensionData) storage.getOrLoadData(PersonalDimensionData.class, DATA_NAME);
-        if (data == null) {
-            // 尝试从旧数据名迁移（旧名使用冒号，在 Windows 上可能保存为 ADS 或无法读取）
-            PersonalDimensionData legacy = (PersonalDimensionData) storage.getOrLoadData(PersonalDimensionData.class, LEGACY_DATA_NAME);
-            if (legacy != null) {
-                data = new PersonalDimensionData();
-                data.copyFrom(legacy);
-                storage.setData(DATA_NAME, data);
-                data.markDirty();
-                AE2Enhanced.LOGGER.info("[AE2E] Migrated personal dimension data from legacy name '{}' to '{}'", LEGACY_DATA_NAME, DATA_NAME);
-            } else {
-                data = new PersonalDimensionData();
-                storage.setData(DATA_NAME, data);
-            }
-        }
-        return data;
     }
 }

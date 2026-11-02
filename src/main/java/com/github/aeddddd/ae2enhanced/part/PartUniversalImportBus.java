@@ -18,9 +18,9 @@ import appeng.util.InventoryAdaptor;
 import appeng.util.Platform;
 import appeng.util.item.AEItemStack;
 import com.github.aeddddd.ae2enhanced.AE2Enhanced;
-import com.github.aeddddd.ae2enhanced.gui.GuiHandler;
-import com.github.aeddddd.ae2enhanced.util.fakeitem.FakeFluids;
-import com.github.aeddddd.ae2enhanced.util.fakeitem.FakeGases;
+import com.github.aeddddd.ae2enhanced.guiapi.GuiCatalog;
+import com.github.aeddddd.ae2enhanced.item.fakeitem.FakeFluids;
+import com.github.aeddddd.ae2enhanced.item.fakeitem.FakeGases;
 import com.github.aeddddd.ae2enhanced.util.reflection.GasReflectionHelper;
 import net.minecraft.item.ItemStack;
 import net.minecraft.tileentity.TileEntity;
@@ -61,7 +61,7 @@ public class PartUniversalImportBus extends PartUniversalBusBase {
         try {
             if (Loader.isModLoaded("thaumcraft") && Loader.isModLoaded("thaumicenergistics")) {
                 ieTransport = Class.forName("thaumcraft.api.aspects.IEssentiaTransport");
-                Class<?> helperClass = Class.forName("com.github.aeddddd.ae2enhanced.util.reflection.EssentiaBusHelper");
+                Class<?> helperClass = Class.forName("com.github.aeddddd.ae2enhanced.item.reflection.EssentiaBusHelper");
                 java.lang.invoke.MethodHandles.Lookup lookup = java.lang.invoke.MethodHandles.publicLookup();
                 importSlot = lookup.unreflect(helperClass.getMethod("importEssentiaSlot",
                         appeng.api.networking.IGrid.class, TileEntity.class, EnumFacing.class,
@@ -86,7 +86,7 @@ public class PartUniversalImportBus extends PartUniversalBusBase {
 
     @Override
     protected int getUpgradeSlots() {
-        return 5 + com.github.aeddddd.ae2enhanced.config.AE2EnhancedConfig.wirelessChannel.extraUpgradeSlots;
+        return 5 + com.github.aeddddd.ae2enhanced.config.ServerConfig.current().wirelessChannel.extraUpgradeSlots;
     }
 
     @Override
@@ -96,7 +96,7 @@ public class PartUniversalImportBus extends PartUniversalBusBase {
 
     @Override
     protected int getGuiId() {
-        return GuiHandler.GUI_UNIVERSAL_IMPORT_BUS;
+        return GuiCatalog.GUI_UNIVERSAL_IMPORT_BUS;
     }
 
     // region Item Import
@@ -194,7 +194,7 @@ public class PartUniversalImportBus extends PartUniversalBusBase {
 
         FluidStack drained = fh.drain(new FluidStack(wanted.getFluid(), 1000), false);
         if (drained == null || drained.amount <= 0) return false;
-        drained = com.github.aeddddd.ae2enhanced.util.fakeitem.FakeFluids.canonicalizeFluidStack(drained);
+        drained = com.github.aeddddd.ae2enhanced.item.fakeitem.FakeFluids.canonicalizeFluidStack(drained);
 
         IAEFluidStack aeFluid = AEFluidStack.fromFluidStack(drained);
         if (aeFluid == null) return false;
@@ -205,7 +205,7 @@ public class PartUniversalImportBus extends PartUniversalBusBase {
 
         FluidStack actual = fh.drain(new FluidStack(wanted.getFluid(), (int) canInsert), true);
         if (actual != null && actual.amount > 0) {
-            actual = com.github.aeddddd.ae2enhanced.util.fakeitem.FakeFluids.canonicalizeFluidStack(actual);
+            actual = com.github.aeddddd.ae2enhanced.item.fakeitem.FakeFluids.canonicalizeFluidStack(actual);
             IAEFluidStack toInsert = AEFluidStack.fromFluidStack(actual);
             inv.injectItems(toInsert, appeng.api.config.Actionable.MODULATE, this.source);
             return true;
@@ -223,7 +223,7 @@ public class PartUniversalImportBus extends PartUniversalBusBase {
 
         FluidStack drained = fh.drain(1000, false);
         if (drained != null && drained.amount > 0) {
-            drained = com.github.aeddddd.ae2enhanced.util.fakeitem.FakeFluids.canonicalizeFluidStack(drained);
+            drained = com.github.aeddddd.ae2enhanced.item.fakeitem.FakeFluids.canonicalizeFluidStack(drained);
             IAEFluidStack aeFluid = AEFluidStack.fromFluidStack(drained);
             if (aeFluid != null) {
                 IAEFluidStack notInserted = inv.injectItems(aeFluid, appeng.api.config.Actionable.SIMULATE, this.source);
@@ -231,7 +231,7 @@ public class PartUniversalImportBus extends PartUniversalBusBase {
                 if (canInsert > 0) {
                     FluidStack actual = fh.drain((int) canInsert, true);
                     if (actual != null && actual.amount > 0) {
-                        actual = com.github.aeddddd.ae2enhanced.util.fakeitem.FakeFluids.canonicalizeFluidStack(actual);
+                        actual = com.github.aeddddd.ae2enhanced.item.fakeitem.FakeFluids.canonicalizeFluidStack(actual);
                         inv.injectItems(AEFluidStack.fromFluidStack(actual), appeng.api.config.Actionable.MODULATE, this.source);
                         return true;
                     }

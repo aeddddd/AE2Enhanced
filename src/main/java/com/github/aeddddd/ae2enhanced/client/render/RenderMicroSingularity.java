@@ -2,7 +2,6 @@ package com.github.aeddddd.ae2enhanced.client.render;
 
 import com.github.aeddddd.ae2enhanced.client.shader.AE2EShaders;
 import com.github.aeddddd.ae2enhanced.client.shader.ShaderProgram;
-import com.github.aeddddd.ae2enhanced.config.AE2EnhancedConfig;
 import com.github.aeddddd.ae2enhanced.tile.TileMicroSingularity;
 import net.minecraft.client.renderer.GlStateManager;
 import net.minecraft.client.renderer.tileentity.TileEntitySpecialRenderer;
@@ -55,7 +54,7 @@ public class RenderMicroSingularity extends TileEntitySpecialRenderer<TileMicroS
      */
     private static void renderShader(net.minecraft.world.World world, double x, double y, double z,
                                      float partialTicks, float scale, ShaderProgram shader) {
-        double renderDist = AE2EnhancedConfig.render.renderDistance;
+        double renderDist = com.github.aeddddd.ae2enhanced.config.ClientPreferences.current().render.renderDistance;
         double distSq = x * x + y * y + z * z;
         if (distSq > renderDist * renderDist) {
             return;
@@ -84,7 +83,7 @@ public class RenderMicroSingularity extends TileEntitySpecialRenderer<TileMicroS
 
             shader.use();
             shader.setFloat("uTime", time);
-            shader.setFloat("uIntensity", (float) AE2EnhancedConfig.render.blackHoleShaderIntensity);
+            shader.setFloat("uIntensity", (float) com.github.aeddddd.ae2enhanced.config.ClientPreferences.current().render.blackHoleShaderIntensity);
             shader.setFloat("uScale", scale);
             shader.setVec3("uCenter", 0.0f, 0.0f, 0.0f);
 
@@ -140,7 +139,7 @@ public class RenderMicroSingularity extends TileEntitySpecialRenderer<TileMicroS
     private static void renderFallback(net.minecraft.world.World world, double x, double y, double z,
                                        float partialTicks, float scale) {
         // 与 shader 路径一致的距离剔除
-        double renderDist = AE2EnhancedConfig.render.renderDistance;
+        double renderDist = com.github.aeddddd.ae2enhanced.config.ClientPreferences.current().render.renderDistance;
         double distSq = x * x + y * y + z * z;
         if (distSq > renderDist * renderDist) {
             return;

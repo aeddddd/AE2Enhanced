@@ -3,7 +3,6 @@ package com.github.aeddddd.ae2enhanced.client.render;
 import com.github.aeddddd.ae2enhanced.block.BlockAssemblyController;
 import com.github.aeddddd.ae2enhanced.client.shader.AE2EShaders;
 import com.github.aeddddd.ae2enhanced.client.shader.ShaderProgram;
-import com.github.aeddddd.ae2enhanced.config.AE2EnhancedConfig;
 import com.github.aeddddd.ae2enhanced.tile.TileAssemblyController;
 import net.minecraft.client.renderer.GlStateManager;
 import net.minecraft.client.renderer.OpenGlHelper;
@@ -67,7 +66,7 @@ public class RenderBlackHole extends TileEntitySpecialRenderer<TileAssemblyContr
             default:    centerZ += 7.0; break;
         }
 
-        double renderDist = AE2EnhancedConfig.render.renderDistance;
+        double renderDist = com.github.aeddddd.ae2enhanced.config.ClientPreferences.current().render.renderDistance;
         double distSq = centerX * centerX + centerY * centerY + centerZ * centerZ;
         if (distSq > renderDist * renderDist) {
             return;
@@ -246,7 +245,7 @@ public class RenderBlackHole extends TileEntitySpecialRenderer<TileAssemblyContr
 
             shader.use();
             shader.setFloat("uTime", time);
-            shader.setFloat("uIntensity", (float) AE2EnhancedConfig.render.blackHoleShaderIntensity);
+            shader.setFloat("uIntensity", (float) com.github.aeddddd.ae2enhanced.config.ClientPreferences.current().render.blackHoleShaderIntensity);
             shader.setFloat("uScale", (float) ASSEMBLY_SCALE);
             shader.setVec3("uCenter", 0.0f, 0.0f, 0.0f);
 

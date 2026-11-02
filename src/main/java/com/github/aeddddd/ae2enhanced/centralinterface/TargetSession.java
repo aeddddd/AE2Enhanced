@@ -20,6 +20,7 @@ public class TargetSession {
     private final DualityCentralInterface owner;
 
     private TargetState state;
+    private java.util.UUID sessionId;
     private long startTime;
     private IAEItemStack[] expectedOutputs;
     private List<ItemStack> inputs;
@@ -58,6 +59,10 @@ public class TargetSession {
 
     public TargetState getState() {
         return state;
+    }
+
+    public java.util.UUID getSessionId() {
+        return sessionId;
     }
 
     public boolean isIdle() {
@@ -202,6 +207,7 @@ public class TargetSession {
             throw new IllegalStateException("Cannot commit push from state " + this.state);
         }
         this.state = TargetState.PROCESSING;
+        this.sessionId = java.util.UUID.randomUUID();
         this.expectedOutputs = expectedOutputs != null ? expectedOutputs.clone() : null;
         this.inputs = inputs != null ? new ArrayList<>(inputs) : null;
         this.inputFluids = inputFluids != null ? new ArrayList<>(inputFluids) : null;
@@ -210,6 +216,7 @@ public class TargetSession {
         this.lastStartProcessTick = -1;
         this.startProcessAttempts = 0;
         this.pushedFluids = null;
+        this.owner.recordPhysicalSession(this);
     }
 
     /**
@@ -238,11 +245,43 @@ public class TargetSession {
         }
     }
 
+    /** 用持久记录重建恢复上下文，保留原 session ID，不生成新提交。 */
+    void restoreCommitted(PhysicalSessionRecord record) {
+        if (!this.isIdle() && !this.isUnavailable()) {
+            throw new IllegalStateException("Cannot restore over active session " + this.state);
+        }
+        if (!TargetOwnershipTracker.instance().tryAcquire(binding, owner)) {
+            throw new IllegalStateException("Physical recovery target is owned by another interface");
+        }
+        this.sessionId = record.id;
+        this.expectedOutputs = record.expectedOutputs != null ? record.expectedOutputs.clone() : null;
+        this.inputs = new ArrayList<>(record.inputs);
+        this.inputFluids = new ArrayList<>(record.inputFluids);
+        this.pushedFluids = new ArrayList<>(record.inputFluids);
+        this.state = TargetState.COLLECTING;
+    }
+
+    /** 结束恢复上下文但不删除仍需重试的持久记录。 */
+    void releaseRecovered() {
+        reset(false);
+    }
+
+    /** 卸载时保留已提交记录，仅释放运行时所有权。 */
+    void defer() {
+        reset(false);
+    }
+
     /**
      * 重置为 IDLE 并释放所有权、清空运行时数据。
      */
     public void reset() {
+        reset(true);
+    }
+
+    private void reset(boolean complete) {
+        if (complete) this.owner.completePhysicalSession(this.sessionId);
         TargetOwnershipTracker.instance().release(binding, owner);
+        this.sessionId = null;
         this.state = TargetState.IDLE;
         this.startTime = 0;
         this.expectedOutputs = null;

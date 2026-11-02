@@ -30,21 +30,21 @@ import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
-import com.github.aeddddd.ae2enhanced.client.gui.dock.model.DockAxis;
-import com.github.aeddddd.ae2enhanced.client.gui.dock.model.DockEdge;
-import com.github.aeddddd.ae2enhanced.client.gui.dock.model.DockRect;
-import com.github.aeddddd.ae2enhanced.client.gui.dock.model.DockWorkspace;
-import com.github.aeddddd.ae2enhanced.client.gui.dock.model.FloatingRoot;
-import com.github.aeddddd.ae2enhanced.client.gui.dock.model.LayoutProjection;
-import com.github.aeddddd.ae2enhanced.client.gui.dock.model.LayoutTrees;
-import com.github.aeddddd.ae2enhanced.client.gui.dock.model.LeafNode;
-import com.github.aeddddd.ae2enhanced.client.gui.dock.model.ModuleLayoutPolicy;
-import com.github.aeddddd.ae2enhanced.client.gui.dock.model.SplitNode;
-import com.github.aeddddd.ae2enhanced.client.gui.dock.workspace.DockLayoutCodec;
+import com.github.aeddddd.ae2enhanced.dock.model.DockAxis;
+import com.github.aeddddd.ae2enhanced.dock.model.DockEdge;
+import com.github.aeddddd.ae2enhanced.dock.model.DockRect;
+import com.github.aeddddd.ae2enhanced.dock.model.DockWorkspace;
+import com.github.aeddddd.ae2enhanced.dock.model.FloatingRoot;
+import com.github.aeddddd.ae2enhanced.dock.model.LayoutProjection;
+import com.github.aeddddd.ae2enhanced.dock.model.LayoutTrees;
+import com.github.aeddddd.ae2enhanced.dock.model.LeafNode;
+import com.github.aeddddd.ae2enhanced.dock.model.ModuleLayoutPolicy;
+import com.github.aeddddd.ae2enhanced.dock.model.SplitNode;
+import com.github.aeddddd.ae2enhanced.dock.workspace.DockLayoutCodec;
+import com.github.aeddddd.ae2enhanced.dock.workspace.DockLayoutDto;
 import com.github.aeddddd.ae2enhanced.client.gui.dock.workspace.AtomicFileDockLayoutStore;
-import com.github.aeddddd.ae2enhanced.client.gui.dock.workspace.DockLayoutDto;
 import com.github.aeddddd.ae2enhanced.client.gui.dock.workspace.DockLayoutPersistence;
-import com.github.aeddddd.ae2enhanced.client.gui.dock.workspace.DockWorkspaceDefaults;
+import com.github.aeddddd.ae2enhanced.dock.workspace.DockWorkspaceDefaults;
 
 /**
  * DockManager 的行为测试：手势、拼接、Z 序、不变量、undo 与持久化防抖。
@@ -61,47 +61,20 @@ class DockManagerTest {
 
     // --- 测试夹具 ----------------------------------------------------------------
 
-    private static class TestHost implements DockHost {
-        private final DockLayoutPersistence persistence;
-        private int width = SCREEN_WIDTH;
-        private int height = SCREEN_HEIGHT;
-        private boolean alt;
-        private boolean control;
-        private int redrawRequests;
+    @Test
+    void projectionDoesNotCommitPanelLayoutAndCommitIsIdempotent() {
+        TestPanel panel = new TestPanel("repo", 100, 100, 160, 140);
+        DockManager manager = new DockManager(new TestHost(new FakePersistence(null)));
+        manager.init(Collections.singletonList(panel));
 
-        private TestHost(DockLayoutPersistence persistence) {
-            this.persistence = persistence;
-        }
+        int initialCommits = panel.layoutCommits;
+        manager.projection();
+        manager.projection();
+        assertEquals(initialCommits, panel.layoutCommits);
 
-        @Override
-        public int screenWidth() {
-            return width;
-        }
-
-        @Override
-        public int screenHeight() {
-            return height;
-        }
-
-        @Override
-        public DockLayoutPersistence createPersistence(DockLayoutCodec codec) {
-            return persistence;
-        }
-
-        @Override
-        public boolean altDown() {
-            return alt;
-        }
-
-        @Override
-        public boolean controlDown() {
-            return control;
-        }
-
-        @Override
-        public void requestRedraw() {
-            redrawRequests++;
-        }
+        manager.flushPanelLayouts();
+        manager.flushPanelLayouts();
+        assertEquals(initialCommits + 1, panel.layoutCommits);
     }
 
     private static final class FakePersistence implements DockLayoutPersistence {
@@ -140,114 +113,83 @@ class DockManagerTest {
         }
     }
 
-    private static final class TestPanel extends ModulePanel {
-        private final String moduleId;
-        private final int minimumWidth;
-        private final int minimumHeight;
-        private final int defaultWidth;
-        private final int defaultHeight;
-        private boolean spliceable = true;
-        private boolean consumeWheel;
-        private int wheelCalls;
-        private double lastWheelX = Double.NaN;
-        private boolean consumeClick;
-        private int clickCalls;
-        private boolean closable = true;
-        private boolean consumeScrollbar;
-        private int scrollbarPressCalls;
-        private int scrollbarDragCalls;
-        private int scrollbarReleaseCalls;
-        private boolean scrollbarDragging;
+    @Test
+    void viewportChangesDoNotPersistAndRealEditSavesOnce() {
+        FakePersistence persistence = new FakePersistence(null);
+        DockManager manager = initManager(new TestHost(persistence), defaultPanels());
+        manager.save();
+        int initialSaves = persistence.saveCount;
 
-        private TestPanel(String moduleId, int minimumWidth, int minimumHeight, int defaultWidth,
-                int defaultHeight) {
-            this.moduleId = moduleId;
-            this.minimumWidth = minimumWidth;
-            this.minimumHeight = minimumHeight;
-            this.defaultWidth = defaultWidth;
-            this.defaultHeight = defaultHeight;
-        }
+        manager.updateViewport(640, 480);
+        manager.updateViewport(640, 480);
+        manager.updateViewport(800, 600);
+        manager.save();
+        assertEquals(initialSaves, persistence.saveCount);
 
-        @Override
-        public String id() {
-            return moduleId;
-        }
+        manager.setModuleVisible("beta", false);
+        manager.save();
+        manager.save();
+        assertEquals(initialSaves + 1, persistence.saveCount);
+    }
 
-        @Override
-        public String title() {
-            return moduleId;
-        }
+    @Test
+    void shareExportWritesEverySlotAndZip() {
+        TestHost host = new TestHost(new FakePersistence(null)) {
+            @Override
+            public Path configDir() {
+                return temporaryDirectory;
+            }
+        };
+        DockManager manager = initManager(host, defaultPanels());
 
-        @Override
-        public int minWidth() {
-            return minimumWidth;
-        }
+        DockManager.LayoutShareResult result = manager.exportToShareFolder();
 
-        @Override
-        public int minHeight() {
-            return minimumHeight;
+        assertTrue(result.ok());
+        assertEquals(temporaryDirectory.resolve("share"), result.path());
+        for (int index = 0; index < 3; index++) {
+            assertTrue(Files.isRegularFile(result.path().resolve(String.valueOf(index + 1)).resolve("layout.json")));
         }
+        assertTrue(Files.isRegularFile(result.path().resolve("mest-layout.zip")));
+    }
 
-        @Override
-        public int defaultWidth() {
-            return defaultWidth;
-        }
+    @Test
+    void shiftResizeGripKeepsTheRootAspectRatio() {
+        TestHost host = new TestHost(null);
+        host.shift = true;
+        DockManager manager = initManager(host, defaultPanels());
+        DockRect before = rootFor(manager.workspaceSnapshot(), "beta").bounds();
+        double gripX = before.right() - 2;
+        double gripY = before.bottom() - 2;
 
-        @Override
-        public int defaultHeight() {
-            return defaultHeight;
-        }
+        assertTrue(manager.mouseClicked(gripX, gripY, 0));
+        assertTrue(manager.mouseDragged(gripX + 90, gripY + 35));
+        assertTrue(manager.mouseReleased(gripX + 90, gripY + 35, 0));
 
-        @Override
-        public boolean canSplice() {
-            return spliceable;
-        }
+        DockRect after = rootFor(manager.workspaceSnapshot(), "beta").bounds();
+        assertEquals(225, after.width());
+        assertEquals(175, after.height());
+        assertEquals(before.width() / (double) before.height(),
+                after.width() / (double) after.height(), 0.01);
+    }
 
-        @Override
-        public void layoutSlots() {
-        }
+    @Test
+    void layoutSurvivesARealStoreRoundTrip() throws IOException {
+        Path file = temporaryDirectory.resolve("ae2enhanced/spliced_terminal/demo_layout.json");
+        DockManager first = new DockManager(new HostWithStore(file));
+        first.init(defaultPanels());
+        assertFalse(Files.isRegularFile(file), "no file is written before the first edit");
 
-        @Override
-        public boolean mouseScrolled(double mx, double my, double scrollY) {
-            wheelCalls++;
-            lastWheelX = mx;
-            return consumeWheel;
-        }
+        drag(first, 28, 16, 320, 208);
+        assertTrue(Files.isRegularFile(file), "a committed gesture must persist the layout");
+        String written = new String(Files.readAllBytes(file), StandardCharsets.UTF_8);
+        assertTrue(written.contains("\"version\": 9"));
+        assertTrue(written.contains("alpha"));
 
-        @Override
-        public boolean mouseClicked(double mx, double my, int button) {
-            clickCalls++;
-            return consumeClick;
-        }
-
-        @Override
-        public boolean scrollbarPressed(double mx, double my) {
-            scrollbarPressCalls++;
-            scrollbarDragging = consumeScrollbar;
-            return consumeScrollbar;
-        }
-
-        @Override
-        public boolean scrollbarDragged(double mx, double my) {
-            scrollbarDragCalls++;
-            return scrollbarDragging;
-        }
-
-        @Override
-        public void scrollbarReleased() {
-            scrollbarReleaseCalls++;
-            scrollbarDragging = false;
-        }
-
-        @Override
-        public boolean scrollbarDragging() {
-            return scrollbarDragging;
-        }
-
-        @Override
-        public boolean closable() {
-            return closable;
-        }
+        DockManager second = new DockManager(new HostWithStore(file));
+        second.init(defaultPanels());
+        assertEquals(first.workspaceSnapshot(), second.workspaceSnapshot(),
+                "the stored layout must decode back to the same workspace");
+        assertEquals(new DockRect(300, 200, 160, 110), rootFor(second.workspaceSnapshot(), "alpha").bounds());
     }
 
     private static List<ModulePanel> defaultPanels() {
@@ -504,6 +446,21 @@ class DockManagerTest {
         assertTrue(leaf.width() >= 100, "width must stay at or above the minimum");
         assertTrue(leaf.height() >= 70, "height must stay at or above the minimum");
         assertTrue(after.width() >= 100 && after.height() >= 70);
+    }
+
+    @Test
+    void pinnedRootSharesPaintOrderBandAndOcclusionAuthority() {
+        FloatingRoot pinned = leafRoot("root-pinned", "leaf-pinned", "pinned", new DockRect(0, 0, 100, 80), true)
+                .withMode(true, true);
+        FloatingRoot owner = leafRoot("root-owner", "leaf-owner", "owner", new DockRect(0, 0, 100, 80), true);
+        RootStack stack = new RootStack(workspaceOf(Arrays.asList(pinned, owner)), null, 2);
+
+        assertEquals("root-owner", stack.roots().get(0).rootId());
+        assertEquals("root-pinned", stack.roots().get(1).rootId());
+        assertEquals(0, stack.bandOf(owner.rootId()));
+        assertEquals(1, stack.bandOf(pinned.rootId()));
+        assertFalse(stack.isAreaUnobscured(owner.rootId(), new DockRect(10, 1, 16, 18)));
+        assertTrue(stack.isAreaUnobscured(pinned.rootId(), new DockRect(10, 1, 16, 18)));
     }
 
     // --- Z 序 ---------------------------------------------------------------------
@@ -871,24 +828,53 @@ class DockManagerTest {
         }
     }
 
-    @Test
-    void layoutSurvivesARealStoreRoundTrip() throws IOException {
-        Path file = temporaryDirectory.resolve("ae2enhanced/spliced_terminal/demo_layout.json");
-        DockManager first = new DockManager(new HostWithStore(file));
-        first.init(defaultPanels());
-        assertFalse(Files.isRegularFile(file), "no file is written before the first edit");
+    private static class TestHost implements DockHost {
+        private final DockLayoutPersistence persistence;
+        private int width = SCREEN_WIDTH;
+        private int height = SCREEN_HEIGHT;
+        private boolean alt;
+        private boolean control;
+        private boolean shift;
+        private int redrawRequests;
 
-        drag(first, 28, 16, 320, 208);
-        assertTrue(Files.isRegularFile(file), "a committed gesture must persist the layout");
-        String written = new String(Files.readAllBytes(file), StandardCharsets.UTF_8);
-        assertTrue(written.contains("\"version\": 8"));
-        assertTrue(written.contains("alpha"));
+        private TestHost(DockLayoutPersistence persistence) {
+            this.persistence = persistence;
+        }
 
-        DockManager second = new DockManager(new HostWithStore(file));
-        second.init(defaultPanels());
-        assertEquals(first.workspaceSnapshot(), second.workspaceSnapshot(),
-                "the stored layout must decode back to the same workspace");
-        assertEquals(new DockRect(300, 200, 160, 110), rootFor(second.workspaceSnapshot(), "alpha").bounds());
+        @Override
+        public int screenWidth() {
+            return width;
+        }
+
+        @Override
+        public int screenHeight() {
+            return height;
+        }
+
+        @Override
+        public DockLayoutPersistence createPersistence(DockLayoutCodec codec) {
+            return persistence;
+        }
+
+        @Override
+        public boolean altDown() {
+            return alt;
+        }
+
+        @Override
+        public boolean controlDown() {
+            return control;
+        }
+
+        @Override
+        public boolean shiftDown() {
+            return shift;
+        }
+
+        @Override
+        public void requestRedraw() {
+            redrawRequests++;
+        }
     }
 
     /** 宿主：把编解码器包进真实的原子文件存储。 */
@@ -930,6 +916,118 @@ class DockManagerTest {
         DockWorkspace workspace = new DockWorkspace(Arrays.asList(owner, hiddenHigher), policies);
 
         assertTrue(DockManager.isAreaUnobscured(workspace, owner.rootId(), new DockRect(82, 1, 16, 18)));
+    }
+
+    private static final class TestPanel extends ModulePanel {
+        private final String moduleId;
+        private final int minimumWidth;
+        private final int minimumHeight;
+        private final int defaultWidth;
+        private final int defaultHeight;
+        private boolean spliceable = true;
+        private boolean consumeWheel;
+        private int wheelCalls;
+        private double lastWheelX = Double.NaN;
+        private boolean consumeClick;
+        private int clickCalls;
+        private boolean closable = true;
+        private boolean consumeScrollbar;
+        private int scrollbarPressCalls;
+        private int scrollbarDragCalls;
+        private int scrollbarReleaseCalls;
+        private boolean scrollbarDragging;
+        private int layoutCommits;
+
+        private TestPanel(String moduleId, int minimumWidth, int minimumHeight, int defaultWidth,
+                int defaultHeight) {
+            this.moduleId = moduleId;
+            this.minimumWidth = minimumWidth;
+            this.minimumHeight = minimumHeight;
+            this.defaultWidth = defaultWidth;
+            this.defaultHeight = defaultHeight;
+        }
+
+        @Override
+        public String id() {
+            return moduleId;
+        }
+
+        @Override
+        public String title() {
+            return moduleId;
+        }
+
+        @Override
+        public int minWidth() {
+            return minimumWidth;
+        }
+
+        @Override
+        public int minHeight() {
+            return minimumHeight;
+        }
+
+        @Override
+        public int defaultWidth() {
+            return defaultWidth;
+        }
+
+        @Override
+        public int defaultHeight() {
+            return defaultHeight;
+        }
+
+        @Override
+        public boolean canSplice() {
+            return spliceable;
+        }
+
+        @Override
+        public void layoutSlots() {
+            layoutCommits++;
+        }
+
+        @Override
+        public boolean mouseScrolled(double mx, double my, double scrollY) {
+            wheelCalls++;
+            lastWheelX = mx;
+            return consumeWheel;
+        }
+
+        @Override
+        public boolean mouseClicked(double mx, double my, int button) {
+            clickCalls++;
+            return consumeClick;
+        }
+
+        @Override
+        public boolean scrollbarPressed(double mx, double my) {
+            scrollbarPressCalls++;
+            scrollbarDragging = consumeScrollbar;
+            return consumeScrollbar;
+        }
+
+        @Override
+        public boolean scrollbarDragged(double mx, double my) {
+            scrollbarDragCalls++;
+            return scrollbarDragging;
+        }
+
+        @Override
+        public void scrollbarReleased() {
+            scrollbarReleaseCalls++;
+            scrollbarDragging = false;
+        }
+
+        @Override
+        public boolean scrollbarDragging() {
+            return scrollbarDragging;
+        }
+
+        @Override
+        public boolean closable() {
+            return closable;
+        }
     }
 
     @Test

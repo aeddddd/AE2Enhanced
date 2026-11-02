@@ -1,17 +1,13 @@
 package com.github.aeddddd.ae2enhanced.specialcrafting;
 
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.LinkedHashMap;
-import java.util.Map;
-import java.util.Set;
-import java.util.WeakHashMap;
-
-import javax.annotation.Nullable;
-
 import appeng.api.networking.crafting.ICraftingPatternDetails;
 import appeng.api.storage.data.IAEItemStack;
 import appeng.me.cluster.implementations.CraftingCPUCluster;
+import com.github.aeddddd.ae2enhanced.craftingapi.CraftingCpuPort;
+import com.github.aeddddd.ae2enhanced.craftingapi.CraftingCpuState;
+
+import javax.annotation.Nullable;
+import java.util.*;
 
 /**
  * 执行层配额调度器:限制环计划中各 pattern 的推送量,防止先行消费者一次性
@@ -19,8 +15,8 @@ import appeng.me.cluster.implementations.CraftingCPUCluster;
  * <p>配额 = 闭包内各 pattern 每个超轮的可执行份额:闭包为任务集中"既消耗又产出
  * 且成环"的键所触及的 pattern;轮次由闭包总次数的 GCD 恢复(GCD=1 时退化为
  * 闭包最小总次数,锁步推进). 先行消费者最多领先最慢 pattern 一个超轮.</p>
- * <p>配额与提交时的 tasks 次数快照以集群弱键存放,集群回收自动清理;快照随
- * 集群 NBT 持久化(见 MixinCraftingCPUClusterSpecial),重启后按 pattern ItemStack
+ * <p>配额与提交时的 tasks 次数快照保存在 CPU 的 CraftingCpuState;快照随
+ * 集群 NBT 持久化(见 SpecialCraftingCpuService),重启后按 pattern ItemStack
  * 匹配重建;快照缺失时退化为原生推送.</p>
  */
 public final class RoundQuotaScheduler {
@@ -42,53 +38,48 @@ public final class RoundQuotaScheduler {
     /** 无配额标记（非自消耗 job:所有 pattern 自由推送）. */
     private static final Quota NO_QUOTA = new Quota(Collections.emptyMap(), 0L);
 
-    /** cluster → 提交时的 tasks 次数快照（弱键,集群回收自动清理）. */
-    private static final Map<CraftingCPUCluster, Map<ICraftingPatternDetails, Long>> TOTALS = Collections
-            .synchronizedMap(new WeakHashMap<>());
-
-    /** cluster → 推导出的配额（随快照失效自动回收）. */
-    private static final Map<CraftingCPUCluster, Quota> QUOTAS = Collections
-            .synchronizedMap(new WeakHashMap<>());
-
     private RoundQuotaScheduler() {
     }
 
-    /**
-     * 任务提交成功时快照 tasks 次数（供后续配额推导）.
-     */
-    public static void snapshot(CraftingCPUCluster cluster, Map<ICraftingPatternDetails, Long> totals) {
+    /** 任务提交成功时快照 tasks 次数（供后续配额推导）. */
+    public static void snapshot(CraftingCpuState context,
+            Map<ICraftingPatternDetails, Long> totals) {
         if (totals == null || totals.isEmpty()) {
             return;
         }
-        // 剔除 value <= 0 的幽灵条目(多备选 pattern 分支中未被使用的样板),
-        // 否则推导配额时会出现 0 配额导致除零崩溃
         Map<ICraftingPatternDetails, Long> cleaned = new LinkedHashMap<>();
         for (Map.Entry<ICraftingPatternDetails, Long> entry : totals.entrySet()) {
             if (entry.getValue() != null && entry.getValue() > 0) {
                 cleaned.put(entry.getKey(), entry.getValue());
             }
         }
-        if (cleaned.isEmpty()) {
-            return;
+        if (!cleaned.isEmpty()) {
+            context.specialTotals(Collections.unmodifiableMap(cleaned));
         }
-        TOTALS.put(cluster, Collections.unmodifiableMap(cleaned));
-        QUOTAS.remove(cluster);
     }
 
-    /**
-     * 提交时的 tasks 总次数快照（NBT 持久化用;无快照返回 null）.
-     */
+    public static void snapshot(CraftingCPUCluster cluster, Map<ICraftingPatternDetails, Long> totals) {
+        snapshot(CraftingCpuPort.of(cluster).context(), totals);
+    }
+
+    /** 提交时的 tasks 总次数快照（NBT 持久化用;无快照返回 null）. */
+    @Nullable
+    public static Map<ICraftingPatternDetails, Long> totalsOf(CraftingCpuState context) {
+        return context.specialTotals();
+    }
+
     @Nullable
     public static Map<ICraftingPatternDetails, Long> totalsOf(CraftingCPUCluster cluster) {
-        return TOTALS.get(cluster);
+        return totalsOf(CraftingCpuPort.of(cluster).context());
     }
 
-    /**
-     * job 完成/取消时清理快照与配额.
-     */
+    /** job 完成/取消时清理快照与配额. */
+    public static void clear(CraftingCpuState context) {
+        context.clearSpecialPlan();
+    }
+
     public static void clear(CraftingCPUCluster cluster) {
-        TOTALS.remove(cluster);
-        QUOTAS.remove(cluster);
+        clear(CraftingCpuPort.of(cluster).context());
     }
 
     /**
@@ -207,20 +198,20 @@ public final class RoundQuotaScheduler {
      * 该集群当前是否有生效的配额门控（推导结果 memo;执行层据此跳过无谓的
      * remaining 快照构建——特殊但非自消耗 job 占多数）.
      */
-    public static boolean hasQuota(CraftingCPUCluster cluster, IAEItemStack finalOutput) {
-        if (finalOutput == null) {
+    public static boolean hasQuota(CraftingCpuState context, IAEItemStack finalOutput) {
+        if (finalOutput == null || context.specialTotals() == null) {
             return false;
         }
-        Map<ICraftingPatternDetails, Long> totals = TOTALS.get(cluster);
-        if (totals == null) {
-            return false;
-        }
-        Quota quota = QUOTAS.get(cluster);
+        Quota quota = (Quota) context.specialQuota();
         if (quota == null) {
-            quota = deriveQuota(totals, finalOutput);
-            QUOTAS.put(cluster, quota == null ? NO_QUOTA : quota);
+            quota = deriveQuota(context.specialTotals(), finalOutput);
+            context.specialQuota(quota == null ? NO_QUOTA : quota);
         }
         return quota != NO_QUOTA;
+    }
+
+    public static boolean hasQuota(CraftingCPUCluster cluster, IAEItemStack finalOutput) {
+        return hasQuota(CraftingCpuPort.of(cluster).context(), finalOutput);
     }
 
     /**
@@ -231,25 +222,25 @@ public final class RoundQuotaScheduler {
      *
      * @return 本趟应否决的 pattern 集;无快照/非自消耗 job/无配额时返回空集.
      */
-    public static Set<ICraftingPatternDetails> vetoedSetForTick(CraftingCPUCluster cluster,
+    public static Set<ICraftingPatternDetails> vetoedSetForTick(CraftingCpuState context,
             Map<ICraftingPatternDetails, Long> remaining, IAEItemStack finalOutput) {
-        if (finalOutput == null) {
+        if (finalOutput == null || context.specialTotals() == null) {
             return Collections.emptySet();
         }
-        Map<ICraftingPatternDetails, Long> totals = TOTALS.get(cluster);
-        if (totals == null) {
-            return Collections.emptySet();
-        }
-        Quota quota = QUOTAS.get(cluster);
+        Quota quota = (Quota) context.specialQuota();
         if (quota == null) {
-            quota = deriveQuota(totals, finalOutput);
-            QUOTAS.put(cluster, quota == null ? NO_QUOTA : quota);
-            quota = quota == null ? NO_QUOTA : quota;
+            quota = deriveQuota(context.specialTotals(), finalOutput);
+            context.specialQuota(quota == null ? NO_QUOTA : quota);
         }
         if (quota == NO_QUOTA) {
             return Collections.emptySet();
         }
-        return vetoedSet(quota, totals, remaining);
+        return vetoedSet(quota, context.specialTotals(), remaining);
+    }
+
+    public static Set<ICraftingPatternDetails> vetoedSetForTick(CraftingCPUCluster cluster,
+            Map<ICraftingPatternDetails, Long> remaining, IAEItemStack finalOutput) {
+        return vetoedSetForTick(CraftingCpuPort.of(cluster).context(), remaining, finalOutput);
     }
 
     /**
@@ -291,25 +282,26 @@ public final class RoundQuotaScheduler {
      * @return 余量（执行次数）;{@code Long.MAX_VALUE} = 不受限（无快照/无配额/
      *         闭包外 pattern/NBT 恢复任务/闭包已全部完成）
      */
-    public static long pushAllowance(CraftingCPUCluster cluster, ICraftingPatternDetails details,
+    public static long pushAllowance(CraftingCpuState context, ICraftingPatternDetails details,
             IAEItemStack finalOutput, Map<ICraftingPatternDetails, Long> remaining) {
-        if (finalOutput == null) {
+        Map<ICraftingPatternDetails, Long> totals = context.specialTotals();
+        if (finalOutput == null || totals == null || !totals.containsKey(details)) {
             return Long.MAX_VALUE;
         }
-        Map<ICraftingPatternDetails, Long> totals = TOTALS.get(cluster);
-        if (totals == null || !totals.containsKey(details)) {
-            return Long.MAX_VALUE;
-        }
-        Quota quota = QUOTAS.get(cluster);
+        Quota quota = (Quota) context.specialQuota();
         if (quota == null) {
             quota = deriveQuota(totals, finalOutput);
-            QUOTAS.put(cluster, quota == null ? NO_QUOTA : quota);
-            quota = quota == null ? NO_QUOTA : quota;
+            context.specialQuota(quota == null ? NO_QUOTA : quota);
         }
         if (quota == NO_QUOTA) {
             return Long.MAX_VALUE;
         }
         return allowance(quota, totals, remaining, details);
+    }
+
+    public static long pushAllowance(CraftingCPUCluster cluster, ICraftingPatternDetails details,
+            IAEItemStack finalOutput, Map<ICraftingPatternDetails, Long> remaining) {
+        return pushAllowance(CraftingCpuPort.of(cluster).context(), details, finalOutput, remaining);
     }
 
     /** 余量纯函数（测试入口）:cap − pushed;闭包外/已完成 = {@code Long.MAX_VALUE}. */

@@ -9,7 +9,7 @@ import appeng.api.storage.data.IAEStack;
 import appeng.api.storage.data.IItemList;
 import appeng.me.cache.GridStorageCache;
 import appeng.me.cache.NetworkMonitor;
-import com.github.aeddddd.ae2enhanced.util.reflection.EssentiaBusHelper;
+import com.github.aeddddd.ae2enhanced.item.reflection.EssentiaBusHelper;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -17,7 +17,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import thaumicenergistics.api.storage.IAEEssentiaStack;
 import thaumicenergistics.api.storage.IEssentiaStorageChannel;
 
-import com.github.aeddddd.ae2enhanced.mixin.late.accessor.INetworkMonitorAccessor;
+import com.github.aeddddd.ae2enhanced.storage.access.mixin.INetworkMonitorAccessor;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;

@@ -1,0 +1,39 @@
+package com.github.aeddddd.ae2enhanced.container.slot;
+
+import appeng.container.slot.SlotFakeCraftingMatrix;
+import net.minecraftforge.items.IItemHandler;
+
+/**
+ * 支持 visible 切换的假合成矩阵槽位, 供 81 槽位编码终端使用.
+ */
+public class RCSlotFakeCraftingMatrix extends SlotFakeCraftingMatrix {
+
+    private final int colOffset;
+    private final int defY;
+    public boolean visible = true;
+    private int baseX;
+
+    public RCSlotFakeCraftingMatrix(IItemHandler inv, int idx, int x, int y, int baseX) {
+        super(inv, idx, x, y);
+        this.baseX = x;
+        this.colOffset = x - baseX;
+        this.defY = y;
+    }
+
+    @Override
+    public boolean shouldDisplay() {
+        return this.visible;
+    }
+
+    public int getDefX() {
+        return this.baseX + this.colOffset;
+    }
+
+    public void setDefX(int x) {
+        this.baseX = x;
+    }
+
+    public int getDefY() {
+        return this.defY;
+    }
+}

@@ -1,18 +1,5 @@
 package com.github.aeddddd.ae2enhanced.specialcrafting;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.IdentityHashMap;
-import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-
-import net.minecraft.item.Item;
-import net.minecraft.item.ItemStack;
-
 import appeng.api.config.Actionable;
 import appeng.api.networking.crafting.ICraftingGrid;
 import appeng.api.networking.crafting.ICraftingPatternDetails;
@@ -21,11 +8,14 @@ import appeng.api.storage.data.IAEItemStack;
 import appeng.crafting.CraftingTreeNode;
 import appeng.crafting.MECraftingInventory;
 import appeng.util.item.AEItemStack;
-
 import com.github.aeddddd.ae2enhanced.specialcrafting.CondensationPlanner.LpPlanOutcome;
 import com.github.aeddddd.ae2enhanced.specialcrafting.CondensationPlanner.UnitSolution;
 import com.github.aeddddd.ae2enhanced.specialcrafting.lp.SccLpModelBuilder;
 import com.github.aeddddd.ae2enhanced.specialcrafting.lp.SccLpSolve.Execution;
+import net.minecraft.item.Item;
+import net.minecraft.item.ItemStack;
+
+import java.util.*;
 
 /**
  * LP 实数计数 → 整数次数 + 精确缺料归因的对账层.
@@ -42,34 +32,6 @@ public final class FlowReconciler {
     private FlowReconciler() {
     }
 
-    /** 对账产物. */
-    public static final class Reconciled {
-        /** 逐执行记录整数次数(与 {@link LpPlanOutcome#executions} 同序对齐;物化 crafts 用). */
-        public final Map<Execution, Long> times;
-        /**
-         * 整数化后的活跃执行记录(原 outcome.executions + 守恒修复回补的零计数记录;
-         * 物化与成环判定按此遍历).R1:该列表是本层局部新建的,不是 outcome 的字段——
-         * outcome 由 C1 计划缓存跨请求共享,不得就地追加(会污染缓存产物).
-         */
-        public final List<Execution> executions;
-        /** 缺料(canon 键 → 数量;LP 赤字整数化 + 重演缺口). */
-        public final Map<IAEItemStack, Long> missing;
-        /** 网络实取(canon 键 → 数量;诊断——实际记账在根节点 used 列表). */
-        public final Map<IAEItemStack, Long> networkSourced;
-        /** 初始提取总量(bytes 近似). */
-        public final long totalExtracted;
-
-        Reconciled(Map<Execution, Long> times, List<Execution> executions,
-                Map<IAEItemStack, Long> missing, Map<IAEItemStack, Long> networkSourced,
-                long totalExtracted) {
-            this.times = times;
-            this.executions = executions;
-            this.missing = missing;
-            this.networkSourced = networkSourced;
-            this.totalExtracted = totalExtracted;
-        }
-    }
-
     /**
      * 整数化并重演对账.
      *
@@ -80,6 +42,16 @@ public final class FlowReconciler {
     public static Reconciled reconcile(ICraftingGrid cc, NetworkPatternIndex index, IAEItemStack what,
             long target, LpPlanOutcome outcome, MECraftingInventory inv, CraftingTreeNode rootNode,
             IActionSource src) {
+        try {
+            return reconcile(cc, index, what, target, outcome, inv, rootNode, src, null);
+        } catch (InterruptedException e) {
+            throw new IllegalStateException("无 job 的对账不可中断", e);
+        }
+    }
+
+    public static Reconciled reconcile(ICraftingGrid cc, NetworkPatternIndex index, IAEItemStack what,
+            long target, LpPlanOutcome outcome, MECraftingInventory inv, CraftingTreeNode rootNode,
+            IActionSource src, appeng.crafting.CraftingJob job) throws InterruptedException {
         // 1) 整数化(只增)
         // Execution 未覆写 equals/hashCode,LinkedHashMap 与 IdentityHashMap 语义等价,
         // 但迭代序 = 插入序(跨 JVM 启动确定) —— 下游对账遍历序随之稳定
@@ -122,6 +94,7 @@ public final class FlowReconciler {
         Map<IAEItemStack, Long> synthetic = new LinkedHashMap<>();
         Map<IAEItemStack, Long> fundedByCredit = new LinkedHashMap<>();
         Map<IAEItemStack, Long> networkSourced = new LinkedHashMap<>();
+        Map<IAEItemStack, Long> emissions = new LinkedHashMap<>();
         Map<IAEItemStack, Long> missing = new LinkedHashMap<>();
         Set<IAEItemStack> containerKeys = new LinkedHashSet<>();
         long totalExtracted = 0;
@@ -172,8 +145,11 @@ public final class FlowReconciler {
         for (int pass = 0; anyProgress && pass < 64; pass++) {
             anyProgress = false;
             for (int u = units.size() - 1; u >= 0; u--) {
+                if (job != null) {
+                    Ae2CraftingReflect.handlePausing(job);
+                }
                 ReplayPass passResult = replayUnit(cc, index, unitVars.get(u), inv, synthetic, fundedByCredit,
-                        networkSourced, missing, containerKeys, rootNode, src);
+                        networkSourced, emissions, missing, containerKeys, rootNode, src);
                 anyProgress |= passResult.progressed;
                 totalExtracted = SaturatedMath.add(totalExtracted, passResult.extracted);
             }
@@ -181,7 +157,9 @@ public final class FlowReconciler {
 
         // 3) 根键交付结算:全额生产口径——交付只吃合成盈余(库存不抵交付),
         // 缺口由 LP 赤字表达;发射台根全额免费满足,不提取、不记 used
-        if (!index.canEmit(rootKey)) {
+        if (index.canEmit(rootKey)) {
+            emissions.merge(rootKey, target, SaturatedMath::add);
+        } else {
             long funded = Math.min(target, synthetic.getOrDefault(rootKey, 0L));
             if (funded > 0) {
                 synthetic.merge(rootKey, -funded, Long::sum);
@@ -205,60 +183,7 @@ public final class FlowReconciler {
             }
         }
 
-        return new Reconciled(times, activeExecutions, missing, networkSourced, totalExtracted);
-    }
-
-    /** 重演变量:整数剩余次数 + 输入/输出表 + 单元净增益(分相序用). */
-    private static final class ReplayVar {
-        final Execution exec;
-        final Map<IAEItemStack, Long> inputs;
-        final Map<IAEItemStack, Long> outputs;
-        /** 含容器返还的产出视图(非消耗输入判定用;生产注入仍用 {@link #outputs}). */
-        final Map<IAEItemStack, Long> outWithReturns;
-        final double netGain;
-        long remaining;
-
-        ReplayVar(Execution exec, long times, Set<IAEItemStack> unitKeys) {
-            this.exec = exec;
-            this.remaining = times;
-            this.inputs = SccLpModelBuilder.condensedInputs(exec.pattern, exec.variantInputs);
-            this.outputs = new LinkedHashMap<>();
-            for (IAEItemStack o : exec.pattern.getCondensedOutputs()) {
-                if (o != null) {
-                    this.outputs.merge(RecursiveCraftingHelper.canon(o), o.getStackSize(), Long::sum);
-                }
-            }
-            // 非消耗判定口径与 SeedBootstrapCheck 一致(产出 = 凝聚输出 + 容器返还)
-            this.outWithReturns = new LinkedHashMap<>(this.outputs);
-            for (Map.Entry<IAEItemStack, Long> ret : FlowReconciler.returnsPerCraft(exec.pattern)
-                    .entrySet()) {
-                this.outWithReturns.merge(ret.getKey(), ret.getValue(), Long::sum);
-            }
-            double in = 0;
-            for (Map.Entry<IAEItemStack, Long> e : this.inputs.entrySet()) {
-                if (unitKeys.contains(e.getKey())) {
-                    in += e.getValue();
-                }
-            }
-            double out = 0;
-            for (Map.Entry<IAEItemStack, Long> e : this.outputs.entrySet()) {
-                if (unitKeys.contains(e.getKey())) {
-                    out += e.getValue();
-                }
-            }
-            this.netGain = out - in;
-        }
-    }
-
-    /** 单元一趟重演的产物:网络实取总量 + 是否有任何批次得以前进(多趟不动点终止判定). */
-    private static final class ReplayPass {
-        final long extracted;
-        final boolean progressed;
-
-        ReplayPass(long extracted, boolean progressed) {
-            this.extracted = extracted;
-            this.progressed = progressed;
-        }
+        return new Reconciled(times, activeExecutions, missing, networkSourced, totalExtracted, emissions);
     }
 
     /**
@@ -269,8 +194,9 @@ public final class FlowReconciler {
     private static ReplayPass replayUnit(ICraftingGrid cc, NetworkPatternIndex index, List<ReplayVar> vars,
             MECraftingInventory inv,
             Map<IAEItemStack, Long> synthetic, Map<IAEItemStack, Long> fundedByCredit,
-            Map<IAEItemStack, Long> networkSourced, Map<IAEItemStack, Long> missing,
-            Set<IAEItemStack> containerKeys, CraftingTreeNode rootNode, IActionSource src) {
+            Map<IAEItemStack, Long> networkSourced, Map<IAEItemStack, Long> emissions,
+            Map<IAEItemStack, Long> missing, Set<IAEItemStack> containerKeys,
+            CraftingTreeNode rootNode, IActionSource src) {
         long extractedTotal = 0;
         boolean progressedAny = false;
         // 与 SeedBootstrapCheck 一致的轮数防御
@@ -374,7 +300,7 @@ public final class FlowReconciler {
                         }
                         gainProgress = progressed = progressedAny = true;
                         extractedTotal = SaturatedMath.add(extractedTotal, applyBatch(v, exec, index,
-                                inv, synthetic, fundedByCredit, networkSourced, containerKeys, rootNode, src));
+                                inv, synthetic, fundedByCredit, networkSourced, emissions, containerKeys, rootNode, src));
                     }
                 } else {
                     // 份额地板归零(尘埃竞争):贪心兜底,保证不劣于旧行为
@@ -388,7 +314,7 @@ public final class FlowReconciler {
                         }
                         gainProgress = progressed = progressedAny = true;
                         extractedTotal = SaturatedMath.add(extractedTotal, applyBatch(v, cap, index, inv,
-                                synthetic, fundedByCredit, networkSourced, containerKeys, rootNode, src));
+                                synthetic, fundedByCredit, networkSourced, emissions, containerKeys, rootNode, src));
                     }
                 }
             }
@@ -495,7 +421,7 @@ public final class FlowReconciler {
                     }
                     neutralProgress = progressed = progressedAny = true;
                     extractedTotal = SaturatedMath.add(extractedTotal, applyBatch(v, exec, index, inv, synthetic,
-                            fundedByCredit, networkSourced, containerKeys, rootNode, src));
+                            fundedByCredit, networkSourced, emissions, containerKeys, rootNode, src));
                 }
             }
             if (!progressed) {
@@ -511,6 +437,111 @@ public final class FlowReconciler {
             }
         }
         return new ReplayPass(extractedTotal, progressedAny);
+    }
+
+    /** 重演变量:整数剩余次数 + 输入/输出表 + 单元净增益(分相序用). */
+    private static final class ReplayVar {
+        final Execution exec;
+        final Map<IAEItemStack, Long> inputs;
+        final Map<IAEItemStack, Long> outputs;
+        /** 含容器返还的产出视图(非消耗输入判定用;生产注入仍用 {@link #outputs}). */
+        final Map<IAEItemStack, Long> outWithReturns;
+        final double netGain;
+        long remaining;
+
+        ReplayVar(Execution exec, long times, Set<IAEItemStack> unitKeys) {
+            this.exec = exec;
+            this.remaining = times;
+            this.inputs = SccLpModelBuilder.condensedInputs(exec.pattern, exec.variantInputs);
+            this.outputs = new LinkedHashMap<>();
+            for (IAEItemStack o : exec.pattern.getCondensedOutputs()) {
+                if (o != null) {
+                    this.outputs.merge(RecursiveCraftingHelper.canon(o), o.getStackSize(), Long::sum);
+                }
+            }
+            // 非消耗判定口径与 SeedBootstrapCheck 一致(产出 = 凝聚输出 + 容器返还)
+            this.outWithReturns = new LinkedHashMap<>(this.outputs);
+            for (Map.Entry<IAEItemStack, Long> ret : FlowReconciler.returnsPerCraft(exec.pattern)
+                    .entrySet()) {
+                this.outWithReturns.merge(ret.getKey(), ret.getValue(), Long::sum);
+            }
+            double in = 0;
+            for (Map.Entry<IAEItemStack, Long> e : this.inputs.entrySet()) {
+                if (unitKeys.contains(e.getKey())) {
+                    in += e.getValue();
+                }
+            }
+            double out = 0;
+            for (Map.Entry<IAEItemStack, Long> e : this.outputs.entrySet()) {
+                if (unitKeys.contains(e.getKey())) {
+                    out += e.getValue();
+                }
+            }
+            this.netGain = out - in;
+        }
+    }
+
+    /** 单元一趟重演的产物:网络实取总量 + 是否有任何批次得以前进(多趟不动点终止判定). */
+    private static final class ReplayPass {
+        final long extracted;
+        final boolean progressed;
+
+        ReplayPass(long extracted, boolean progressed) {
+            this.extracted = extracted;
+            this.progressed = progressed;
+        }
+    }
+
+    /**
+     * 整批执行 cap 次:逐输入提取(网络优先记 used,合成侧余额抵扣;发射台免费)
+     * → 产出注入 + 容器返还回记.
+     *
+     * @return 本批网络实取量
+     */
+    private static long applyBatch(ReplayVar v, long cap, NetworkPatternIndex index, MECraftingInventory inv,
+            Map<IAEItemStack, Long> synthetic, Map<IAEItemStack, Long> fundedByCredit,
+            Map<IAEItemStack, Long> networkSourced, Map<IAEItemStack, Long> emissions,
+            Set<IAEItemStack> containerKeys, CraftingTreeNode rootNode, IActionSource src) {
+        v.remaining -= cap;
+        long fromNetwork = 0;
+        for (Map.Entry<IAEItemStack, Long> in : v.inputs.entrySet()) {
+            long need = SaturatedMath.multiply(in.getValue(), cap);
+            if (need <= 0) {
+                continue;
+            }
+            // 根键输入按普通键提取(记 used):点火种子必须包含在计划的初始提取中,
+            // 执行层(游戏与 ExecutionHarness 同构)任务中途不可访问网络,种子不入
+            // used 则 CPU 无法点火死锁;种子期末由循环盈余随 CPU 剩余返还网络
+            if (index.canEmit(in.getKey())) {
+                // 发射台:网络实存先取,剩余免费满足(原生同语义,不记缺料)
+                long realAvailable = Math.max(0L, invAmount(inv, in.getKey())
+                        - synthetic.getOrDefault(in.getKey(), 0L));
+                long fromStock = Math.min(need, realAvailable);
+                if (fromStock > 0) {
+                    extractCredited(in.getKey(), fromStock, inv, synthetic,
+                            fundedByCredit, networkSourced, rootNode, src, true);
+                }
+                long emitted = need - fromStock;
+                if (emitted > 0) {
+                    emissions.merge(in.getKey(), emitted, SaturatedMath::add);
+                }
+                continue;
+            }
+            ExtractOutcome outcome = extractCredited(in.getKey(), need, inv, synthetic,
+                    fundedByCredit, networkSourced, rootNode, src, false);
+            fromNetwork = SaturatedMath.add(fromNetwork, outcome.fromNetwork);
+            // 提取缺口不记 missing:上游赤字/降级已承担差额(整数化尾差随赤字口径收敛)
+        }
+        // 容器返还(自返还 cap-1 保种子,跨样板全额——与原 DAG 路径同口径)
+        creditReturns(v.exec.pattern, cap, inv, synthetic, containerKeys, src);
+        // 产出注入 + 合成侧余额
+        for (Map.Entry<IAEItemStack, Long> out : v.outputs.entrySet()) {
+            IAEItemStack produced = out.getKey().copy();
+            produced.setStackSize(SaturatedMath.multiply(out.getValue(), cap));
+            inv.injectItems(produced, Actionable.MODULATE, src);
+            synthetic.merge(out.getKey(), produced.getStackSize(), Long::sum);
+        }
+        return fromNetwork;
     }
 
     /** 当前可行批量:min(剩余, 逐输入 (库存+合成侧余额)/单耗);发射台输入不设限. */
@@ -545,51 +576,35 @@ public final class FlowReconciler {
         return (long) (base * ((double) perCraft * remaining / totalDemand)) / perCraft;
     }
 
-    /**
-     * 整批执行 cap 次:逐输入提取(网络优先记 used,合成侧余额抵扣;发射台免费)
-     * → 产出注入 + 容器返还回记.
-     *
-     * @return 本批网络实取量
-     */
-    private static long applyBatch(ReplayVar v, long cap, NetworkPatternIndex index, MECraftingInventory inv,
-            Map<IAEItemStack, Long> synthetic, Map<IAEItemStack, Long> fundedByCredit,
-            Map<IAEItemStack, Long> networkSourced,
-            Set<IAEItemStack> containerKeys, CraftingTreeNode rootNode, IActionSource src) {
-        v.remaining -= cap;
-        long fromNetwork = 0;
-        for (Map.Entry<IAEItemStack, Long> in : v.inputs.entrySet()) {
-            long need = SaturatedMath.multiply(in.getValue(), cap);
-            if (need <= 0) {
-                continue;
-            }
-            // 根键输入按普通键提取(记 used):点火种子必须包含在计划的初始提取中,
-            // 执行层(游戏与 ExecutionHarness 同构)任务中途不可访问网络,种子不入
-            // used 则 CPU 无法点火死锁;种子期末由循环盈余随 CPU 剩余返还网络
-            if (index.canEmit(in.getKey())) {
-                // 发射台:网络实存先取,剩余免费满足(原生同语义,不记缺料)
-                long realAvailable = Math.max(0L, invAmount(inv, in.getKey())
-                        - synthetic.getOrDefault(in.getKey(), 0L));
-                if (realAvailable > 0) {
-                    extractCredited(in.getKey(), Math.min(need, realAvailable), inv, synthetic,
-                            fundedByCredit, networkSourced, rootNode, src, true);
-                }
-                continue;
-            }
-            ExtractOutcome outcome = extractCredited(in.getKey(), need, inv, synthetic,
-                    fundedByCredit, networkSourced, rootNode, src, false);
-            fromNetwork = SaturatedMath.add(fromNetwork, outcome.fromNetwork);
-            // 提取缺口不记 missing:上游赤字/降级已承担差额(整数化尾差随赤字口径收敛)
+    /** 对账产物. */
+    public static final class Reconciled {
+        /** 逐执行记录整数次数(与 {@link LpPlanOutcome#executions} 同序对齐;物化 crafts 用). */
+        public final Map<Execution, Long> times;
+        /**
+         * 整数化后的活跃执行记录(原 outcome.executions + 守恒修复回补的零计数记录;
+         * 物化与成环判定按此遍历).R1:该列表是本层局部新建的,不是 outcome 的字段——
+         * outcome 由 C1 计划缓存跨请求共享,不得就地追加(会污染缓存产物).
+         */
+        public final List<Execution> executions;
+        /** 缺料(canon 键 → 数量;LP 赤字整数化 + 重演缺口). */
+        public final Map<IAEItemStack, Long> missing;
+        /** 网络实取(canon 键 → 数量;诊断——实际记账在根节点 used 列表). */
+        public final Map<IAEItemStack, Long> networkSourced;
+        /** 初始提取总量(bytes 近似). */
+        public final long totalExtracted;
+        /** 发射台义务(canon 键 → 免费满足数量). */
+        public final Map<IAEItemStack, Long> emissions;
+
+        Reconciled(Map<Execution, Long> times, List<Execution> executions,
+                Map<IAEItemStack, Long> missing, Map<IAEItemStack, Long> networkSourced,
+                long totalExtracted, Map<IAEItemStack, Long> emissions) {
+            this.times = times;
+            this.executions = executions;
+            this.missing = missing;
+            this.networkSourced = networkSourced;
+            this.totalExtracted = totalExtracted;
+            this.emissions = emissions;
         }
-        // 容器返还(自返还 cap-1 保种子,跨样板全额——与原 DAG 路径同口径)
-        creditReturns(v.exec.pattern, cap, inv, synthetic, containerKeys, src);
-        // 产出注入 + 合成侧余额
-        for (Map.Entry<IAEItemStack, Long> out : v.outputs.entrySet()) {
-            IAEItemStack produced = out.getKey().copy();
-            produced.setStackSize(SaturatedMath.multiply(out.getValue(), cap));
-            inv.injectItems(produced, Actionable.MODULATE, src);
-            synthetic.merge(out.getKey(), produced.getStackSize(), Long::sum);
-        }
-        return fromNetwork;
     }
 
     /** 实数计数 → 整数次数:⌈count − 1e-6⌉,饱和转换. */

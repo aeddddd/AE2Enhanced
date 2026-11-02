@@ -1,13 +1,13 @@
 package com.github.aeddddd.ae2enhanced.mixin.late.upgrade;
 
+import appeng.fluids.parts.PartFluidStorageBus;
 import appeng.parts.automation.PartAbstractFormationPlane;
 import appeng.parts.automation.PartUpgradeable;
 import appeng.parts.misc.PartStorageBus;
-import appeng.fluids.parts.PartFluidStorageBus;
-import com.github.aeddddd.ae2enhanced.config.AE2EnhancedConfig;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
-import org.spongepowered.asm.mixin.injection.ModifyVariable;
+import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 /**
  * F1：为所有 AE2 Part 增加额外的升级槽位数量.
@@ -23,8 +23,9 @@ import org.spongepowered.asm.mixin.injection.ModifyVariable;
 }, remap = false)
 public class MixinUpgradeSlots {
 
-    @ModifyVariable(method = "getUpgradeSlots", at = @At("RETURN"), ordinal = 0)
-    private int ae2e$addExtraUpgradeSlots(int original) {
-        return original + AE2EnhancedConfig.wirelessChannel.extraUpgradeSlots;
+    @Inject(method = "getUpgradeSlots", at = @At("RETURN"), cancellable = true, require = 1)
+    private void ae2e$addExtraUpgradeSlots(CallbackInfoReturnable<Integer> cir) {
+        cir.setReturnValue(cir.getReturnValueI()
+                + com.github.aeddddd.ae2enhanced.config.ServerConfig.current().wirelessChannel.extraUpgradeSlots);
     }
 }

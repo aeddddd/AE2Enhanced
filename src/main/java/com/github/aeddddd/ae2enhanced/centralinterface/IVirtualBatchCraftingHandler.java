@@ -209,18 +209,38 @@ public interface IVirtualBatchCraftingHandler extends IRemoteHandler {
      * @param count   份数
      * @return 合并后的产物列表
      */
+    static boolean isOutputScalingSafe(IAEItemStack[] outputs, long count) {
+        if (count <= 0) return false;
+        if (outputs == null || outputs.length == 0) return true;
+        for (IAEItemStack output : outputs) {
+            if (output == null || output.getStackSize() <= 0) continue;
+            try {
+                Math.multiplyExact(output.getStackSize(), count);
+            } catch (ArithmeticException overflow) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     default List<ItemStack> scaleOutputsByCount(IAEItemStack[] outputs, long count) {
-        if (outputs == null || outputs.length == 0 || count <= 0) {
+        if (outputs == null || outputs.length == 0) return Collections.emptyList();
+        if (!isOutputScalingSafe(outputs, count)) {
             return Collections.emptyList();
         }
         List<ItemStack> products = new ArrayList<>();
         for (IAEItemStack output : outputs) {
             if (output == null || output.getStackSize() <= 0) continue;
-            long total = output.getStackSize() * count;
-            if (total <= 0) continue;
+            long total;
+            try {
+                total = Math.multiplyExact(output.getStackSize(), count);
+            } catch (ArithmeticException overflow) {
+                return Collections.emptyList();
+            }
             ItemStack template = output.createItemStack();
-            if (template.isEmpty()) continue;
+            if (template.isEmpty()) return Collections.emptyList();
             int maxSize = template.getMaxStackSize();
+            if (maxSize <= 0) return Collections.emptyList();
             while (total > 0) {
                 int slice = (int) Math.min(total, maxSize);
                 ItemStack copy = template.copy();
