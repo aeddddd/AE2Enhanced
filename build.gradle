@@ -96,7 +96,20 @@ configurations {
         visible = false
     }
 }
-
+// 编译期前置检查: 两个外部构件不在仓库内, 缺失时在编译开始前给出明确原因
+def requiredLibs = [
+        'libs/Mekanism-CE-Unofficial-All-10.0.3.550-dev.jar',
+        'libs/terminal_interaction_integration-1.0.jar'
+]
+tasks.register('checkRequiredLibs') {
+    doLast {
+        def missing = requiredLibs.findAll { !file(it).exists() }
+        if (!missing.isEmpty()) {
+            throw new GradleException("缺少编译期依赖: ${missing.join(', ')}")
+        }
+    }
+}
+tasks.named('compileJava') { dependsOn 'checkRequiredLibs' }
 // ----------------------------------------------------------------------------
 // 依赖
 // 注意: AE2-UEL 不得包 rfg.deobf() —— 开发环境运行时由 FML 做 SRG→MCP 重映射,
